@@ -4,6 +4,7 @@ import 'theme/app_theme.dart';
 import 'screens/import_screen.dart';
 import 'screens/analysis_screen.dart';
 import 'screens/training_screen.dart';
+import 'screens/benchmark_screen.dart';
 
 class PatternChessApp extends StatelessWidget {
   const PatternChessApp({super.key});
@@ -34,6 +35,10 @@ class PatternChessApp extends StatelessWidget {
               builder: (_) => TrainingScreen(
                 gameIds: args?['gameIds'] as List<String>?,
               ),
+            );
+          case '/benchmark':
+            return MaterialPageRoute(
+              builder: (_) => const BenchmarkScreen(),
             );
           default:
             return MaterialPageRoute(

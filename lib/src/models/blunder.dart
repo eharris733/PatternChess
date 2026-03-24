@@ -20,7 +20,7 @@ class Blunder {
   final String fen;
   final int moveNumber;
   final String playedMove;
-  final List<CorrectMove> correctMoves;
+  List<CorrectMove> correctMoves;
   final int evalBefore;
   final int evalAfter;
   final int evalSwing;
@@ -65,6 +65,12 @@ class Blunder {
 
   bool isCorrectMove(String uciMove) {
     return correctMoves.any((cm) => cm.move == uciMove);
+  }
+
+  void addCorrectMove(CorrectMove move) {
+    if (!correctMoves.any((cm) => cm.move == move.move)) {
+      correctMoves.add(move);
+    }
   }
 
   factory Blunder.fromJson(Map<String, dynamic> json) {

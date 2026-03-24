@@ -1,60 +1,86 @@
-// Stockfish WASM Web Worker interop for Dart
-let stockfishWorker = null;
+// Stockfish WASM interop for Dart
+// Uses nmrugg/stockfish.js Lite (7MB WASM, NNUE embedded)
+// Primary: multi-threaded (requires CORS), Fallback: single-threaded
+let sfWorker = null;
 let outputLines = [];
 let resolveWaiting = null;
 
-function initStockfish() {
-  return new Promise((resolve) => {
-    try {
-      stockfishWorker = new Worker('stockfish/stockfish-18-lite-single.js');
+const ENGINE_MT = 'stockfish/stockfish-18-lite.js';
+const ENGINE_ST = 'stockfish/stockfish-18-lite-single.js';
 
-      stockfishWorker.onmessage = function(event) {
-        const line = typeof event.data === 'string' ? event.data : event.data.toString();
-        outputLines.push(line);
+function tryLoadWorker(path) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error('Load timeout'));
+    }, 30000);
 
-        // Check if we're waiting for a response
-        if (resolveWaiting) {
-          if (line.startsWith('bestmove') || line === 'uciok' || line === 'readyok') {
-            const callback = resolveWaiting;
-            resolveWaiting = null;
-            callback(outputLines.join('\n'));
-            outputLines = [];
-          }
-        }
-      };
+    const worker = new Worker(path);
 
-      stockfishWorker.onerror = function(error) {
-        console.error('Stockfish worker error:', error);
-        if (resolveWaiting) {
-          resolveWaiting('error: ' + error.message);
-          resolveWaiting = null;
-        }
-      };
+    worker.onmessage = function(e) {
+      const line = typeof e.data === 'string' ? e.data : String(e.data);
+      if (line.includes('uciok')) {
+        clearTimeout(timeout);
+        resolve(worker);
+      }
+    };
 
-      // Initialize UCI
-      stockfishWorker.postMessage('uci');
+    worker.onerror = function(e) {
+      clearTimeout(timeout);
+      worker.terminate();
+      reject(new Error(e.message || 'Worker load error'));
+    };
 
-      // Wait for uciok
-      resolveWaiting = function(output) {
-        if (output.includes('uciok')) {
-          stockfishWorker.postMessage('isready');
-          resolveWaiting = function(readyOutput) {
-            resolve(true);
-          };
-        } else {
-          resolve(false);
-        }
-      };
-    } catch (e) {
-      console.error('Failed to init Stockfish:', e);
-      resolve(false);
-    }
+    worker.postMessage('uci');
   });
 }
 
+async function initStockfish() {
+  try {
+    // Try multi-threaded first (faster, requires CORS/SharedArrayBuffer)
+    try {
+      sfWorker = await tryLoadWorker(ENGINE_MT);
+      console.log('Stockfish Lite MT ready (nmrugg/stockfish.js, multi-threaded)');
+    } catch (e) {
+      console.warn('Stockfish Lite MT failed, falling back to single-threaded:', e.message);
+      sfWorker = await tryLoadWorker(ENGINE_ST);
+      console.log('Stockfish Lite ST ready (nmrugg/stockfish.js, single-threaded fallback)');
+    }
+
+    // Set up persistent message handler
+    sfWorker.onmessage = function(e) {
+      const line = typeof e.data === 'string' ? e.data : String(e.data);
+      outputLines.push(line);
+
+      if (resolveWaiting) {
+        if (line.startsWith('bestmove') || line === 'uciok' || line === 'readyok') {
+          const callback = resolveWaiting;
+          resolveWaiting = null;
+          callback(outputLines.join('\n'));
+          outputLines = [];
+        }
+      }
+    };
+
+    sfWorker.onerror = function(e) {
+      console.error('Stockfish worker error:', e.message);
+    };
+
+    // Wait for isready/readyok
+    return new Promise((resolve) => {
+      sfWorker.postMessage('isready');
+      resolveWaiting = function(output) {
+        resolve(output.includes('readyok'));
+      };
+    });
+  } catch (e) {
+    console.error('Failed to init Stockfish:', e);
+    return false;
+  }
+}
+
 function sendStockfishCommand(command) {
-  if (stockfishWorker) {
-    stockfishWorker.postMessage(command);
+  if (sfWorker) {
+    sfWorker.postMessage(command);
   }
 }
 
@@ -65,7 +91,7 @@ function waitForBestMove() {
   });
 }
 
-function waitForAnalysis(depth) {
+function waitForAnalysis(timeOrDepth) {
   return new Promise((resolve) => {
     outputLines = [];
     resolveWaiting = function(output) {

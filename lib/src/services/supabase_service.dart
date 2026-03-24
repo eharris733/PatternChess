@@ -73,6 +73,13 @@ class SupabaseService {
         .toList();
   }
 
+  static Future<void> appendCorrectMove(
+      String blunderId, List<CorrectMove> updatedMoves) async {
+    await _client.from('blunders').update({
+      'correct_moves': updatedMoves.map((e) => e.toJson()).toList(),
+    }).eq('id', blunderId);
+  }
+
   static Future<void> updateBlunderAfterDrill(Blunder blunder) async {
     await _client.from('blunders').update({
       'cycle_number': blunder.cycleNumber,

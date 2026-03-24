@@ -61,6 +61,7 @@ class _ImportScreenState extends State<ImportScreen> {
           username,
           maxGames: _gameCount,
           ratedOnly: _ratedOnly,
+          timeControl: _timeControl,
         );
       } else {
         games = await ChessApiService.fetchLichessGames(
@@ -194,6 +195,17 @@ class _ImportScreenState extends State<ImportScreen> {
                   ),
                   child: const Text('CONTINUE TRAINING'),
                 ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.pushNamed(context, '/benchmark'),
+                  icon: const Icon(Icons.speed, size: 18),
+                  label: const Text('ENGINE BENCHMARK'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.textSecondary,
+                    side: const BorderSide(color: AppTheme.surfaceLight),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
               ],
             ),
           ),
@@ -251,7 +263,7 @@ class _ImportScreenState extends State<ImportScreen> {
       children: [
         // Game count
         _filterChip(
-          label: '${_gameCount} games',
+          label: '$_gameCount games',
           onTap: () {
             final currentIndex = _gameCountOptions.indexOf(_gameCount);
             final nextIndex = (currentIndex + 1) % _gameCountOptions.length;
@@ -266,9 +278,8 @@ class _ImportScreenState extends State<ImportScreen> {
           active: _ratedOnly,
         ),
 
-        // Time control (lichess only)
-        if (_platform == ChessPlatform.lichess)
-          _filterChip(
+        // Time control
+        _filterChip(
             label: _timeControls[_timeControl] ?? 'All',
             onTap: () {
               final keys = _timeControls.keys.toList();

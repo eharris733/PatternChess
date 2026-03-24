@@ -11,41 +11,45 @@
 ```bash
 npm pack stockfish@18.0.5
 tar -xzf stockfish-18.0.5.tgz
-cp package/bin/stockfish-18-lite-single.js web/stockfish/
-cp package/bin/stockfish-18-lite-single.wasm web/stockfish/
+cp package/bin/stockfish-18.js web/stockfish/
+cp package/bin/stockfish-18.wasm web/stockfish/stockfish.wasm
 rm -rf package stockfish-18.0.5.tgz
 ```
 
 Source: [nmrugg/stockfish.js](https://github.com/nmrugg/stockfish.js) (npm package: `stockfish`)
 
-### 2. Available Builds
+### 2. Current Build: Full Multi-threaded
 
-| Build | Files | Size | Notes |
-|---|---|---|---|
-| **Lite single-threaded** (recommended) | `stockfish-18-lite-single.js` + `.wasm` | ~7MB | No CORS headers needed |
-| Lite multi-threaded | `stockfish-18-lite.js` + `.wasm` | ~7MB | Requires CORS headers |
-| Full single-threaded | `stockfish-18-single.js` + `.wasm` | ~113MB | Strongest, no CORS needed |
-| Full multi-threaded | `stockfish-18.js` + `.wasm` | ~113MB | Strongest, requires CORS |
-| ASM.js fallback | `stockfish-18-asm.js` | ~10MB | JavaScript only, slowest |
+Using `stockfish-18.js` + `stockfish.wasm` (~113MB). Full NNUE neural net, strongest analysis. Cached by browser after first load. Uses Lazy SMP with up to 4 threads (auto-detected from `navigator.hardwareConcurrency`).
 
 ### 3. File Structure
 ```
 web/
 ├── stockfish/
-│   ├── stockfish.js                    # Loader stub (committed)
-│   ├── stockfish-18-lite-single.js     # Engine (gitignored, downloaded)
-│   └── stockfish-18-lite-single.wasm   # Engine (gitignored, downloaded)
+│   ├── stockfish.js                    # Loader stub (committed, unused)
+│   ├── stockfish-18.js                 # Multi-threaded engine loader (gitignored)
+│   └── stockfish.wasm                  # Engine binary (gitignored, ~113MB)
 └── js/
     └── stockfish_interop.js            # JS interop bridge (committed)
 ```
 
-### 4. CORS Headers (multi-threaded builds only)
-Multi-threaded builds require these response headers on your web server:
+### 4. CORS Headers (required)
+Multi-threaded WASM requires these response headers for `SharedArrayBuffer`:
 ```
 Cross-Origin-Embedder-Policy: require-corp
 Cross-Origin-Opener-Policy: same-origin
 ```
-The lite single-threaded build does NOT need these.
+
+Dev server (`--wasm` required for `dartchess` 64-bit bitboards):
+```bash
+flutter run -d chrome --wasm --web-header=Cross-Origin-Embedder-Policy=require-corp --web-header=Cross-Origin-Opener-Policy=same-origin
+```
+
+Production: configure headers on your hosting platform.
+
+### 5. Search Strategy
+- **Batch analysis** (`analyzeGame`): `go depth 12` — fast and consistent
+- **On-the-fly eval** (`evaluateMove`): `go movetime 500` — 0.5s time limit, threads collaborate for best result
 
 ## UCI Protocol
 

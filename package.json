@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@lichess-org/stockfish-web": "^0.2.3",
+    "stockfish": "^18.0.5"
+  }
+}

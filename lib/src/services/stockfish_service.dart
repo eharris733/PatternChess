@@ -1,6 +1,7 @@
-import 'dart:async';
 import 'dart:js_interop';
 
+import '../models/blunder.dart';
+import '../utils/winning_chances.dart';
 import 'pgn_parser_service.dart';
 
 @JS('initStockfish')
@@ -9,21 +10,18 @@ external JSPromise<JSBoolean> _initStockfish();
 @JS('sendStockfishCommand')
 external void _sendStockfishCommand(JSString command);
 
-@JS('waitForBestMove')
-external JSPromise<JSString> _waitForBestMove();
-
 @JS('waitForAnalysis')
 external JSPromise<JSString> _waitForAnalysis(JSNumber depth);
 
-class EvalResult {
+class PositionEval {
   final int scoreCp;
   final String bestMove;
-  final int multiPv;
+  final List<String> principalVariation;
 
-  EvalResult({
+  PositionEval({
     required this.scoreCp,
     required this.bestMove,
-    this.multiPv = 1,
+    this.principalVariation = const [],
   });
 }
 
@@ -35,7 +33,7 @@ class BlunderCandidate {
   final int evalBefore;
   final int evalAfter;
   final int evalSwing;
-  final List<EvalResult> correctMoves;
+  final List<CorrectMove> correctMoves;
 
   BlunderCandidate({
     required this.fen,
@@ -52,6 +50,8 @@ class BlunderCandidate {
 class StockfishService {
   bool _initialized = false;
 
+  bool get isReady => _initialized;
+
   Future<void> init() async {
     if (_initialized) return;
     final result = await _initStockfish().toDart;
@@ -59,84 +59,88 @@ class StockfishService {
     if (!_initialized) throw Exception('Failed to initialize Stockfish');
   }
 
-  Future<int> evaluatePosition(String fen, {int depth = 13}) async {
+  /// Evaluate a position and return both the score and best move.
+  Future<PositionEval> evaluatePositionFull(String fen,
+      {int depth = 12}) async {
     _sendStockfishCommand('position fen $fen'.toJS);
     _sendStockfishCommand('go depth $depth'.toJS);
     final output = await _waitForAnalysis(depth.toJS).toDart;
-    return _parseEval(output.toDart);
+    final outputStr = output.toDart;
+    return PositionEval(
+      scoreCp: _parseEval(outputStr),
+      bestMove: _parseBestMove(outputStr),
+      principalVariation: _parsePrincipalVariation(outputStr),
+    );
   }
 
-  Future<List<EvalResult>> evaluatePositionMultiPv(
-    String fen, {
-    int depth = 13,
-    int multiPv = 3,
-  }) async {
-    _sendStockfishCommand('setoption name MultiPV value $multiPv'.toJS);
-    _sendStockfishCommand('position fen $fen'.toJS);
-    _sendStockfishCommand('go depth $depth'.toJS);
-    final output = await _waitForAnalysis(depth.toJS).toDart;
-    final results = _parseMultiPvEval(output.toDart, depth);
-    // Reset MultiPV
-    _sendStockfishCommand('setoption name MultiPV value 1'.toJS);
-    return results;
+  /// Evaluate a position after applying a specific move.
+  /// Returns eval from the resulting position's side-to-move perspective.
+  /// Uses time limit (ms) for predictable response with multi-threading benefit.
+  Future<PositionEval> evaluateMove(String fen, String uciMove,
+      {int timeMs = 500}) async {
+    _sendStockfishCommand('position fen $fen moves $uciMove'.toJS);
+    _sendStockfishCommand('go movetime $timeMs'.toJS);
+    final output = await _waitForAnalysis(timeMs.toJS).toDart;
+    final outputStr = output.toDart;
+    return PositionEval(
+      scoreCp: _parseEval(outputStr),
+      bestMove: _parseBestMove(outputStr),
+      principalVariation: _parsePrincipalVariation(outputStr),
+    );
   }
 
-  /// Analyze a full game and return blunder candidates (100+ cp swing).
-  /// [onProgress] reports (currentPosition, totalPositions).
+  /// Analyze a full game and return blunder candidates.
+  /// Uses Lichess winning-chances model: flags moves losing >=20% winning chances.
+  /// If [playerSide] is provided ('white' or 'black'), only analyzes that side's moves.
   Future<List<BlunderCandidate>> analyzeGame(
     List<ParsedPosition> positions, {
-    int depth = 13,
-    int blunderThreshold = 100,
+    int depth = 12,
+    double winningChancesThreshold = 20.0,
+    String? playerSide,
     void Function(int current, int total)? onProgress,
   }) async {
     final blunders = <BlunderCandidate>[];
-    final evals = <int>[];
+    final positionEvals = <PositionEval>[];
 
-    // Evaluate all positions
+    // Evaluate all positions, capturing both score and best move
     for (int i = 0; i < positions.length; i++) {
       onProgress?.call(i, positions.length);
-      final eval_ = await evaluatePosition(positions[i].fen, depth: depth);
-      evals.add(eval_);
+      final eval_ =
+          await evaluatePositionFull(positions[i].fen, depth: depth);
+      positionEvals.add(eval_);
     }
 
-    // Find blunders by comparing consecutive evals
+    // Find blunders using winning chances model
     for (int i = 0; i < positions.length - 1; i++) {
       final pos = positions[i];
       if (pos.uciMove == null) continue;
 
-      // Eval from the perspective of the moving side
-      final evalBefore = pos.sideToMove == 'white' ? evals[i] : -evals[i];
-      final evalAfter = pos.sideToMove == 'white' ? evals[i + 1] : -evals[i + 1];
+      // Skip opponent's moves if playerSide is specified
+      if (playerSide != null && pos.sideToMove != playerSide) continue;
 
-      // Negative swing means position got worse for the moving side
-      final swing = evalAfter - evalBefore;
+      // Skip if user played the engine's best move
+      if (pos.uciMove == positionEvals[i].bestMove) continue;
 
-      if (swing <= -blunderThreshold) {
-        // Get MultiPV to find correct moves
-        final multiPvResults = await evaluatePositionMultiPv(
-          pos.fen,
-          depth: depth,
-          multiPv: 3,
-        );
+      final chancesLost = WinningChances.winningChancesLost(
+        positionEvals[i].scoreCp,
+        positionEvals[i + 1].scoreCp,
+      );
 
-        // Filter moves within 30cp of the best
-        final bestEval = multiPvResults.isNotEmpty
-            ? multiPvResults.first.scoreCp
-            : evalBefore;
-        final correctMoves = multiPvResults
-            .where((r) => (bestEval - r.scoreCp).abs() <= 30)
-            .toList();
+      if (WinningChances.isTrainable(chancesLost)) {
+        final bestMove = positionEvals[i].bestMove;
+        final bestEval = positionEvals[i].scoreCp;
 
         blunders.add(BlunderCandidate(
           fen: pos.fen,
           moveNumber: pos.moveNumber,
           playedMove: pos.uciMove!,
           sideToMove: pos.sideToMove,
-          evalBefore: evals[i],
-          evalAfter: evals[i + 1],
-          evalSwing: swing.abs(),
-          correctMoves:
-              correctMoves.isNotEmpty ? correctMoves : multiPvResults.take(1).toList(),
+          evalBefore: bestEval,
+          evalAfter: positionEvals[i + 1].scoreCp,
+          evalSwing: chancesLost.round(),
+          correctMoves: [
+            CorrectMove(move: bestMove, eval: bestEval),
+          ],
         ));
       }
     }
@@ -162,41 +166,27 @@ class StockfishService {
     return 0;
   }
 
-  List<EvalResult> _parseMultiPvEval(String output, int targetDepth) {
-    final results = <int, EvalResult>{};
+  List<String> _parsePrincipalVariation(String output, {int maxMoves = 5}) {
     final lines = output.split('\n');
-
-    for (final line in lines) {
-      if (!line.contains('multipv') || !line.contains('depth $targetDepth '))
-        continue;
-
-      final pvMatch = RegExp(r'multipv (\d+)').firstMatch(line);
-      final cpMatch = RegExp(r'score cp (-?\d+)').firstMatch(line);
-      final mateMatch = RegExp(r'score mate (-?\d+)').firstMatch(line);
-      final moveMatch = RegExp(r' pv (\S+)').firstMatch(line);
-
-      if (pvMatch == null || moveMatch == null) continue;
-
-      final pvNum = int.parse(pvMatch.group(1)!);
-      int scoreCp;
-      if (cpMatch != null) {
-        scoreCp = int.parse(cpMatch.group(1)!);
-      } else if (mateMatch != null) {
-        final mateIn = int.parse(mateMatch.group(1)!);
-        scoreCp = mateIn > 0 ? 10000 - mateIn : -10000 + mateIn.abs();
-      } else {
-        continue;
+    for (final line in lines.reversed) {
+      if (line.contains(' pv ')) {
+        final pvIndex = line.indexOf(' pv ');
+        final pvStr = line.substring(pvIndex + 4).trim();
+        final moves = pvStr.split(' ');
+        return moves.take(maxMoves).toList();
       }
-
-      results[pvNum] = EvalResult(
-        scoreCp: scoreCp,
-        bestMove: moveMatch.group(1)!,
-        multiPv: pvNum,
-      );
     }
+    return [];
+  }
 
-    final sorted = results.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
-    return sorted.map((e) => e.value).toList();
+  String _parseBestMove(String output) {
+    final lines = output.split('\n');
+    for (final line in lines.reversed) {
+      if (line.startsWith('bestmove ')) {
+        final parts = line.split(' ');
+        if (parts.length >= 2) return parts[1];
+      }
+    }
+    return '';
   }
 }

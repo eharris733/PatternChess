@@ -44,7 +44,9 @@ class ChessApiService {
         if (allGames.length >= maxGames) break;
         if (game['pgn'] == null) continue;
         if (ratedOnly && game['rated'] != true) continue;
-        if (timeControl != null && game['time_control'] != timeControl) {
+        if (timeControl != null &&
+            !_matchesTimeCategory(
+                game['time_control'] as String? ?? '', timeControl)) {
           continue;
         }
 
@@ -172,5 +174,21 @@ class ChessApiService {
     // date: "2024.01.15", time: "12:30:45"
     final d = date.replaceAll('.', '-');
     return '${d}T${time}Z';
+  }
+
+  /// Match Chess.com raw time_control (e.g., "600", "180+2") against a category.
+  static bool _matchesTimeCategory(String rawTc, String category) {
+    // Parse base time in seconds from formats like "600", "180+2", "300+5"
+    final basePart = rawTc.split('+')[0].split('/').last;
+    final baseSeconds = int.tryParse(basePart);
+    if (baseSeconds == null) return false;
+
+    return switch (category) {
+      'bullet' => baseSeconds < 180,
+      'blitz' => baseSeconds >= 180 && baseSeconds < 600,
+      'rapid' => baseSeconds >= 600 && baseSeconds < 1800,
+      'classical' => baseSeconds >= 1800,
+      _ => true,
+    };
   }
 }

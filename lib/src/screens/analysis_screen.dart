@@ -51,11 +51,24 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
         final game = await SupabaseService.getGame(widget.gameIds[i]);
         final positions = PgnParserService.parseGame(game.pgn);
+        final headers = PgnParserService.extractHeaders(game.pgn);
+
+        // Determine which side the user played
+        String? playerSide;
+        final whitePlayer = headers['White']?.toLowerCase() ?? '';
+        final blackPlayer = headers['Black']?.toLowerCase() ?? '';
+        final username = game.username.toLowerCase();
+        if (whitePlayer.contains(username)) {
+          playerSide = 'white';
+        } else if (blackPlayer.contains(username)) {
+          playerSide = 'black';
+        }
 
         setState(() => _totalPositions = positions.length);
 
         final blunders = await _stockfish.analyzeGame(
           positions,
+          playerSide: playerSide,
           onProgress: (current, total) {
             setState(() {
               _currentPosition = current + 1;
@@ -73,7 +86,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             'move_number': b.moveNumber,
             'played_move': b.playedMove,
             'correct_moves': b.correctMoves
-                .map((cm) => {'move': cm.bestMove, 'eval': cm.scoreCp})
+                .map((cm) => cm.toJson())
                 .toList(),
             'eval_before': b.evalBefore,
             'eval_after': b.evalAfter,

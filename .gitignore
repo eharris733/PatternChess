@@ -47,9 +47,18 @@ app.*.map.json
 /android/app/release
 
 
+# Node
+node_modules/
+
 # Stockfish WASM engine binaries (downloaded, not committed)
 web/stockfish/*.wasm
+web/stockfish/*.nnue
 web/stockfish/stockfish-*.js
+web/stockfish/stockfish-*.wasm
+web/stockfish/sf_*.js
+web/stockfish/sf_*.wasm
+web/stockfish/fsf_*.js
+web/stockfish/fsf_*.wasm
 
 # Environment files
 *.env
