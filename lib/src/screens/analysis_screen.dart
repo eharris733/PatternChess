@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../services/pgn_parser_service.dart';
 import '../services/stockfish_service.dart';
 import '../services/supabase_service.dart';
+import '../utils/winning_chances.dart';
 import '../widgets/app_shell.dart';
 
 class AnalysisScreen extends StatefulWidget {
@@ -25,6 +26,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   int _currentPosition = 0;
   int _totalPositions = 0;
   int _totalBlunders = 0;
+  int _totalMistakes = 0;
   String? _error;
 
   @override
@@ -95,7 +97,16 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
           }).toList();
 
           await SupabaseService.insertBlunders(blunderMaps);
-          _totalBlunders += blunders.length;
+          for (final b in blunders) {
+            final chancesLost = WinningChances.winningChancesLost(
+                b.evalBefore, b.evalAfter);
+            final classification = WinningChances.classify(chancesLost);
+            if (classification == MoveClassification.blunder) {
+              _totalBlunders++;
+            } else {
+              _totalMistakes++;
+            }
+          }
         }
       }
 
@@ -178,7 +189,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                     child: Column(
                       children: [
                         Text(
-                          '$_totalBlunders',
+                          '${_totalBlunders + _totalMistakes}',
                           style: const TextStyle(
                             fontSize: 48,
                             fontWeight: FontWeight.bold,
@@ -186,7 +197,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                           ),
                         ),
                         Text(
-                          'blunders found across $_totalGames games',
+                          '$_totalBlunders blunders, $_totalMistakes mistakes across $_totalGames games',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ],
@@ -196,7 +207,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   SizedBox(
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: _totalBlunders > 0
+                      onPressed: (_totalBlunders + _totalMistakes) > 0
                           ? () => Navigator.pushReplacementNamed(
                                 context,
                                 '/training',
@@ -204,9 +215,9 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                               )
                           : null,
                       child: Text(
-                        _totalBlunders > 0
+                        (_totalBlunders + _totalMistakes) > 0
                             ? 'START TRAINING'
-                            : 'NO BLUNDERS FOUND',
+                            : 'NO ISSUES FOUND',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,

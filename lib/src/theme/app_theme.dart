@@ -10,6 +10,8 @@ class AppTheme {
   static const Color textSecondary = Color(0xFF9E9E9E);
   static const Color correct = Color(0xFF4CAF50);
   static const Color incorrect = Color(0xFFF44336);
+  static const Color mistake = Color(0xFFFFC107);
+  static const Color inaccuracy = Color(0xFF42A5F5);
   static const Color boardDark = Color(0xFF6B4226);
   static const Color boardLight = Color(0xFFD4A76A);
 

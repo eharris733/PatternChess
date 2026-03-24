@@ -21,7 +21,6 @@ import '../widgets/progress_indicator.dart';
 
 enum TrainingState { loading, reviewing, solving, correct, incorrect, complete }
 
-enum _ActiveLine { refutation, continuation }
 
 class _ReviewMove {
   final dc.Position position;
@@ -75,18 +74,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
   List<_ReviewMove> _refutationMoves = [];
   int? _activeRefutationIndex;
 
-  // Game continuation line (from PGN)
-  List<MovePair> _continuationMovePairs = [];
-  List<_ReviewMove> _continuationMoves = [];
-  int? _activeContinuationIndex;
-
   // Post-correct engine continuation
   List<MovePair> _postCorrectMovePairs = [];
   List<_ReviewMove> _postCorrectMoves = [];
   int? _activePostCorrectIndex;
-
-  // Which line is active for arrow key navigation
-  _ActiveLine _activeLine = _ActiveLine.refutation;
+  bool _postCorrectStartsWithWhite = true;
 
   // Game metadata
   GameRecord? _currentGame;
@@ -135,24 +127,12 @@ class _TrainingScreenState extends State<TrainingScreen> {
       return;
     }
 
-    if (_activeLine == _ActiveLine.refutation && _refutationMoves.isNotEmpty) {
+    if (_refutationMoves.isNotEmpty &&
+        (_state == TrainingState.reviewing)) {
       final idx = (_activeRefutationIndex ?? -1) + 1;
       if (idx < _refutationMoves.length) {
         _showLinePosition(_refutationMoves, idx);
-        setState(() {
-          _activeRefutationIndex = idx;
-          _activeContinuationIndex = null;
-        });
-      }
-    } else if (_activeLine == _ActiveLine.continuation &&
-        _continuationMoves.isNotEmpty) {
-      final idx = (_activeContinuationIndex ?? -1) + 1;
-      if (idx < _continuationMoves.length) {
-        _showLinePosition(_continuationMoves, idx);
-        setState(() {
-          _activeContinuationIndex = idx;
-          _activeRefutationIndex = null;
-        });
+        setState(() => _activeRefutationIndex = idx);
       }
     }
   }
@@ -167,24 +147,12 @@ class _TrainingScreenState extends State<TrainingScreen> {
       return;
     }
 
-    if (_activeLine == _ActiveLine.refutation && _refutationMoves.isNotEmpty) {
+    if (_refutationMoves.isNotEmpty &&
+        (_state == TrainingState.reviewing)) {
       final idx = (_activeRefutationIndex ?? 0) - 1;
       if (idx >= 0) {
         _showLinePosition(_refutationMoves, idx);
-        setState(() {
-          _activeRefutationIndex = idx;
-          _activeContinuationIndex = null;
-        });
-      }
-    } else if (_activeLine == _ActiveLine.continuation &&
-        _continuationMoves.isNotEmpty) {
-      final idx = (_activeContinuationIndex ?? 0) - 1;
-      if (idx >= 0) {
-        _showLinePosition(_continuationMoves, idx);
-        setState(() {
-          _activeContinuationIndex = idx;
-          _activeRefutationIndex = null;
-        });
+        setState(() => _activeRefutationIndex = idx);
       }
     }
   }
@@ -200,17 +168,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
       dest: dc.Square.fromName(rm.uci.substring(2, 4)),
     );
 
-    final blunder = _session?.currentBlunder;
-    ISet<Shape> shapes = ISet([arrow]);
-    if (blunder != null) {
-      shapes = shapes.add(_buildBlunderArrow(blunder));
-    }
-
     setState(() {
       _position = afterMove;
       _fen = afterMove.fen;
       _lastMove = rm.move;
-      _shapes = shapes;
+      _shapes = ISet([arrow]);
     });
   }
 
@@ -268,88 +230,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
     } catch (_) {}
   }
 
-  /// Parse game continuation moves from PGN after the blunder, returning
-  /// both SAN strings and _ReviewMove objects for clickable navigation.
-  void _buildGameContinuation(Blunder blunder, GameRecord game) {
-    try {
-      final pgn = dc.PgnGame.parsePgn(game.pgn);
-      dc.Position pos = dc.PgnGame.startingPosition(pgn.headers);
-      final moves = <_ReviewMove>[];
-      final movePairs = <MovePair>[];
-      var foundBlunder = false;
-      dc.Position? afterBlunderPos;
-
-      for (final node in pgn.moves.mainline()) {
-        final move = pos.parseSan(node.san);
-        if (move == null) break;
-
-        if (foundBlunder && moves.length < 5) {
-          moves.add(_ReviewMove(
-            position: pos,
-            san: node.san,
-            uci: _moveToUci(move),
-            move: move,
-          ));
-        }
-
-        final uci = _moveToUci(move);
-        if (!foundBlunder &&
-            uci == blunder.playedMove &&
-            pos.fullmoves == blunder.moveNumber) {
-          foundBlunder = true;
-          afterBlunderPos = pos.play(move);
-        }
-
-        pos = pos.play(move);
-      }
-
-      if (moves.isEmpty || afterBlunderPos == null) {
-        _continuationMoves = [];
-        _continuationMovePairs = [];
-        return;
-      }
-
-      // Build MovePairs from continuation
-      final startMoveNum = afterBlunderPos.fullmoves;
-      final blunderIsWhite = blunder.sideToMove == 'white';
-
-      if (blunderIsWhite) {
-        // Continuation starts with black's response
-        if (moves.isNotEmpty) {
-          movePairs.add(MovePair(
-            moveNumber: startMoveNum,
-            whiteMove: null,
-            blackMove: moves[0].san,
-          ));
-        }
-        for (int i = 1; i < moves.length; i += 2) {
-          movePairs.add(MovePair(
-            moveNumber: startMoveNum + ((i + 1) ~/ 2),
-            whiteMove: moves[i].san,
-            blackMove:
-                i + 1 < moves.length ? moves[i + 1].san : null,
-          ));
-        }
-      } else {
-        // Continuation starts with white's response
-        for (int i = 0; i < moves.length; i += 2) {
-          movePairs.add(MovePair(
-            moveNumber: startMoveNum + (i ~/ 2),
-            whiteMove: moves[i].san,
-            blackMove:
-                i + 1 < moves.length ? moves[i + 1].san : null,
-          ));
-        }
-      }
-
-      _continuationMoves = moves;
-      _continuationMovePairs = movePairs;
-    } catch (_) {
-      _continuationMoves = [];
-      _continuationMovePairs = [];
-    }
-  }
-
   Future<void> _loadCurrentBlunder() async {
     final blunder = _session?.currentBlunder;
     if (blunder == null) {
@@ -361,14 +241,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
     final prePos = dc.Chess.fromSetup(dc.Setup.parseFen(blunder.fen));
     _blunderSan = _getSanForUci(prePos, blunder.playedMove);
-
-    // Parse game continuation
-    if (_currentGame != null) {
-      _buildGameContinuation(blunder, _currentGame!);
-    } else {
-      _continuationMoves = [];
-      _continuationMovePairs = [];
-    }
 
     final position = dc.Chess.fromSetup(dc.Setup.parseFen(blunder.fen));
     final playerSide =
@@ -391,13 +263,13 @@ class _TrainingScreenState extends State<TrainingScreen> {
         _refutationMovePairs = [];
         _refutationMoves = [];
         _activeRefutationIndex = null;
-        _activeContinuationIndex = null;
+
         _postCorrectMoves = [];
         _postCorrectMovePairs = [];
         _activePostCorrectIndex = null;
         _incorrectFeedback = null;
         _showWhatYouPlayed = false;
-        _activeLine = _ActiveLine.refutation;
+
       });
     }
   }
@@ -434,13 +306,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
       _refutationMoves = [];
       _refutationMovePairs = [];
       _activeRefutationIndex = null;
-      _activeContinuationIndex = null;
       _postCorrectMoves = [];
       _postCorrectMovePairs = [];
       _activePostCorrectIndex = null;
       _incorrectFeedback = null;
       _showWhatYouPlayed = false;
-      _activeLine = _ActiveLine.refutation;
     });
 
     // Get refutation line from Stockfish
@@ -490,6 +360,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     // Build MovePairs: blunder + refutation sequence
     final blunderMoveNum = blunder.moveNumber;
     final blunderIsWhite = blunder.sideToMove == 'white';
+    final shortLabel = _classifyShortLabel(blunder);
 
     if (blunderIsWhite) {
       // Blunder is white's move at blunderMoveNum
@@ -497,7 +368,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       movePairs.add(MovePair(
         moveNumber: blunderMoveNum,
         whiteMove: _blunderSan,
-        whiteLabel: 'Blunder',
+        whiteLabel: shortLabel,
         blackMove: reviewMoves.length > 1 ? reviewMoves[1].san : null,
       ));
       // Subsequent pairs
@@ -515,7 +386,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         moveNumber: blunderMoveNum,
         whiteMove: null,
         blackMove: _blunderSan,
-        blackLabel: 'Blunder',
+        blackLabel: shortLabel,
       ));
       // Refutation starts with white
       for (int i = 1; i < reviewMoves.length; i += 2) {
@@ -552,22 +423,18 @@ class _TrainingScreenState extends State<TrainingScreen> {
     return san;
   }
 
-  /// Convert panel click index to _ReviewMove index for refutation line
-  int? _panelIndexToMoveIndex(int panelIndex, bool blunderIsWhite) {
-    if (blunderIsWhite) {
-      // Panel: pair0=(blunder[white], ref1[black]), pair1=(ref2[white], ref3[black])...
-      // panelIndex 0 = blunder (reviewMoves[0])
-      // panelIndex 1 = ref1 (reviewMoves[1])
-      // panelIndex 2 = ref2 (reviewMoves[2])
-      return panelIndex;
-    } else {
-      // Panel: pair0=(null[white], blunder[black]), pair1=(ref1[white], ref2[black])...
-      // panelIndex 0 = null slot → skip
-      // panelIndex 1 = blunder (reviewMoves[0])
-      // panelIndex 2 = ref1 (reviewMoves[1])
-      if (panelIndex == 0) return null;
-      return panelIndex - 1;
-    }
+  /// Convert move index to panel flat index for highlighting.
+  /// [startsWithWhite] = true if the first move in the line is white's.
+  int _moveToPanel(int moveIndex, bool startsWithWhite) {
+    return startsWithWhite ? moveIndex : moveIndex + 1;
+  }
+
+  /// Convert panel flat index to move index.
+  /// Returns null for empty slots (e.g., null white slot when line starts with black).
+  int? _panelToMove(int panelIndex, bool startsWithWhite) {
+    if (startsWithWhite) return panelIndex;
+    if (panelIndex == 0) return null; // null white slot
+    return panelIndex - 1;
   }
 
   void _onRefutationTap(int panelIndex) {
@@ -580,57 +447,26 @@ class _TrainingScreenState extends State<TrainingScreen> {
     if (blunder == null) return;
 
     final blunderIsWhite = blunder.sideToMove == 'white';
-    final idx = _panelIndexToMoveIndex(panelIndex, blunderIsWhite);
+    final idx = _panelToMove(panelIndex, blunderIsWhite);
     if (idx == null || idx < 0 || idx >= _refutationMoves.length) return;
 
     _showLinePosition(_refutationMoves, idx);
     setState(() {
       _activeRefutationIndex = idx;
-      _activeContinuationIndex = null;
       _activePostCorrectIndex = null;
-      _activeLine = _ActiveLine.refutation;
-    });
-  }
-
-  void _onContinuationTap(int panelIndex) {
-    if (_continuationMoves.isEmpty) return;
-
-    final blunder = _session?.currentBlunder;
-    if (blunder == null) return;
-
-    final blunderIsWhite = blunder.sideToMove == 'white';
-    int idx;
-    if (blunderIsWhite) {
-      // First pair: null(white), cont[0](black)
-      if (panelIndex == 0) return;
-      idx = panelIndex - 1;
-    } else {
-      idx = panelIndex;
-    }
-
-    if (idx < 0 || idx >= _continuationMoves.length) return;
-
-    _showLinePosition(_continuationMoves, idx);
-    setState(() {
-      _activeContinuationIndex = idx;
-      _activeRefutationIndex = null;
-      _activePostCorrectIndex = null;
-      _activeLine = _ActiveLine.continuation;
     });
   }
 
   void _onPostCorrectTap(int panelIndex) {
     if (_postCorrectMoves.isEmpty) return;
 
-    // Post-correct line starts from the position after the correct move
-    // Direct index mapping (no null slots since we know whose turn it is)
-    if (panelIndex < 0 || panelIndex >= _postCorrectMoves.length) return;
+    final idx = _panelToMove(panelIndex, _postCorrectStartsWithWhite);
+    if (idx == null || idx < 0 || idx >= _postCorrectMoves.length) return;
 
-    _showLinePosition(_postCorrectMoves, panelIndex);
+    _showLinePosition(_postCorrectMoves, idx);
     setState(() {
-      _activePostCorrectIndex = panelIndex;
+      _activePostCorrectIndex = idx;
       _activeRefutationIndex = null;
-      _activeContinuationIndex = null;
     });
   }
 
@@ -651,7 +487,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
       _refutationMovePairs = [];
       _refutationMoves = [];
       _activeRefutationIndex = null;
-      _activeContinuationIndex = null;
       _activePostCorrectIndex = null;
       _showWhatYouPlayed = false;
     });
@@ -787,7 +622,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
       String feedback;
       if (isRepeatedBlunder) {
-        feedback = 'This was the blunder you played in the game';
+        feedback = 'This was the move you played in the game';
       } else if (chancesLost != null) {
         final classification = WinningChances.classify(chancesLost);
         feedback = switch (classification) {
@@ -831,6 +666,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     // Build MovePairs
     final startMoveNum = startPos.fullmoves;
     final startsWithWhite = startPos.turn == dc.Side.white;
+    _postCorrectStartsWithWhite = startsWithWhite;
 
     if (startsWithWhite) {
       for (int i = 0; i < moves.length; i += 2) {
@@ -917,7 +753,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
       _refutationMovePairs = [];
       _refutationMoves = [];
       _activeRefutationIndex = null;
-      _activeContinuationIndex = null;
       _postCorrectMoves = [];
       _postCorrectMovePairs = [];
       _activePostCorrectIndex = null;
@@ -958,15 +793,36 @@ class _TrainingScreenState extends State<TrainingScreen> {
     }
   }
 
-  String _classifyBlunderLabel(Blunder blunder) {
+  MoveClassification _classifyBlunder(Blunder blunder) {
     final chancesLost = WinningChances.winningChancesLost(
         blunder.evalBefore, blunder.evalAfter);
-    final classification = WinningChances.classify(chancesLost);
-    return switch (classification) {
+    return WinningChances.classify(chancesLost);
+  }
+
+  String _classifyBlunderLabel(Blunder blunder) {
+    return switch (_classifyBlunder(blunder)) {
       MoveClassification.blunder => 'A Blunder',
       MoveClassification.mistake => 'A Mistake',
       MoveClassification.inaccuracy => 'An Inaccuracy',
       MoveClassification.good => 'A Mistake',
+    };
+  }
+
+  String _classifyShortLabel(Blunder blunder) {
+    return switch (_classifyBlunder(blunder)) {
+      MoveClassification.blunder => 'Blunder',
+      MoveClassification.mistake => 'Mistake',
+      MoveClassification.inaccuracy => 'Inaccuracy',
+      MoveClassification.good => 'Mistake',
+    };
+  }
+
+  Color _classifyColor(Blunder blunder) {
+    return switch (_classifyBlunder(blunder)) {
+      MoveClassification.blunder => AppTheme.incorrect,
+      MoveClassification.mistake => AppTheme.mistake,
+      MoveClassification.inaccuracy => AppTheme.inaccuracy,
+      MoveClassification.good => AppTheme.mistake,
     };
   }
 
@@ -1068,8 +924,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
           _buildBlunderInfo(blunder),
           const SizedBox(height: 12),
           _buildRefutationSection(),
-          const SizedBox(height: 12),
-          _buildGameContinuationSection(),
           const SizedBox(height: 12),
           _buildSolvePrompt(),
         ],
@@ -1237,6 +1091,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     if (blunder == null) return const SizedBox();
 
     final label = _classifyBlunderLabel(blunder);
+    final color = _classifyColor(blunder);
 
     return Container(
       width: double.infinity,
@@ -1260,8 +1115,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
                 ),
                 TextSpan(
                   text: _blunderSan,
-                  style: const TextStyle(
-                    color: AppTheme.incorrect,
+                  style: TextStyle(
+                    color: color,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1272,8 +1127,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
-              color: AppTheme.accentLight,
+            style: TextStyle(
+              color: color,
               fontSize: 14,
               fontWeight: FontWeight.bold,
             ),
@@ -1286,22 +1141,17 @@ class _TrainingScreenState extends State<TrainingScreen> {
   Widget _buildRefutationSection() {
     if (_refutationMoves.isEmpty) return const SizedBox();
 
+    final blunder = _session?.currentBlunder;
+    final blunderIsWhite = blunder?.sideToMove == 'white';
+    final panelIdx = _activeRefutationIndex != null
+        ? _moveToPanel(_activeRefutationIndex!, blunderIsWhite == true)
+        : null;
+
     return _buildMoveLineSection(
       title: 'Engine refutation:',
       movePairs: _refutationMovePairs,
-      activeIndex: _activeRefutationIndex,
+      activeIndex: panelIdx,
       onTap: _onRefutationTap,
-    );
-  }
-
-  Widget _buildGameContinuationSection() {
-    if (_continuationMoves.isEmpty) return const SizedBox();
-
-    return _buildMoveLineSection(
-      title: 'Game continued:',
-      movePairs: _continuationMovePairs,
-      activeIndex: _activeContinuationIndex,
-      onTap: _onContinuationTap,
     );
   }
 
@@ -1316,10 +1166,14 @@ class _TrainingScreenState extends State<TrainingScreen> {
       );
     }
 
+    final panelIdx = _activePostCorrectIndex != null
+        ? _moveToPanel(_activePostCorrectIndex!, _postCorrectStartsWithWhite)
+        : null;
+
     return _buildMoveLineSection(
       title: 'Game may have continued:',
       movePairs: _postCorrectMovePairs,
-      activeIndex: _activePostCorrectIndex,
+      activeIndex: panelIdx,
       onTap: _onPostCorrectTap,
     );
   }

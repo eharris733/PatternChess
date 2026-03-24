@@ -118,7 +118,11 @@ class MoveSequencePanel extends StatelessWidget {
                 style: TextStyle(
                   color: label == 'Blunder'
                       ? AppTheme.incorrect
-                      : AppTheme.correct,
+                      : label == 'Mistake'
+                          ? AppTheme.mistake
+                          : label == 'Inaccuracy'
+                              ? AppTheme.inaccuracy
+                              : AppTheme.correct,
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                 ),

@@ -90,12 +90,11 @@ class StockfishService {
   }
 
   /// Analyze a full game and return blunder candidates.
-  /// Uses Lichess winning-chances model: flags moves losing >=20% winning chances.
+  /// Uses Lichess winning-chances model via [WinningChances.isTrainable].
   /// If [playerSide] is provided ('white' or 'black'), only analyzes that side's moves.
   Future<List<BlunderCandidate>> analyzeGame(
     List<ParsedPosition> positions, {
     int depth = 12,
-    double winningChancesThreshold = 20.0,
     String? playerSide,
     void Function(int current, int total)? onProgress,
   }) async {
