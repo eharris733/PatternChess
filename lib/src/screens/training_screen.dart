@@ -86,6 +86,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
   // Incorrect move feedback
   String? _incorrectFeedback;
+  Color _feedbackColor = AppTheme.incorrect;
 
   // "See what you played" toggle
   bool _showWhatYouPlayed = false;
@@ -317,7 +318,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     if (_stockfishReady) {
       try {
         final result =
-            await _stockfish.evaluateMove(blunder.fen, uciMove, timeMs: 500);
+            await _stockfish.evaluatePositionFull(afterBlunder.fen, depth: 18);
         if (mounted && result.principalVariation.isNotEmpty) {
           _buildRefutationLine(blunder, position, afterBlunder,
               result.principalVariation);
@@ -552,11 +553,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
     // On-the-fly evaluation for non-stored moves
     double? chancesLost;
-    if (!isCorrect && _stockfishReady && blunder.correctMoves.isNotEmpty) {
+    if (!isCorrect && _stockfishReady && blunder.correctMoves.isNotEmpty && newPosition != null) {
       setState(() => _evaluating = true);
       try {
         final result =
-            await _stockfish.evaluateMove(blunder.fen, uciMove, timeMs: 500);
+            await _stockfish.evaluatePositionFull(newPosition.fen, depth: 18);
         final bestEval = blunder.correctMoves.first.eval;
 
         final bestWinPct = WinningChances.winPercent(bestEval);
@@ -606,12 +607,17 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
       // Compute engine continuation from the correct position
       if (_stockfishReady && newPosition != null) {
+        // Get SAN for the correct move
+        final prePos = dc.Chess.fromSetup(dc.Setup.parseFen(blunder.fen));
+        final (_, correctSan) = prePos.makeSan(move);
+
         try {
           final result = await _stockfish.evaluatePositionFull(
               newPosition.fen,
-              depth: 12);
+              depth: 18);
           if (mounted && result.principalVariation.isNotEmpty) {
-            _buildPostCorrectLine(newPosition, result.principalVariation);
+            _buildPostCorrectLine(
+              prePos, move, correctSan, newPosition, result.principalVariation);
           }
         } catch (_) {}
       }
@@ -621,6 +627,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       SupabaseService.updateBlunderAfterDrill(blunder);
 
       String feedback;
+      Color feedbackColor = AppTheme.incorrect;
       if (isRepeatedBlunder) {
         feedback = 'This was the move you played in the game';
       } else if (chancesLost != null) {
@@ -629,26 +636,51 @@ class _TrainingScreenState extends State<TrainingScreen> {
           MoveClassification.blunder => "That's a blunder, try again",
           MoveClassification.mistake => "That's a mistake, try again",
           MoveClassification.inaccuracy => "That's an inaccuracy, try again",
-          MoveClassification.good => "That's not the best move, try again",
+          MoveClassification.good =>
+            "Good move, but keep looking for the best one",
+        };
+        feedbackColor = switch (classification) {
+          MoveClassification.blunder => AppTheme.incorrect,
+          MoveClassification.mistake => AppTheme.mistake,
+          MoveClassification.inaccuracy => AppTheme.inaccuracy,
+          MoveClassification.good => AppTheme.correct,
         };
       } else {
-        feedback = "That's not correct, try again";
+        feedback = "Incorrect, try again";
       }
 
       setState(() {
         _state = TrainingState.incorrect;
         _shapes = ISet();
         _incorrectFeedback = feedback;
+        _feedbackColor = feedbackColor;
       });
     }
   }
 
-  /// Build engine continuation line after correct move
-  void _buildPostCorrectLine(dc.Position startPos, List<String> pvMoves) {
+  /// Build engine continuation line after correct move.
+  /// Prepends the user's correct move as the first entry.
+  void _buildPostCorrectLine(
+    dc.Position preCorrectPos,
+    dc.Move correctMove,
+    String correctSan,
+    dc.Position postCorrectPos,
+    List<String> pvMoves,
+  ) {
     final moves = <_ReviewMove>[];
     final movePairs = <MovePair>[];
-    var pos = startPos;
 
+    // First entry: the user's correct move
+    final correctUci = _moveToUci(correctMove);
+    moves.add(_ReviewMove(
+      position: preCorrectPos,
+      san: correctSan,
+      uci: correctUci,
+      move: correctMove,
+    ));
+
+    // Add engine PV continuation (up to 5)
+    var pos = postCorrectPos;
     for (final uci in pvMoves.take(5)) {
       final move = _parseUciMove(uci);
       if (move == null || !pos.isLegal(move)) break;
@@ -663,13 +695,20 @@ class _TrainingScreenState extends State<TrainingScreen> {
       pos = newPos;
     }
 
-    // Build MovePairs
-    final startMoveNum = startPos.fullmoves;
-    final startsWithWhite = startPos.turn == dc.Side.white;
-    _postCorrectStartsWithWhite = startsWithWhite;
+    // The line starts with the correct move's side
+    final correctMoveIsWhite = preCorrectPos.turn == dc.Side.white;
+    _postCorrectStartsWithWhite = correctMoveIsWhite;
+    final startMoveNum = preCorrectPos.fullmoves;
 
-    if (startsWithWhite) {
-      for (int i = 0; i < moves.length; i += 2) {
+    if (correctMoveIsWhite) {
+      // Correct move is white's, PV starts with black
+      movePairs.add(MovePair(
+        moveNumber: startMoveNum,
+        whiteMove: correctSan,
+        whiteLabel: 'Correct',
+        blackMove: moves.length > 1 ? moves[1].san : null,
+      ));
+      for (int i = 2; i < moves.length; i += 2) {
         movePairs.add(MovePair(
           moveNumber: startMoveNum + (i ~/ 2),
           whiteMove: moves[i].san,
@@ -677,13 +716,13 @@ class _TrainingScreenState extends State<TrainingScreen> {
         ));
       }
     } else {
-      if (moves.isNotEmpty) {
-        movePairs.add(MovePair(
-          moveNumber: startMoveNum,
-          whiteMove: null,
-          blackMove: moves[0].san,
-        ));
-      }
+      // Correct move is black's
+      movePairs.add(MovePair(
+        moveNumber: startMoveNum,
+        whiteMove: null,
+        blackMove: correctSan,
+        blackLabel: 'Correct',
+      ));
       for (int i = 1; i < moves.length; i += 2) {
         movePairs.add(MovePair(
           moveNumber: startMoveNum + ((i + 1) ~/ 2),
@@ -697,7 +736,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       setState(() {
         _postCorrectMoves = moves;
         _postCorrectMovePairs = movePairs;
-        _activePostCorrectIndex = null;
+        _activePostCorrectIndex = 0; // highlight the correct move
       });
     }
   }
@@ -932,6 +971,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
           _buildTurnToPlay(),
           const SizedBox(height: 12),
           _buildSeeWhatYouPlayed(),
+          if (_evaluating) ...[
+            const SizedBox(height: 12),
+            _buildAnalyzingIndicator(),
+          ],
         ],
 
         if (_state == TrainingState.correct) ...[
@@ -1302,7 +1345,43 @@ class _TrainingScreenState extends State<TrainingScreen> {
     );
   }
 
+  Widget _buildAnalyzingIndicator() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceLight,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Row(
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          SizedBox(width: 12),
+          Text(
+            'Analyzing move...',
+            style: TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFeedbackBadge({required bool isCorrect}) {
+    final color = isCorrect ? AppTheme.correct : _feedbackColor;
+    final icon = (isCorrect || _feedbackColor == AppTheme.correct)
+        ? Icons.check_circle
+        : Icons.cancel;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -1312,11 +1391,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       ),
       child: Row(
         children: [
-          Icon(
-            isCorrect ? Icons.check_circle : Icons.cancel,
-            color: isCorrect ? AppTheme.correct : AppTheme.incorrect,
-            size: 28,
-          ),
+          Icon(icon, color: color, size: 28),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -1324,7 +1399,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                   ? 'SOLUTION CORRECT'
                   : (_incorrectFeedback ?? 'Incorrect, try again'),
               style: TextStyle(
-                color: isCorrect ? AppTheme.correct : AppTheme.incorrect,
+                color: color,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
