@@ -7,6 +7,7 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 
 import '../theme/app_theme.dart';
 import '../models/blunder.dart';
+import '../models/game_record.dart';
 import '../models/training_session.dart';
 import '../services/stockfish_service.dart';
 import '../services/supabase_service.dart';
@@ -15,11 +16,12 @@ import '../widgets/app_shell.dart';
 import '../widgets/chess_board_panel.dart';
 import '../widgets/move_sequence_panel.dart';
 import '../widgets/eval_display.dart';
-import '../widgets/feedback_overlay.dart';
 import '../widgets/board_controls.dart';
 import '../widgets/progress_indicator.dart';
 
 enum TrainingState { loading, reviewing, solving, correct, incorrect, complete }
+
+enum _ActiveLine { refutation, continuation }
 
 class _ReviewMove {
   final dc.Position position;
@@ -68,12 +70,36 @@ class _TrainingScreenState extends State<TrainingScreen> {
   dc.NormalMove? _promotionMove;
   ISet<Shape> _shapes = ISet();
 
-  // Move history for the panel
-  List<MovePair> _movePairs = [];
+  // Refutation line (blunder + engine PV)
+  List<MovePair> _refutationMovePairs = [];
+  List<_ReviewMove> _refutationMoves = [];
+  int? _activeRefutationIndex;
 
-  // Review state: clickable variation
-  List<_ReviewMove> _reviewMoves = [];
-  int? _activeReviewIndex;
+  // Game continuation line (from PGN)
+  List<MovePair> _continuationMovePairs = [];
+  List<_ReviewMove> _continuationMoves = [];
+  int? _activeContinuationIndex;
+
+  // Post-correct engine continuation
+  List<MovePair> _postCorrectMovePairs = [];
+  List<_ReviewMove> _postCorrectMoves = [];
+  int? _activePostCorrectIndex;
+
+  // Which line is active for arrow key navigation
+  _ActiveLine _activeLine = _ActiveLine.refutation;
+
+  // Game metadata
+  GameRecord? _currentGame;
+  final Map<String, GameRecord> _gameCache = {};
+
+  // Incorrect move feedback
+  String? _incorrectFeedback;
+
+  // "See what you played" toggle
+  bool _showWhatYouPlayed = false;
+
+  // Blunder SAN for display
+  String _blunderSan = '';
 
   @override
   void initState() {
@@ -90,11 +116,111 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
   void _handleKeyPress(KeyEvent event) {
     if (event is! KeyDownEvent) return;
+    if (event.logicalKey == LogicalKeyboardKey.space) {
+      _handleActionButton();
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _stepForward();
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _stepBackward();
+    }
+  }
+
+  void _stepForward() {
+    if (_state == TrainingState.correct && _postCorrectMoves.isNotEmpty) {
+      final idx = (_activePostCorrectIndex ?? -1) + 1;
+      if (idx < _postCorrectMoves.length) {
+        _showLinePosition(_postCorrectMoves, idx);
+        setState(() => _activePostCorrectIndex = idx);
+      }
+      return;
+    }
+
+    if (_activeLine == _ActiveLine.refutation && _refutationMoves.isNotEmpty) {
+      final idx = (_activeRefutationIndex ?? -1) + 1;
+      if (idx < _refutationMoves.length) {
+        _showLinePosition(_refutationMoves, idx);
+        setState(() {
+          _activeRefutationIndex = idx;
+          _activeContinuationIndex = null;
+        });
+      }
+    } else if (_activeLine == _ActiveLine.continuation &&
+        _continuationMoves.isNotEmpty) {
+      final idx = (_activeContinuationIndex ?? -1) + 1;
+      if (idx < _continuationMoves.length) {
+        _showLinePosition(_continuationMoves, idx);
+        setState(() {
+          _activeContinuationIndex = idx;
+          _activeRefutationIndex = null;
+        });
+      }
+    }
+  }
+
+  void _stepBackward() {
+    if (_state == TrainingState.correct && _postCorrectMoves.isNotEmpty) {
+      final idx = (_activePostCorrectIndex ?? 0) - 1;
+      if (idx >= 0) {
+        _showLinePosition(_postCorrectMoves, idx);
+        setState(() => _activePostCorrectIndex = idx);
+      }
+      return;
+    }
+
+    if (_activeLine == _ActiveLine.refutation && _refutationMoves.isNotEmpty) {
+      final idx = (_activeRefutationIndex ?? 0) - 1;
+      if (idx >= 0) {
+        _showLinePosition(_refutationMoves, idx);
+        setState(() {
+          _activeRefutationIndex = idx;
+          _activeContinuationIndex = null;
+        });
+      }
+    } else if (_activeLine == _ActiveLine.continuation &&
+        _continuationMoves.isNotEmpty) {
+      final idx = (_activeContinuationIndex ?? 0) - 1;
+      if (idx >= 0) {
+        _showLinePosition(_continuationMoves, idx);
+        setState(() {
+          _activeContinuationIndex = idx;
+          _activeRefutationIndex = null;
+        });
+      }
+    }
+  }
+
+  void _showLinePosition(List<_ReviewMove> moves, int idx) {
+    if (idx < 0 || idx >= moves.length) return;
+    final rm = moves[idx];
+    final afterMove = rm.position.playUnchecked(rm.move!);
+
+    final arrow = Arrow(
+      color: AppTheme.incorrect.withValues(alpha: 0.5),
+      orig: dc.Square.fromName(rm.uci.substring(0, 2)),
+      dest: dc.Square.fromName(rm.uci.substring(2, 4)),
+    );
+
+    final blunder = _session?.currentBlunder;
+    ISet<Shape> shapes = ISet([arrow]);
+    if (blunder != null) {
+      shapes = shapes.add(_buildBlunderArrow(blunder));
+    }
+
+    setState(() {
+      _position = afterMove;
+      _fen = afterMove.fen;
+      _lastMove = rm.move;
+      _shapes = shapes;
+    });
+  }
+
+  void _handleActionButton() {
     if (_state == TrainingState.reviewing) {
       _proceedFromReview();
-    } else if (_state == TrainingState.correct ||
-        _state == TrainingState.incorrect) {
+    } else if (_state == TrainingState.correct) {
       _advance();
+    } else if (_state == TrainingState.incorrect) {
+      _retry();
     }
   }
 
@@ -102,9 +228,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     try {
       await _stockfish.init();
       if (mounted) setState(() => _stockfishReady = true);
-    } catch (_) {
-      // Stockfish not available — fall back to strict matching
-    }
+    } catch (_) {}
   }
 
   Future<void> _loadBlunders() async {
@@ -117,9 +241,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       }
 
       if (blunders.isEmpty) {
-        if (mounted) {
-          setState(() => _state = TrainingState.complete);
-        }
+        if (mounted) setState(() => _state = TrainingState.complete);
         return;
       }
 
@@ -134,11 +256,118 @@ class _TrainingScreenState extends State<TrainingScreen> {
     }
   }
 
-  void _loadCurrentBlunder() {
+  Future<void> _fetchGameRecord(String gameId) async {
+    if (_gameCache.containsKey(gameId)) {
+      _currentGame = _gameCache[gameId];
+      return;
+    }
+    try {
+      final game = await SupabaseService.getGame(gameId);
+      _gameCache[gameId] = game;
+      if (mounted) setState(() => _currentGame = game);
+    } catch (_) {}
+  }
+
+  /// Parse game continuation moves from PGN after the blunder, returning
+  /// both SAN strings and _ReviewMove objects for clickable navigation.
+  void _buildGameContinuation(Blunder blunder, GameRecord game) {
+    try {
+      final pgn = dc.PgnGame.parsePgn(game.pgn);
+      dc.Position pos = dc.PgnGame.startingPosition(pgn.headers);
+      final moves = <_ReviewMove>[];
+      final movePairs = <MovePair>[];
+      var foundBlunder = false;
+      dc.Position? afterBlunderPos;
+
+      for (final node in pgn.moves.mainline()) {
+        final move = pos.parseSan(node.san);
+        if (move == null) break;
+
+        if (foundBlunder && moves.length < 5) {
+          moves.add(_ReviewMove(
+            position: pos,
+            san: node.san,
+            uci: _moveToUci(move),
+            move: move,
+          ));
+        }
+
+        final uci = _moveToUci(move);
+        if (!foundBlunder &&
+            uci == blunder.playedMove &&
+            pos.fullmoves == blunder.moveNumber) {
+          foundBlunder = true;
+          afterBlunderPos = pos.play(move);
+        }
+
+        pos = pos.play(move);
+      }
+
+      if (moves.isEmpty || afterBlunderPos == null) {
+        _continuationMoves = [];
+        _continuationMovePairs = [];
+        return;
+      }
+
+      // Build MovePairs from continuation
+      final startMoveNum = afterBlunderPos.fullmoves;
+      final blunderIsWhite = blunder.sideToMove == 'white';
+
+      if (blunderIsWhite) {
+        // Continuation starts with black's response
+        if (moves.isNotEmpty) {
+          movePairs.add(MovePair(
+            moveNumber: startMoveNum,
+            whiteMove: null,
+            blackMove: moves[0].san,
+          ));
+        }
+        for (int i = 1; i < moves.length; i += 2) {
+          movePairs.add(MovePair(
+            moveNumber: startMoveNum + ((i + 1) ~/ 2),
+            whiteMove: moves[i].san,
+            blackMove:
+                i + 1 < moves.length ? moves[i + 1].san : null,
+          ));
+        }
+      } else {
+        // Continuation starts with white's response
+        for (int i = 0; i < moves.length; i += 2) {
+          movePairs.add(MovePair(
+            moveNumber: startMoveNum + (i ~/ 2),
+            whiteMove: moves[i].san,
+            blackMove:
+                i + 1 < moves.length ? moves[i + 1].san : null,
+          ));
+        }
+      }
+
+      _continuationMoves = moves;
+      _continuationMovePairs = movePairs;
+    } catch (_) {
+      _continuationMoves = [];
+      _continuationMovePairs = [];
+    }
+  }
+
+  Future<void> _loadCurrentBlunder() async {
     final blunder = _session?.currentBlunder;
     if (blunder == null) {
       setState(() => _state = TrainingState.complete);
       return;
+    }
+
+    await _fetchGameRecord(blunder.gameId);
+
+    final prePos = dc.Chess.fromSetup(dc.Setup.parseFen(blunder.fen));
+    _blunderSan = _getSanForUci(prePos, blunder.playedMove);
+
+    // Parse game continuation
+    if (_currentGame != null) {
+      _buildGameContinuation(blunder, _currentGame!);
+    } else {
+      _continuationMoves = [];
+      _continuationMovePairs = [];
     }
 
     final position = dc.Chess.fromSetup(dc.Setup.parseFen(blunder.fen));
@@ -159,9 +388,16 @@ class _TrainingScreenState extends State<TrainingScreen> {
         _promotionMove = null;
         _shapes = ISet();
         _showHint = false;
-        _movePairs = [];
-        _reviewMoves = [];
-        _activeReviewIndex = null;
+        _refutationMovePairs = [];
+        _refutationMoves = [];
+        _activeRefutationIndex = null;
+        _activeContinuationIndex = null;
+        _postCorrectMoves = [];
+        _postCorrectMovePairs = [];
+        _activePostCorrectIndex = null;
+        _incorrectFeedback = null;
+        _showWhatYouPlayed = false;
+        _activeLine = _ActiveLine.refutation;
       });
     }
   }
@@ -178,7 +414,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
       lastMove = move;
     }
 
-    // Red arrow for the blunder move
     final blunderArrow = Arrow(
       color: AppTheme.incorrect.withValues(alpha: 0.7),
       orig: dc.Square.fromName(uciMove.substring(0, 2)),
@@ -196,10 +431,16 @@ class _TrainingScreenState extends State<TrainingScreen> {
       _promotionMove = null;
       _shapes = ISet([blunderArrow]);
       _showHint = false;
-      _reviewMoves = [];
-      _activeReviewIndex = null;
-      // Show blunder as first move in the panel
-      _movePairs = [];
+      _refutationMoves = [];
+      _refutationMovePairs = [];
+      _activeRefutationIndex = null;
+      _activeContinuationIndex = null;
+      _postCorrectMoves = [];
+      _postCorrectMovePairs = [];
+      _activePostCorrectIndex = null;
+      _incorrectFeedback = null;
+      _showWhatYouPlayed = false;
+      _activeLine = _ActiveLine.refutation;
     });
 
     // Get refutation line from Stockfish
@@ -208,28 +449,31 @@ class _TrainingScreenState extends State<TrainingScreen> {
         final result =
             await _stockfish.evaluateMove(blunder.fen, uciMove, timeMs: 500);
         if (mounted && result.principalVariation.isNotEmpty) {
-          _buildReviewVariation(
-              blunder, afterBlunder, result.principalVariation);
+          _buildRefutationLine(blunder, position, afterBlunder,
+              result.principalVariation);
         }
-      } catch (_) {
-        // No refutation available
-      }
+      } catch (_) {}
     }
   }
 
-  void _buildReviewVariation(
-      Blunder blunder, dc.Position afterBlunder, List<String> pvMoves) {
+  /// Build refutation line with blunder as first move + engine PV
+  void _buildRefutationLine(Blunder blunder, dc.Position preBlunderPos,
+      dc.Position afterBlunder, List<String> pvMoves) {
     final reviewMoves = <_ReviewMove>[];
     final movePairs = <MovePair>[];
-    var pos = afterBlunder;
 
     // First entry: the blunder move itself
-    final blunderSan = _getSanForUci(
-        dc.Chess.fromSetup(dc.Setup.parseFen(blunder.fen)),
-        blunder.playedMove);
+    final blunderMove = _parseUciMove(blunder.playedMove);
+    reviewMoves.add(_ReviewMove(
+      position: preBlunderPos,
+      san: _blunderSan,
+      uci: blunder.playedMove,
+      move: blunderMove,
+    ));
 
-    // Build refutation moves from PV
-    for (final uci in pvMoves) {
+    // Add PV moves (up to 5)
+    var pos = afterBlunder;
+    for (final uci in pvMoves.take(5)) {
       final move = _parseUciMove(uci);
       if (move == null || !pos.isLegal(move)) break;
 
@@ -243,38 +487,40 @@ class _TrainingScreenState extends State<TrainingScreen> {
       pos = newPos;
     }
 
-    // Build MovePairs for the panel
-    // First pair: blunder move + first refutation move
-    final startMoveNum = afterBlunder.fullmoves;
+    // Build MovePairs: blunder + refutation sequence
+    final blunderMoveNum = blunder.moveNumber;
     final blunderIsWhite = blunder.sideToMove == 'white';
 
     if (blunderIsWhite) {
-      // Blunder was white's move, refutation starts with black
+      // Blunder is white's move at blunderMoveNum
+      // First pair: blunderSAN (white) + ref[0] (black)
       movePairs.add(MovePair(
-        moveNumber: startMoveNum - 1,
-        whiteMove: blunderSan,
+        moveNumber: blunderMoveNum,
+        whiteMove: _blunderSan,
         whiteLabel: 'Blunder',
-        blackMove: reviewMoves.isNotEmpty ? reviewMoves[0].san : null,
+        blackMove: reviewMoves.length > 1 ? reviewMoves[1].san : null,
       ));
-      for (int i = 1; i < reviewMoves.length; i += 2) {
+      // Subsequent pairs
+      for (int i = 2; i < reviewMoves.length; i += 2) {
         movePairs.add(MovePair(
-          moveNumber: startMoveNum + (i ~/ 2),
+          moveNumber: blunderMoveNum + (i ~/ 2),
           whiteMove: reviewMoves[i].san,
           blackMove:
               i + 1 < reviewMoves.length ? reviewMoves[i + 1].san : null,
         ));
       }
     } else {
-      // Blunder was black's move, refutation starts with white
+      // Blunder is black's move
       movePairs.add(MovePair(
-        moveNumber: startMoveNum - 1,
+        moveNumber: blunderMoveNum,
         whiteMove: null,
-        blackMove: blunderSan,
+        blackMove: _blunderSan,
         blackLabel: 'Blunder',
       ));
-      for (int i = 0; i < reviewMoves.length; i += 2) {
+      // Refutation starts with white
+      for (int i = 1; i < reviewMoves.length; i += 2) {
         movePairs.add(MovePair(
-          moveNumber: startMoveNum + (i ~/ 2),
+          moveNumber: blunderMoveNum + ((i + 1) ~/ 2),
           whiteMove: reviewMoves[i].san,
           blackMove:
               i + 1 < reviewMoves.length ? reviewMoves[i + 1].san : null,
@@ -282,10 +528,21 @@ class _TrainingScreenState extends State<TrainingScreen> {
       }
     }
 
+    // Default: highlight the blunder move (index 0)
     setState(() {
-      _reviewMoves = reviewMoves;
-      _movePairs = movePairs;
+      _refutationMoves = reviewMoves;
+      _refutationMovePairs = movePairs;
+      _activeRefutationIndex = 0;
+      _shapes = ISet([_buildBlunderArrow(blunder)]);
     });
+  }
+
+  Arrow _buildBlunderArrow(Blunder blunder) {
+    return Arrow(
+      color: AppTheme.incorrect.withValues(alpha: 0.7),
+      orig: dc.Square.fromName(blunder.playedMove.substring(0, 2)),
+      dest: dc.Square.fromName(blunder.playedMove.substring(2, 4)),
+    );
   }
 
   String _getSanForUci(dc.Position pos, String uci) {
@@ -295,74 +552,85 @@ class _TrainingScreenState extends State<TrainingScreen> {
     return san;
   }
 
-  void _onReviewMoveTap(int index) {
-    if (_state != TrainingState.reviewing || _reviewMoves.isEmpty) return;
+  /// Convert panel click index to _ReviewMove index for refutation line
+  int? _panelIndexToMoveIndex(int panelIndex, bool blunderIsWhite) {
+    if (blunderIsWhite) {
+      // Panel: pair0=(blunder[white], ref1[black]), pair1=(ref2[white], ref3[black])...
+      // panelIndex 0 = blunder (reviewMoves[0])
+      // panelIndex 1 = ref1 (reviewMoves[1])
+      // panelIndex 2 = ref2 (reviewMoves[2])
+      return panelIndex;
+    } else {
+      // Panel: pair0=(null[white], blunder[black]), pair1=(ref1[white], ref2[black])...
+      // panelIndex 0 = null slot → skip
+      // panelIndex 1 = blunder (reviewMoves[0])
+      // panelIndex 2 = ref1 (reviewMoves[1])
+      if (panelIndex == 0) return null;
+      return panelIndex - 1;
+    }
+  }
 
-    // index 0 in the panel is the blunder move itself (not in _reviewMoves)
-    // The blunder move is at panel index 0 (white) or 0 (black)
-    // Review moves start after the blunder
-    // Compute which review move this maps to
+  void _onRefutationTap(int panelIndex) {
+    if (_refutationMoves.isEmpty) return;
+    if (_state != TrainingState.reviewing && _state != TrainingState.correct) {
+      return;
+    }
+
     final blunder = _session?.currentBlunder;
     if (blunder == null) return;
 
     final blunderIsWhite = blunder.sideToMove == 'white';
-    int reviewIdx;
+    final idx = _panelIndexToMoveIndex(panelIndex, blunderIsWhite);
+    if (idx == null || idx < 0 || idx >= _refutationMoves.length) return;
 
-    if (blunderIsWhite) {
-      // Panel indices: 0=blunder(white), 1=refutation[0](black), 2=ref[1](white), ...
-      if (index == 0) {
-        // Clicked the blunder move — show position after blunder
-        _showReviewPosition(null);
-        return;
-      }
-      reviewIdx = index - 1;
-    } else {
-      // Panel indices: 0=nothing(white), 1=blunder(black), 2=ref[0](white), 3=ref[1](black)...
-      if (index <= 1) {
-        _showReviewPosition(null);
-        return;
-      }
-      reviewIdx = index - 2;
-    }
-
-    if (reviewIdx < 0 || reviewIdx >= _reviewMoves.length) return;
-    _showReviewPosition(reviewIdx);
+    _showLinePosition(_refutationMoves, idx);
+    setState(() {
+      _activeRefutationIndex = idx;
+      _activeContinuationIndex = null;
+      _activePostCorrectIndex = null;
+      _activeLine = _ActiveLine.refutation;
+    });
   }
 
-  void _showReviewPosition(int? reviewIdx) {
+  void _onContinuationTap(int panelIndex) {
+    if (_continuationMoves.isEmpty) return;
+
     final blunder = _session?.currentBlunder;
     if (blunder == null) return;
 
-    if (reviewIdx == null) {
-      // Show position after the blunder
-      final pos = dc.Chess.fromSetup(dc.Setup.parseFen(blunder.fen));
-      final move = _parseUciMove(blunder.playedMove);
-      if (move != null && pos.isLegal(move)) {
-        final afterBlunder = pos.playUnchecked(move);
-        final blunderArrow = Arrow(
-          color: AppTheme.incorrect.withValues(alpha: 0.7),
-          orig: dc.Square.fromName(blunder.playedMove.substring(0, 2)),
-          dest: dc.Square.fromName(blunder.playedMove.substring(2, 4)),
-        );
-        setState(() {
-          _position = afterBlunder;
-          _fen = afterBlunder.fen;
-          _lastMove = move;
-          _shapes = ISet([blunderArrow]);
-          _activeReviewIndex = null;
-        });
-      }
-      return;
+    final blunderIsWhite = blunder.sideToMove == 'white';
+    int idx;
+    if (blunderIsWhite) {
+      // First pair: null(white), cont[0](black)
+      if (panelIndex == 0) return;
+      idx = panelIndex - 1;
+    } else {
+      idx = panelIndex;
     }
 
-    final rm = _reviewMoves[reviewIdx];
-    final afterMove = rm.position.playUnchecked(rm.move!);
+    if (idx < 0 || idx >= _continuationMoves.length) return;
+
+    _showLinePosition(_continuationMoves, idx);
     setState(() {
-      _position = afterMove;
-      _fen = afterMove.fen;
-      _lastMove = rm.move;
-      _shapes = ISet();
-      _activeReviewIndex = reviewIdx;
+      _activeContinuationIndex = idx;
+      _activeRefutationIndex = null;
+      _activePostCorrectIndex = null;
+      _activeLine = _ActiveLine.continuation;
+    });
+  }
+
+  void _onPostCorrectTap(int panelIndex) {
+    if (_postCorrectMoves.isEmpty) return;
+
+    // Post-correct line starts from the position after the correct move
+    // Direct index mapping (no null slots since we know whose turn it is)
+    if (panelIndex < 0 || panelIndex >= _postCorrectMoves.length) return;
+
+    _showLinePosition(_postCorrectMoves, panelIndex);
+    setState(() {
+      _activePostCorrectIndex = panelIndex;
+      _activeRefutationIndex = null;
+      _activeContinuationIndex = null;
     });
   }
 
@@ -380,9 +648,12 @@ class _TrainingScreenState extends State<TrainingScreen> {
       _lastMove = null;
       _shapes = ISet();
       _showHint = false;
-      _movePairs = [];
-      _reviewMoves = [];
-      _activeReviewIndex = null;
+      _refutationMovePairs = [];
+      _refutationMoves = [];
+      _activeRefutationIndex = null;
+      _activeContinuationIndex = null;
+      _activePostCorrectIndex = null;
+      _showWhatYouPlayed = false;
     });
   }
 
@@ -430,12 +701,14 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
     final uciMove = _moveToUci(move);
     var isCorrect = blunder.isCorrectMove(uciMove);
+    final isRepeatedBlunder = uciMove == blunder.playedMove;
 
+    dc.Position? newPosition;
     if (_position!.isLegal(move)) {
-      final newPosition = _position!.playUnchecked(move);
+      newPosition = _position!.playUnchecked(move);
       setState(() {
         _position = newPosition;
-        _fen = newPosition.fen;
+        _fen = newPosition!.fen;
         _lastMove = move;
         _validMoves = const IMapConst({});
         _promotionMove = null;
@@ -443,6 +716,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     }
 
     // On-the-fly evaluation for non-stored moves
+    double? chancesLost;
     if (!isCorrect && _stockfishReady && blunder.correctMoves.isNotEmpty) {
       setState(() => _evaluating = true);
       try {
@@ -452,17 +726,15 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
         final bestWinPct = WinningChances.winPercent(bestEval);
         final moveWinPct = WinningChances.winPercent(-result.scoreCp);
+        chancesLost = bestWinPct - moveWinPct;
 
-        if ((bestWinPct - moveWinPct).abs() <= 5.0) {
+        if (chancesLost.abs() <= 5.0) {
           isCorrect = true;
-          final newMove =
-              CorrectMove(move: uciMove, eval: -result.scoreCp);
+          final newMove = CorrectMove(move: uciMove, eval: -result.scoreCp);
           blunder.addCorrectMove(newMove);
-          SupabaseService.appendCorrectMove(
-              blunder.id, blunder.correctMoves);
+          SupabaseService.appendCorrectMove(blunder.id, blunder.correctMoves);
         }
       } catch (_) {
-        // Eval failed — treat as incorrect
       } finally {
         if (mounted) setState(() => _evaluating = false);
       }
@@ -476,28 +748,122 @@ class _TrainingScreenState extends State<TrainingScreen> {
       blunder.timesAttempted++;
       blunder.lastDrilledAt = DateTime.now();
       SupabaseService.updateBlunderAfterDrill(blunder);
-      setState(() => _state = TrainingState.correct);
+
+      // Green arrow for the correct move
+      final nm = move as dc.NormalMove;
+      final correctArrow = Arrow(
+        color: AppTheme.correct.withValues(alpha: 0.7),
+        orig: nm.from,
+        dest: nm.to,
+      );
+
+      setState(() {
+        _state = TrainingState.correct;
+        _shapes = ISet([correctArrow]);
+        _incorrectFeedback = null;
+        _refutationMoves = [];
+        _refutationMovePairs = [];
+        _activeRefutationIndex = null;
+        _postCorrectMoves = [];
+        _postCorrectMovePairs = [];
+        _activePostCorrectIndex = null;
+      });
+
+      // Compute engine continuation from the correct position
+      if (_stockfishReady && newPosition != null) {
+        try {
+          final result = await _stockfish.evaluatePositionFull(
+              newPosition.fen,
+              depth: 12);
+          if (mounted && result.principalVariation.isNotEmpty) {
+            _buildPostCorrectLine(newPosition, result.principalVariation);
+          }
+        } catch (_) {}
+      }
     } else {
       _session!.recordIncorrect();
       blunder.timesAttempted++;
       SupabaseService.updateBlunderAfterDrill(blunder);
-      _highlightCorrectMoves(blunder);
-      setState(() => _state = TrainingState.incorrect);
+
+      String feedback;
+      if (isRepeatedBlunder) {
+        feedback = 'This was the blunder you played in the game';
+      } else if (chancesLost != null) {
+        final classification = WinningChances.classify(chancesLost);
+        feedback = switch (classification) {
+          MoveClassification.blunder => "That's a blunder, try again",
+          MoveClassification.mistake => "That's a mistake, try again",
+          MoveClassification.inaccuracy => "That's an inaccuracy, try again",
+          MoveClassification.good => "That's not the best move, try again",
+        };
+      } else {
+        feedback = "That's not correct, try again";
+      }
+
+      setState(() {
+        _state = TrainingState.incorrect;
+        _shapes = ISet();
+        _incorrectFeedback = feedback;
+      });
     }
   }
 
-  void _highlightCorrectMoves(Blunder blunder) {
-    final shapes = <Shape>[];
-    for (final cm in blunder.correctMoves) {
-      final from = cm.move.substring(0, 2);
-      final to = cm.move.substring(2, 4);
-      shapes.add(Arrow(
-        color: AppTheme.correct.withValues(alpha: 0.7),
-        orig: dc.Square.fromName(from),
-        dest: dc.Square.fromName(to),
+  /// Build engine continuation line after correct move
+  void _buildPostCorrectLine(dc.Position startPos, List<String> pvMoves) {
+    final moves = <_ReviewMove>[];
+    final movePairs = <MovePair>[];
+    var pos = startPos;
+
+    for (final uci in pvMoves.take(5)) {
+      final move = _parseUciMove(uci);
+      if (move == null || !pos.isLegal(move)) break;
+
+      final (newPos, san) = pos.makeSan(move);
+      moves.add(_ReviewMove(
+        position: pos,
+        san: san,
+        uci: uci,
+        move: move,
       ));
+      pos = newPos;
     }
-    setState(() => _shapes = ISet(shapes));
+
+    // Build MovePairs
+    final startMoveNum = startPos.fullmoves;
+    final startsWithWhite = startPos.turn == dc.Side.white;
+
+    if (startsWithWhite) {
+      for (int i = 0; i < moves.length; i += 2) {
+        movePairs.add(MovePair(
+          moveNumber: startMoveNum + (i ~/ 2),
+          whiteMove: moves[i].san,
+          blackMove: i + 1 < moves.length ? moves[i + 1].san : null,
+        ));
+      }
+    } else {
+      if (moves.isNotEmpty) {
+        movePairs.add(MovePair(
+          moveNumber: startMoveNum,
+          whiteMove: null,
+          blackMove: moves[0].san,
+        ));
+      }
+      for (int i = 1; i < moves.length; i += 2) {
+        movePairs.add(MovePair(
+          moveNumber: startMoveNum + ((i + 1) ~/ 2),
+          whiteMove: moves[i].san,
+          blackMove: i + 1 < moves.length ? moves[i + 1].san : null,
+        ));
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _postCorrectMoves = moves;
+        _postCorrectMovePairs = movePairs;
+        _activePostCorrectIndex = null;
+      });
+    }
   }
 
   void _advance() {
@@ -530,7 +896,34 @@ class _TrainingScreenState extends State<TrainingScreen> {
   }
 
   void _retry() {
-    _loadCurrentBlunder();
+    final blunder = _session?.currentBlunder;
+    if (blunder == null) return;
+
+    final position = dc.Chess.fromSetup(dc.Setup.parseFen(blunder.fen));
+    final playerSide =
+        blunder.sideToMove == 'white' ? dc.Side.white : dc.Side.black;
+
+    setState(() {
+      _state = TrainingState.solving;
+      _position = position;
+      _fen = blunder.fen;
+      _validMoves = dc.makeLegalMoves(position);
+      _orientation = playerSide;
+      _sideToMove = playerSide;
+      _lastMove = null;
+      _promotionMove = null;
+      _shapes = ISet();
+      _showHint = false;
+      _refutationMovePairs = [];
+      _refutationMoves = [];
+      _activeRefutationIndex = null;
+      _activeContinuationIndex = null;
+      _postCorrectMoves = [];
+      _postCorrectMovePairs = [];
+      _activePostCorrectIndex = null;
+      _incorrectFeedback = null;
+      _showWhatYouPlayed = false;
+    });
   }
 
   bool _isPromotionPawnMove(dc.NormalMove move) {
@@ -564,6 +957,20 @@ class _TrainingScreenState extends State<TrainingScreen> {
         return '';
     }
   }
+
+  String _classifyBlunderLabel(Blunder blunder) {
+    final chancesLost = WinningChances.winningChancesLost(
+        blunder.evalBefore, blunder.evalAfter);
+    final classification = WinningChances.classify(chancesLost);
+    return switch (classification) {
+      MoveClassification.blunder => 'A Blunder',
+      MoveClassification.mistake => 'A Mistake',
+      MoveClassification.inaccuracy => 'An Inaccuracy',
+      MoveClassification.good => 'A Mistake',
+    };
+  }
+
+  // ── UI ──────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -614,35 +1021,12 @@ class _TrainingScreenState extends State<TrainingScreen> {
           ),
         ),
         SizedBox(
-          width: 280,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                _buildInfoHeader(blunder),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: MoveSequencePanel(
-                    moves: _movePairs,
-                    activeIndex: _activeReviewIndex,
-                    onTap: _state == TrainingState.reviewing
-                        ? _onReviewMoveTap
-                        : null,
-                  ),
-                ),
-                if (_state == TrainingState.reviewing) ...[
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _proceedFromReview,
-                      child: const Text('GOT IT'),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                _buildProgressSection(),
-              ],
+          width: 360,
+          child: Container(
+            color: AppTheme.surface,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: _buildRightPanel(blunder),
             ),
           ),
         ),
@@ -655,109 +1039,349 @@ class _TrainingScreenState extends State<TrainingScreen> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          _buildInfoHeader(blunder),
+          _buildGameInfoHeader(),
           const SizedBox(height: 8),
           Expanded(child: _buildBoard()),
           const SizedBox(height: 8),
           _buildControls(),
-          if (_state == TrainingState.reviewing) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _proceedFromReview,
-                child: const Text('GOT IT'),
-              ),
-            ),
-          ],
+          const SizedBox(height: 8),
+          _buildNarrowStateContent(blunder),
           const SizedBox(height: 8),
           _buildProgressSection(),
+          if (_state != TrainingState.solving) ...[
+            const SizedBox(height: 8),
+            _buildActionButton(),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildBoard() {
-    return Stack(
+  Widget _buildRightPanel(Blunder? blunder) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ChessBoardPanel(
-          fen: _fen,
-          orientation: _orientation,
-          playerSide: _state == TrainingState.solving
-              ? (_sideToMove == dc.Side.white
-                  ? PlayerSide.white
-                  : PlayerSide.black)
-              : PlayerSide.none,
-          validMoves: _state == TrainingState.solving
-              ? _validMoves
-              : const IMapConst({}),
-          sideToMove: _sideToMove,
-          isCheck: _position?.isCheck ?? false,
-          lastMove: _lastMove,
-          promotionMove: _promotionMove,
-          onMove: _state == TrainingState.solving ? _onMove : null,
-          onPromotionSelection: _onPromotionSelection,
-          shapes: _shapes.isNotEmpty ? _shapes : null,
-        ),
+        _buildGameInfoHeader(),
+        const SizedBox(height: 12),
 
-        // Feedback overlays (no overlay for reviewing state)
-        if (_state == TrainingState.correct)
-          Positioned.fill(
-            child: FeedbackOverlay.correct(
-              subtitle: 'Press any key to continue',
-              actions: [
-                ElevatedButton(
-                  onPressed: _advance,
-                  child: const Text('NEXT'),
-                ),
-              ],
-            ),
-          ),
-        if (_state == TrainingState.incorrect)
-          Positioned.fill(
-            child: FeedbackOverlay.incorrect(
-              subtitle:
-                  'The correct move is highlighted. Press any key to continue.',
-              actions: [
-                ElevatedButton(
-                  onPressed: _retry,
-                  child: const Text('RETRY'),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton(
-                  onPressed: _advance,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.textSecondary,
-                  ),
-                  child: const Text('NEXT'),
-                ),
-              ],
-            ),
-          ),
+        if (_state == TrainingState.reviewing) ...[
+          _buildBlunderInfo(blunder),
+          const SizedBox(height: 12),
+          _buildRefutationSection(),
+          const SizedBox(height: 12),
+          _buildGameContinuationSection(),
+          const SizedBox(height: 12),
+          _buildSolvePrompt(),
+        ],
+
+        if (_state == TrainingState.solving) ...[
+          _buildTurnToPlay(),
+          const SizedBox(height: 12),
+          _buildSeeWhatYouPlayed(),
+        ],
+
+        if (_state == TrainingState.correct) ...[
+          _buildFeedbackBadge(isCorrect: true),
+          const SizedBox(height: 12),
+          _buildPostCorrectSection(),
+        ],
+
+        if (_state == TrainingState.incorrect) ...[
+          _buildFeedbackBadge(isCorrect: false),
+        ],
+
+        const Spacer(),
+        _buildProgressSection(),
+        const SizedBox(height: 12),
+        if (_state != TrainingState.solving) _buildActionButton(),
       ],
     );
   }
 
-  Widget _buildTurnIndicator() {
-    final isWhite = _sideToMove == dc.Side.white;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+  Widget _buildNarrowStateContent(Blunder? blunder) {
+    if (_state == TrainingState.reviewing) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildBlunderInfo(blunder),
+          const SizedBox(height: 8),
+          _buildSolvePrompt(),
+        ],
+      );
+    }
+    if (_state == TrainingState.solving) {
+      return _buildTurnToPlay();
+    }
+    if (_state == TrainingState.correct) {
+      return _buildFeedbackBadge(isCorrect: true);
+    }
+    if (_state == TrainingState.incorrect) {
+      return _buildFeedbackBadge(isCorrect: false);
+    }
+    return const SizedBox();
+  }
+
+  Widget _buildBoard() {
+    return ChessBoardPanel(
+      fen: _fen,
+      orientation: _orientation,
+      playerSide: _state == TrainingState.solving
+          ? (_sideToMove == dc.Side.white
+              ? PlayerSide.white
+              : PlayerSide.black)
+          : PlayerSide.none,
+      validMoves: _state == TrainingState.solving
+          ? _validMoves
+          : const IMapConst({}),
+      sideToMove: _sideToMove,
+      isCheck: _position?.isCheck ?? false,
+      lastMove: _lastMove,
+      promotionMove: _promotionMove,
+      onMove: _state == TrainingState.solving ? _onMove : null,
+      onPromotionSelection: _onPromotionSelection,
+      shapes: _shapes.isNotEmpty ? _shapes : null,
+    );
+  }
+
+  Widget _buildGameInfoHeader() {
+    final game = _currentGame;
+    final blunder = _session?.currentBlunder;
+
+    String title = 'Training';
+    String subtitle = '';
+
+    if (game != null) {
+      title = '${game.username} vs ${game.opponent}';
+      final parts = <String>[];
+      if (game.platform.isNotEmpty) parts.add(game.platform);
+      if (game.timeControl != null) parts.add(game.timeControl!);
+      if (game.playedAt != null) {
+        final d = game.playedAt!;
+        parts.add(
+            '${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}/${d.year}');
+      }
+      subtitle = parts.join(' \u00b7 ');
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceLight,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (_session != null) ...[
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surface,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    _session!.cycleText,
+                    style: const TextStyle(
+                      color: AppTheme.accentLight,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  _session!.progressText,
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (subtitle.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+          if (blunder != null) ...[
+            const SizedBox(height: 6),
+            EvalDisplay(scoreCp: blunder.evalBefore),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBlunderInfo(Blunder? blunder) {
+    if (blunder == null) return const SizedBox();
+
+    final label = _classifyBlunderLabel(blunder);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceLight,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          RichText(
+            text: TextSpan(
+              children: [
+                const TextSpan(
+                  text: 'You played: ',
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 14,
+                  ),
+                ),
+                TextSpan(
+                  text: _blunderSan,
+                  style: const TextStyle(
+                    color: AppTheme.incorrect,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppTheme.accentLight,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRefutationSection() {
+    if (_refutationMoves.isEmpty) return const SizedBox();
+
+    return _buildMoveLineSection(
+      title: 'Engine refutation:',
+      movePairs: _refutationMovePairs,
+      activeIndex: _activeRefutationIndex,
+      onTap: _onRefutationTap,
+    );
+  }
+
+  Widget _buildGameContinuationSection() {
+    if (_continuationMoves.isEmpty) return const SizedBox();
+
+    return _buildMoveLineSection(
+      title: 'Game continued:',
+      movePairs: _continuationMovePairs,
+      activeIndex: _activeContinuationIndex,
+      onTap: _onContinuationTap,
+    );
+  }
+
+  Widget _buildPostCorrectSection() {
+    if (_postCorrectMoves.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.only(left: 4),
+        child: Text(
+          'Calculating continuation...',
+          style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+        ),
+      );
+    }
+
+    return _buildMoveLineSection(
+      title: 'Game may have continued:',
+      movePairs: _postCorrectMovePairs,
+      activeIndex: _activePostCorrectIndex,
+      onTap: _onPostCorrectTap,
+    );
+  }
+
+  Widget _buildMoveLineSection({
+    required String title,
+    required List<MovePair> movePairs,
+    required int? activeIndex,
+    required void Function(int) onTap,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 16,
-          height: 16,
-          decoration: BoxDecoration(
-            color: isWhite ? Colors.white : Colors.black,
-            border: Border.all(color: AppTheme.textSecondary, width: 1),
-            shape: BoxShape.circle,
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 6),
+          child: Text(
+            title,
+            style: const TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
-        const SizedBox(width: 6),
+        SizedBox(
+          height: 120,
+          child: MoveSequencePanel(
+            moves: movePairs,
+            activeIndex: activeIndex,
+            onTap: onTap,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSolvePrompt() {
+    final side = _sideToMove == dc.Side.white ? 'White' : 'Black';
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        'Find a better move for $side',
+        style: const TextStyle(
+          color: AppTheme.textPrimary,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTurnToPlay() {
+    final side = _sideToMove == dc.Side.white ? 'White' : 'Black';
+    return Row(
+      children: [
+        _buildTurnIndicator(),
+        const SizedBox(width: 8),
         Text(
-          isWhite ? 'White' : 'Black',
+          '$side to play',
           style: const TextStyle(
             color: AppTheme.textPrimary,
-            fontSize: 13,
+            fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -765,38 +1389,134 @@ class _TrainingScreenState extends State<TrainingScreen> {
     );
   }
 
-  Widget _buildInfoHeader(Blunder? blunder) {
-    return Row(
-      children: [
-        _buildTurnIndicator(),
-        const SizedBox(width: 8),
-        if (blunder != null) EvalDisplay(scoreCp: blunder.evalBefore),
-        const Spacer(),
-        if (_session != null)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(4),
+  Widget _buildTurnIndicator() {
+    final isWhite = _sideToMove == dc.Side.white;
+    return Container(
+      width: 16,
+      height: 16,
+      decoration: BoxDecoration(
+        color: isWhite ? Colors.white : Colors.black,
+        border: Border.all(color: AppTheme.textSecondary, width: 1),
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+
+  Widget _buildSeeWhatYouPlayed() {
+    return GestureDetector(
+      onTap: () => setState(() => _showWhatYouPlayed = !_showWhatYouPlayed),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceLight,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  _showWhatYouPlayed ? Icons.expand_less : Icons.expand_more,
+                  color: AppTheme.textSecondary,
+                  size: 18,
+                ),
+                const SizedBox(width: 4),
+                const Text(
+                  'See what you played',
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
             ),
+            if (_showWhatYouPlayed) ...[
+              const SizedBox(height: 6),
+              Text(
+                _blunderSan,
+                style: const TextStyle(
+                  color: AppTheme.incorrect,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeedbackBadge({required bool isCorrect}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceLight,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isCorrect ? Icons.check_circle : Icons.cancel,
+            color: isCorrect ? AppTheme.correct : AppTheme.incorrect,
+            size: 28,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
             child: Text(
-              _session!.cycleText,
-              style: const TextStyle(
-                color: AppTheme.accentLight,
-                fontSize: 13,
+              isCorrect
+                  ? 'SOLUTION CORRECT'
+                  : (_incorrectFeedback ?? 'Incorrect, try again'),
+              style: TextStyle(
+                color: isCorrect ? AppTheme.correct : AppTheme.incorrect,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ),
-        const SizedBox(width: 8),
-        if (_session != null)
-          Text(
-            _session!.progressText,
-            style: const TextStyle(
-              color: AppTheme.textSecondary,
-              fontSize: 14,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton() {
+    final isRetry = _state == TrainingState.incorrect;
+    final label = isRetry ? 'Retry' : 'Next';
+    final action = isRetry ? _retry : _handleActionButton;
+
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: action,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.accent,
+              foregroundColor: AppTheme.textPrimary,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'or press Space',
+          style: TextStyle(
+            color: AppTheme.textSecondary,
+            fontSize: 12,
+          ),
+        ),
       ],
     );
   }
@@ -817,25 +1537,15 @@ class _TrainingScreenState extends State<TrainingScreen> {
           label: _paused ? 'RESUME' : 'PAUSE',
           onTap: () => setState(() => _paused = !_paused),
         ),
-        ControlConfig(
-          icon: Icons.skip_next,
-          label: 'SKIP',
-          onTap: _state == TrainingState.solving ? _advance : null,
-          enabled: _state == TrainingState.solving,
-        ),
       ],
     );
   }
 
   Widget _buildProgressSection() {
     if (_session == null) return const SizedBox();
-    return Column(
-      children: [
-        ProgressDisplay(
-          label: 'RECALL RATE',
-          value: _session!.recallRate,
-        ),
-      ],
+    return ProgressDisplay(
+      label: 'RECALL RATE',
+      value: _session!.recallRate,
     );
   }
 

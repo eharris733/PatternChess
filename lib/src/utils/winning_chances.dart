@@ -20,9 +20,9 @@ class WinningChances {
 
   /// Classify a move based on winning chances lost (Lichess thresholds).
   static MoveClassification classify(double chancesLost) {
-    if (chancesLost >= 30) return MoveClassification.blunder;
-    if (chancesLost >= 20) return MoveClassification.mistake;
-    if (chancesLost >= 10) return MoveClassification.inaccuracy;
+    if (chancesLost >= 20) return MoveClassification.blunder;
+    if (chancesLost >= 10) return MoveClassification.mistake;
+    if (chancesLost >= 5) return MoveClassification.inaccuracy;
     return MoveClassification.good;
   }
 
