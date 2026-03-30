@@ -30,3 +30,5 @@ Accept: application/x-chess-pgn
 - Response is streamed — for PGN format, games are separated by double newlines
 - PGN includes `{[%clk H:MM:SS]}` and optionally `{[%eval #3]}` or `{[%eval 1.42]}` annotations
 - Rate limit: generous for anonymous requests
+
+

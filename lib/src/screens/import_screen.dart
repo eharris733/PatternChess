@@ -195,18 +195,7 @@ class _ImportScreenState extends State<ImportScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   child: const Text('CONTINUE TRAINING'),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () => Navigator.pushNamed(context, '/benchmark'),
-                  icon: const Icon(Icons.speed, size: 18),
-                  label: const Text('ENGINE BENCHMARK'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.textSecondary,
-                    side: const BorderSide(color: AppTheme.surfaceLight),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
+                )
               ],
             ),
           ),

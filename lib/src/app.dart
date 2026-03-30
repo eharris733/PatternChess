@@ -7,7 +7,6 @@ import 'screens/vault_screen.dart';
 import 'screens/import_screen.dart';
 import 'screens/analysis_screen.dart';
 import 'screens/training_screen.dart';
-import 'screens/benchmark_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/profile_screen.dart';
 import 'services/auth_service.dart';
@@ -73,10 +72,6 @@ class _PatternChessAppState extends State<PatternChessApp> {
           case '/login':
             return MaterialPageRoute(
               builder: (_) => const LoginScreen(),
-            );
-          case '/benchmark':
-            return MaterialPageRoute(
-              builder: (_) => const BenchmarkScreen(),
             );
           default:
             return MaterialPageRoute(

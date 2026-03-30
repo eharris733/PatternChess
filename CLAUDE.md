@@ -12,7 +12,7 @@ Chess training app using the woodpecker method. Flutter Web targeting Chrome.
 - Use Supabase MCP for migrations and SQL queries (project: `ydfwppthwnlgxnntzrvg`)
 - Dark charcoal/brown theme throughout
 - No auth/RLS — MVP simplicity
-- Four screens: Import, Analysis, Training, Benchmark
+- Four screens: Import, Analysis, Training
 
 ## Setup
 
@@ -28,7 +28,6 @@ Chess training app using the woodpecker method. Flutter Web targeting Chrome.
    ```
    Primary: Lite MT (multi-threaded, needs CORS). Fallback: Lite ST (single-threaded).
    No separate NNUE downloads needed — embedded in WASM.
-   Other engine variants (full, lichess) kept in web/stockfish/ for benchmark page.
 
 ## Dev Server
 ```bash
@@ -49,4 +48,4 @@ Chess training app using the woodpecker method. Flutter Web targeting Chrome.
 - `docs/lichess_api.md` — Lichess API endpoints
 - `docs/chessground_usage.md` — Interactive board patterns
 - `docs/stockfish_wasm.md` — WASM worker setup and UCI protocol
-- `docs/engine_benchmark.md` — Engine benchmark results and recommendations
+- `docs/future_changes.md` - Future changes to be thought about
