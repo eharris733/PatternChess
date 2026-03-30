@@ -104,7 +104,8 @@ class _ImportScreenState extends State<ImportScreen> {
   @override
   Widget build(BuildContext context) {
     return AppShell(
-      center: Center(
+      activeRoute: '/import',
+      child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
           child: Padding(

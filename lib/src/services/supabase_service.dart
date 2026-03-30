@@ -6,10 +6,19 @@ import '../models/blunder.dart';
 class SupabaseService {
   static SupabaseClient get _client => Supabase.instance.client;
 
+  static String? get _currentUserId => _client.auth.currentUser?.id;
+
   // --- Games ---
 
   static Future<List<GameRecord>> insertGames(
       List<Map<String, dynamic>> games) async {
+    final userId = _currentUserId;
+    if (userId != null) {
+      for (final game in games) {
+        game['user_id'] = userId;
+      }
+    }
+
     final response = await _client
         .from('games')
         .insert(games)
@@ -20,11 +29,16 @@ class SupabaseService {
         .toList();
   }
 
-  static Future<List<GameRecord>> getGames() async {
-    final response = await _client
+  static Future<List<GameRecord>> getGames({String? userId}) async {
+    var query = _client
         .from('games')
-        .select()
-        .order('played_at', ascending: false);
+        .select();
+
+    if (userId != null) {
+      query = query.eq('user_id', userId);
+    }
+
+    final response = await query.order('played_at', ascending: false);
 
     return (response as List)
         .map((e) => GameRecord.fromJson(e as Map<String, dynamic>))
@@ -45,6 +59,12 @@ class SupabaseService {
 
   static Future<void> insertBlunders(List<Map<String, dynamic>> blunders) async {
     if (blunders.isEmpty) return;
+    final userId = _currentUserId;
+    if (userId != null) {
+      for (final blunder in blunders) {
+        blunder['user_id'] = userId;
+      }
+    }
     await _client.from('blunders').insert(blunders);
   }
 
@@ -60,13 +80,18 @@ class SupabaseService {
         .toList();
   }
 
-  static Future<List<Blunder>> getDueBlunders() async {
+  static Future<List<Blunder>> getDueBlunders({String? userId}) async {
     final now = DateTime.now().toIso8601String();
-    final response = await _client
+    var query = _client
         .from('blunders')
         .select()
-        .lte('next_drill_at', now)
-        .order('next_drill_at');
+        .lte('next_drill_at', now);
+
+    if (userId != null) {
+      query = query.eq('user_id', userId);
+    }
+
+    final response = await query.order('next_drill_at');
 
     return (response as List)
         .map((e) => Blunder.fromJson(e as Map<String, dynamic>))

@@ -878,7 +878,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
       autofocus: true,
       onKeyEvent: _handleKeyPress,
       child: AppShell(
-        center: _state == TrainingState.loading
+        activeRoute: '/training',
+        child: _state == TrainingState.loading
             ? const Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,

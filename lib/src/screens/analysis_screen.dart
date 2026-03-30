@@ -126,7 +126,8 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   @override
   Widget build(BuildContext context) {
     return AppShell(
-      center: Center(
+      activeRoute: '/analysis',
+      child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
           child: Padding(

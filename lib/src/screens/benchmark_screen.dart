@@ -180,7 +180,8 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
   @override
   Widget build(BuildContext context) {
     return AppShell(
-      center: Column(
+      activeRoute: '/benchmark',
+      child: Column(
         children: [
           // Header
           Padding(
