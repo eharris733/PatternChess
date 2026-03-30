@@ -9,7 +9,7 @@ if [ "$1" = "build" ]; then
   echo "Building Flutter web (WASM)..."
 
   # Use web-server device (WASM-only, no JS fallback that fails with dartchess 64-bit ints)
-  flutter run -d web-server --wasm --web-port=8090 &
+  flutter run -d web-server --wasm --web-port=8090 --dart-define-from-file=.env &
   FLUTTER_PID=$!
 
   # Wait for build to complete (main.dart.wasm + flutter_bootstrap.js must both exist and be non-empty)
@@ -41,6 +41,7 @@ if [ "$1" = "build" ]; then
   node serve.js
 else
   flutter run -d chrome --wasm \
+    --dart-define-from-file=.env \
     --web-header=Cross-Origin-Embedder-Policy=require-corp \
     --web-header=Cross-Origin-Opener-Policy=same-origin
 fi

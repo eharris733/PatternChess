@@ -15,6 +15,7 @@ dependencies:
   fast_immutable_collections: ^11.1.0
   supabase_flutter: ^2.0.0
   http: ^1.0.0
+  web: ^1.0.0
   flutter:
     sdk: flutter
   flutter_localizations:

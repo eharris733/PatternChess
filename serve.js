@@ -24,7 +24,8 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer((req, res) => {
-  let filePath = path.join(BUILD_DIR, req.url === '/' ? 'index.html' : req.url.split('?')[0]);
+  let urlPath = req.url.split('?')[0];
+  let filePath = path.join(BUILD_DIR, urlPath === '/' ? 'index.html' : urlPath);
 
   // Fallback to index.html for Flutter routes
   if (!fs.existsSync(filePath)) {
