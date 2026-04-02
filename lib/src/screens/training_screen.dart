@@ -15,7 +15,7 @@ import '../utils/winning_chances.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/chess_board_panel.dart';
 import '../widgets/move_sequence_panel.dart';
-import '../widgets/eval_display.dart';
+import '../widgets/winning_chances_display.dart';
 import '../widgets/board_controls.dart';
 import '../widgets/progress_indicator.dart';
 
@@ -1124,7 +1124,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
           ],
           if (blunder != null) ...[
             const SizedBox(height: 6),
-            EvalDisplay(scoreCp: blunder.evalBefore),
+            WinningChancesDisplay(
+              evalBefore: blunder.evalBefore,
+              evalAfter: blunder.evalAfter,
+              sideToMove: blunder.sideToMove,
+            ),
           ],
         ],
       ),

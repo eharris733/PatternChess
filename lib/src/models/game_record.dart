@@ -9,6 +9,7 @@ class GameRecord {
   final String? result;
   final DateTime? playedAt;
   final DateTime createdAt;
+  final DateTime? analyzedAt;
 
   GameRecord({
     required this.id,
@@ -21,6 +22,7 @@ class GameRecord {
     this.result,
     this.playedAt,
     required this.createdAt,
+    this.analyzedAt,
   });
 
   factory GameRecord.fromJson(Map<String, dynamic> json) {
@@ -37,6 +39,9 @@ class GameRecord {
           ? DateTime.parse(json['played_at'] as String)
           : null,
       createdAt: DateTime.parse(json['created_at'] as String),
+      analyzedAt: json['analyzed_at'] != null
+          ? DateTime.parse(json['analyzed_at'] as String)
+          : null,
     );
   }
 

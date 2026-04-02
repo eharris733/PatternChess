@@ -8,6 +8,8 @@ class MovePair {
   final String? blackMove;
   final String? whiteLabel;
   final String? blackLabel;
+  final Color? whiteLabelColor;
+  final Color? blackLabelColor;
 
   MovePair({
     required this.moveNumber,
@@ -15,6 +17,8 @@ class MovePair {
     this.blackMove,
     this.whiteLabel,
     this.blackLabel,
+    this.whiteLabelColor,
+    this.blackLabelColor,
   });
 }
 
@@ -72,6 +76,7 @@ class MoveSequencePanel extends StatelessWidget {
               pair.whiteLabel,
               isWhiteActive,
               () => onTap?.call(index * 2),
+              pair.whiteLabelColor,
             ),
           ),
           const SizedBox(width: 4),
@@ -81,6 +86,7 @@ class MoveSequencePanel extends StatelessWidget {
               pair.blackLabel,
               isBlackActive,
               () => onTap?.call(index * 2 + 1),
+              pair.blackLabelColor,
             ),
           ),
         ],
@@ -89,7 +95,8 @@ class MoveSequencePanel extends StatelessWidget {
   }
 
   Widget _moveCell(
-      String? move, String? label, bool active, VoidCallback onTap) {
+      String? move, String? label, bool active, VoidCallback onTap,
+      [Color? labelColor]) {
     if (move == null) return const SizedBox();
 
     return GestureDetector(
@@ -116,13 +123,14 @@ class MoveSequencePanel extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  color: label == 'Blunder'
-                      ? AppTheme.incorrect
-                      : label == 'Mistake'
-                          ? AppTheme.mistake
-                          : label == 'Inaccuracy'
-                              ? AppTheme.inaccuracy
-                              : AppTheme.correct,
+                  color: labelColor ??
+                      (label == 'Blunder'
+                          ? AppTheme.incorrect
+                          : label == 'Mistake'
+                              ? AppTheme.mistake
+                              : label == 'Inaccuracy'
+                                  ? AppTheme.inaccuracy
+                                  : AppTheme.correct),
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                 ),

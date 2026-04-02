@@ -4,6 +4,7 @@ When pulling from lichess or chess.com api, make sure we only pull new games we 
 
 
 Fix auth http://localhost:8080/?code=fda5b05b-c022-4bd5-b00c-ccebe46f06e1 we get this callback and the authservice doesn't know how to handle it
+Now we can handle it but I see lots of issues in the console
 
 
 note on batch requests for lichess: # Bad: Multiple requests
@@ -41,4 +42,15 @@ https://www.mintlify.com/lichess-org/lila/api/games/export we can export batch g
 can also export user's puzzle data
 
 
-currently RLS is disabled on the tables in supabase, so it's a big security concern. 
+
+console errors about auth and stuff
+
+import games and re-trying games should be a lot smoother, less clicks, mostly automatic in the onboarding. Import games ui is confusing and extra. Import games feature doesn't scale for many users all at once. Import games should realistically only import last 25 to start, since that's already a lot of positions to review. You should be able to leave a note about the move you want (or a coach can leave a note about why you blundered)
+
+Time needs to be factored in to all of this. 
+
+
+warm-up/ new puzzles need to be grabbed from lichess (or perhaps we can cache it in our database)
+
+
+This whole thing needs to be rewritten in Next.js or something, the SEO will be awful, the routing is annoying. 

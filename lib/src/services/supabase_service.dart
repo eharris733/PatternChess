@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/game_record.dart';
 import '../models/blunder.dart';
+import '../models/game_annotation.dart';
 
 class SupabaseService {
   static SupabaseClient get _client => Supabase.instance.client;
@@ -113,5 +114,62 @@ class SupabaseService {
       'times_correct': blunder.timesCorrect,
       'times_attempted': blunder.timesAttempted,
     }).eq('id', blunder.id);
+  }
+
+  // --- Game Annotations ---
+
+  static Future<GameAnnotation?> getAnnotations(String gameId) async {
+    final response = await _client
+        .from('game_annotations')
+        .select()
+        .eq('game_id', gameId)
+        .maybeSingle();
+
+    if (response == null) return null;
+    return GameAnnotation.fromJson(response);
+  }
+
+  static Future<void> saveAnnotations(
+      String gameId, List<MoveAnnotation> annotations) async {
+    final userId = _currentUserId;
+    final data = {
+      'game_id': gameId,
+      'user_id': userId,
+      'annotations': annotations.map((a) => a.toJson()).toList(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    await _client.from('game_annotations').upsert(
+      data,
+      onConflict: 'game_id',
+    );
+  }
+
+  static Future<void> markGameAnalyzed(String gameId) async {
+    await _client.from('games').update({
+      'analyzed_at': DateTime.now().toIso8601String(),
+    }).eq('id', gameId);
+  }
+
+  // --- Opening Explorer Cache ---
+
+  static Future<Map<String, dynamic>?> getCachedExplorerResult(
+      String fen) async {
+    final response = await _client
+        .from('opening_explorer_cache')
+        .select()
+        .eq('fen', fen)
+        .maybeSingle();
+
+    if (response == null) return null;
+    return response['result'] as Map<String, dynamic>;
+  }
+
+  static Future<void> cacheExplorerResult(
+      String fen, Map<String, dynamic> result) async {
+    await _client.from('opening_explorer_cache').upsert({
+      'fen': fen,
+      'result': result,
+    });
   }
 }

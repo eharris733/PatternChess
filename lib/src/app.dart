@@ -6,6 +6,7 @@ import 'screens/dashboard_screen.dart';
 import 'screens/vault_screen.dart';
 import 'screens/import_screen.dart';
 import 'screens/analysis_screen.dart';
+import 'screens/review_screen.dart';
 import 'screens/training_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/profile_screen.dart';
@@ -56,6 +57,13 @@ class _PatternChessAppState extends State<PatternChessApp> {
             return MaterialPageRoute(
               builder: (_) => AnalysisScreen(
                 gameIds: args['gameIds'] as List<String>,
+              ),
+            );
+          case '/review':
+            final args = settings.arguments as Map<String, dynamic>;
+            return MaterialPageRoute(
+              builder: (_) => ReviewScreen(
+                gameId: args['gameId'] as String,
               ),
             );
           case '/training':

@@ -126,6 +126,7 @@ class _VaultScreenState extends State<VaultScreen> {
       'loss' => AppTheme.incorrect,
       _ => AppTheme.textSecondary,
     };
+    final isAnalyzed = game.analyzedAt != null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
@@ -135,12 +136,46 @@ class _VaultScreenState extends State<VaultScreen> {
       ),
       child: ListTile(
         dense: true,
-        title: Text(
-          'vs ${game.opponent}',
-          style: const TextStyle(
-            color: AppTheme.textPrimary,
-            fontWeight: FontWeight.w500,
-          ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'vs ${game.opponent}',
+                style: const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (isAnalyzed) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppTheme.correct.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle,
+                        color: AppTheme.correct, size: 12),
+                    SizedBox(width: 4),
+                    Text(
+                      'Analyzed',
+                      style: TextStyle(
+                        color: AppTheme.correct,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
         ),
         subtitle: Text(
           [
@@ -151,13 +186,35 @@ class _VaultScreenState extends State<VaultScreen> {
           ].join(' \u00b7 '),
           style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
         ),
-        trailing: Text(
-          (game.result ?? 'unknown').toUpperCase(),
-          style: TextStyle(
-            color: resultColor,
-            fontWeight: FontWeight.bold,
-            fontSize: 12,
-          ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              (game.result ?? 'unknown').toUpperCase(),
+              style: TextStyle(
+                color: resultColor,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              height: 28,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pushNamed(
+                  context,
+                  '/review',
+                  arguments: {'gameId': game.id},
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12),
+                  textStyle: const TextStyle(fontSize: 11),
+                ),
+                child: Text(isAnalyzed ? 'Review' : 'Analyze'),
+              ),
+            ),
+          ],
         ),
       ),
     );
