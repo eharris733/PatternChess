@@ -126,14 +126,17 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
 
   setIndex: (i) => {
     const { positions } = get();
-    if (i < 0 || i >= positions.length) return;
+    const max = Math.max(0, positions.length - 2);
+    if (i < 0 || i > max) return;
     set({ currentIndex: i });
   },
   prev: () => set((s) => ({ currentIndex: Math.max(0, s.currentIndex - 1) })),
   next: () =>
-    set((s) => ({ currentIndex: Math.min(s.positions.length - 1, s.currentIndex + 1) })),
+    set((s) => ({
+      currentIndex: Math.min(Math.max(0, s.positions.length - 2), s.currentIndex + 1),
+    })),
   first: () => set({ currentIndex: 0 }),
-  last: () => set((s) => ({ currentIndex: Math.max(0, s.positions.length - 1) })),
+  last: () => set((s) => ({ currentIndex: Math.max(0, s.positions.length - 2) })),
   flip: () => set((s) => ({ orientation: s.orientation === 'white' ? 'black' : 'white' })),
 
   setGrade: (grade) => {

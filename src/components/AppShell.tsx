@@ -6,7 +6,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-bg text-text-primary">
+    <div className="flex h-screen overflow-hidden bg-bg text-text-primary">
       <aside
         className={clsx(
           'relative shrink-0 border-r border-surface-2 bg-surface flex flex-col transition-[width] duration-200',
@@ -23,7 +23,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="text-xs leading-none">{collapsed ? '▶' : '◀'}</span>
         </button>
       </aside>
-      <main className="flex-1 min-w-0 overflow-x-hidden">
+      <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
         <div className="p-6 lg:p-10 max-w-[1400px] mx-auto">{children}</div>
       </main>
     </div>

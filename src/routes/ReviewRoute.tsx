@@ -89,6 +89,8 @@ export function ReviewRoute() {
 
   const pos = r.positions[r.currentIndex];
   const activeKey = `i${r.currentIndex}`;
+  const displayFen =
+    r.positions[r.currentIndex + 1]?.fen ?? r.positions[r.currentIndex]?.fen ?? '';
   const currentAnnotation = pos
     ? r.annotations[annotationKey(pos.moveNumber, pos.sideToMove)]
     : undefined;
@@ -109,7 +111,7 @@ export function ReviewRoute() {
         </header>
 
         <BoardPanel
-          fen={pos?.fen ?? r.positions[0]?.fen ?? ''}
+          fen={displayFen}
           orientation={r.orientation}
           movableFor={null}
           viewOnly
@@ -117,7 +119,7 @@ export function ReviewRoute() {
 
         <BoardControls
           canPrev={r.currentIndex > 0}
-          canNext={r.currentIndex < r.positions.length - 1}
+          canNext={r.currentIndex < r.positions.length - 2}
           onFirst={r.first}
           onPrev={r.prev}
           onNext={r.next}
