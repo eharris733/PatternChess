@@ -94,7 +94,7 @@ export function TrainingRoute() {
   const blunder = state.blunders[state.currentIndex];
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
       <div className="flex flex-col gap-3">
         <BoardPanel
           fen={state.fen}

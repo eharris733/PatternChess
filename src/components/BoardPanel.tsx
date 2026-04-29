@@ -88,7 +88,7 @@ export function BoardPanel({
   }, [fen, orientation, turn, inCheck, lastMove, movableFor, onMove, shapes, dests, viewOnly]);
 
   return (
-    <div className={clsx('relative aspect-square w-full max-w-[640px] mx-auto', className)}>
+    <div className={clsx('relative aspect-square w-full max-w-[min(640px,calc(100vh-5rem))] mx-auto', className)}>
       <ChessgroundReact config={config} className="w-full h-full" />
       {pendingPromo && (
         <div className="absolute inset-0 flex items-center justify-center bg-bg/70 backdrop-blur-sm z-10">
