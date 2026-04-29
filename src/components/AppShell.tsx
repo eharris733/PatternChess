@@ -1,5 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { SidebarNav } from './SidebarNav';
+import { SyncIndicator } from './SyncIndicator';
 import clsx from 'clsx';
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -23,7 +24,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="text-xs leading-none">{collapsed ? '▶' : '◀'}</span>
         </button>
       </aside>
-      <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
+      <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden relative">
+        <div className="absolute top-3 right-4 z-10">
+          <SyncIndicator />
+        </div>
         <div className="p-6 lg:p-10 max-w-[1400px] mx-auto">{children}</div>
       </main>
     </div>

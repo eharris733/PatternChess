@@ -8,6 +8,10 @@ import { FeedbackBadge } from '../components/FeedbackBadge';
 import { MoveSequencePanel, type MovePair } from '../components/MoveSequencePanel';
 import { classifySwing, useReviewStore } from '../state/reviewStore';
 import { annotationKey } from '../models/gameAnnotation';
+import {
+  externalAnalysisUrl,
+  resolvePlatform,
+} from '../services/externalAnalysisUrlService';
 
 export function ReviewRoute() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -117,14 +121,22 @@ export function ReviewRoute() {
           viewOnly
         />
 
-        <BoardControls
-          canPrev={r.currentIndex > 0}
-          canNext={r.currentIndex < r.positions.length - 2}
-          onFirst={r.first}
-          onPrev={r.prev}
-          onNext={r.next}
-          onLast={r.last}
-        />
+        {(() => {
+          const platform = resolvePlatform(r.game.platform, null);
+          const ext = platform && displayFen ? externalAnalysisUrl(platform, displayFen) : null;
+          return (
+            <BoardControls
+              canPrev={r.currentIndex > 0}
+              canNext={r.currentIndex < r.positions.length - 2}
+              onFirst={r.first}
+              onPrev={r.prev}
+              onNext={r.next}
+              onLast={r.last}
+              externalUrl={ext?.url ?? null}
+              externalLabel={ext?.label}
+            />
+          );
+        })()}
       </div>
 
       <aside className="card flex flex-col gap-4 sticky top-6 self-start max-h-[calc(100vh-3rem)] overflow-y-auto">

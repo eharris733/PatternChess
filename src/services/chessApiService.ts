@@ -17,13 +17,17 @@ export interface FetchOpts {
   maxGames?: number;
   ratedOnly?: boolean;
   timeControl?: TimeControlCategory | null;
+  /** When set, only return games strictly newer than this timestamp. */
+  since?: Date | null;
 }
 
 export async function fetchChessComGames(
   username: string,
   opts: FetchOpts = {},
 ): Promise<ImportedGame[]> {
-  const { maxGames = 25, ratedOnly = false, timeControl = null } = opts;
+  const { maxGames = 25, ratedOnly = false, timeControl = null, since = null } = opts;
+  const sinceMs = since?.getTime() ?? null;
+  const sinceMonthKey = since ? archiveKeyFromDate(since) : null;
 
   const archivesRes = await fetch(
     `https://api.chess.com/pub/player/${encodeURIComponent(username)}/games/archives`,
@@ -33,9 +37,14 @@ export async function fetchChessComGames(
   const archives = [...(archivesJson.archives ?? [])].sort((a, b) => b.localeCompare(a));
 
   const out: ImportedGame[] = [];
+  const cap = since ? Math.max(maxGames, 500) : maxGames;
 
   for (const archiveUrl of archives) {
-    if (out.length >= maxGames) break;
+    if (out.length >= cap) break;
+    if (sinceMonthKey) {
+      const archiveKey = archiveKeyFromUrl(archiveUrl);
+      if (archiveKey && archiveKey < sinceMonthKey) break;
+    }
 
     const monthRes = await fetch(archiveUrl);
     if (!monthRes.ok) continue;
@@ -45,10 +54,14 @@ export async function fetchChessComGames(
     );
 
     for (const game of games) {
-      if (out.length >= maxGames) break;
+      if (out.length >= cap) break;
       if (!game.pgn) continue;
       if (ratedOnly && game.rated !== true) continue;
       if (timeControl && !matchesTimeCategory(game.time_control ?? '', timeControl)) continue;
+      if (sinceMs !== null) {
+        const endMs = typeof game.end_time === 'number' ? game.end_time * 1000 : null;
+        if (endMs === null || endMs <= sinceMs) continue;
+      }
 
       const white = game.white as { username: string; result: string | null };
       const black = game.black as { username: string; result: string | null };
@@ -76,15 +89,17 @@ export async function fetchLichessGames(
   username: string,
   opts: FetchOpts & { perfType?: TimeControlCategory | null } = {},
 ): Promise<ImportedGame[]> {
-  const { maxGames = 25, ratedOnly = false, perfType = null } = opts;
+  const { maxGames = 25, ratedOnly = false, perfType = null, since = null } = opts;
+  const effectiveMax = since ? Math.max(maxGames, 200) : maxGames;
   const params = new URLSearchParams({
-    max: String(maxGames),
+    max: String(effectiveMax),
     clocks: 'true',
     evals: 'true',
     opening: 'true',
   });
   if (ratedOnly) params.set('rated', 'true');
   if (perfType) params.set('perfType', perfType);
+  if (since) params.set('since', String(since.getTime()));
 
   const res = await fetch(
     `https://lichess.org/api/games/user/${encodeURIComponent(username)}?${params.toString()}`,
@@ -146,6 +161,19 @@ function extractPgnHeaders(pgn: string): Record<string, string> {
 
 function parseLichessDateTime(date: string, time: string): string {
   return `${date.replace(/\./g, '-')}T${time}Z`;
+}
+
+function archiveKeyFromUrl(url: string): string | null {
+  // Chess.com archive URLs end in /YYYY/MM
+  const m = /\/(\d{4})\/(\d{2})\/?$/.exec(url);
+  if (!m) return null;
+  return `${m[1]}-${m[2]}`;
+}
+
+function archiveKeyFromDate(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
 }
 
 function matchesTimeCategory(rawTc: string, category: TimeControlCategory): boolean {

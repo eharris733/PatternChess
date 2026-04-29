@@ -4,7 +4,15 @@ export interface UserProfile {
   avatarUrl: string | null;
   lichessUsername: string | null;
   chesscomUsername: string | null;
+  lastSyncedLichessAt: Date | null;
+  lastSyncedChesscomAt: Date | null;
   createdAt: Date;
+}
+
+function parseDate(v: unknown): Date | null {
+  if (typeof v !== 'string' || v.length === 0) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 export function userProfileFromJson(json: any): UserProfile {
@@ -14,6 +22,8 @@ export function userProfileFromJson(json: any): UserProfile {
     avatarUrl: (json.avatar_url as string | null) ?? null,
     lichessUsername: (json.lichess_username as string | null) ?? null,
     chesscomUsername: (json.chesscom_username as string | null) ?? null,
+    lastSyncedLichessAt: parseDate(json.last_synced_lichess_at),
+    lastSyncedChesscomAt: parseDate(json.last_synced_chesscom_at),
     createdAt: new Date(json.created_at as string),
   };
 }

@@ -7,6 +7,8 @@ export function BoardControls({
   onPrev,
   onNext,
   onLast,
+  externalUrl,
+  externalLabel,
   className,
 }: {
   canPrev: boolean;
@@ -15,6 +17,8 @@ export function BoardControls({
   onPrev: () => void;
   onNext: () => void;
   onLast: () => void;
+  externalUrl?: string | null;
+  externalLabel?: string;
   className?: string;
 }) {
   return (
@@ -31,6 +35,18 @@ export function BoardControls({
       <button className="btn-ghost" onClick={onLast} disabled={!canNext} aria-label="Last">
         ⏭
       </button>
+      {externalUrl && (
+        <a
+          className="btn-ghost"
+          href={externalUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={externalLabel ?? 'Open externally'}
+          title={externalLabel ?? 'Open externally'}
+        >
+          ↗
+        </a>
+      )}
     </div>
   );
 }

@@ -16,10 +16,24 @@ export function ChessgroundReact({ config, contained = true, className, onReady 
 
   useEffect(() => {
     if (!wrapRef.current) return;
-    const api = Chessground(wrapRef.current, config);
+    const el = wrapRef.current;
+    const api = Chessground(el, config);
     apiRef.current = api;
     onReady?.(api);
+
+    let trailingId: number | null = null;
+    const observer = new ResizeObserver(() => {
+      if (trailingId !== null) window.clearTimeout(trailingId);
+      trailingId = window.setTimeout(() => {
+        trailingId = null;
+        window.dispatchEvent(new Event('resize'));
+      }, 250);
+    });
+    observer.observe(el);
+
     return () => {
+      observer.disconnect();
+      if (trailingId !== null) window.clearTimeout(trailingId);
       api.destroy();
       apiRef.current = null;
     };

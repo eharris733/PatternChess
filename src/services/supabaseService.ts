@@ -133,6 +133,41 @@ export async function saveAnnotations(
   if (error) throw error;
 }
 
+export async function getExistingGameKeys(
+  platform: string,
+  username: string,
+): Promise<Set<string>> {
+  const userId = await currentUserId();
+  let q = supabase
+    .from('games')
+    .select('platform, opponent, played_at')
+    .eq('platform', platform)
+    .eq('username', username);
+  if (userId) q = q.eq('user_id', userId);
+  const { data, error } = await q;
+  if (error) throw error;
+  const keys = new Set<string>();
+  for (const row of data ?? []) {
+    const r = row as { platform: string; opponent: string; played_at: string | null };
+    keys.add(`${r.platform}|${r.opponent}|${r.played_at ?? ''}`);
+  }
+  return keys;
+}
+
+export async function updateProfileLastSynced(
+  platform: 'lichess' | 'chess.com',
+  ts: Date,
+): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) return;
+  const column = platform === 'lichess' ? 'last_synced_lichess_at' : 'last_synced_chesscom_at';
+  const { error } = await supabase
+    .from('profiles')
+    .update({ [column]: ts.toISOString() })
+    .eq('id', userId);
+  if (error) throw error;
+}
+
 // --- Opening Explorer Cache ---
 
 export async function getCachedExplorerResult(fen: string): Promise<any | null> {
@@ -163,4 +198,6 @@ export const supabaseService = {
   saveAnnotations,
   getCachedExplorerResult,
   cacheExplorerResult,
+  getExistingGameKeys,
+  updateProfileLastSynced,
 };

@@ -3,6 +3,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { authService } from '../services/authService';
 import type { UserProfile } from '../models/userProfile';
+import { useSyncStore } from '../state/syncStore';
 
 export interface AuthContextValue {
   session: Session | null;
@@ -70,10 +71,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(nextSession ?? null);
       scrubAuthFromUrl();
       if (event === 'SIGNED_IN' && nextSession) {
-        void authService.getOrCreateProfile().then(setProfile).catch(() => {});
+        void authService
+          .getOrCreateProfile()
+          .then((p) => {
+            setProfile(p);
+            void useSyncStore.getState().startForProfile(p);
+          })
+          .catch(() => {});
       }
       if (event === 'SIGNED_OUT') {
         setProfile(null);
+        useSyncStore.getState().reset();
       }
     });
 
@@ -90,6 +98,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(null);
     }
   }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (profile) {
+      void useSyncStore.getState().startForProfile(profile);
+    }
+  }, [profile?.id]);
 
   return (
     <AuthContext.Provider
