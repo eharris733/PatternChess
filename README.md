@@ -1,30 +1,28 @@
-# pattern_chess
+# PatternChess
 
-A new Flutter project.
+Chess training app using the woodpecker method — drill the blunders from your own games.
 
-## Getting Started
+Built as a Vite + React + TypeScript SPA. Imports games from chess.com or lichess, runs Stockfish (WASM, in a Web Worker) over them to find blunders, and surfaces them as spaced-repetition drills.
 
-This project is a starting point for a Flutter application that follows the
-[simple app state management
-tutorial](https://flutter.dev/docs/development/data-and-backend/state-mgmt/simple).
+## Quickstart
 
-For help getting started with Flutter development, view the
-[online documentation](https://flutter.dev/docs), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+npm install
+cp .env.example .env.local   # then add your Supabase keys
+npm run dev                  # http://localhost:5173
+```
 
-## Assets
+## Scripts
 
-The `assets` directory houses images, fonts, and any other files you want to
-include with your application.
+| Command | What it does |
+|---|---|
+| `npm run dev` | Vite dev server with COEP/COOP isolation |
+| `npm run build` | Production build to `dist/` |
+| `npm run preview` | Preview the built bundle |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run e2e` | Full Playwright suite |
+| `npm run smoke` | Headers + engine smoke specs only |
 
-The `assets/images` directory contains [resolution-aware
-images](https://flutter.dev/docs/development/ui/assets-and-images#resolution-aware).
+## What's where
 
-## Localization
-
-This project generates localized messages based on arb files found in
-the `lib/src/localization` directory.
-
-To support additional languages, please visit the tutorial on
-[Internationalizing Flutter
-apps](https://flutter.dev/docs/development/accessibility-and-localization/internationalization)
+See [`CLAUDE.md`](./CLAUDE.md) for the full layout and conventions.

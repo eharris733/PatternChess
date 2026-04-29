@@ -1,51 +1,106 @@
 # PatternChess
 
-Chess training app using the woodpecker method. Flutter Web targeting Chrome.
+Chess training app using the woodpecker method. **Vite + React + TypeScript** SPA targeting Chrome.
 
 ## Stack
-- **Flutter Web** with `chessground` (board UI) and `dartchess` (chess logic/PGN parsing)
-- **Supabase** for persistence (project ID: `ydfwppthwnlgxnntzrvg`)
-- **Stockfish WASM** via nmrugg/stockfish.js Lite (7MB, NNUE embedded, Web Worker)
+- Vite 5 + React 18 + TypeScript (strict)
+- React Router v6
+- Tailwind CSS — palette in `tailwind.config.ts`, dark charcoal/brown
+- TanStack Query (server state) + Zustand (training/review state machines)
+- `@supabase/supabase-js` (PKCE flow, project `ydfwppthwnlgxnntzrvg`)
+- `chess.js` for chess logic / PGN parsing
+- `chessground` (Lichess JS) wrapped in a small React component
+- Stockfish WASM v18 (nmrugg lite MT primary, lite ST fallback) in a Web Worker
 
-## Key Conventions
-- Use context7 MCP (`mcp__context7__resolve-library-id` + `mcp__context7__query-docs`) for library documentation
-- Use Supabase MCP for migrations and SQL queries (project: `ydfwppthwnlgxnntzrvg`)
-- Dark charcoal/brown theme throughout
-- No auth/RLS — MVP simplicity
-- Four screens: Import, Analysis, Training
+## Project shape
+
+```
+src/
+  auth/          AuthProvider, RequireAuth, useAuth
+  chess/         winningChances (Lichess formula), moveUtils, ChessgroundReact
+  components/    AppShell, SidebarNav, BoardPanel, MoveSequencePanel, etc.
+  hooks/         useStockfish (singleton init), useGames, useDueBlunders
+  lib/           supabase client, queryClient
+  models/        Blunder, GameRecord, GameAnnotation, UserProfile, TrainingSession
+  routes/        DashboardRoute, ImportRoute, AnalysisRoute, TrainingRoute,
+                 VaultRoute, ReviewRoute, LoginRoute, ProfileRoute, plus dev-only
+                 SandboxRoute and EngineTestRoute
+  services/      authService, supabaseService, chessApiService, pgnParserService,
+                 openingExplorerService
+  state/         trainingStore (Zustand), reviewStore (Zustand)
+  stockfish/     stockfishWorkerClient, uci.ts (parsers)
+
+public/
+  stockfish/     stockfish-18-lite.js / .wasm / -single.js / -single.wasm
+                 (served at /stockfish/* — do NOT rename)
+
+tests/e2e/       Playwright specs
+```
 
 ## Setup
 
-1. **Flutter** (via Homebrew): `brew install --cask flutter`
-2. **Dependencies**: `flutter pub get`
-3. **Stockfish WASM** (nmrugg/stockfish.js Lite, ~7MB WASM with embedded NNUE):
-   ```bash
-   npm install stockfish
-   cp node_modules/stockfish/bin/stockfish-18-lite.js web/stockfish/
-   cp node_modules/stockfish/bin/stockfish-18-lite.wasm web/stockfish/
-   cp node_modules/stockfish/bin/stockfish-18-lite-single.js web/stockfish/
-   cp node_modules/stockfish/bin/stockfish-18-lite-single.wasm web/stockfish/
-   ```
-   Primary: Lite MT (multi-threaded, needs CORS). Fallback: Lite ST (single-threaded).
-   No separate NNUE downloads needed — embedded in WASM.
+1. `npm install`
+2. Copy `.env.example` → `.env.local` and set `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`.
+3. `npm run dev` — Vite serves at `http://localhost:5173` with the COEP/COOP headers needed for SharedArrayBuffer + Stockfish multi-threading.
 
-## Dev Server
-```bash
-./dev.sh              # flutter run with hot reload (fast iteration)
-./dev.sh build        # full build + node serve (correct COEP, all engines work)
+## Scripts
+
+- `npm run dev` — Vite dev server with hot reload + cross-origin isolation
+- `npm run build` — type check + production build to `dist/`
+- `npm run preview` — preview the production build
+- `npm run typecheck` — `tsc --noEmit`
+- `npm run e2e` — Playwright suite (auto-starts the dev server)
+- `npm run smoke` — minimum viable smoke (shell + engine)
+
+## Conventions
+
+- **Routing**: SPA with React Router v6. `/login` is public; everything else is gated by `<RequireAuth>` inside the `<AppShell>` layout.
+- **Auth**: PKCE flow with `detectSessionInUrl: true` — Supabase JS handles the `?code=…` exchange automatically. `<AuthProvider>` cleans the URL on `SIGNED_IN` and creates the profile via `authService.getOrCreateProfile()`.
+- **Stockfish**: never instantiate the worker directly; call `getStockfish()` (lazy singleton) from `src/hooks/useStockfish.ts`. The client tries the multi-threaded lite engine first, falls back to single-threaded.
+- **Engine signals**: `evaluatePositionFull(fen, depth=12)` for batch analysis, `evaluateMove(fen, uci, timeMs=500)` for the on-the-fly accept rule, and `analyzeGame(positions, …)` for game-wide blunder detection.
+- **Blunder detection** uses the Lichess winning-chances model in `src/chess/winningChances.ts`. Trainable threshold: ≥15% chances lost. On-the-fly accept rule for the training screen: |chancesLost| ≤ 5%.
+- **Spaced repetition**: `[1, 2, 4, 7, 14, 28, 56]` days (`src/models/blunder.ts`).
+- **Annotation save**: 2-second debounce in `reviewStore.ts`.
+- **Opening book**: prefetch first ~22 plies with 300 ms throttle (`useReviewStore.prefetchBook`).
+- **Dev-only routes**: `/__sandbox` (chess board sandbox), `/__engine-test` (Stockfish status). Useful for manual checks and Playwright specs.
+
+## Where things live
+
+| Concern | File |
+|---|---|
+| Supabase tables / CRUD | `src/services/supabaseService.ts` |
+| Google OAuth + claim_blunders_for_user | `src/services/authService.ts` |
+| Chess.com / Lichess fetch | `src/services/chessApiService.ts` |
+| PGN parsing | `src/services/pgnParserService.ts` |
+| Lichess masters book | `src/services/openingExplorerService.ts` |
+| Stockfish UCI bridge | `src/stockfish/stockfishWorkerClient.ts` |
+| Lichess winning-chances model | `src/chess/winningChances.ts` |
+| Training state machine | `src/state/trainingStore.ts` |
+| Review state machine | `src/state/reviewStore.ts` |
+| Vite COEP/COOP plugin | `vite.config.ts` |
+
+## Testing
+
+Playwright runs against the live dev server. Specs:
+- `headers.spec.ts` — COEP/COOP + `crossOriginIsolated`
+- `login.spec.ts` — login render + `RequireAuth` redirect
+- `sandbox.spec.ts` — board renders + drag e2→e4 updates FEN
+- `engine.spec.ts` — Stockfish boots (MT or ST) and evaluates startpos
+- `visual.spec.ts` — every protected route renders inside the shell
+
+`stubAuth` in the specs writes a fake Supabase session into `localStorage` and shorts out outbound calls to `*.supabase.co`, so tests don't need a real user.
+
+## Production hosting
+
+Whichever host you pick must send these headers:
+
+```
+Cross-Origin-Embedder-Policy: require-corp
+Cross-Origin-Opener-Policy: same-origin
 ```
 
-**`./dev.sh`** (default) — uses `flutter run` with hot reload. Stockfish falls back to Lite ST due to Flutter's duplicate COEP headers. Good for UI/logic work.
+Otherwise Stockfish drops to single-threaded only.
 
-**`./dev.sh build`** — builds WASM, copies engine files, serves via Node with correct single COEP header. Stockfish uses Lite MT (faster). Use when testing engine performance.
-
-**Why `--wasm`?** `dartchess` uses 64-bit bitboards. Without `--wasm`, Dart compiles to JavaScript which can't represent 64-bit integers.
-
-**Why CORS headers?** Stockfish Lite MT uses pthreads requiring `SharedArrayBuffer`, enabled by CORS isolation headers. Falls back to single-threaded Lite ST automatically.
-
-## Reference Docs
-- `docs/chess_com_api.md` — Chess.com API endpoints
-- `docs/lichess_api.md` — Lichess API endpoints
-- `docs/chessground_usage.md` — Interactive board patterns
-- `docs/stockfish_wasm.md` — WASM worker setup and UCI protocol
-- `docs/future_changes.md` - Future changes to be thought about
+## User context
+- email: elliotmharris@gmail.com
+- Date the rewrite shipped: 2026-04-29

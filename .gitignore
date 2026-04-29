@@ -1,64 +1,33 @@
 # Claude Code
 .claude/
 
-# Miscellaneous
-*.class
+# Misc
 *.log
-*.pyc
-*.swp
 .DS_Store
-.atom/
-.buildlog/
 .history
-.svn/
-migrate_working_dir/
 
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
+# IDE
 .idea/
-
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
+*.iml
 #.vscode/
 
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.packages
-.pub-cache/
-.pub/
-/build/
-
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
-
-
-# Node
+# Node / build artifacts
 node_modules/
+dist/
+build/
 
-# Stockfish WASM engine binaries (downloaded, not committed)
-web/stockfish/*.wasm
-web/stockfish/*.nnue
-web/stockfish/stockfish-*.js
-web/stockfish/stockfish-*.wasm
-web/stockfish/sf_*.js
-web/stockfish/sf_*.wasm
-web/stockfish/fsf_*.js
-web/stockfish/fsf_*.wasm
+# Vite
+.vite/
 
-# Environment files
-*.env
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Background-shell artifacts
+.bg-shell/
