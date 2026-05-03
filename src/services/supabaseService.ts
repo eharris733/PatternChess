@@ -140,7 +140,7 @@ export async function getExistingGameKeys(
   const userId = await currentUserId();
   let q = supabase
     .from('games')
-    .select('platform, opponent, played_at')
+    .select('platform, username, opponent, played_at')
     .eq('platform', platform)
     .eq('username', username);
   if (userId) q = q.eq('user_id', userId);
@@ -148,8 +148,13 @@ export async function getExistingGameKeys(
   if (error) throw error;
   const keys = new Set<string>();
   for (const row of data ?? []) {
-    const r = row as { platform: string; opponent: string; played_at: string | null };
-    keys.add(`${r.platform}|${r.opponent}|${r.played_at ?? ''}`);
+    const r = row as {
+      platform: string;
+      username: string;
+      opponent: string;
+      played_at: string | null;
+    };
+    keys.add(`${r.platform}|${r.username}|${r.opponent}|${r.played_at ?? ''}`);
   }
   return keys;
 }

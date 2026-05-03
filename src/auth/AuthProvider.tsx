@@ -103,7 +103,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (profile) {
       void useSyncStore.getState().startForProfile(profile);
     }
-  }, [profile?.id]);
+  }, [
+    profile?.id,
+    profile?.lichessUsername,
+    profile?.chesscomUsername,
+    profile?.preferredRatedOnly,
+    profile?.preferredTimeControl,
+  ]);
 
   return (
     <AuthContext.Provider

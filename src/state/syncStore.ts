@@ -4,6 +4,7 @@ import { supabaseService } from '../services/supabaseService';
 import {
   Platform,
   ProviderProgress,
+  SyncFilters,
   syncProvider,
 } from '../services/syncService';
 import type { UserProfile } from '../models/userProfile';
@@ -18,10 +19,13 @@ const idle: ProviderProgress = {
   error: null,
 };
 
+type SetState = (s: Partial<SyncState> | ((s: SyncState) => Partial<SyncState>)) => void;
+
 interface SyncState {
   providers: Record<ProviderKey, ProviderProgress>;
   lastTriggeredFor: string | null;
   startForProfile: (profile: UserProfile) => Promise<void>;
+  triggerNow: (profile: UserProfile) => Promise<void>;
   reset: () => void;
 }
 
@@ -29,23 +33,39 @@ function platformKey(p: Platform): ProviderKey {
   return p === 'lichess' ? 'lichess' : 'chesscom';
 }
 
-function setProvider(
-  set: (s: Partial<SyncState> | ((s: SyncState) => Partial<SyncState>)) => void,
-  key: ProviderKey,
-  next: ProviderProgress,
-) {
+function setProvider(set: SetState, key: ProviderKey, next: ProviderProgress) {
   set((s) => ({ providers: { ...s.providers, [key]: next } }));
+}
+
+function fingerprint(p: UserProfile): string {
+  return [
+    p.id,
+    p.lichessUsername ?? '',
+    p.chesscomUsername ?? '',
+    p.preferredRatedOnly ? '1' : '0',
+    p.preferredTimeControl ?? '',
+  ].join('|');
+}
+
+function filtersFor(profile: UserProfile): SyncFilters {
+  return {
+    ratedOnly: profile.preferredRatedOnly,
+    timeControl: profile.preferredTimeControl,
+  };
 }
 
 async function runOne(
   platform: Platform,
   username: string,
   since: Date | null,
-  set: (s: Partial<SyncState> | ((s: SyncState) => Partial<SyncState>)) => void,
+  filters: SyncFilters,
+  set: SetState,
 ): Promise<void> {
   const key = platformKey(platform);
   try {
-    const result = await syncProvider(platform, username, since, (p) => setProvider(set, key, p));
+    const result = await syncProvider(platform, username, since, filters, (p) =>
+      setProvider(set, key, p),
+    );
     if (result.latestPlayedAt) {
       try {
         await supabaseService.updateProfileLastSynced(platform, result.latestPlayedAt);
@@ -62,6 +82,34 @@ async function runOne(
   }
 }
 
+function buildTasks(
+  profile: UserProfile,
+  providers: Record<ProviderKey, ProviderProgress>,
+  set: SetState,
+  forceSince: Date | null | 'profile',
+): Promise<void>[] {
+  const tasks: Promise<void>[] = [];
+  const filters = filtersFor(profile);
+  const lichessUsername = profile.lichessUsername?.trim() ?? '';
+  const chesscomUsername = profile.chesscomUsername?.trim() ?? '';
+
+  if (lichessUsername) {
+    const cur = providers.lichess;
+    if (cur.phase !== 'fetching' && cur.phase !== 'inserting') {
+      const since = forceSince === 'profile' ? profile.lastSyncedLichessAt : forceSince;
+      tasks.push(runOne('lichess', lichessUsername, since, filters, set));
+    }
+  }
+  if (chesscomUsername) {
+    const cur = providers.chesscom;
+    if (cur.phase !== 'fetching' && cur.phase !== 'inserting') {
+      const since = forceSince === 'profile' ? profile.lastSyncedChesscomAt : forceSince;
+      tasks.push(runOne('chess.com', chesscomUsername, since, filters, set));
+    }
+  }
+  return tasks;
+}
+
 export const useSyncStore = create<SyncState>((set, get) => ({
   providers: { lichess: idle, chesscom: idle },
   lastTriggeredFor: null,
@@ -73,28 +121,20 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     }),
 
   startForProfile: async (profile) => {
-    if (get().lastTriggeredFor === profile.id) return;
+    const fp = fingerprint(profile);
+    if (get().lastTriggeredFor === fp) return;
 
-    const tasks: Promise<void>[] = [];
-    const lichessUsername = profile.lichessUsername?.trim() ?? '';
-    const chesscomUsername = profile.chesscomUsername?.trim() ?? '';
-
-    if (lichessUsername) {
-      const cur = get().providers.lichess;
-      if (cur.phase !== 'fetching' && cur.phase !== 'inserting') {
-        tasks.push(runOne('lichess', lichessUsername, profile.lastSyncedLichessAt, set));
-      }
-    }
-    if (chesscomUsername) {
-      const cur = get().providers.chesscom;
-      if (cur.phase !== 'fetching' && cur.phase !== 'inserting') {
-        tasks.push(runOne('chess.com', chesscomUsername, profile.lastSyncedChesscomAt, set));
-      }
-    }
-
+    const tasks = buildTasks(profile, get().providers, set, 'profile');
     if (tasks.length === 0) return;
 
-    set({ lastTriggeredFor: profile.id });
+    set({ lastTriggeredFor: fp });
+    await Promise.allSettled(tasks);
+  },
+
+  triggerNow: async (profile) => {
+    const tasks = buildTasks(profile, get().providers, set, 'profile');
+    if (tasks.length === 0) return;
+    set({ lastTriggeredFor: fingerprint(profile) });
     await Promise.allSettled(tasks);
   },
 }));
@@ -110,5 +150,5 @@ export async function retryWithProfile(profile: UserProfile, platform: Platform)
   const setter = (
     s: Partial<SyncState> | ((s: SyncState) => Partial<SyncState>),
   ) => useSyncStore.setState(s as any);
-  await runOne(platform, username, since, setter);
+  await runOne(platform, username, since, filtersFor(profile), setter);
 }

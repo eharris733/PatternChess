@@ -4,7 +4,7 @@ import { useAuth } from '../auth/useAuth';
 import { retryWithProfile, useSyncStore } from '../state/syncStore';
 import type { ProviderProgress } from '../services/syncService';
 
-type Aggregate = 'hidden' | 'syncing' | 'done' | 'error';
+type Aggregate = 'hidden' | 'idle' | 'syncing' | 'done' | 'error';
 
 function aggregate(
   hasLichess: boolean,
@@ -20,7 +20,7 @@ function aggregate(
   if (states.includes('fetching') || states.includes('inserting')) return 'syncing';
   if (states.includes('error')) return 'error';
   if (states.includes('done')) return 'done';
-  return 'hidden';
+  return 'idle';
 }
 
 function progressLabel(p: ProviderProgress): string {
@@ -28,29 +28,29 @@ function progressLabel(p: ProviderProgress): string {
   if (p.phase === 'inserting') return `${p.inserted}/${p.total ?? '?'} new`;
   if (p.phase === 'done') return p.inserted > 0 ? `+${p.inserted} new` : 'up to date';
   if (p.phase === 'error') return p.error ?? 'failed';
-  return '';
+  return 'idle';
 }
 
 export function SyncIndicator() {
   const { profile } = useAuth();
   const providers = useSyncStore((s) => s.providers);
+  const triggerNow = useSyncStore((s) => s.triggerNow);
   const [open, setOpen] = useState(false);
-  const [hideAfterDone, setHideAfterDone] = useState(false);
+  const [collapseDone, setCollapseDone] = useState(false);
 
   const hasLichess = !!profile?.lichessUsername;
   const hasChesscom = !!profile?.chesscomUsername;
   const agg = aggregate(hasLichess, hasChesscom, providers.lichess, providers.chesscom);
 
   useEffect(() => {
-    setHideAfterDone(false);
+    setCollapseDone(false);
     if (agg === 'done') {
-      const t = window.setTimeout(() => setHideAfterDone(true), 4000);
+      const t = window.setTimeout(() => setCollapseDone(true), 4000);
       return () => window.clearTimeout(t);
     }
   }, [agg, providers.lichess.phase, providers.chesscom.phase]);
 
   if (agg === 'hidden') return null;
-  if (agg === 'done' && hideAfterDone) return null;
 
   const totalInserted =
     (hasLichess ? providers.lichess.inserted : 0) +
@@ -63,29 +63,42 @@ export function SyncIndicator() {
       ? providers.chesscom.total ?? 0
       : 0);
 
+  const collapseToIdle = agg === 'done' && collapseDone;
+  const display: Aggregate = collapseToIdle ? 'idle' : agg;
+
   const headline =
-    agg === 'syncing'
+    display === 'syncing'
       ? totalFetching > 0
         ? `Syncing ${totalInserted}/${totalFetching}`
         : 'Syncing…'
-      : agg === 'done'
+      : display === 'done'
         ? totalInserted > 0
           ? `+${totalInserted} new games`
           : 'Up to date'
-        : 'Sync failed';
+        : display === 'error'
+          ? 'Sync failed'
+          : 'Sync';
 
   const glyph =
-    agg === 'syncing' ? (
+    display === 'syncing' ? (
       <span className="inline-block w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-    ) : agg === 'done' ? (
+    ) : display === 'done' ? (
       <span className="text-correct">✓</span>
-    ) : (
+    ) : display === 'error' ? (
       <span className="text-incorrect">✕</span>
+    ) : (
+      <span className="text-text-secondary">↻</span>
     );
 
   const onRetry = (platform: 'lichess' | 'chess.com') => {
     if (!profile) return;
     void retryWithProfile(profile, platform);
+  };
+
+  const isBusy = display === 'syncing';
+  const onSyncNow = () => {
+    if (!profile || isBusy) return;
+    void triggerNow(profile);
   };
 
   return (
@@ -121,6 +134,16 @@ export function SyncIndicator() {
           )}
           {!hasLichess && !hasChesscom && (
             <span className="text-text-secondary">No accounts linked.</span>
+          )}
+          {(hasLichess || hasChesscom) && (
+            <button
+              type="button"
+              className="btn-primary text-xs mt-1"
+              disabled={isBusy}
+              onClick={onSyncNow}
+            >
+              {isBusy ? 'Syncing…' : 'Sync now'}
+            </button>
           )}
         </div>
       )}

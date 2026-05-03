@@ -2,19 +2,32 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { authService } from '../services/authService';
+import type { TimeControlCategory } from '../services/chessApiService';
+
+type TimeControlPref = TimeControlCategory | '';
 
 export function ProfileRoute() {
   const { profile, refreshProfile, user } = useAuth();
   const navigate = useNavigate();
   const [lichess, setLichess] = useState('');
   const [chesscom, setChesscom] = useState('');
+  const [ratedOnly, setRatedOnly] = useState(false);
+  const [timeControl, setTimeControl] = useState<TimeControlPref>('');
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   useEffect(() => {
     setLichess(profile?.lichessUsername ?? '');
     setChesscom(profile?.chesscomUsername ?? '');
-  }, [profile?.id, profile?.lichessUsername, profile?.chesscomUsername]);
+    setRatedOnly(profile?.preferredRatedOnly ?? false);
+    setTimeControl(profile?.preferredTimeControl ?? '');
+  }, [
+    profile?.id,
+    profile?.lichessUsername,
+    profile?.chesscomUsername,
+    profile?.preferredRatedOnly,
+    profile?.preferredTimeControl,
+  ]);
 
   const onSave = async () => {
     if (!profile) return;
@@ -24,6 +37,8 @@ export function ProfileRoute() {
         ...profile,
         lichessUsername: lichess.trim() || null,
         chesscomUsername: chesscom.trim() || null,
+        preferredRatedOnly: ratedOnly,
+        preferredTimeControl: timeControl === '' ? null : timeControl,
       });
       // Claim any anon games matching either username
       if (lichess.trim()) await authService.claimAnonymousData(lichess.trim());
@@ -78,6 +93,34 @@ export function ProfileRoute() {
             onChange={(e) => setChesscom(e.target.value)}
           />
         </div>
+
+        <h2 className="heading-md mt-2">Sync preferences</h2>
+        <p className="text-text-secondary text-sm -mt-2">
+          Applied automatically after sign-in and when you click Sync now.
+        </p>
+        <label className="flex items-center gap-2 select-none">
+          <input
+            type="checkbox"
+            checked={ratedOnly}
+            onChange={(e) => setRatedOnly(e.target.checked)}
+          />
+          <span>Rated games only</span>
+        </label>
+        <div className="flex flex-col gap-2">
+          <label className="label">Time control</label>
+          <select
+            className="input"
+            value={timeControl}
+            onChange={(e) => setTimeControl(e.target.value as TimeControlPref)}
+          >
+            <option value="">All</option>
+            <option value="bullet">Bullet</option>
+            <option value="blitz">Blitz</option>
+            <option value="rapid">Rapid</option>
+            <option value="classical">Classical</option>
+          </select>
+        </div>
+
         <div className="flex items-center gap-3 mt-2">
           <button className="btn-primary" onClick={onSave} disabled={saving}>
             {saving ? 'Saving…' : 'Save'}

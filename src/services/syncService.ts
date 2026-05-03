@@ -1,4 +1,9 @@
-import { fetchChessComGames, fetchLichessGames, ImportedGame } from './chessApiService';
+import {
+  fetchChessComGames,
+  fetchLichessGames,
+  ImportedGame,
+  TimeControlCategory,
+} from './chessApiService';
 import { supabaseService } from './supabaseService';
 import type { GameRecord } from '../models/gameRecord';
 
@@ -17,14 +22,25 @@ export interface SyncResult {
   latestPlayedAt: Date | null;
 }
 
-function dedupeKey(g: { platform: string; opponent: string; played_at: string | null }): string {
-  return `${g.platform}|${g.opponent}|${g.played_at ?? ''}`;
+export interface SyncFilters {
+  ratedOnly?: boolean;
+  timeControl?: TimeControlCategory | null;
+}
+
+function dedupeKey(g: {
+  platform: string;
+  username: string;
+  opponent: string;
+  played_at: string | null;
+}): string {
+  return `${g.platform}|${g.username}|${g.opponent}|${g.played_at ?? ''}`;
 }
 
 export async function syncProvider(
   platform: Platform,
   username: string,
   since: Date | null,
+  filters: SyncFilters,
   onProgress: (p: ProviderProgress) => void,
 ): Promise<SyncResult> {
   onProgress({
@@ -35,12 +51,15 @@ export async function syncProvider(
     error: null,
   });
 
+  const ratedOnly = filters.ratedOnly ?? false;
+  const tc = filters.timeControl ?? null;
+
   let fetched: ImportedGame[];
   try {
     fetched =
       platform === 'lichess'
-        ? await fetchLichessGames(username, { since })
-        : await fetchChessComGames(username, { since });
+        ? await fetchLichessGames(username, { since, ratedOnly, perfType: tc })
+        : await fetchChessComGames(username, { since, ratedOnly, timeControl: tc });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Fetch failed';
     onProgress({ phase: 'error', fetched: 0, inserted: 0, total: null, error: msg });

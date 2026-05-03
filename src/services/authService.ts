@@ -59,6 +59,8 @@ export const authService = {
         (meta.avatar_url as string | undefined) ?? (meta.picture as string | undefined) ?? null,
       lichessUsername: null,
       chesscomUsername: null,
+      preferredRatedOnly: false,
+      preferredTimeControl: null,
       lastSyncedLichessAt: null,
       lastSyncedChesscomAt: null,
       createdAt: new Date(),
