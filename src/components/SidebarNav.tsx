@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
+import { SyncIndicator } from './SyncIndicator';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: '◐' },
@@ -51,11 +52,15 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
         ))}
       </nav>
 
+      <div className="mt-auto" />
+
+      <SyncIndicator collapsed={collapsed} />
+
       <NavLink
         to="/profile"
         className={({ isActive }) =>
           clsx(
-            'mt-auto mx-2 mb-1 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition',
+            'mx-2 mb-1 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition',
             isActive
               ? 'bg-accent/20 text-text-primary font-semibold'
               : 'text-text-secondary hover:bg-surface-2 hover:text-text-primary',

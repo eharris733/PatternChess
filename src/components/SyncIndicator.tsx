@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
 import { retryWithProfile, useSyncStore } from '../state/syncStore';
 import type { ProviderProgress } from '../services/syncService';
 
-type Aggregate = 'hidden' | 'idle' | 'syncing' | 'done' | 'error';
+type Aggregate = 'none' | 'idle' | 'syncing' | 'done' | 'error';
 
 function aggregate(
   hasLichess: boolean,
@@ -12,7 +13,7 @@ function aggregate(
   l: ProviderProgress,
   c: ProviderProgress,
 ): Aggregate {
-  if (!hasLichess && !hasChesscom) return 'hidden';
+  if (!hasLichess && !hasChesscom) return 'none';
   const states = [
     hasLichess ? l.phase : 'idle',
     hasChesscom ? c.phase : 'idle',
@@ -29,31 +30,11 @@ function aggregate(
   return 'idle';
 }
 
-function progressLabel(p: ProviderProgress): string {
-  if (p.phase === 'fetching') return 'fetching…';
-  if (p.phase === 'inserting') return `${p.inserted}/${p.total ?? '?'} new`;
-  if (p.phase === 'analyzing') {
-    const game = `${p.analyzeGameIndex + 1}/${p.analyzeGamesTotal}`;
-    if (p.analyzePositionsTotal > 0) {
-      return `analyzing ${game} (${p.analyzePositionIndex}/${p.analyzePositionsTotal})`;
-    }
-    return `analyzing ${game}`;
-  }
-  if (p.phase === 'done') {
-    const parts: string[] = [];
-    if (p.inserted > 0) parts.push(`+${p.inserted} new`);
-    if (p.blundersFound > 0) parts.push(`+${p.blundersFound} blunders`);
-    return parts.length > 0 ? parts.join(' · ') : 'up to date';
-  }
-  if (p.phase === 'error') return p.error ?? 'failed';
-  return 'idle';
-}
-
-export function SyncIndicator() {
+export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
+  const navigate = useNavigate();
   const { profile } = useAuth();
   const providers = useSyncStore((s) => s.providers);
   const triggerNow = useSyncStore((s) => s.triggerNow);
-  const [open, setOpen] = useState(false);
   const [collapseDone, setCollapseDone] = useState(false);
 
   const hasLichess = !!profile?.lichessUsername;
@@ -68,8 +49,6 @@ export function SyncIndicator() {
     }
   }, [agg, providers.lichess.phase, providers.chesscom.phase]);
 
-  if (agg === 'hidden') return null;
-
   const totalInserted =
     (hasLichess ? providers.lichess.inserted : 0) +
     (hasChesscom ? providers.chesscom.inserted : 0);
@@ -80,129 +59,98 @@ export function SyncIndicator() {
     (hasChesscom && (providers.chesscom.phase === 'fetching' || providers.chesscom.phase === 'inserting')
       ? providers.chesscom.total ?? 0
       : 0);
+  const totalBlundersFound =
+    (hasLichess ? providers.lichess.blundersFound : 0) +
+    (hasChesscom ? providers.chesscom.blundersFound : 0);
+  const isAnalyzing =
+    (hasLichess && providers.lichess.phase === 'analyzing') ||
+    (hasChesscom && providers.chesscom.phase === 'analyzing');
 
   const collapseToIdle = agg === 'done' && collapseDone;
   const display: Aggregate = collapseToIdle ? 'idle' : agg;
 
-  const isAnalyzing =
-    (hasLichess && providers.lichess.phase === 'analyzing') ||
-    (hasChesscom && providers.chesscom.phase === 'analyzing');
-  const totalBlundersFound =
-    (hasLichess ? providers.lichess.blundersFound : 0) +
-    (hasChesscom ? providers.chesscom.blundersFound : 0);
-
-  const doneSummary = (() => {
-    const parts: string[] = [];
-    if (totalInserted > 0) parts.push(`+${totalInserted} games`);
-    if (totalBlundersFound > 0) parts.push(`+${totalBlundersFound} blunders`);
-    return parts.length > 0 ? parts.join(' · ') : 'Up to date';
+  const headline = (() => {
+    if (display === 'none') return 'Connect account';
+    if (display === 'syncing') {
+      if (isAnalyzing) return 'Analyzing…';
+      if (totalFetching > 0) return `Syncing ${totalInserted}/${totalFetching}`;
+      return 'Syncing…';
+    }
+    if (display === 'done') {
+      const parts: string[] = [];
+      if (totalInserted > 0) parts.push(`+${totalInserted} games`);
+      if (totalBlundersFound > 0) parts.push(`+${totalBlundersFound} blunders`);
+      return parts.length > 0 ? parts.join(' · ') : 'Up to date';
+    }
+    if (display === 'error') return 'Sync failed';
+    return 'Up to date';
   })();
-
-  const headline =
-    display === 'syncing'
-      ? isAnalyzing
-        ? 'Analyzing…'
-        : totalFetching > 0
-          ? `Syncing ${totalInserted}/${totalFetching}`
-          : 'Syncing…'
-      : display === 'done'
-        ? doneSummary
-        : display === 'error'
-          ? 'Sync failed'
-          : 'Sync';
 
   const glyph =
     display === 'syncing' ? (
-      <span className="inline-block w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      <span className="inline-block w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
     ) : display === 'done' ? (
       <span className="text-correct">✓</span>
     ) : display === 'error' ? (
       <span className="text-incorrect">✕</span>
+    ) : display === 'none' ? (
+      <span className="text-text-secondary">+</span>
     ) : (
-      <span className="text-text-secondary">↻</span>
+      <span className="text-correct">✓</span>
     );
 
-  const onRetry = (platform: 'lichess' | 'chess.com') => {
-    if (!profile) return;
-    void retryWithProfile(profile, platform);
-  };
-
   const isBusy = display === 'syncing';
-  const onSyncNow = () => {
-    if (!profile || isBusy) return;
+
+  const onClick = () => {
+    if (display === 'none') {
+      navigate('/profile');
+      return;
+    }
+    if (isBusy || !profile) return;
+    if (display === 'error') {
+      if (hasLichess && providers.lichess.phase === 'error') {
+        void retryWithProfile(profile, 'lichess');
+      }
+      if (hasChesscom && providers.chesscom.phase === 'error') {
+        void retryWithProfile(profile, 'chess.com');
+      }
+      return;
+    }
     void triggerNow(profile);
   };
 
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={clsx(
-          'flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface border border-surface-2',
-          'text-xs text-text-primary shadow-card hover:bg-surface-2 transition-colors',
-        )}
-        aria-label="Sync status"
-      >
-        {glyph}
-        <span>{headline}</span>
-      </button>
+  const subTitle = (() => {
+    if (display === 'syncing') return null;
+    if (display === 'none') return 'Sync games to start';
+    if (display === 'error') return 'Tap to retry';
+    return 'Tap to sync now';
+  })();
 
-      {open && (
-        <div className="absolute right-0 top-full mt-2 w-64 rounded-lg bg-surface border border-surface-2 shadow-card p-3 flex flex-col gap-2 text-xs z-20">
-          {hasLichess && (
-            <Row
-              name="Lichess"
-              progress={providers.lichess}
-              onRetry={() => onRetry('lichess')}
-            />
-          )}
-          {hasChesscom && (
-            <Row
-              name="Chess.com"
-              progress={providers.chesscom}
-              onRetry={() => onRetry('chess.com')}
-            />
-          )}
-          {!hasLichess && !hasChesscom && (
-            <span className="text-text-secondary">No accounts linked.</span>
-          )}
-          {(hasLichess || hasChesscom) && (
-            <button
-              type="button"
-              className="btn-primary text-xs mt-1"
-              disabled={isBusy}
-              onClick={onSyncNow}
-            >
-              {isBusy ? 'Syncing…' : 'Sync now'}
-            </button>
-          )}
-        </div>
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={isBusy}
+      aria-label={`Sync: ${headline}`}
+      title={collapsed ? headline : undefined}
+      className={clsx(
+        'mx-2 mb-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition text-left',
+        'text-text-secondary hover:bg-surface-2 hover:text-text-primary',
+        'disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-text-secondary',
+        collapsed && 'justify-center',
       )}
-    </div>
-  );
-}
-
-function Row({
-  name,
-  progress,
-  onRetry,
-}: {
-  name: string;
-  progress: ProviderProgress;
-  onRetry: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-text-primary">{name}</span>
-      <div className="flex items-center gap-2">
-        <span className="text-text-secondary">{progressLabel(progress)}</span>
-        {progress.phase === 'error' && (
-          <button className="btn-ghost text-xs" onClick={onRetry}>
-            Retry
-          </button>
-        )}
-      </div>
-    </div>
+    >
+      <span className="shrink-0 w-4 flex items-center justify-center text-base">{glyph}</span>
+      {!collapsed && (
+        <span className="flex flex-col min-w-0">
+          <span className="truncate text-text-primary">{headline}</span>
+          {subTitle && (
+            <span className="truncate text-[10px] uppercase tracking-wider text-text-secondary">
+              {subTitle}
+            </span>
+          )}
+        </span>
+      )}
+    </button>
   );
 }
