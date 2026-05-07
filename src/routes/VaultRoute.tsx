@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
@@ -19,6 +20,28 @@ const CHESS_COM_DRAW_TERMS = new Set([
   '50move',
   'timevsinsufficient',
 ]);
+
+const ANALYZED_STORAGE_PREFIX = 'pc:analyzed-externally:';
+
+function loadAnalyzedSet(userId: string | null | undefined): Set<string> {
+  if (!userId) return new Set();
+  try {
+    const raw = localStorage.getItem(ANALYZED_STORAGE_PREFIX + userId);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? new Set(arr as string[]) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function persistAnalyzedSet(userId: string, set: Set<string>): void {
+  try {
+    localStorage.setItem(ANALYZED_STORAGE_PREFIX + userId, JSON.stringify([...set]));
+  } catch {
+    // localStorage unavailable — silently ignore
+  }
+}
 
 function gameOutcome(game: GameRecord): Outcome | null {
   const result = game.result;
@@ -55,6 +78,20 @@ export function VaultRoute() {
     queryFn: () => supabaseService.getBlunderCountsByGame({ userId: user?.id }),
     enabled: !!user,
   });
+  const [analyzedIds, setAnalyzedIds] = useState<Set<string>>(() => loadAnalyzedSet(user?.id));
+  const markAnalyzed = useCallback(
+    (gameId: string) => {
+      if (!user?.id) return;
+      setAnalyzedIds((prev) => {
+        if (prev.has(gameId)) return prev;
+        const next = new Set(prev);
+        next.add(gameId);
+        persistAnalyzedSet(user.id, next);
+        return next;
+      });
+    },
+    [user?.id],
+  );
   const triggerNow = useSyncStore((s) => s.triggerNow);
   const isSyncing = useSyncStore((s) => {
     const busy = (phase: string) =>
@@ -138,10 +175,18 @@ export function VaultRoute() {
                     href={externalUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="btn-ghost text-xs gap-1"
+                    className={clsx(
+                      'btn-ghost text-xs gap-1',
+                      analyzedIds.has(g.id) && 'text-text-secondary/70',
+                    )}
                     title={`Open analysis on ${g.platform}`}
+                    onClick={() => markAnalyzed(g.id)}
+                    onAuxClick={(e) => {
+                      if (e.button === 1) markAnalyzed(g.id);
+                    }}
                   >
-                    Analyze <span aria-hidden>↗</span>
+                    {analyzedIds.has(g.id) ? 'Re-analyze' : 'Analyze'}{' '}
+                    <span aria-hidden>↗</span>
                   </a>
                 ) : (
                   <span
