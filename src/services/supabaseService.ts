@@ -133,6 +133,36 @@ export async function saveAnnotations(
   if (error) throw error;
 }
 
+export async function getUnanalyzedGameIds(opts: {
+  platform: string;
+  username: string;
+}): Promise<string[]> {
+  const userId = await currentUserId();
+  let q = supabase
+    .from('games')
+    .select('id')
+    .eq('platform', opts.platform)
+    .eq('username', opts.username)
+    .is('analyzed_at', null);
+  if (userId) q = q.eq('user_id', userId);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []).map((row) => (row as { id: string }).id);
+}
+
+export async function deleteBlundersForGame(gameId: string): Promise<void> {
+  const { error } = await supabase.from('blunders').delete().eq('game_id', gameId);
+  if (error) throw error;
+}
+
+export async function resetGameAnalyzed(gameId: string): Promise<void> {
+  const { error } = await supabase
+    .from('games')
+    .update({ analyzed_at: null })
+    .eq('id', gameId);
+  if (error) throw error;
+}
+
 export async function getExistingGameKeys(
   platform: string,
   username: string,
@@ -204,5 +234,8 @@ export const supabaseService = {
   getCachedExplorerResult,
   cacheExplorerResult,
   getExistingGameKeys,
+  getUnanalyzedGameIds,
+  deleteBlundersForGame,
+  resetGameAnalyzed,
   updateProfileLastSynced,
 };

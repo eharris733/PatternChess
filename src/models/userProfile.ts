@@ -7,7 +7,7 @@ export interface UserProfile {
   lichessUsername: string | null;
   chesscomUsername: string | null;
   preferredRatedOnly: boolean;
-  preferredTimeControl: TimeControlCategory | null;
+  preferredTimeControls: TimeControlCategory[];
   lastSyncedLichessAt: Date | null;
   lastSyncedChesscomAt: Date | null;
   createdAt: Date;
@@ -19,9 +19,17 @@ function parseDate(v: unknown): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function parseTimeControl(v: unknown): TimeControlCategory | null {
-  if (v === 'bullet' || v === 'blitz' || v === 'rapid' || v === 'classical') return v;
-  return null;
+function isTimeControl(v: unknown): v is TimeControlCategory {
+  return v === 'bullet' || v === 'blitz' || v === 'rapid' || v === 'classical';
+}
+
+function parseTimeControls(v: unknown): TimeControlCategory[] {
+  if (!Array.isArray(v)) return [];
+  const seen = new Set<TimeControlCategory>();
+  for (const item of v) {
+    if (isTimeControl(item)) seen.add(item);
+  }
+  return Array.from(seen);
 }
 
 export function userProfileFromJson(json: any): UserProfile {
@@ -32,7 +40,7 @@ export function userProfileFromJson(json: any): UserProfile {
     lichessUsername: (json.lichess_username as string | null) ?? null,
     chesscomUsername: (json.chesscom_username as string | null) ?? null,
     preferredRatedOnly: Boolean(json.preferred_rated_only ?? false),
-    preferredTimeControl: parseTimeControl(json.preferred_time_control),
+    preferredTimeControls: parseTimeControls(json.preferred_time_controls),
     lastSyncedLichessAt: parseDate(json.last_synced_lichess_at),
     lastSyncedChesscomAt: parseDate(json.last_synced_chesscom_at),
     createdAt: new Date(json.created_at as string),
@@ -47,7 +55,7 @@ export function userProfileToInsert(p: UserProfile): Record<string, unknown> {
     lichess_username: p.lichessUsername,
     chesscom_username: p.chesscomUsername,
     preferred_rated_only: p.preferredRatedOnly,
-    preferred_time_control: p.preferredTimeControl,
+    preferred_time_controls: p.preferredTimeControls,
   };
 }
 
@@ -58,6 +66,6 @@ export function userProfileToUpdate(p: UserProfile): Record<string, unknown> {
     lichess_username: p.lichessUsername,
     chesscom_username: p.chesscomUsername,
     preferred_rated_only: p.preferredRatedOnly,
-    preferred_time_control: p.preferredTimeControl,
+    preferred_time_controls: p.preferredTimeControls,
   };
 }

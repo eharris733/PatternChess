@@ -16,7 +16,7 @@ export interface ImportedGame {
 export interface FetchOpts {
   maxGames?: number;
   ratedOnly?: boolean;
-  timeControl?: TimeControlCategory | null;
+  timeControls?: TimeControlCategory[];
   /** When set, only return games strictly newer than this timestamp. */
   since?: Date | null;
 }
@@ -25,7 +25,7 @@ export async function fetchChessComGames(
   username: string,
   opts: FetchOpts = {},
 ): Promise<ImportedGame[]> {
-  const { maxGames = 25, ratedOnly = false, timeControl = null, since = null } = opts;
+  const { maxGames = 25, ratedOnly = false, timeControls = [], since = null } = opts;
   const sinceMs = since?.getTime() ?? null;
   const sinceMonthKey = since ? archiveKeyFromDate(since) : null;
 
@@ -57,7 +57,12 @@ export async function fetchChessComGames(
       if (out.length >= cap) break;
       if (!game.pgn) continue;
       if (ratedOnly && game.rated !== true) continue;
-      if (timeControl && !matchesTimeCategory(game.time_control ?? '', timeControl)) continue;
+      if (
+        timeControls.length > 0 &&
+        !timeControls.some((tc) => matchesTimeCategory(game.time_control ?? '', tc))
+      ) {
+        continue;
+      }
       if (sinceMs !== null) {
         const endMs = typeof game.end_time === 'number' ? game.end_time * 1000 : null;
         if (endMs === null || endMs <= sinceMs) continue;
@@ -87,9 +92,9 @@ export async function fetchChessComGames(
 
 export async function fetchLichessGames(
   username: string,
-  opts: FetchOpts & { perfType?: TimeControlCategory | null } = {},
+  opts: FetchOpts = {},
 ): Promise<ImportedGame[]> {
-  const { maxGames = 25, ratedOnly = false, perfType = null, since = null } = opts;
+  const { maxGames = 25, ratedOnly = false, timeControls = [], since = null } = opts;
   const effectiveMax = since ? Math.max(maxGames, 200) : maxGames;
   const params = new URLSearchParams({
     max: String(effectiveMax),
@@ -98,7 +103,7 @@ export async function fetchLichessGames(
     opening: 'true',
   });
   if (ratedOnly) params.set('rated', 'true');
-  if (perfType) params.set('perfType', perfType);
+  if (timeControls.length > 0) params.set('perfType', timeControls.join(','));
   if (since) params.set('since', String(since.getTime()));
 
   const res = await fetch(

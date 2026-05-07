@@ -17,6 +17,11 @@ const idle: ProviderProgress = {
   inserted: 0,
   total: null,
   error: null,
+  analyzeGameIndex: 0,
+  analyzeGamesTotal: 0,
+  analyzePositionIndex: 0,
+  analyzePositionsTotal: 0,
+  blundersFound: 0,
 };
 
 type SetState = (s: Partial<SyncState> | ((s: SyncState) => Partial<SyncState>)) => void;
@@ -43,14 +48,14 @@ function fingerprint(p: UserProfile): string {
     p.lichessUsername ?? '',
     p.chesscomUsername ?? '',
     p.preferredRatedOnly ? '1' : '0',
-    p.preferredTimeControl ?? '',
+    [...p.preferredTimeControls].sort().join(','),
   ].join('|');
 }
 
 function filtersFor(profile: UserProfile): SyncFilters {
   return {
     ratedOnly: profile.preferredRatedOnly,
-    timeControl: profile.preferredTimeControl,
+    timeControls: profile.preferredTimeControls,
   };
 }
 
@@ -74,6 +79,11 @@ async function runOne(
       }
     }
     if (result.inserted.length > 0) {
+      void queryClient.invalidateQueries({ queryKey: ['games'] });
+    }
+    if (result.blundersFound > 0) {
+      void queryClient.invalidateQueries({ queryKey: ['blunders'] });
+      // analyzed_at changed too
       void queryClient.invalidateQueries({ queryKey: ['games'] });
     }
   } catch (e) {

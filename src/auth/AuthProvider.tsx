@@ -99,6 +99,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [session?.user?.id]);
 
+  const timeControlsKey = profile
+    ? [...profile.preferredTimeControls].sort().join(',')
+    : '';
   useEffect(() => {
     if (profile) {
       void useSyncStore.getState().startForProfile(profile);
@@ -108,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile?.lichessUsername,
     profile?.chesscomUsername,
     profile?.preferredRatedOnly,
-    profile?.preferredTimeControl,
+    timeControlsKey,
   ]);
 
   return (

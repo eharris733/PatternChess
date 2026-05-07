@@ -17,7 +17,13 @@ function aggregate(
     hasLichess ? l.phase : 'idle',
     hasChesscom ? c.phase : 'idle',
   ];
-  if (states.includes('fetching') || states.includes('inserting')) return 'syncing';
+  if (
+    states.includes('fetching') ||
+    states.includes('inserting') ||
+    states.includes('analyzing')
+  ) {
+    return 'syncing';
+  }
   if (states.includes('error')) return 'error';
   if (states.includes('done')) return 'done';
   return 'idle';
@@ -26,7 +32,19 @@ function aggregate(
 function progressLabel(p: ProviderProgress): string {
   if (p.phase === 'fetching') return 'fetching…';
   if (p.phase === 'inserting') return `${p.inserted}/${p.total ?? '?'} new`;
-  if (p.phase === 'done') return p.inserted > 0 ? `+${p.inserted} new` : 'up to date';
+  if (p.phase === 'analyzing') {
+    const game = `${p.analyzeGameIndex + 1}/${p.analyzeGamesTotal}`;
+    if (p.analyzePositionsTotal > 0) {
+      return `analyzing ${game} (${p.analyzePositionIndex}/${p.analyzePositionsTotal})`;
+    }
+    return `analyzing ${game}`;
+  }
+  if (p.phase === 'done') {
+    const parts: string[] = [];
+    if (p.inserted > 0) parts.push(`+${p.inserted} new`);
+    if (p.blundersFound > 0) parts.push(`+${p.blundersFound} blunders`);
+    return parts.length > 0 ? parts.join(' · ') : 'up to date';
+  }
   if (p.phase === 'error') return p.error ?? 'failed';
   return 'idle';
 }
@@ -66,15 +84,29 @@ export function SyncIndicator() {
   const collapseToIdle = agg === 'done' && collapseDone;
   const display: Aggregate = collapseToIdle ? 'idle' : agg;
 
+  const isAnalyzing =
+    (hasLichess && providers.lichess.phase === 'analyzing') ||
+    (hasChesscom && providers.chesscom.phase === 'analyzing');
+  const totalBlundersFound =
+    (hasLichess ? providers.lichess.blundersFound : 0) +
+    (hasChesscom ? providers.chesscom.blundersFound : 0);
+
+  const doneSummary = (() => {
+    const parts: string[] = [];
+    if (totalInserted > 0) parts.push(`+${totalInserted} games`);
+    if (totalBlundersFound > 0) parts.push(`+${totalBlundersFound} blunders`);
+    return parts.length > 0 ? parts.join(' · ') : 'Up to date';
+  })();
+
   const headline =
     display === 'syncing'
-      ? totalFetching > 0
-        ? `Syncing ${totalInserted}/${totalFetching}`
-        : 'Syncing…'
+      ? isAnalyzing
+        ? 'Analyzing…'
+        : totalFetching > 0
+          ? `Syncing ${totalInserted}/${totalFetching}`
+          : 'Syncing…'
       : display === 'done'
-        ? totalInserted > 0
-          ? `+${totalInserted} new games`
-          : 'Up to date'
+        ? doneSummary
         : display === 'error'
           ? 'Sync failed'
           : 'Sync';

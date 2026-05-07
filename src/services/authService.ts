@@ -60,7 +60,7 @@ export const authService = {
       lichessUsername: null,
       chesscomUsername: null,
       preferredRatedOnly: false,
-      preferredTimeControl: null,
+      preferredTimeControls: [],
       lastSyncedLichessAt: null,
       lastSyncedChesscomAt: null,
       createdAt: new Date(),

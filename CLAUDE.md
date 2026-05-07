@@ -22,11 +22,11 @@ src/
   hooks/         useStockfish (singleton init), useGames, useDueBlunders
   lib/           supabase client, queryClient
   models/        Blunder, GameRecord, GameAnnotation, UserProfile, TrainingSession
-  routes/        DashboardRoute, ImportRoute, AnalysisRoute, TrainingRoute,
-                 VaultRoute, ReviewRoute, LoginRoute, ProfileRoute, plus dev-only
+  routes/        DashboardRoute, TrainingRoute, VaultRoute, ReviewRoute,
+                 LoginRoute, ProfileRoute, plus dev-only
                  SandboxRoute and EngineTestRoute
   services/      authService, supabaseService, chessApiService, pgnParserService,
-                 openingExplorerService
+                 syncService, analysisService, openingExplorerService
   state/         trainingStore (Zustand), reviewStore (Zustand)
   stockfish/     stockfishWorkerClient, uci.ts (parsers)
 
@@ -89,6 +89,33 @@ Playwright runs against the live dev server. Specs:
 - `visual.spec.ts` — every protected route renders inside the shell
 
 `stubAuth` in the specs writes a fake Supabase session into `localStorage` and shorts out outbound calls to `*.supabase.co`, so tests don't need a real user.
+
+### Verifying UI changes
+
+After any UI / behavior change, **start the dev server and exercise the affected
+screens with the Playwright MCP** (`mcp__playwright__*` tools) before reporting
+the task as done. `npm run typecheck` and the Playwright spec suite verify code
+correctness, not feature correctness — they don't catch runtime errors that only
+surface at the rendering layer (e.g. chess.js throws on an invalid move,
+infinite loading from an unhandled promise, a hidden empty state).
+
+A typical loop:
+1. Start `npm run dev` (background).
+2. `mcp__playwright__browser_navigate` to `http://localhost:5173`, sign in (or use a stubbed session).
+3. Walk through the changed flow and check `mcp__playwright__browser_console_messages` for errors.
+4. Take a `mcp__playwright__browser_snapshot` if the visual state matters.
+
+If it can't be tested in a browser, say so explicitly rather than claiming success.
+
+### Sync invariants
+
+- **Already-synced games are not re-fetched.** `syncProvider` calls
+  `getExistingGameKeys(platform, username)` and dedupes against
+  `(platform|username|opponent|played_at)` before insert.
+- **Already-analyzed games are not re-analyzed by sync.** `getUnanalyzedGameIds`
+  filters `analyzed_at IS NULL`. Only the per-game "Re-analyze" button in
+  `/vault` (which explicitly resets `analyzed_at` and deletes existing blunders)
+  can re-analyze a game.
 
 ## Production hosting
 

@@ -45,20 +45,27 @@ export class StockfishWorkerClient {
     return this.mode;
   }
 
-  async init(): Promise<void> {
+  async init(opts: { preferST?: boolean } = {}): Promise<void> {
     if (this.ready) return;
-    try {
-      this.worker = await this.tryLoad(ENGINE_MT);
-      this.mode = 'mt';
-      // eslint-disable-next-line no-console
-      console.log('Stockfish Lite MT ready');
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn('Stockfish Lite MT failed, falling back to single-threaded:', err);
+    if (opts.preferST) {
       this.worker = await this.tryLoad(ENGINE_ST);
       this.mode = 'st';
       // eslint-disable-next-line no-console
-      console.log('Stockfish Lite ST ready (single-threaded fallback)');
+      console.log('Stockfish Lite ST ready (analysis worker)');
+    } else {
+      try {
+        this.worker = await this.tryLoad(ENGINE_MT);
+        this.mode = 'mt';
+        // eslint-disable-next-line no-console
+        console.log('Stockfish Lite MT ready');
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('Stockfish Lite MT failed, falling back to single-threaded:', err);
+        this.worker = await this.tryLoad(ENGINE_ST);
+        this.mode = 'st';
+        // eslint-disable-next-line no-console
+        console.log('Stockfish Lite ST ready (single-threaded fallback)');
+      }
     }
     this.attachPersistentHandler();
     await this.send('isready', (line) => line.includes('readyok'));

@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
 import { useTrainingStore } from '../state/trainingStore';
+import { useDueBlunders } from '../hooks/useDueBlunders';
+import { useSyncStore } from '../state/syncStore';
 import { BoardPanel } from '../components/BoardPanel';
 import { MoveSequencePanel } from '../components/MoveSequencePanel';
 import { ProgressBar } from '../components/ProgressBar';
@@ -20,17 +22,39 @@ const SHORT_LABEL = (cl: ReturnType<typeof classify>) =>
 export function TrainingRoute() {
   const navigate = useNavigate();
   const location = useLocation() as { state?: LocationState };
-  const { user } = useAuth();
+  const { profile } = useAuth();
 
   const state = useTrainingStore();
+  const setBlunders = useTrainingStore((s) => s.setBlunders);
+
+  const dueBlunders = useDueBlunders(location.state?.gameIds);
+  const initialBlunders = dueBlunders.data;
 
   useEffect(() => {
-    void state.loadBlunders({ gameIds: location.state?.gameIds, userId: user?.id });
-    return () => {
-      state.reset();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+    if (!initialBlunders) return;
+    // Only initialize the store from the query when we haven't started training yet
+    // (loading) or when the queue was empty (waiting for a sync to populate).
+    // Don't interrupt an active session (reviewing/solving/correct/incorrect/complete).
+    const { phase } = useTrainingStore.getState();
+    if (phase === 'loading' || phase === 'empty') {
+      setBlunders(initialBlunders);
+    }
+  }, [initialBlunders, setBlunders]);
+
+  useEffect(
+    () => () => {
+      useTrainingStore.getState().reset();
+    },
+    [],
+  );
+
+  const triggerNow = useSyncStore((s) => s.triggerNow);
+  const isSyncing = useSyncStore((s) => {
+    const busy = (phase: string) =>
+      phase === 'fetching' || phase === 'inserting' || phase === 'analyzing';
+    return busy(s.providers.lichess.phase) || busy(s.providers.chesscom.phase);
+  });
+  const hasAccount = !!(profile?.lichessUsername || profile?.chesscomUsername);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -59,7 +83,7 @@ export function TrainingRoute() {
     return () => window.removeEventListener('keydown', onKey);
   }, [state]);
 
-  if (state.phase === 'loading') {
+  if (dueBlunders.isLoading || state.phase === 'loading') {
     return <div className="text-text-secondary text-sm">Loading…</div>;
   }
 
@@ -67,10 +91,24 @@ export function TrainingRoute() {
     return (
       <div className="max-w-md mx-auto card text-center flex flex-col gap-4">
         <h1 className="heading-lg">No blunders due</h1>
-        <p className="text-text-secondary text-sm">Import some games to fill your queue.</p>
-        <button className="btn-primary" onClick={() => navigate('/import')}>
-          Import games
-        </button>
+        <p className="text-text-secondary text-sm">
+          {hasAccount
+            ? 'Sync your latest games to fill the queue.'
+            : 'Link a Lichess or Chess.com account to start.'}
+        </p>
+        {hasAccount ? (
+          <button
+            className="btn-primary"
+            disabled={isSyncing || !profile}
+            onClick={() => profile && void triggerNow(profile)}
+          >
+            {isSyncing ? 'Syncing…' : 'Sync now'}
+          </button>
+        ) : (
+          <button className="btn-primary" onClick={() => navigate('/profile')}>
+            Go to Profile
+          </button>
+        )}
       </div>
     );
   }
@@ -177,6 +215,26 @@ export function TrainingRoute() {
               </span>
               {state.showWhatYouPlayed && (
                 <p className="font-mono font-bold text-incorrect mt-1">{state.blunderSan}</p>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => state.showHint()}
+              disabled={state.hintLevel >= 2 || state.evaluating}
+              className="text-left bg-surface-2 rounded-md p-3 text-sm hover:bg-surface-2/70 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="text-text-secondary text-xs uppercase tracking-wider">
+                {state.hintLevel === 0
+                  ? 'Show hint'
+                  : state.hintLevel === 1
+                    ? 'Show the move'
+                    : 'Hint shown'}
+              </span>
+              {state.hintLevel > 0 && (
+                <p className="text-text-secondary text-xs mt-1">
+                  Counts as a fail for recall.
+                </p>
               )}
             </button>
 

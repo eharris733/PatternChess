@@ -2,15 +2,23 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { useDueBlunders } from '../hooks/useDueBlunders';
 import { useGames } from '../hooks/useGames';
+import { useSyncStore } from '../state/syncStore';
 
 export function DashboardRoute() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const dueQuery = useDueBlunders();
   const gamesQuery = useGames();
+  const triggerNow = useSyncStore((s) => s.triggerNow);
+  const isSyncing = useSyncStore((s) => {
+    const busy = (phase: string) =>
+      phase === 'fetching' || phase === 'inserting' || phase === 'analyzing';
+    return busy(s.providers.lichess.phase) || busy(s.providers.chesscom.phase);
+  });
 
   const dueCount = dueQuery.data?.length ?? 0;
   const gamesCount = gamesQuery.data?.length ?? 0;
+  const hasAccount = !!(profile?.lichessUsername || profile?.chesscomUsername);
   const greeting =
     profile?.displayName ??
     (user?.user_metadata?.full_name as string | undefined) ??
@@ -42,9 +50,19 @@ export function DashboardRoute() {
           >
             Start training
           </button>
-          <button className="btn-outline" onClick={() => navigate('/import')}>
-            Import games
-          </button>
+          {hasAccount ? (
+            <button
+              className="btn-outline"
+              disabled={isSyncing || !profile}
+              onClick={() => profile && void triggerNow(profile)}
+            >
+              {isSyncing ? 'Syncing…' : 'Sync now'}
+            </button>
+          ) : (
+            <button className="btn-outline" onClick={() => navigate('/profile')}>
+              Add account
+            </button>
+          )}
         </div>
       </section>
 

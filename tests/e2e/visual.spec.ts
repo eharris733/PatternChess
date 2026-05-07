@@ -50,14 +50,6 @@ const ROUTES: Array<{ path: string; name: string; expect: (p: import('@playwrigh
     },
   },
   {
-    path: '/import',
-    name: 'import',
-    expect: async (p) => {
-      await expect(p.getByRole('heading', { name: 'Import games' })).toBeVisible();
-      await expect(p.getByPlaceholder(/drnykterstein|hikaru/i)).toBeVisible();
-    },
-  },
-  {
     path: '/vault',
     name: 'vault',
     expect: async (p) => {

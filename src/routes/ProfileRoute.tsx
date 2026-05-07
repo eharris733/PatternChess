@@ -4,7 +4,12 @@ import { useAuth } from '../auth/useAuth';
 import { authService } from '../services/authService';
 import type { TimeControlCategory } from '../services/chessApiService';
 
-type TimeControlPref = TimeControlCategory | '';
+const TIME_CONTROL_OPTIONS: { value: TimeControlCategory; label: string }[] = [
+  { value: 'bullet', label: 'Bullet' },
+  { value: 'blitz', label: 'Blitz' },
+  { value: 'rapid', label: 'Rapid' },
+  { value: 'classical', label: 'Classical' },
+];
 
 export function ProfileRoute() {
   const { profile, refreshProfile, user } = useAuth();
@@ -12,22 +17,31 @@ export function ProfileRoute() {
   const [lichess, setLichess] = useState('');
   const [chesscom, setChesscom] = useState('');
   const [ratedOnly, setRatedOnly] = useState(false);
-  const [timeControl, setTimeControl] = useState<TimeControlPref>('');
+  const [timeControls, setTimeControls] = useState<TimeControlCategory[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
+  const timeControlsKey = profile
+    ? [...profile.preferredTimeControls].sort().join(',')
+    : '';
   useEffect(() => {
     setLichess(profile?.lichessUsername ?? '');
     setChesscom(profile?.chesscomUsername ?? '');
     setRatedOnly(profile?.preferredRatedOnly ?? false);
-    setTimeControl(profile?.preferredTimeControl ?? '');
+    setTimeControls(profile?.preferredTimeControls ?? []);
   }, [
     profile?.id,
     profile?.lichessUsername,
     profile?.chesscomUsername,
     profile?.preferredRatedOnly,
-    profile?.preferredTimeControl,
+    timeControlsKey,
   ]);
+
+  const toggleTimeControl = (value: TimeControlCategory) => {
+    setTimeControls((cur) =>
+      cur.includes(value) ? cur.filter((v) => v !== value) : [...cur, value],
+    );
+  };
 
   const onSave = async () => {
     if (!profile) return;
@@ -38,7 +52,7 @@ export function ProfileRoute() {
         lichessUsername: lichess.trim() || null,
         chesscomUsername: chesscom.trim() || null,
         preferredRatedOnly: ratedOnly,
-        preferredTimeControl: timeControl === '' ? null : timeControl,
+        preferredTimeControls: timeControls,
       });
       // Claim any anon games matching either username
       if (lichess.trim()) await authService.claimAnonymousData(lichess.trim());
@@ -62,6 +76,8 @@ export function ProfileRoute() {
           <img
             src={profile.avatarUrl}
             alt=""
+            crossOrigin="anonymous"
+            referrerPolicy="no-referrer"
             className="w-14 h-14 rounded-full border border-surface-2"
           />
         ) : (
@@ -107,18 +123,25 @@ export function ProfileRoute() {
           <span>Rated games only</span>
         </label>
         <div className="flex flex-col gap-2">
-          <label className="label">Time control</label>
-          <select
-            className="input"
-            value={timeControl}
-            onChange={(e) => setTimeControl(e.target.value as TimeControlPref)}
-          >
-            <option value="">All</option>
-            <option value="bullet">Bullet</option>
-            <option value="blitz">Blitz</option>
-            <option value="rapid">Rapid</option>
-            <option value="classical">Classical</option>
-          </select>
+          <label className="label">Time controls</label>
+          <p className="text-text-secondary text-xs -mt-1">
+            Leave all unchecked to sync every time control.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {TIME_CONTROL_OPTIONS.map((opt) => (
+              <label
+                key={opt.value}
+                className="flex items-center gap-2 select-none px-3 py-1.5 rounded-md bg-surface-2 border border-surface-2 hover:bg-surface cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={timeControls.includes(opt.value)}
+                  onChange={() => toggleTimeControl(opt.value)}
+                />
+                <span>{opt.label}</span>
+              </label>
+            ))}
+          </div>
         </div>
 
         <div className="flex items-center gap-3 mt-2">

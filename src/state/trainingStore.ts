@@ -59,8 +59,9 @@ export interface TrainingStateShape {
   evaluating: boolean;
   game: GameRecord | null;
   showWhatYouPlayed: boolean;
+  hintLevel: 0 | 1 | 2;
 
-  loadBlunders: (input: { gameIds?: string[]; userId?: string }) => Promise<void>;
+  setBlunders: (blunders: Blunder[]) => void;
   loadCurrentBlunder: () => Promise<void>;
   proceedFromReview: () => void;
   processMove: (move: { from: string; to: string; promotion?: 'q' | 'r' | 'b' | 'n' }) => Promise<void>;
@@ -74,7 +75,7 @@ export interface TrainingStateShape {
 }
 
 type InitialShape = Omit<TrainingStateShape,
-  | 'loadBlunders'
+  | 'setBlunders'
   | 'loadCurrentBlunder'
   | 'proceedFromReview'
   | 'processMove'
@@ -112,16 +113,42 @@ function makeInitial(): InitialShape {
     evaluating: false,
     game: null,
     showWhatYouPlayed: false,
+    hintLevel: 0,
   };
 }
 
 const gameCache = new Map<string, GameRecord>();
 
+// Some PGN/UCI sources encode castling as "king-to-rook-square" (e.g. e8a8 / e1h1)
+// instead of standard "king-to-destination" (e8c8 / e1g1). chess.js v1 throws on
+// the rook-square form, so map known cases before parsing.
+const CASTLING_NORMALIZE: Record<string, string> = {
+  e1a1: 'e1c1',
+  e1h1: 'e1g1',
+  e8a8: 'e8c8',
+  e8h8: 'e8g8',
+};
+
+function tryMoveSan(fen: string, uci: string): string | null {
+  try {
+    const chess = new Chess(fen);
+    const m = parseUciMove(uci);
+    const result = chess.move({ from: m.from, to: m.to, promotion: m.promotion });
+    return result?.san ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function sanFromUci(fen: string, uci: string): string {
-  const chess = new Chess(fen);
-  const m = parseUciMove(uci);
-  const result = chess.move({ from: m.from, to: m.to, promotion: m.promotion });
-  return result?.san ?? uci;
+  const direct = tryMoveSan(fen, uci);
+  if (direct) return direct;
+  const normalized = CASTLING_NORMALIZE[uci];
+  if (normalized) {
+    const san = tryMoveSan(fen, normalized);
+    if (san) return san;
+  }
+  return uci;
 }
 
 function classifyShortLabel(b: Blunder): 'Blunder' | 'Mistake' | 'Inaccuracy' {
@@ -134,11 +161,21 @@ function classifyShortLabel(b: Blunder): 'Blunder' | 'Mistake' | 'Inaccuracy' {
 
 function buildLineMoves(initialFen: string, uciList: string[]): ReviewMove[] {
   const out: ReviewMove[] = [];
-  const chess = new Chess(initialFen);
+  let chess: Chess;
+  try {
+    chess = new Chess(initialFen);
+  } catch {
+    return out;
+  }
   for (const uci of uciList) {
     const m = parseUciMove(uci);
     const fenBefore = chess.fen();
-    const result = chess.move({ from: m.from, to: m.to, promotion: m.promotion });
+    let result;
+    try {
+      result = chess.move({ from: m.from, to: m.to, promotion: m.promotion });
+    } catch {
+      break;
+    }
     if (!result) break;
     out.push({ fenBefore, san: result.san, uci });
   }
@@ -239,23 +276,21 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
 
   reset: () => set(makeInitial()),
 
-  loadBlunders: async ({ gameIds, userId }) => {
-    set({ phase: 'loading', totalCorrect: 0, totalAttempted: 0, attemptedBlunderIds: new Set<string>() });
-    try {
-      const blunders =
-        gameIds && gameIds.length > 0
-          ? await supabaseService.getBlundersForGames(gameIds)
-          : await supabaseService.getDueBlunders({ userId });
-      if (blunders.length === 0) {
-        set({ ...makeInitial(), phase: 'empty' });
-        return;
-      }
-      set({ blunders, currentIndex: 0 });
-      await get().loadCurrentBlunder();
-    } catch (e) {
-      console.error(e);
-      set({ phase: 'empty' });
+  setBlunders: (blunders) => {
+    if (blunders.length === 0) {
+      set({ ...makeInitial(), phase: 'empty' });
+      return;
     }
+    set({
+      blunders,
+      currentIndex: 0,
+      currentCycle: 0,
+      totalCorrect: 0,
+      totalAttempted: 0,
+      attemptedBlunderIds: new Set<string>(),
+      phase: 'loading',
+    });
+    void get().loadCurrentBlunder();
   },
 
   loadCurrentBlunder: async () => {
@@ -279,23 +314,38 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     const blunderSan = sanFromUci(blunder.fen, blunder.playedMove);
     const playerSide: 'white' | 'black' = blunder.sideToMove === 'white' ? 'white' : 'black';
 
+    // Try to pre-play the blunder so we can show the position after the bad move.
+    // If the FEN or move can't be parsed (corrupt data, exotic encoding), skip the
+    // reviewing step entirely and fall through to solving — never leave phase='loading'.
+    let preplay: { afterFen: string; lastMove: [string, string]; from: string; to: string } | null = null;
     if (blunder.cycleNumber === 0 && blunder.timesAttempted === 0) {
-      // First-time review: pre-play the blunder, then fetch refutation PV
-      const chess = new Chess(blunder.fen);
-      const m = parseUciMove(blunder.playedMove);
-      let lastMove: [string, string] | null = null;
-      if (chess.move({ from: m.from, to: m.to, promotion: m.promotion })) {
-        lastMove = [m.from, m.to];
+      try {
+        const chess = new Chess(blunder.fen);
+        const rawM = parseUciMove(blunder.playedMove);
+        const stdUci = CASTLING_NORMALIZE[blunder.playedMove] ?? blunder.playedMove;
+        const stdM = parseUciMove(stdUci);
+        const result = chess.move({ from: stdM.from, to: stdM.to, promotion: stdM.promotion });
+        if (result) {
+          preplay = {
+            afterFen: chess.fen(),
+            lastMove: [rawM.from, rawM.to],
+            from: rawM.from,
+            to: rawM.to,
+          };
+        }
+      } catch {
+        preplay = null;
       }
-      const afterBlunderFen = chess.fen();
+    }
 
+    if (preplay) {
       set({
         phase: 'reviewing',
-        fen: afterBlunderFen,
+        fen: preplay.afterFen,
         orientation: playerSide,
         movableFor: null,
-        lastMove,
-        shapes: [{ orig: m.from as any, dest: m.to as any, brush: 'red' }],
+        lastMove: preplay.lastMove,
+        shapes: [{ orig: preplay.from as any, dest: preplay.to as any, brush: 'red' }],
         blunderSan,
         game,
         refutationMoves: [],
@@ -306,12 +356,13 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         activePostCorrectIndex: null,
         incorrectFeedback: null,
         showWhatYouPlayed: false,
+        hintLevel: 0,
       });
 
       try {
         const sf = await getStockfish();
-        const result = await sf.evaluatePositionFull(afterBlunderFen, 18);
-        const pvMoves = buildLineMoves(afterBlunderFen, result.principalVariation);
+        const result = await sf.evaluatePositionFull(preplay.afterFen, 18);
+        const pvMoves = buildLineMoves(preplay.afterFen, result.principalVariation);
         const { pairs, movesPlusBlunder } = buildRefutationPairs(blunder, blunderSan, pvMoves);
         set({
           refutationMoves: movesPlusBlunder,
@@ -339,6 +390,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         activePostCorrectIndex: null,
         incorrectFeedback: null,
         showWhatYouPlayed: false,
+        hintLevel: 0,
       });
     }
   },
@@ -363,6 +415,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       activePostCorrectIndex: null,
       incorrectFeedback: null,
       showWhatYouPlayed: false,
+      hintLevel: 0,
     });
   },
 
@@ -522,12 +575,31 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
 
   showHint: () => {
     const state = get();
+    if (state.phase !== 'solving') return;
     const b = state.blunders[state.currentIndex];
     if (!b || b.correctMoves.length === 0) return;
     const uci = b.correctMoves[0].move;
-    set({
-      shapes: [{ orig: uci.slice(0, 2) as any, dest: uci.slice(2, 4) as any, brush: 'green' }],
-    });
+    const from = uci.slice(0, 2);
+    const to = uci.slice(2, 4);
+
+    if (state.hintLevel === 0) {
+      const isFirstAttempt = !state.attemptedBlunderIds.has(b.id);
+      set((s) => ({
+        hintLevel: 1,
+        shapes: [{ orig: from as any, brush: 'blue' }],
+        ...(isFirstAttempt
+          ? {
+              totalAttempted: s.totalAttempted + 1,
+              attemptedBlunderIds: new Set(s.attemptedBlunderIds).add(b.id),
+            }
+          : {}),
+      }));
+    } else if (state.hintLevel === 1) {
+      set({
+        hintLevel: 2,
+        shapes: [{ orig: from as any, dest: to as any, brush: 'blue' }],
+      });
+    }
   },
 
   selectRefutationIndex: (idx) => {

@@ -2,8 +2,6 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { RequireAuth } from './auth/RequireAuth';
 import { DashboardRoute } from './routes/DashboardRoute';
-import { ImportRoute } from './routes/ImportRoute';
-import { AnalysisRoute } from './routes/AnalysisRoute';
 import { TrainingRoute } from './routes/TrainingRoute';
 import { VaultRoute } from './routes/VaultRoute';
 import { ReviewRoute } from './routes/ReviewRoute';
@@ -24,8 +22,6 @@ export default function App() {
         }
       >
         <Route path="/" element={<DashboardRoute />} />
-        <Route path="/import" element={<ImportRoute />} />
-        <Route path="/analysis" element={<AnalysisRoute />} />
         <Route path="/training" element={<TrainingRoute />} />
         <Route path="/vault" element={<VaultRoute />} />
         <Route path="/review/:gameId" element={<ReviewRoute />} />

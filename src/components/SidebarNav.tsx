@@ -6,7 +6,6 @@ const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: '◐' },
   { to: '/vault', label: 'Vault', icon: '▤' },
   { to: '/training', label: 'Train', icon: '✦' },
-  { to: '/import', label: 'Import', icon: '↧' },
 ];
 
 export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
@@ -67,6 +66,8 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
           <img
             src={profile.avatarUrl}
             alt=""
+            crossOrigin="anonymous"
+            referrerPolicy="no-referrer"
             className="w-7 h-7 rounded-full shrink-0 border border-surface-2"
           />
         ) : (

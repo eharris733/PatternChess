@@ -5,27 +5,42 @@ import {
   TimeControlCategory,
 } from './chessApiService';
 import { supabaseService } from './supabaseService';
+import { analyzeGames } from './analysisService';
 import type { GameRecord } from '../models/gameRecord';
 
 export type Platform = 'lichess' | 'chess.com';
 
 export interface ProviderProgress {
-  phase: 'idle' | 'fetching' | 'inserting' | 'done' | 'error';
+  phase: 'idle' | 'fetching' | 'inserting' | 'analyzing' | 'done' | 'error';
   fetched: number;
   inserted: number;
   total: number | null;
   error: string | null;
+  analyzeGameIndex: number;
+  analyzeGamesTotal: number;
+  analyzePositionIndex: number;
+  analyzePositionsTotal: number;
+  blundersFound: number;
 }
 
 export interface SyncResult {
   inserted: GameRecord[];
   latestPlayedAt: Date | null;
+  blundersFound: number;
 }
 
 export interface SyncFilters {
   ratedOnly?: boolean;
-  timeControl?: TimeControlCategory | null;
+  timeControls?: TimeControlCategory[];
 }
+
+const initial = {
+  analyzeGameIndex: 0,
+  analyzeGamesTotal: 0,
+  analyzePositionIndex: 0,
+  analyzePositionsTotal: 0,
+  blundersFound: 0,
+};
 
 function dedupeKey(g: {
   platform: string;
@@ -49,20 +64,28 @@ export async function syncProvider(
     inserted: 0,
     total: null,
     error: null,
+    ...initial,
   });
 
   const ratedOnly = filters.ratedOnly ?? false;
-  const tc = filters.timeControl ?? null;
+  const timeControls = filters.timeControls ?? [];
 
   let fetched: ImportedGame[];
   try {
     fetched =
       platform === 'lichess'
-        ? await fetchLichessGames(username, { since, ratedOnly, perfType: tc })
-        : await fetchChessComGames(username, { since, ratedOnly, timeControl: tc });
+        ? await fetchLichessGames(username, { since, ratedOnly, timeControls })
+        : await fetchChessComGames(username, { since, ratedOnly, timeControls });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Fetch failed';
-    onProgress({ phase: 'error', fetched: 0, inserted: 0, total: null, error: msg });
+    onProgress({
+      phase: 'error',
+      fetched: 0,
+      inserted: 0,
+      total: null,
+      error: msg,
+      ...initial,
+    });
     throw e;
   }
 
@@ -72,18 +95,8 @@ export async function syncProvider(
     inserted: 0,
     total: fetched.length,
     error: null,
+    ...initial,
   });
-
-  if (fetched.length === 0) {
-    onProgress({
-      phase: 'done',
-      fetched: 0,
-      inserted: 0,
-      total: 0,
-      error: null,
-    });
-    return { inserted: [], latestPlayedAt: null };
-  }
 
   let existingKeys: Set<string>;
   try {
@@ -96,6 +109,7 @@ export async function syncProvider(
       inserted: 0,
       total: fetched.length,
       error: msg,
+      ...initial,
     });
     throw e;
   }
@@ -116,6 +130,7 @@ export async function syncProvider(
         inserted: 0,
         total: fetched.length,
         error: msg,
+        ...initial,
       });
       throw e;
     }
@@ -127,13 +142,86 @@ export async function syncProvider(
     if (!latest || g.playedAt > latest) latest = g.playedAt;
   }
 
+  // Analyze every un-analyzed game for this user+platform+username, not just
+  // newly inserted ones — so legacy state (games inserted but never analyzed)
+  // heals itself on the next sync.
+  let unanalyzed: string[];
+  try {
+    unanalyzed = await supabaseService.getUnanalyzedGameIds({ platform, username });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Lookup failed';
+    onProgress({
+      phase: 'error',
+      fetched: fetched.length,
+      inserted: inserted.length,
+      total: fetched.length,
+      error: msg,
+      ...initial,
+    });
+    throw e;
+  }
+
+  let blundersFound = 0;
+  if (unanalyzed.length > 0) {
+    onProgress({
+      phase: 'analyzing',
+      fetched: fetched.length,
+      inserted: inserted.length,
+      total: fetched.length,
+      error: null,
+      analyzeGameIndex: 0,
+      analyzeGamesTotal: unanalyzed.length,
+      analyzePositionIndex: 0,
+      analyzePositionsTotal: 0,
+      blundersFound: 0,
+    });
+
+    try {
+      const result = await analyzeGames(unanalyzed, username, (p) => {
+        onProgress({
+          phase: 'analyzing',
+          fetched: fetched.length,
+          inserted: inserted.length,
+          total: fetched.length,
+          error: null,
+          analyzeGameIndex: p.gameIndex,
+          analyzeGamesTotal: p.gamesTotal,
+          analyzePositionIndex: p.positionIndex,
+          analyzePositionsTotal: p.positionsTotal,
+          blundersFound: p.blundersFound,
+        });
+      });
+      blundersFound = result.blundersFound;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Analyze failed';
+      onProgress({
+        phase: 'error',
+        fetched: fetched.length,
+        inserted: inserted.length,
+        total: fetched.length,
+        error: msg,
+        analyzeGameIndex: 0,
+        analyzeGamesTotal: unanalyzed.length,
+        analyzePositionIndex: 0,
+        analyzePositionsTotal: 0,
+        blundersFound: 0,
+      });
+      throw e;
+    }
+  }
+
   onProgress({
     phase: 'done',
     fetched: fetched.length,
     inserted: inserted.length,
     total: fetched.length,
     error: null,
+    analyzeGameIndex: unanalyzed.length,
+    analyzeGamesTotal: unanalyzed.length,
+    analyzePositionIndex: 0,
+    analyzePositionsTotal: 0,
+    blundersFound,
   });
 
-  return { inserted, latestPlayedAt: latest };
+  return { inserted, latestPlayedAt: latest, blundersFound };
 }
