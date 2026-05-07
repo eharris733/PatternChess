@@ -5,7 +5,12 @@ import { Blunder, CorrectMove, isCorrectMove, nextDrillDate } from '../models/bl
 import { GameRecord } from '../models/gameRecord';
 import { supabaseService } from '../services/supabaseService';
 import { getStockfish } from '../hooks/useStockfish';
-import { classify, winPercent, winningChancesLost } from '../chess/winningChances';
+import {
+  classify,
+  inaccuracyThresholdPercent,
+  winPercent,
+  winningChancesLost,
+} from '../chess/winningChances';
 import { moveToUci, parseUciMove } from '../chess/moveUtils';
 import type { MovePair } from '../components/MoveSequencePanel';
 
@@ -36,6 +41,7 @@ export interface TrainingStateShape {
   currentCycle: number;
   totalCorrect: number;
   totalAttempted: number;
+  attemptedBlunderIds: Set<string>;
   fen: string;
   orientation: 'white' | 'black';
   movableFor: 'white' | 'black' | 'both' | null;
@@ -67,7 +73,7 @@ export interface TrainingStateShape {
   reset: () => void;
 }
 
-const initial: Omit<TrainingStateShape,
+type InitialShape = Omit<TrainingStateShape,
   | 'loadBlunders'
   | 'loadCurrentBlunder'
   | 'proceedFromReview'
@@ -78,31 +84,36 @@ const initial: Omit<TrainingStateShape,
   | 'showHint'
   | 'selectRefutationIndex'
   | 'selectPostCorrectIndex'
-  | 'reset'> = {
-  phase: 'loading',
-  blunders: [],
-  currentIndex: 0,
-  currentCycle: 0,
-  totalCorrect: 0,
-  totalAttempted: 0,
-  fen: new Chess().fen(),
-  orientation: 'white',
-  movableFor: null,
-  lastMove: null,
-  shapes: [],
-  blunderSan: '',
-  refutationMoves: [],
-  refutationPairs: [],
-  activeRefutationIndex: null,
-  postCorrectMoves: [],
-  postCorrectPairs: [],
-  activePostCorrectIndex: null,
-  postCorrectStartsWithWhite: true,
-  incorrectFeedback: null,
-  evaluating: false,
-  game: null,
-  showWhatYouPlayed: false,
-};
+  | 'reset'>;
+
+function makeInitial(): InitialShape {
+  return {
+    phase: 'loading',
+    blunders: [],
+    currentIndex: 0,
+    currentCycle: 0,
+    totalCorrect: 0,
+    totalAttempted: 0,
+    attemptedBlunderIds: new Set<string>(),
+    fen: new Chess().fen(),
+    orientation: 'white',
+    movableFor: null,
+    lastMove: null,
+    shapes: [],
+    blunderSan: '',
+    refutationMoves: [],
+    refutationPairs: [],
+    activeRefutationIndex: null,
+    postCorrectMoves: [],
+    postCorrectPairs: [],
+    activePostCorrectIndex: null,
+    postCorrectStartsWithWhite: true,
+    incorrectFeedback: null,
+    evaluating: false,
+    game: null,
+    showWhatYouPlayed: false,
+  };
+}
 
 const gameCache = new Map<string, GameRecord>();
 
@@ -224,19 +235,19 @@ function buildPostCorrectPairs(
 }
 
 export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
-  ...initial,
+  ...makeInitial(),
 
-  reset: () => set(initial),
+  reset: () => set(makeInitial()),
 
   loadBlunders: async ({ gameIds, userId }) => {
-    set({ phase: 'loading' });
+    set({ phase: 'loading', totalCorrect: 0, totalAttempted: 0, attemptedBlunderIds: new Set<string>() });
     try {
       const blunders =
         gameIds && gameIds.length > 0
           ? await supabaseService.getBlundersForGames(gameIds)
           : await supabaseService.getDueBlunders({ userId });
       if (blunders.length === 0) {
-        set({ ...initial, phase: 'empty' });
+        set({ ...makeInitial(), phase: 'empty' });
         return;
       }
       set({ blunders, currentIndex: 0 });
@@ -404,25 +415,36 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       }
     }
 
+    const firstAttemptRecalled =
+      isCorrect ||
+      (chancesLost !== null && chancesLost < inaccuracyThresholdPercent);
+    const isFirstAttempt = !state.attemptedBlunderIds.has(blunder.id);
+
     if (isCorrect) {
       blunder.timesCorrect++;
       blunder.timesAttempted++;
       blunder.lastDrilledAt = new Date();
       void supabaseService.updateBlunderAfterDrill(blunder).catch(() => {});
 
-      set((s) => ({
-        phase: 'correct',
-        totalCorrect: s.totalCorrect + 1,
-        totalAttempted: s.totalAttempted + 1,
-        shapes: [{ orig: move.from as any, dest: move.to as any, brush: 'green' }],
-        incorrectFeedback: null,
-        refutationMoves: [],
-        refutationPairs: [],
-        activeRefutationIndex: null,
-        postCorrectMoves: [],
-        postCorrectPairs: [],
-        activePostCorrectIndex: null,
-      }));
+      set((s) => {
+        const nextAttempted = isFirstAttempt
+          ? new Set(s.attemptedBlunderIds).add(blunder.id)
+          : s.attemptedBlunderIds;
+        return {
+          phase: 'correct',
+          totalCorrect: isFirstAttempt && firstAttemptRecalled ? s.totalCorrect + 1 : s.totalCorrect,
+          totalAttempted: isFirstAttempt ? s.totalAttempted + 1 : s.totalAttempted,
+          attemptedBlunderIds: nextAttempted,
+          shapes: [{ orig: move.from as any, dest: move.to as any, brush: 'green' }],
+          incorrectFeedback: null,
+          refutationMoves: [],
+          refutationPairs: [],
+          activeRefutationIndex: null,
+          postCorrectMoves: [],
+          postCorrectPairs: [],
+          activePostCorrectIndex: null,
+        };
+      });
 
       // Engine continuation from the post-correct position
       const correctSan = result.san;
@@ -466,12 +488,19 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         feedback = { message: 'Incorrect, try again', tone: 'danger' };
       }
 
-      set((s) => ({
-        phase: 'incorrect',
-        totalAttempted: s.totalAttempted + 1,
-        shapes: [],
-        incorrectFeedback: feedback,
-      }));
+      set((s) => {
+        const nextAttempted = isFirstAttempt
+          ? new Set(s.attemptedBlunderIds).add(blunder.id)
+          : s.attemptedBlunderIds;
+        return {
+          phase: 'incorrect',
+          totalCorrect: isFirstAttempt && firstAttemptRecalled ? s.totalCorrect + 1 : s.totalCorrect,
+          totalAttempted: isFirstAttempt ? s.totalAttempted + 1 : s.totalAttempted,
+          attemptedBlunderIds: nextAttempted,
+          shapes: [],
+          incorrectFeedback: feedback,
+        };
+      });
     }
   },
 
