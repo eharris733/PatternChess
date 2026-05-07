@@ -40,7 +40,7 @@ export function LoginRoute() {
           <span className="text-accent text-3xl">♞</span>
           <h1 className="heading-xl">PatternChess</h1>
           <p className="text-text-secondary text-sm">
-            Drill the blunders from your own games. Woodpecker method.
+            Don't play the same blunder twice.  
           </p>
         </div>
         <button className="btn-primary" onClick={onSignIn} disabled={signingIn}>
@@ -48,7 +48,7 @@ export function LoginRoute() {
         </button>
         {error && <p className="text-incorrect text-sm">{error}</p>}
         <p className="text-text-secondary text-xs">
-          We only store your chess.com / lichess username and game data — no posting on your behalf.
+          We only store your chess.com / lichess username and game data — no personal info used or shared. 
         </p>
       </div>
     </div>

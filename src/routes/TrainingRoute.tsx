@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
@@ -6,11 +6,16 @@ import { useTrainingStore } from '../state/trainingStore';
 import { useDueBlunders } from '../hooks/useDueBlunders';
 import { useSyncStore } from '../state/syncStore';
 import { BoardPanel } from '../components/BoardPanel';
+import { BoardActionBar } from '../components/BoardActionBar';
 import { MoveSequencePanel } from '../components/MoveSequencePanel';
 import { ProgressBar } from '../components/ProgressBar';
 import { FeedbackBadge } from '../components/FeedbackBadge';
 import { WinningChancesDisplay } from '../components/WinningChancesDisplay';
 import { classify, winningChancesLost } from '../chess/winningChances';
+import {
+  externalAnalysisUrl,
+  resolvePlatform,
+} from '../services/externalAnalysisUrlService';
 
 interface LocationState {
   gameIds?: string[];
@@ -29,6 +34,11 @@ export function TrainingRoute() {
 
   const dueBlunders = useDueBlunders(location.state?.gameIds);
   const initialBlunders = dueBlunders.data;
+
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    setPaused(false);
+  }, [state.currentIndex]);
 
   useEffect(() => {
     if (!initialBlunders) return;
@@ -131,16 +141,41 @@ export function TrainingRoute() {
 
   const blunder = state.blunders[state.currentIndex];
 
+  const externalPlatform = resolvePlatform(state.game?.platform, 'lichess');
+  const externalAnalysis =
+    externalPlatform && state.fen ? externalAnalysisUrl(externalPlatform, state.fen) : null;
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
       <div className="flex flex-col gap-3">
-        <BoardPanel
-          fen={state.fen}
-          orientation={state.orientation}
-          movableFor={state.phase === 'solving' ? state.movableFor : null}
-          lastMove={state.lastMove}
-          shapes={state.shapes}
-          onMove={(m) => state.processMove(m)}
+        <div
+          className={clsx(
+            'transition duration-200',
+            paused && 'blur-md pointer-events-none select-none',
+          )}
+          aria-hidden={paused}
+        >
+          <BoardPanel
+            fen={state.fen}
+            orientation={state.orientation}
+            movableFor={state.phase === 'solving' && !paused ? state.movableFor : null}
+            lastMove={state.lastMove}
+            shapes={state.shapes}
+            onMove={(m) => state.processMove(m)}
+          />
+        </div>
+
+        <BoardActionBar
+          resetKey={state.currentIndex}
+          running={state.phase === 'solving' && !state.evaluating && !paused}
+          paused={paused}
+          onTogglePaused={() => setPaused((p) => !p)}
+          showHint={state.phase === 'solving'}
+          hintLevel={state.hintLevel}
+          hintDisabled={state.hintLevel >= 2 || state.evaluating || paused}
+          onHint={() => state.showHint()}
+          externalUrl={externalAnalysis?.url ?? null}
+          externalLabel={externalAnalysis?.label}
         />
       </div>
 
@@ -218,25 +253,9 @@ export function TrainingRoute() {
               )}
             </button>
 
-            <button
-              type="button"
-              onClick={() => state.showHint()}
-              disabled={state.hintLevel >= 2 || state.evaluating}
-              className="text-left bg-surface-2 rounded-md p-3 text-sm hover:bg-surface-2/70 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="text-text-secondary text-xs uppercase tracking-wider">
-                {state.hintLevel === 0
-                  ? 'Show hint'
-                  : state.hintLevel === 1
-                    ? 'Show the move'
-                    : 'Hint shown'}
-              </span>
-              {state.hintLevel > 0 && (
-                <p className="text-text-secondary text-xs mt-1">
-                  Counts as a fail for recall.
-                </p>
-              )}
-            </button>
+            {state.hintLevel > 0 && (
+              <p className="text-text-secondary text-xs">Hint shown — counts as a fail for recall.</p>
+            )}
 
             {state.evaluating && (
               <FeedbackBadge tone="info">Analyzing your move…</FeedbackBadge>
