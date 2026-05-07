@@ -7,6 +7,7 @@ import { useSyncStore } from '../state/syncStore';
 import { queryClient } from '../lib/queryClient';
 import { supabaseService } from '../services/supabaseService';
 import { analyzeGames, type AnalysisProgress } from '../services/analysisService';
+import { platformGameUrl } from '../services/externalAnalysisUrlService';
 import type { GameRecord } from '../models/gameRecord';
 
 export function VaultRoute() {
@@ -95,11 +96,29 @@ export function VaultRoute() {
                 : g.analyzedAt
                   ? 'Re-analyze'
                   : 'Analyze';
+          const externalUrl = platformGameUrl(g);
+          const platformLabel =
+            g.platform === 'lichess'
+              ? 'lichess'
+              : g.platform === 'chess.com'
+                ? 'chess.com'
+                : 'platform';
+          const onRowClick = () => {
+            if (externalUrl) {
+              window.open(externalUrl, '_blank', 'noopener,noreferrer');
+            }
+          };
           return (
             <li
               key={g.id}
-              className="px-5 py-3 flex items-center justify-between hover:bg-surface-2/50 transition cursor-pointer"
-              onClick={() => navigate(`/review/${g.id}`)}
+              className={clsx(
+                'px-5 py-3 flex items-center justify-between transition',
+                externalUrl
+                  ? 'hover:bg-surface-2/50 cursor-pointer'
+                  : 'opacity-80',
+              )}
+              onClick={externalUrl ? onRowClick : undefined}
+              title={externalUrl ? `Open on ${platformLabel}` : 'No external link available'}
             >
               <div className="flex flex-col">
                 <span className="text-sm font-medium">

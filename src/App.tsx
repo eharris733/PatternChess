@@ -4,7 +4,6 @@ import { RequireAuth } from './auth/RequireAuth';
 import { DashboardRoute } from './routes/DashboardRoute';
 import { TrainingRoute } from './routes/TrainingRoute';
 import { VaultRoute } from './routes/VaultRoute';
-import { ReviewRoute } from './routes/ReviewRoute';
 import { LoginRoute } from './routes/LoginRoute';
 import { ProfileRoute } from './routes/ProfileRoute';
 import { SandboxRoute } from './routes/SandboxRoute';
@@ -24,7 +23,6 @@ export default function App() {
         <Route path="/" element={<DashboardRoute />} />
         <Route path="/training" element={<TrainingRoute />} />
         <Route path="/vault" element={<VaultRoute />} />
-        <Route path="/review/:gameId" element={<ReviewRoute />} />
         <Route path="/profile" element={<ProfileRoute />} />
         <Route path="/__sandbox" element={<SandboxRoute />} />
         <Route path="/__engine-test" element={<EngineTestRoute />} />
