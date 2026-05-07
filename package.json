@@ -28,12 +28,12 @@
     "@playwright/test": "^1.48.0",
     "@types/react": "^18.3.10",
     "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",
     "stockfish": "18.0.5",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.6.2",
-    "vite": "^5.4.8"
+    "vite": "^8.0.0"
   }
 }
