@@ -68,6 +68,20 @@ export async function getBlundersForGames(gameIds: string[]): Promise<Blunder[]>
   return (data ?? []).map(blunderFromJson);
 }
 
+export async function getBlunderCountsByGame(opts?: {
+  userId?: string;
+}): Promise<Record<string, number>> {
+  let q = supabase.from('blunders').select('game_id');
+  if (opts?.userId) q = q.eq('user_id', opts.userId);
+  const { data, error } = await q;
+  if (error) throw error;
+  const counts: Record<string, number> = {};
+  for (const row of (data ?? []) as Array<{ game_id: string }>) {
+    counts[row.game_id] = (counts[row.game_id] ?? 0) + 1;
+  }
+  return counts;
+}
+
 export async function getDueBlunders(opts?: { userId?: string }): Promise<Blunder[]> {
   const now = new Date().toISOString();
   let q = supabase.from('blunders').select().lte('next_drill_at', now);
@@ -226,6 +240,7 @@ export const supabaseService = {
   markGameAnalyzed,
   insertBlunders,
   getBlundersForGames,
+  getBlunderCountsByGame,
   getDueBlunders,
   appendCorrectMove,
   updateBlunderAfterDrill,
