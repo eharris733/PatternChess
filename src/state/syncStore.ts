@@ -78,14 +78,11 @@ async function runOne(
         console.error('Failed to persist last_synced timestamp', e);
       }
     }
-    if (result.inserted.length > 0) {
-      void queryClient.invalidateQueries({ queryKey: ['games'] });
-    }
-    if (result.blundersFound > 0) {
-      void queryClient.invalidateQueries({ queryKey: ['blunders'] });
-      // analyzed_at changed too
-      void queryClient.invalidateQueries({ queryKey: ['games'] });
-    }
+    // Always invalidate after a successful sync — analyzed_at on existing games
+    // changes even when no new games were inserted and no blunders were found.
+    // refetchType: 'all' covers cases where Vault has unmounted mid-sync.
+    void queryClient.invalidateQueries({ queryKey: ['games'], refetchType: 'all' });
+    void queryClient.invalidateQueries({ queryKey: ['blunders'], refetchType: 'all' });
   } catch (e) {
     // syncProvider already emitted an error progress event
     console.error(`[sync] ${platform} failed`, e);
