@@ -1,49 +1,63 @@
-    Based on the CLAUDE.md context, your app is a Flutter Web app that needs CORS headers (for SharedArrayBuffer/Stockfish MT). Here's how you'd deploy to Cloudflare
-    Pages:
+# Deploying to Cloudflare Pages
 
-    1. Build locally
+PatternChess deploys as a static SPA built by Vite. Cloudflare Pages serves
+`dist/` and applies the COEP/COOP headers from `public/_headers` so Stockfish
+multi-threading works.
 
-    flutter build web --wasm
+## Build configuration (Pages dashboard)
 
-    2. Deploy via Cloudflare Pages
+Settings → Builds & deployments → Build configurations:
 
-    Option A: Direct upload (quickest)
-    npx wrangler pages deploy build/web
+- Framework preset: **None**
+- Build command: `npm run build`
+- Build output directory: `dist`
+- Root directory: (empty)
+- Environment variable: `NODE_VERSION=22.22.2` (matches `.nvmrc`)
 
-    Option B: Git integration
-    - Connect your repo to Cloudflare Pages
-    - Build command: flutter build web --wasm
-    - Output directory: build/web
+Do **not** set the framework preset to "Vite". Cloudflare's Vite preset
+auto-injects `@cloudflare/vite-plugin`, which is pinned to a Vite version that
+no longer matches this project (we're on Vite 8). It will fail with
+`The version of Vite used in the project ("X.Y.Z") cannot be automatically configured`.
+Setting the preset to None bypasses that detection — `npm run build` builds the
+app the same way it does locally.
 
-    3. CORS Headers (Critical)
+If you change the build config, retry with **"Clear build cache"** to wipe any
+stale `node_modules` from the previous preset.
 
-    You need Cross-Origin-Embedder-Policy and Cross-Origin-Opener-Policy headers for Stockfish MT's SharedArrayBuffer. Create a build/web/_headers file (or add it to
-    your build step):
+## Required headers
 
-    /*
-      Cross-Origin-Embedder-Policy: require-corp
-      Cross-Origin-Opener-Policy: same-origin
+`public/_headers`:
 
-    Or use a _headers file in your project root that gets copied into build/web/ as part of your build.
+```
+/*
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+```
 
-    4. Copy Stockfish files
+Without these, the browser refuses to grant `crossOriginIsolated`, and
+Stockfish drops to single-threaded.
 
-    Make sure your build step copies the stockfish WASM files into build/web/stockfish/ — your dev.sh build likely already does this, so you'd want to replicate that
-    logic.
+## SPA routing
 
-    Putting it together
+`public/_redirects` rewrites all paths to `/index.html` so React Router can
+take over.
 
-    A simple deploy script might look like:
+## Manual deploy (without git)
 
-    #!/bin/bash
-    flutter build web --wasm
-    cp -r web/stockfish build/web/stockfish
-    cat > build/web/_headers << 'EOF'
-    /*
-      Cross-Origin-Embedder-Policy: require-corp
-      Cross-Origin-Opener-Policy: same-origin
-    EOF
-    npx wrangler pages deploy build/web --project-name=pattern-chess
+```
+npm run build
+npx wrangler pages deploy dist --project-name=pattern-chess
+```
 
-    The _headers file is Cloudflare Pages' native way to set response headers — no Workers or functions needed. This replaces what your Node server in dev.sh build does
-     for COEP/COOP.
+`_headers` and `_redirects` from `public/` end up in `dist/` automatically via
+Vite's `publicDir` copy.
+
+## Environment variables
+
+Set in Pages → Settings → Environment variables for both Production and
+Preview:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `NODE_VERSION` = `22.22.2`
