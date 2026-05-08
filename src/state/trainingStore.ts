@@ -3,6 +3,7 @@ import { Chess } from 'chess.js';
 import type { DrawShape } from 'chessground/draw';
 import { Blunder, CorrectMove, isCorrectMove, nextDrillDate } from '../models/blunder';
 import { GameRecord } from '../models/gameRecord';
+import { UserProfile } from '../models/userProfile';
 import { supabaseService } from '../services/supabaseService';
 import { getStockfish } from '../hooks/useStockfish';
 import {
@@ -13,6 +14,7 @@ import {
 } from '../chess/winningChances';
 import { moveToUci, parseUciMove } from '../chess/moveUtils';
 import type { MovePair } from '../components/MoveSequencePanel';
+import { computeNextStreak, detectTimezone, localDate } from '../services/streakService';
 
 export type TrainingPhase =
   | 'loading'
@@ -32,6 +34,13 @@ interface ReviewMove {
 export interface IncorrectFeedback {
   message: string;
   tone: 'danger' | 'warning' | 'info' | 'success';
+}
+
+export interface StreakSnapshot {
+  currentStreakDays: number;
+  longestStreakDays: number;
+  lastDrillLocalDate: string | null;
+  timezone: string | null;
 }
 
 export interface TrainingStateShape {
@@ -60,8 +69,12 @@ export interface TrainingStateShape {
   game: GameRecord | null;
   showWhatYouPlayed: boolean;
   hintLevel: 0 | 1 | 2;
+  sessionId: string | null;
+  streakSnapshot: StreakSnapshot | null;
+  streakApplied: boolean;
 
   setBlunders: (blunders: Blunder[]) => void;
+  beginSession: (profile: UserProfile) => Promise<void>;
   loadCurrentBlunder: () => Promise<void>;
   proceedFromReview: () => void;
   processMove: (move: { from: string; to: string; promotion?: 'q' | 'r' | 'b' | 'n' }) => Promise<void>;
@@ -76,6 +89,7 @@ export interface TrainingStateShape {
 
 type InitialShape = Omit<TrainingStateShape,
   | 'setBlunders'
+  | 'beginSession'
   | 'loadCurrentBlunder'
   | 'proceedFromReview'
   | 'processMove'
@@ -114,7 +128,42 @@ function makeInitial(): InitialShape {
     game: null,
     showWhatYouPlayed: false,
     hintLevel: 0,
+    sessionId: null,
+    streakSnapshot: null,
+    streakApplied: false,
   };
+}
+
+function endActiveSession(state: TrainingStateShape): void {
+  if (!state.sessionId) return;
+  if (state.totalAttempted === 0) return;
+  void supabaseService
+    .updateTrainingSession(state.sessionId, {
+      blundersAttempted: state.totalAttempted,
+      blundersCorrect: state.totalCorrect,
+      endedAt: new Date(),
+    })
+    .catch(() => {});
+}
+
+async function applyStreakUpdate(snapshot: StreakSnapshot): Promise<void> {
+  const next = computeNextStreak({
+    currentStreakDays: snapshot.currentStreakDays,
+    longestStreakDays: snapshot.longestStreakDays,
+    lastDrillLocalDate: snapshot.lastDrillLocalDate,
+    timezone: snapshot.timezone,
+  });
+  if (!next.changed) return;
+  try {
+    await supabaseService.updateProfileStreak({
+      currentStreakDays: next.currentStreakDays,
+      longestStreakDays: next.longestStreakDays,
+      lastDrillLocalDate: next.lastDrillLocalDate,
+      timezone: next.timezone,
+    });
+  } catch {
+    /* network failures are non-fatal — streak resyncs next drill */
+  }
 }
 
 const gameCache = new Map<string, GameRecord>();
@@ -274,7 +323,29 @@ function buildPostCorrectPairs(
 export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
   ...makeInitial(),
 
-  reset: () => set(makeInitial()),
+  reset: () => {
+    endActiveSession(get());
+    set(makeInitial());
+  },
+
+  beginSession: async (profile) => {
+    const tz = profile.timezone ?? detectTimezone();
+    const snapshot: StreakSnapshot = {
+      currentStreakDays: profile.currentStreakDays,
+      longestStreakDays: profile.longestStreakDays,
+      lastDrillLocalDate: profile.lastDrillLocalDate,
+      timezone: profile.timezone,
+    };
+    set({ streakSnapshot: snapshot, streakApplied: false });
+    try {
+      const session = await supabaseService.createTrainingSession({
+        localDate: localDate(tz),
+      });
+      if (session) set({ sessionId: session.id });
+    } catch {
+      /* session persistence is best-effort */
+    }
+  },
 
   setBlunders: (blunders) => {
     if (blunders.length === 0) {
@@ -499,6 +570,20 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         };
       });
 
+      const afterCorrect = get();
+      if (afterCorrect.sessionId) {
+        void supabaseService
+          .updateTrainingSession(afterCorrect.sessionId, {
+            blundersAttempted: afterCorrect.totalAttempted,
+            blundersCorrect: afterCorrect.totalCorrect,
+          })
+          .catch(() => {});
+      }
+      if (!afterCorrect.streakApplied && afterCorrect.streakSnapshot) {
+        set({ streakApplied: true });
+        void applyStreakUpdate(afterCorrect.streakSnapshot);
+      }
+
       // Engine continuation from the post-correct position
       const correctSan = result.san;
       try {
@@ -539,6 +624,16 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
                 : { message: 'Good move, but keep looking for the best one', tone: 'success' };
       } else {
         feedback = { message: 'Incorrect, try again', tone: 'danger' };
+      }
+
+      const afterIncorrect = get();
+      if (afterIncorrect.sessionId && isFirstAttempt) {
+        void supabaseService
+          .updateTrainingSession(afterIncorrect.sessionId, {
+            blundersAttempted: afterIncorrect.totalAttempted + 1,
+            blundersCorrect: afterIncorrect.totalCorrect + (firstAttemptRecalled ? 1 : 0),
+          })
+          .catch(() => {});
       }
 
       set((s) => {

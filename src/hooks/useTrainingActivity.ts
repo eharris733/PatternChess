@@ -1,0 +1,53 @@
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '../auth/useAuth';
+import { supabaseService } from '../services/supabaseService';
+import { addDays, detectTimezone, localDate } from '../services/streakService';
+
+export function useCompletedToday() {
+  const { user, profile } = useAuth();
+  const tz = profile?.timezone ?? detectTimezone();
+  const today = localDate(tz);
+  return useQuery({
+    queryKey: ['training', 'completedToday', user?.id, today],
+    queryFn: () => supabaseService.hasTrainingSessionToday(today),
+    enabled: !!user,
+    staleTime: 60_000,
+  });
+}
+
+export function useRecentTrainingSessions(limit = 10) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['training', 'recent', user?.id, limit],
+    queryFn: () => supabaseService.getRecentTrainingSessions(limit),
+    enabled: !!user,
+  });
+}
+
+/**
+ * Last `days` days of activity for the streak grid. Returns a map of
+ * `YYYY-MM-DD` → boolean (true if any session that day had ≥1 correct attempt).
+ */
+export function useTrainingActivityWindow(days = 30) {
+  const { user, profile } = useAuth();
+  const tz = profile?.timezone ?? detectTimezone();
+  const today = localDate(tz);
+  const since = addDays(today, -(days - 1));
+  return useQuery({
+    queryKey: ['training', 'activityWindow', user?.id, since, today],
+    queryFn: async () => {
+      const sessions = await supabaseService.getTrainingSessionsSince(since);
+      const active = new Set<string>();
+      for (const s of sessions) {
+        if (s.blundersCorrect > 0) active.add(s.localDate);
+      }
+      const grid: { date: string; active: boolean }[] = [];
+      for (let i = days - 1; i >= 0; i--) {
+        const d = addDays(today, -i);
+        grid.push({ date: d, active: active.has(d) });
+      }
+      return grid;
+    },
+    enabled: !!user,
+  });
+}

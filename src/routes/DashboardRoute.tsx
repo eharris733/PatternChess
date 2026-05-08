@@ -1,24 +1,19 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
-import { useDueBlunders } from '../hooks/useDueBlunders';
 import { useGames } from '../hooks/useGames';
-import { useSyncStore } from '../state/syncStore';
+import { DailyHomeworkCard } from '../components/insights/DailyHomeworkCard';
+import { StreakTile } from '../components/insights/StreakTile';
+import { RankBadge } from '../components/insights/RankBadge';
+import { OpeningInsightsCard } from '../components/insights/OpeningInsightsCard';
+import { PhaseBlunderCard } from '../components/insights/PhaseBlunderCard';
+import { TimeManagementCard } from '../components/insights/TimeManagementCard';
 
 export function DashboardRoute() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
-  const dueQuery = useDueBlunders();
   const gamesQuery = useGames();
-  const triggerNow = useSyncStore((s) => s.triggerNow);
-  const isSyncing = useSyncStore((s) => {
-    const busy = (phase: string) =>
-      phase === 'fetching' || phase === 'inserting' || phase === 'analyzing';
-    return busy(s.providers.lichess.phase) || busy(s.providers.chesscom.phase);
-  });
 
-  const dueCount = dueQuery.data?.length ?? 0;
   const gamesCount = gamesQuery.data?.length ?? 0;
-  const hasAccount = !!(profile?.lichessUsername || profile?.chesscomUsername);
   const greeting =
     profile?.displayName ??
     (user?.user_metadata?.full_name as string | undefined) ??
@@ -26,47 +21,17 @@ export function DashboardRoute() {
     'there';
 
   return (
-    <div className="max-w-3xl mx-auto flex flex-col gap-8">
-      <header>
+    <div className="max-w-3xl mx-auto flex flex-col gap-6">
+      <header className="flex flex-col gap-2">
         <p className="text-text-secondary text-sm">Welcome back</p>
-        <h1 className="heading-xl mt-1">Hey {greeting}.</h1>
+        <h1 className="heading-xl">Hey {greeting}.</h1>
+        <RankBadge variant="compact" />
       </header>
 
-      <section className="card flex flex-col items-start gap-4">
-        <span className="label">Due now</span>
-        <div className="flex items-end gap-3">
-          <span className="text-6xl font-bold tabular-nums tracking-tight text-text-primary">
-            {dueCount}
-          </span>
-          <span className="text-text-secondary mb-2">
-            blunder{dueCount === 1 ? '' : 's'} ready to drill
-          </span>
-        </div>
-        <div className="flex gap-3 mt-2">
-          <button
-            className="btn-primary"
-            onClick={() => navigate('/training')}
-            disabled={dueCount === 0}
-          >
-            Start training
-          </button>
-          {hasAccount ? (
-            <button
-              className="btn-outline"
-              disabled={isSyncing || !profile}
-              onClick={() => profile && void triggerNow(profile)}
-            >
-              {isSyncing ? 'Syncing…' : 'Sync now'}
-            </button>
-          ) : (
-            <button className="btn-outline" onClick={() => navigate('/profile')}>
-              Add account
-            </button>
-          )}
-        </div>
-      </section>
+      <DailyHomeworkCard />
 
       <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <StreakTile />
         <button
           className="card text-left hover:border-accent transition"
           onClick={() => navigate('/vault')}
@@ -75,18 +40,11 @@ export function DashboardRoute() {
           <p className="heading-md mt-2">{gamesCount} games</p>
           <p className="text-text-secondary text-sm mt-1">Browse and review your imports.</p>
         </button>
-        <button
-          className="card text-left hover:border-accent transition"
-          onClick={() => navigate('/profile')}
-        >
-          <span className="label">Profile</span>
-          <p className="heading-md mt-2">Linked accounts</p>
-          <p className="text-text-secondary text-sm mt-1">
-            {[profile?.lichessUsername, profile?.chesscomUsername].filter(Boolean).join(' · ') ||
-              'Add your Lichess or Chess.com username'}
-          </p>
-        </button>
       </section>
+
+      <OpeningInsightsCard />
+      <PhaseBlunderCard />
+      <TimeManagementCard />
     </div>
   );
 }

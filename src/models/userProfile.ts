@@ -11,6 +11,10 @@ export interface UserProfile {
   lastSyncedLichessAt: Date | null;
   lastSyncedChesscomAt: Date | null;
   createdAt: Date;
+  currentStreakDays: number;
+  longestStreakDays: number;
+  lastDrillLocalDate: string | null;
+  timezone: string | null;
 }
 
 function parseDate(v: unknown): Date | null {
@@ -44,6 +48,10 @@ export function userProfileFromJson(json: any): UserProfile {
     lastSyncedLichessAt: parseDate(json.last_synced_lichess_at),
     lastSyncedChesscomAt: parseDate(json.last_synced_chesscom_at),
     createdAt: new Date(json.created_at as string),
+    currentStreakDays: (json.current_streak_days as number | null) ?? 0,
+    longestStreakDays: (json.longest_streak_days as number | null) ?? 0,
+    lastDrillLocalDate: (json.last_drill_local_date as string | null) ?? null,
+    timezone: (json.timezone as string | null) ?? null,
   };
 }
 

@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
 import { SyncIndicator } from './SyncIndicator';
+import { StreakBadge } from './insights/StreakBadge';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: '◐' },
@@ -53,6 +54,8 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
       </nav>
 
       <div className="mt-auto" />
+
+      <StreakBadge collapsed={collapsed} />
 
       <SyncIndicator collapsed={collapsed} />
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
@@ -27,10 +27,11 @@ const SHORT_LABEL = (cl: ReturnType<typeof classify>) =>
 export function TrainingRoute() {
   const navigate = useNavigate();
   const location = useLocation() as { state?: LocationState };
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
 
   const state = useTrainingStore();
   const setBlunders = useTrainingStore((s) => s.setBlunders);
+  const beginSession = useTrainingStore((s) => s.beginSession);
 
   const dueBlunders = useDueBlunders(location.state?.gameIds);
   const initialBlunders = dueBlunders.data;
@@ -48,12 +49,21 @@ export function TrainingRoute() {
     const { phase } = useTrainingStore.getState();
     if (phase === 'loading' || phase === 'empty') {
       setBlunders(initialBlunders);
+      if (initialBlunders.length > 0 && profile) {
+        void beginSession(profile);
+      }
     }
-  }, [initialBlunders, setBlunders]);
+  }, [initialBlunders, profile, setBlunders, beginSession]);
+
+  const refreshProfileRef = useRef(refreshProfile);
+  useEffect(() => {
+    refreshProfileRef.current = refreshProfile;
+  }, [refreshProfile]);
 
   useEffect(
     () => () => {
       useTrainingStore.getState().reset();
+      void refreshProfileRef.current();
     },
     [],
   );

@@ -1,8 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
 import { authService } from '../services/authService';
 import type { TimeControlCategory } from '../services/chessApiService';
+import { supabaseService } from '../services/supabaseService';
+import {
+  BackfillProgress,
+  runGameMetadataBackfill,
+} from '../services/gameMetadataBackfill';
+import { RankBadge } from '../components/insights/RankBadge';
+import { useRecentTrainingSessions } from '../hooks/useTrainingActivity';
 
 const TIME_CONTROL_OPTIONS: { value: TimeControlCategory; label: string }[] = [
   { value: 'bullet', label: 'Bullet' },
@@ -14,12 +22,38 @@ const TIME_CONTROL_OPTIONS: { value: TimeControlCategory; label: string }[] = [
 export function ProfileRoute() {
   const { profile, refreshProfile, user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [lichess, setLichess] = useState('');
   const [chesscom, setChesscom] = useState('');
   const [ratedOnly, setRatedOnly] = useState(false);
   const [timeControls, setTimeControls] = useState<TimeControlCategory[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [backfillRunning, setBackfillRunning] = useState(false);
+  const [backfillProgress, setBackfillProgress] = useState<BackfillProgress | null>(null);
+
+  const unparsedQuery = useQuery({
+    queryKey: ['games', 'unparsedCount', user?.id],
+    queryFn: () => supabaseService.countUnparsedGames(),
+    enabled: !!user,
+  });
+  const unparsedCount = unparsedQuery.data ?? 0;
+
+  const recentSessions = useRecentTrainingSessions(10);
+
+  const onBackfill = async () => {
+    setBackfillRunning(true);
+    setBackfillProgress({ processed: 0, total: unparsedCount, failed: 0 });
+    try {
+      const final = await runGameMetadataBackfill({
+        onProgress: (p) => setBackfillProgress(p),
+      });
+      setBackfillProgress(final);
+      await queryClient.invalidateQueries({ queryKey: ['games'] });
+    } finally {
+      setBackfillRunning(false);
+    }
+  };
 
   const timeControlsKey = profile
     ? [...profile.preferredTimeControls].sort().join(',')
@@ -89,6 +123,8 @@ export function ProfileRoute() {
         </div>
       </header>
 
+      <RankBadge />
+
       <section className="card flex flex-col gap-4">
         <h2 className="heading-md">Linked accounts</h2>
         <div className="flex flex-col gap-2">
@@ -153,6 +189,83 @@ export function ProfileRoute() {
           )}
         </div>
       </section>
+
+      {(unparsedCount > 0 || backfillProgress) && (
+        <section className="card flex flex-col gap-3">
+          <h2 className="heading-md">Game data backfill</h2>
+          <p className="text-text-secondary text-sm">
+            Re-parse stored PGNs to extract opening codes, ratings, and clock data so insight cards can use them.
+          </p>
+          {backfillProgress && (
+            <div className="flex flex-col gap-2">
+              <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
+                <div
+                  className="h-full bg-accent transition-[width] duration-150"
+                  style={{
+                    width: `${
+                      backfillProgress.total === 0
+                        ? 0
+                        : Math.min(
+                            100,
+                            Math.round(
+                              ((backfillProgress.processed + backfillProgress.failed) /
+                                backfillProgress.total) *
+                                100,
+                            ),
+                          )
+                    }%`,
+                  }}
+                />
+              </div>
+              <p className="text-text-secondary text-xs tabular-nums">
+                {backfillProgress.processed}/{backfillProgress.total} processed
+                {backfillProgress.failed > 0 ? ` · ${backfillProgress.failed} failed` : ''}
+              </p>
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            <button
+              className="btn-primary"
+              disabled={backfillRunning || unparsedCount === 0}
+              onClick={() => void onBackfill()}
+            >
+              {backfillRunning
+                ? 'Backfilling…'
+                : unparsedCount === 0
+                  ? 'Up to date'
+                  : `Backfill ${unparsedCount} game${unparsedCount === 1 ? '' : 's'}`}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {recentSessions.data && recentSessions.data.length > 0 && (
+        <section className="card flex flex-col gap-3">
+          <h2 className="heading-md">Recent sessions</h2>
+          <ul className="flex flex-col divide-y divide-surface-2/60">
+            {recentSessions.data.map((s) => {
+              const ended = s.endedAt ?? s.startedAt;
+              const duration = Math.max(
+                0,
+                Math.round((ended.getTime() - s.startedAt.getTime()) / 1000),
+              );
+              const recall = s.blundersAttempted > 0
+                ? Math.round((s.blundersCorrect / s.blundersAttempted) * 100)
+                : 0;
+              return (
+                <li key={s.id} className="flex items-center justify-between py-2 text-sm">
+                  <span className="text-text-primary tabular-nums">
+                    {s.startedAt.toLocaleDateString()}
+                  </span>
+                  <span className="text-text-secondary tabular-nums">
+                    {s.blundersCorrect}/{s.blundersAttempted} · {recall}% · {Math.round(duration / 60)}m
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       <section className="card flex items-center justify-between">
         <div>

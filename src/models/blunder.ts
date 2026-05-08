@@ -3,6 +3,8 @@ export interface CorrectMove {
   eval: number;
 }
 
+export type BlunderPhase = 'opening' | 'middlegame' | 'endgame';
+
 export interface Blunder {
   id: string;
   gameId: string;
@@ -20,6 +22,26 @@ export interface Blunder {
   timesCorrect: number;
   timesAttempted: number;
   createdAt: Date;
+  phase: BlunderPhase;
+}
+
+/** Derive phase from move number + remaining piece count on the position. */
+export function derivePhase(moveNumber: number, fen: string | null): BlunderPhase {
+  if (fen) {
+    const board = fen.split(' ')[0] ?? '';
+    let pieces = 0;
+    for (const ch of board) {
+      if (/[prnbqkPRNBQK]/.test(ch)) pieces++;
+    }
+    if (pieces > 0 && pieces <= 12) return 'endgame';
+  }
+  if (moveNumber <= 12) return 'opening';
+  if (moveNumber > 32) return 'endgame';
+  return 'middlegame';
+}
+
+function parsePhase(v: unknown): BlunderPhase {
+  return v === 'opening' || v === 'endgame' ? v : 'middlegame';
 }
 
 export const SPACED_REPETITION_DAYS = [1, 2, 4, 7, 14, 28, 56] as const;
@@ -62,5 +84,13 @@ export function blunderFromJson(json: any): Blunder {
     timesCorrect: (json.times_correct as number | null) ?? 0,
     timesAttempted: (json.times_attempted as number | null) ?? 0,
     createdAt: new Date(json.created_at as string),
+    phase: parsePhase(json.phase),
   };
+}
+
+/** A blunder is "mastered" when it has graduated all 7 spaced-rep cycles with ≥80% recall. */
+export function isMastered(b: Blunder): boolean {
+  if (b.cycleNumber < SPACED_REPETITION_DAYS.length) return false;
+  if (b.timesAttempted === 0) return false;
+  return b.timesCorrect / b.timesAttempted >= 0.8;
 }

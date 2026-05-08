@@ -64,6 +64,10 @@ export const authService = {
       lastSyncedLichessAt: null,
       lastSyncedChesscomAt: null,
       createdAt: new Date(),
+      currentStreakDays: 0,
+      longestStreakDays: 0,
+      lastDrillLocalDate: null,
+      timezone: null,
     };
     await supabase.from('profiles').insert(userProfileToInsert(profile));
     return profile;

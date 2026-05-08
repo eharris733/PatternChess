@@ -46,7 +46,7 @@ const ROUTES: Array<{ path: string; name: string; expect: (p: import('@playwrigh
     name: 'dashboard',
     expect: async (p) => {
       await expect(p.getByText(/Hey/i)).toBeVisible();
-      await expect(p.getByText(/Due now/i)).toBeVisible();
+      await expect(p.getByText(/Today's homework/i)).toBeVisible();
     },
   },
   {

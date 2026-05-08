@@ -7,6 +7,7 @@ import {
   MoveAnnotation,
   moveAnnotationToJson,
 } from '../models/gameAnnotation';
+import { TrainingSession, trainingSessionFromJson } from '../models/trainingSession';
 
 async function currentUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getUser();
@@ -117,6 +118,262 @@ export async function updateBlunderAfterDrill(blunder: Blunder): Promise<void> {
   if (error) throw error;
 }
 
+// --- Insights aggregation queries ---
+
+export interface PhaseCounts {
+  opening: number;
+  middlegame: number;
+  endgame: number;
+  total: number;
+}
+
+export async function getBlunderPhaseCounts(): Promise<PhaseCounts> {
+  const userId = await currentUserId();
+  if (!userId) return { opening: 0, middlegame: 0, endgame: 0, total: 0 };
+  const { data, error } = await supabase
+    .from('blunders')
+    .select('phase')
+    .eq('user_id', userId);
+  if (error) throw error;
+  const counts: PhaseCounts = { opening: 0, middlegame: 0, endgame: 0, total: 0 };
+  for (const row of (data ?? []) as Array<{ phase: string | null }>) {
+    counts.total++;
+    if (row.phase === 'opening') counts.opening++;
+    else if (row.phase === 'endgame') counts.endgame++;
+    else counts.middlegame++;
+  }
+  return counts;
+}
+
+export interface OpeningGroupRow {
+  ecoFamily: string;
+  openingName: string | null;
+  userColor: 'white' | 'black' | null;
+  games: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  blunders: number;
+  openingBlunders: number;
+}
+
+interface OpeningRawRow {
+  id: string;
+  eco: string | null;
+  opening_name: string | null;
+  user_color: string | null;
+  result: string | null;
+}
+
+/**
+ * Aggregate the user's most-played openings (grouped by ECO family) with
+ * win/loss/draw counts and total blunder counts. Returns rows sorted by game
+ * count descending.
+ */
+export async function getOpeningPerformance(opts?: {
+  limit?: number;
+}): Promise<OpeningGroupRow[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+
+  const { data: gamesData, error: gamesError } = await supabase
+    .from('games')
+    .select('id, eco, opening_name, user_color, result')
+    .eq('user_id', userId)
+    .not('eco', 'is', null);
+  if (gamesError) throw gamesError;
+  const games = (gamesData ?? []) as OpeningRawRow[];
+  if (games.length === 0) return [];
+
+  const gameIdToEcoFamily = new Map<string, string>();
+  const groups = new Map<string, OpeningGroupRow>();
+
+  for (const g of games) {
+    const eco = g.eco;
+    if (!eco || eco.length < 2) continue;
+    const family = `${eco[0].toUpperCase()}${eco[1]}*`;
+    const color = g.user_color === 'white' || g.user_color === 'black' ? g.user_color : null;
+    const key = `${family}|${color ?? 'unknown'}`;
+    gameIdToEcoFamily.set(g.id, key);
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        ecoFamily: family,
+        openingName: g.opening_name,
+        userColor: color,
+        games: 0,
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        blunders: 0,
+        openingBlunders: 0,
+      };
+      groups.set(key, group);
+    }
+    group.games++;
+    // Result is stored as PGN format: "1-0", "0-1", "1/2-1/2".
+    if (g.result === '1/2-1/2') group.draws++;
+    else if (g.result === '1-0' && color === 'white') group.wins++;
+    else if (g.result === '0-1' && color === 'black') group.wins++;
+    else if (g.result === '1-0' && color === 'black') group.losses++;
+    else if (g.result === '0-1' && color === 'white') group.losses++;
+  }
+
+  if (gameIdToEcoFamily.size > 0) {
+    const gameIds = Array.from(gameIdToEcoFamily.keys());
+    const { data: blunderData, error: blunderError } = await supabase
+      .from('blunders')
+      .select('game_id, phase')
+      .in('game_id', gameIds);
+    if (blunderError) throw blunderError;
+    for (const row of (blunderData ?? []) as Array<{ game_id: string; phase: string | null }>) {
+      const key = gameIdToEcoFamily.get(row.game_id);
+      if (!key) continue;
+      const group = groups.get(key);
+      if (!group) continue;
+      group.blunders++;
+      if (row.phase === 'opening') group.openingBlunders++;
+    }
+  }
+
+  const list = Array.from(groups.values()).sort((a, b) => b.games - a.games);
+  return opts?.limit ? list.slice(0, opts.limit) : list;
+}
+
+export interface TimeManagementSample {
+  phase: 'opening' | 'middlegame' | 'endgame';
+  averageSeconds: number;
+  plyCount: number;
+}
+
+interface ClockGameRow {
+  user_color: string | null;
+  clock_per_ply: unknown;
+  total_plies: number | null;
+  time_control: string | null;
+  rated: boolean | null;
+}
+
+function parseStartIncrement(timeControl: string | null): { startCs: number; incCs: number } | null {
+  if (!timeControl) return null;
+  // Lichess ("180+2") and Chess.com ("60") formats
+  const m = timeControl.match(/^(\d+)(?:\+(\d+))?$/);
+  if (!m) return null;
+  const startCs = Number.parseInt(m[1], 10) * 100;
+  const incCs = m[2] ? Number.parseInt(m[2], 10) * 100 : 0;
+  if (!Number.isFinite(startCs)) return null;
+  return { startCs, incCs };
+}
+
+function isBullet(timeControl: string | null): boolean {
+  const tc = parseStartIncrement(timeControl);
+  if (!tc) return false;
+  return tc.startCs < 18000; // <180 seconds
+}
+
+function plyPhase(plyIndex: number): 'opening' | 'middlegame' | 'endgame' {
+  const moveNumber = Math.floor(plyIndex / 2) + 1;
+  if (moveNumber <= 12) return 'opening';
+  if (moveNumber > 32) return 'endgame';
+  return 'middlegame';
+}
+
+/**
+ * Average seconds-per-ply per phase for the user, derived from `clock_per_ply`
+ * deltas. Excludes bullet games. Skips games without clock data.
+ */
+export async function getUserTimeManagement(): Promise<TimeManagementSample[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+
+  const { data, error } = await supabase
+    .from('games')
+    .select('user_color, clock_per_ply, total_plies, time_control, rated')
+    .eq('user_id', userId)
+    .not('clock_per_ply', 'is', null);
+  if (error) throw error;
+
+  const totals: Record<'opening' | 'middlegame' | 'endgame', { sumCs: number; plies: number }> = {
+    opening: { sumCs: 0, plies: 0 },
+    middlegame: { sumCs: 0, plies: 0 },
+    endgame: { sumCs: 0, plies: 0 },
+  };
+
+  for (const row of (data ?? []) as ClockGameRow[]) {
+    if (isBullet(row.time_control)) continue;
+    const color = row.user_color;
+    if (color !== 'white' && color !== 'black') continue;
+    const clocks = Array.isArray(row.clock_per_ply) ? (row.clock_per_ply as number[]) : null;
+    if (!clocks || clocks.length === 0) continue;
+    const tc = parseStartIncrement(row.time_control);
+    const incCs = tc?.incCs ?? 0;
+    const startCs = tc?.startCs ?? clocks[0] ?? 0;
+
+    const userParity = color === 'white' ? 0 : 1;
+    for (let i = 0; i < clocks.length; i++) {
+      if (i % 2 !== userParity) continue;
+      const before = i < 2 ? startCs : (clocks[i - 2] ?? clocks[i] + incCs);
+      const after = clocks[i];
+      if (typeof before !== 'number' || typeof after !== 'number') continue;
+      const spentCs = Math.max(0, before - after + incCs);
+      if (spentCs <= 0 || spentCs > 600 * 100) continue; // skip noise > 10 min
+      const phase = plyPhase(i);
+      totals[phase].sumCs += spentCs;
+      totals[phase].plies++;
+    }
+  }
+
+  const out: TimeManagementSample[] = [];
+  for (const phase of ['opening', 'middlegame', 'endgame'] as const) {
+    const t = totals[phase];
+    if (t.plies === 0) {
+      out.push({ phase, averageSeconds: 0, plyCount: 0 });
+    } else {
+      out.push({ phase, averageSeconds: t.sumCs / t.plies / 100, plyCount: t.plies });
+    }
+  }
+  return out;
+}
+
+// --- Blunder Stats (Reviews + Mastered) ---
+
+export interface BlunderStats {
+  reviewed: number;
+  mastered: number;
+  totalBlunders: number;
+}
+
+const MASTERY_CYCLE_THRESHOLD = 7;
+const MASTERY_RECALL_THRESHOLD = 0.8;
+
+export async function getBlunderStats(): Promise<BlunderStats> {
+  const userId = await currentUserId();
+  if (!userId) return { reviewed: 0, mastered: 0, totalBlunders: 0 };
+  const { data, error } = await supabase
+    .from('blunders')
+    .select('cycle_number, times_correct, times_attempted')
+    .eq('user_id', userId);
+  if (error) throw error;
+  let reviewed = 0;
+  let mastered = 0;
+  let totalBlunders = 0;
+  for (const row of (data ?? []) as Array<{
+    cycle_number: number | null;
+    times_correct: number | null;
+    times_attempted: number | null;
+  }>) {
+    const c = row.times_correct ?? 0;
+    const a = row.times_attempted ?? 0;
+    const cycle = row.cycle_number ?? 0;
+    reviewed += c;
+    totalBlunders++;
+    if (cycle >= MASTERY_CYCLE_THRESHOLD && a > 0 && c / a >= MASTERY_RECALL_THRESHOLD) {
+      mastered++;
+    }
+  }
+  return { reviewed, mastered, totalBlunders };
+}
+
 // --- Game Annotations ---
 
 export async function getAnnotations(gameId: string): Promise<GameAnnotation | null> {
@@ -217,6 +474,187 @@ export async function updateProfileLastSynced(
   if (error) throw error;
 }
 
+// --- Training Sessions ---
+
+export async function createTrainingSession(args: {
+  localDate: string;
+}): Promise<TrainingSession | null> {
+  const userId = await currentUserId();
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from('training_sessions')
+    .insert({
+      user_id: userId,
+      local_date: args.localDate,
+      blunders_attempted: 0,
+      blunders_correct: 0,
+      cycles_completed: 0,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return trainingSessionFromJson(data);
+}
+
+export async function updateTrainingSession(
+  id: string,
+  patch: {
+    blundersAttempted?: number;
+    blundersCorrect?: number;
+    cyclesCompleted?: number;
+    endedAt?: Date | null;
+  },
+): Promise<void> {
+  const update: Record<string, unknown> = {};
+  if (patch.blundersAttempted !== undefined) update.blunders_attempted = patch.blundersAttempted;
+  if (patch.blundersCorrect !== undefined) update.blunders_correct = patch.blundersCorrect;
+  if (patch.cyclesCompleted !== undefined) update.cycles_completed = patch.cyclesCompleted;
+  if (patch.endedAt !== undefined) update.ended_at = patch.endedAt ? patch.endedAt.toISOString() : null;
+  if (Object.keys(update).length === 0) return;
+  const { error } = await supabase.from('training_sessions').update(update).eq('id', id);
+  if (error) throw error;
+}
+
+export async function getRecentTrainingSessions(limit = 10): Promise<TrainingSession[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from('training_sessions')
+    .select()
+    .eq('user_id', userId)
+    .order('started_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map(trainingSessionFromJson);
+}
+
+export async function getTrainingSessionsSince(sinceDate: string): Promise<TrainingSession[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from('training_sessions')
+    .select()
+    .eq('user_id', userId)
+    .gte('local_date', sinceDate)
+    .order('local_date', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(trainingSessionFromJson);
+}
+
+export async function hasTrainingSessionToday(localDate: string): Promise<boolean> {
+  const userId = await currentUserId();
+  if (!userId) return false;
+  const { data, error } = await supabase
+    .from('training_sessions')
+    .select('id, blunders_correct')
+    .eq('user_id', userId)
+    .eq('local_date', localDate)
+    .gt('blunders_correct', 0)
+    .limit(1);
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
+// --- Profile streak / timezone ---
+
+export async function updateProfileStreak(args: {
+  currentStreakDays: number;
+  longestStreakDays: number;
+  lastDrillLocalDate: string;
+  timezone: string;
+}): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) return;
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      current_streak_days: args.currentStreakDays,
+      longest_streak_days: args.longestStreakDays,
+      last_drill_local_date: args.lastDrillLocalDate,
+      timezone: args.timezone,
+    })
+    .eq('id', userId);
+  if (error) throw error;
+}
+
+// --- Game metadata (PGN backfill) ---
+
+export async function getUnparsedGames(opts?: { limit?: number }): Promise<GameRecord[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  let q = supabase
+    .from('games')
+    .select()
+    .eq('user_id', userId)
+    .is('parsed_metadata_at', null);
+  if (opts?.limit) q = q.limit(opts.limit);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []).map(gameRecordFromJson);
+}
+
+export async function countUnparsedGames(): Promise<number> {
+  const userId = await currentUserId();
+  if (!userId) return 0;
+  const { count, error } = await supabase
+    .from('games')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .is('parsed_metadata_at', null);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function updateGameMetadata(
+  gameId: string,
+  patch: {
+    eco?: string | null;
+    openingName?: string | null;
+    userColor?: 'white' | 'black' | null;
+    userRating?: number | null;
+    opponentRating?: number | null;
+    clockPerPly?: number[] | null;
+    totalPlies?: number | null;
+  },
+): Promise<void> {
+  const update: Record<string, unknown> = {
+    parsed_metadata_at: new Date().toISOString(),
+  };
+  if (patch.eco !== undefined) update.eco = patch.eco;
+  if (patch.openingName !== undefined) update.opening_name = patch.openingName;
+  if (patch.userColor !== undefined) update.user_color = patch.userColor;
+  if (patch.userRating !== undefined) update.user_rating = patch.userRating;
+  if (patch.opponentRating !== undefined) update.opponent_rating = patch.opponentRating;
+  if (patch.clockPerPly !== undefined) update.clock_per_ply = patch.clockPerPly;
+  if (patch.totalPlies !== undefined) update.total_plies = patch.totalPlies;
+  const { error } = await supabase.from('games').update(update).eq('id', gameId);
+  if (error) throw error;
+}
+
+// --- Benchmarks ---
+
+export interface BenchmarkRow {
+  kind: string;
+  bucket: string;
+  value: number;
+  sampleSize: number;
+  source: string | null;
+}
+
+export async function getBenchmarks(kind?: string): Promise<BenchmarkRow[]> {
+  let q = supabase.from('benchmarks').select();
+  if (kind) q = q.eq('kind', kind);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    kind: row.kind as string,
+    bucket: row.bucket as string,
+    value: Number(row.value),
+    sampleSize: row.sample_size as number,
+    source: (row.source as string | null) ?? null,
+  }));
+}
+
 // --- Opening Explorer Cache ---
 
 export async function getCachedExplorerResult(fen: string): Promise<any | null> {
@@ -253,4 +691,18 @@ export const supabaseService = {
   deleteBlundersForGame,
   resetGameAnalyzed,
   updateProfileLastSynced,
+  createTrainingSession,
+  updateTrainingSession,
+  getRecentTrainingSessions,
+  getTrainingSessionsSince,
+  hasTrainingSessionToday,
+  updateProfileStreak,
+  getUnparsedGames,
+  countUnparsedGames,
+  updateGameMetadata,
+  getBenchmarks,
+  getBlunderStats,
+  getBlunderPhaseCounts,
+  getOpeningPerformance,
+  getUserTimeManagement,
 };

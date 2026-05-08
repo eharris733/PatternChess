@@ -1,5 +1,6 @@
 import { getAnalysisStockfish } from '../hooks/useStockfish';
-import { extractHeaders, parseGame } from './pgnParserService';
+import { derivePhase } from '../models/blunder';
+import { extractHeaders, parseGame, parsePgnMetadata } from './pgnParserService';
 import { supabaseService } from './supabaseService';
 
 export interface AnalysisProgress {
@@ -64,10 +65,22 @@ export async function analyzeGames(
           eval_after: b.evalAfter,
           eval_swing: b.evalSwing,
           side_to_move: b.sideToMove,
+          phase: derivePhase(b.moveNumber, b.fen),
         })),
       );
       blundersFound += blunders.length;
     }
+
+    // Stamp PGN-derived metadata if we haven't already (cheap, runs once per game).
+    if (!game.parsedMetadataAt) {
+      const meta = parsePgnMetadata(game.pgn, game.username || fallbackUsername);
+      try {
+        await supabaseService.updateGameMetadata(game.id, meta);
+      } catch {
+        /* metadata enrichment is best-effort */
+      }
+    }
+
     await supabaseService.markGameAnalyzed(game.id);
   }
 
