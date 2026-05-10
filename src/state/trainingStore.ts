@@ -536,6 +536,8 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       fen: newFen,
       lastMove: [move.from, move.to],
       movableFor: null,
+      shapes: [],
+      showWhatYouPlayed: false,
     });
 
     let chancesLost: number | null = null;
@@ -704,7 +706,22 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     void get().loadCurrentBlunder();
   },
 
-  toggleShowWhatYouPlayed: () => set((s) => ({ showWhatYouPlayed: !s.showWhatYouPlayed })),
+  toggleShowWhatYouPlayed: () => set((s) => {
+    const showing = !s.showWhatYouPlayed;
+    const otherShapes = s.shapes.filter((sh) => sh.brush !== 'red');
+    if (!showing) {
+      return { showWhatYouPlayed: false, shapes: otherShapes };
+    }
+    const b = s.blunders[s.currentIndex];
+    const uci = b?.playedMove;
+    if (!uci || uci.length < 4) {
+      return { showWhatYouPlayed: true };
+    }
+    const from = uci.slice(0, 2);
+    const to = uci.slice(2, 4);
+    const playedShape: DrawShape = { orig: from as any, dest: to as any, brush: 'red' };
+    return { showWhatYouPlayed: true, shapes: [...otherShapes, playedShape] };
+  }),
 
   showHint: () => {
     const state = get();
@@ -715,11 +732,13 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     const from = uci.slice(0, 2);
     const to = uci.slice(2, 4);
 
+    const playedShapes = state.shapes.filter((sh) => sh.brush === 'red');
+
     if (state.hintLevel === 0) {
       const isFirstAttempt = !state.attemptedBlunderIds.has(b.id);
       set((s) => ({
         hintLevel: 1,
-        shapes: [{ orig: from as any, brush: 'blue' }],
+        shapes: [{ orig: from as any, brush: 'blue' }, ...playedShapes],
         ...(isFirstAttempt
           ? {
               totalAttempted: s.totalAttempted + 1,
@@ -730,7 +749,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     } else if (state.hintLevel === 1) {
       set({
         hintLevel: 2,
-        shapes: [{ orig: from as any, dest: to as any, brush: 'blue' }],
+        shapes: [{ orig: from as any, dest: to as any, brush: 'blue' }, ...playedShapes],
       });
     }
   },
