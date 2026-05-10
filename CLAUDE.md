@@ -59,7 +59,8 @@ tests/e2e/       Playwright specs
 - **Stockfish**: never instantiate the worker directly; call `getStockfish()` (lazy singleton) from `src/hooks/useStockfish.ts`. The client tries the multi-threaded lite engine first, falls back to single-threaded.
 - **Engine signals**: `evaluatePositionFull(fen, depth=12)` for batch analysis, `evaluateMove(fen, uci, timeMs=500)` for the on-the-fly accept rule, and `analyzeGame(positions, …)` for game-wide blunder detection.
 - **Blunder detection** uses the Lichess winning-chances model in `src/chess/winningChances.ts`. Trainable threshold: ≥15% chances lost. On-the-fly accept rule for the training screen: |chancesLost| ≤ 5%.
-- **Spaced repetition**: `[1, 2, 4, 7, 14, 28, 56]` days (`src/models/blunder.ts`).
+- **Spaced repetition**: `SPACED_REPETITION_DAYS = [1, 2, 4, 7, 14, 28, 56]` (`src/models/blunder.ts`). Each successful first-attempt drill advances `cycleNumber` by 1; a first-attempt fail resets it to 0 and sets `lastDrillFailed = true`. Retries within the same session don't move the SR state — only the first attempt counts.
+- **SR taxonomy** (4 buckets): `new` (never drilled) · `learning` (in the 7-cycle ladder) · `tryAgain` (last drill's first attempt failed) · `mastered` (cycle ≥ 7). Single source of truth: `srBucket()` + `SR_BUCKET_LABEL` in `src/models/blunder.ts`. **Never invent ad-hoc labels** in UI components — always import these. Note: `srBucket(...) === 'mastered'` is just cycle ≥ 7; `isMastered()` adds a recall ≥ 80% check and is used only for the global stats achievement count in `getBlunderStats()`.
 - **Annotation save**: 2-second debounce in `reviewStore.ts`.
 - **Opening book**: prefetch first ~22 plies with 300 ms throttle (`useReviewStore.prefetchBook`).
 - **Dev-only routes**: `/__sandbox` (chess board sandbox), `/__engine-test` (Stockfish status). Useful for manual checks and Playwright specs.

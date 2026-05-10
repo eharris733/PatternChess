@@ -8,6 +8,13 @@ import {
   moveAnnotationToJson,
 } from '../models/gameAnnotation';
 import { TrainingSession, trainingSessionFromJson } from '../models/trainingSession';
+import {
+  classifyGameState,
+  computeTimeRemainingPercent,
+  GameStateBucket,
+  TIME_TROUBLE_THRESHOLD_PERCENT,
+} from '../chess/blunderContext';
+import { parseStartIncrement as parseStartIncrementImpl } from '../chess/timeControl';
 
 async function currentUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getUser();
@@ -113,6 +120,7 @@ export async function updateBlunderAfterDrill(blunder: Blunder): Promise<void> {
       next_drill_at: next.toISOString(),
       times_correct: blunder.timesCorrect,
       times_attempted: blunder.timesAttempted,
+      last_drill_failed: blunder.lastDrillFailed,
     })
     .eq('id', blunder.id);
   if (error) throw error;
@@ -254,16 +262,7 @@ interface ClockGameRow {
   rated: boolean | null;
 }
 
-function parseStartIncrement(timeControl: string | null): { startCs: number; incCs: number } | null {
-  if (!timeControl) return null;
-  // Lichess ("180+2") and Chess.com ("60") formats
-  const m = timeControl.match(/^(\d+)(?:\+(\d+))?$/);
-  if (!m) return null;
-  const startCs = Number.parseInt(m[1], 10) * 100;
-  const incCs = m[2] ? Number.parseInt(m[2], 10) * 100 : 0;
-  if (!Number.isFinite(startCs)) return null;
-  return { startCs, incCs };
-}
+export const parseStartIncrement = parseStartIncrementImpl;
 
 function isBullet(timeControl: string | null): boolean {
   const tc = parseStartIncrement(timeControl);
@@ -335,6 +334,150 @@ export async function getUserTimeManagement(): Promise<TimeManagementSample[]> {
   return out;
 }
 
+// --- Game-state and time-trouble blunder stats ---
+
+export interface PhaseCountTriple {
+  opening: number;
+  middlegame: number;
+  endgame: number;
+}
+
+function emptyPhaseTriple(): PhaseCountTriple {
+  return { opening: 0, middlegame: 0, endgame: 0 };
+}
+
+function bumpPhase(t: PhaseCountTriple, phase: string | null): void {
+  if (phase === 'opening') t.opening++;
+  else if (phase === 'endgame') t.endgame++;
+  else t.middlegame++;
+}
+
+export interface GameStateStats {
+  total: number;
+  byBucket: Record<GameStateBucket, { count: number; byPhase: PhaseCountTriple }>;
+}
+
+export async function getBlunderGameStateStats(): Promise<GameStateStats> {
+  const userId = await currentUserId();
+  const empty: GameStateStats = {
+    total: 0,
+    byBucket: {
+      missedWin: { count: 0, byPhase: emptyPhaseTriple() },
+      roughlyEqual: { count: 0, byPhase: emptyPhaseTriple() },
+      alreadyLosing: { count: 0, byPhase: emptyPhaseTriple() },
+    },
+  };
+  if (!userId) return empty;
+  const { data, error } = await supabase
+    .from('blunders')
+    .select('eval_before, phase')
+    .eq('user_id', userId);
+  if (error) throw error;
+  for (const row of (data ?? []) as Array<{ eval_before: number | null; phase: string | null }>) {
+    if (typeof row.eval_before !== 'number') continue;
+    const bucket = classifyGameState(row.eval_before);
+    empty.total++;
+    const slot = empty.byBucket[bucket];
+    slot.count++;
+    bumpPhase(slot.byPhase, row.phase);
+  }
+  return empty;
+}
+
+export interface TimeTroubleStats {
+  total: number;              // blunders considered (i.e., game had clock data)
+  totalAllBlunders: number;   // every blunder, including those without clock data
+  inTimeTrouble: number;
+  byPhase: PhaseCountTriple;  // counts within inTimeTrouble
+  excludedBlunders: number;   // skipped because game lacks clock data
+  thresholdPercent: number;
+}
+
+export async function getTimeTroubleStats(): Promise<TimeTroubleStats> {
+  const empty: TimeTroubleStats = {
+    total: 0,
+    totalAllBlunders: 0,
+    inTimeTrouble: 0,
+    byPhase: emptyPhaseTriple(),
+    excludedBlunders: 0,
+    thresholdPercent: TIME_TROUBLE_THRESHOLD_PERCENT,
+  };
+  const userId = await currentUserId();
+  if (!userId) return empty;
+
+  const { data: blunderRows, error: bErr } = await supabase
+    .from('blunders')
+    .select('move_number, side_to_move, phase, game_id, eval_before')
+    .eq('user_id', userId);
+  if (bErr) throw bErr;
+  const blunders = (blunderRows ?? []) as Array<{
+    move_number: number;
+    side_to_move: string;
+    phase: string | null;
+    game_id: string;
+    eval_before: number | null;
+  }>;
+  empty.totalAllBlunders = blunders.length;
+  if (blunders.length === 0) return empty;
+
+  const gameIds = Array.from(new Set(blunders.map((b) => b.game_id)));
+  const { data: gameRows, error: gErr } = await supabase
+    .from('games')
+    .select('id, clock_per_ply, time_control')
+    .in('id', gameIds);
+  if (gErr) throw gErr;
+
+  const gameById = new Map<string, GameRecord>();
+  for (const raw of (gameRows ?? []) as Array<Record<string, unknown>>) {
+    const id = raw.id as string;
+    // Build a minimal GameRecord-shaped object — only the fields
+    // computeTimeRemainingPercent reads.
+    gameById.set(id, {
+      id,
+      platform: '',
+      username: '',
+      opponent: '',
+      pgn: '',
+      timeControl: (raw.time_control as string | null) ?? null,
+      rated: false,
+      result: null,
+      playedAt: null,
+      createdAt: new Date(0),
+      analyzedAt: null,
+      eco: null,
+      openingName: null,
+      userColor: null,
+      userRating: null,
+      opponentRating: null,
+      clockPerPly: Array.isArray(raw.clock_per_ply)
+        ? (raw.clock_per_ply as number[])
+        : null,
+      totalPlies: null,
+      parsedMetadataAt: null,
+    });
+  }
+
+  for (const b of blunders) {
+    const game = gameById.get(b.game_id) ?? null;
+    const sideToMove = b.side_to_move === 'white' ? 'white' : 'black';
+    const pct = computeTimeRemainingPercent(
+      { moveNumber: b.move_number, sideToMove },
+      game,
+    );
+    if (pct === null) {
+      empty.excludedBlunders++;
+      continue;
+    }
+    empty.total++;
+    if (pct < TIME_TROUBLE_THRESHOLD_PERCENT) {
+      empty.inTimeTrouble++;
+      bumpPhase(empty.byPhase, b.phase);
+    }
+  }
+
+  return empty;
+}
+
 // --- Blunder Stats (Reviews + Mastered) ---
 
 export interface BlunderStats {
@@ -343,6 +486,9 @@ export interface BlunderStats {
   totalBlunders: number;
 }
 
+// Stricter than srBucket(b) === 'mastered' (which only checks the cycle threshold).
+// Used here for the global "mastered" achievement count, where we want a real
+// recall floor before claiming mastery.
 const MASTERY_CYCLE_THRESHOLD = 7;
 const MASTERY_RECALL_THRESHOLD = 0.8;
 
@@ -705,4 +851,6 @@ export const supabaseService = {
   getBlunderPhaseCounts,
   getOpeningPerformance,
   getUserTimeManagement,
+  getBlunderGameStateStats,
+  getTimeTroubleStats,
 };

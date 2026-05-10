@@ -9,6 +9,12 @@ import { MoveSequencePanel, type MovePair } from '../components/MoveSequencePane
 import { classifySwing, useReviewStore } from '../state/reviewStore';
 import { annotationKey } from '../models/gameAnnotation';
 import {
+  GAME_STATE_LABEL,
+  classifyGameState,
+  computeTimeRemainingPercent,
+  TIME_TROUBLE_THRESHOLD_PERCENT,
+} from '../chess/blunderContext';
+import {
   externalAnalysisUrl,
   resolvePlatform,
 } from '../services/externalAnalysisUrlService';
@@ -58,11 +64,39 @@ export function ReviewRoute() {
       const key = annotationKey(p.moveNumber, p.sideToMove);
       const annot = r.annotations[key];
       const tag = r.bookMoves[i] === true ? 'BOOK' : r.lastBookMoveIndex === i ? 'NEW' : undefined;
+
+      // Context tags only render once we've actually evaluated the move and the
+      // engine considers it a mistake/blunder — otherwise every move would be
+      // tagged "Roughly equal", which is noise.
+      let contextTags: string[] | undefined;
+      const ev = r.engineEvals[i];
+      if (ev) {
+        const cl = classifySwing(ev.before, ev.after);
+        if (cl.classification === 'blunder' || cl.classification === 'mistake') {
+          const tags: string[] = [];
+          const bucket = classifyGameState(ev.before);
+          if (r.game) {
+            const sideToMove =
+              p.sideToMove === 'white' ? 'white' : 'black';
+            const pct = computeTimeRemainingPercent(
+              { moveNumber: p.moveNumber, sideToMove },
+              r.game,
+            );
+            if (pct !== null && pct < TIME_TROUBLE_THRESHOLD_PERCENT) {
+              tags.push(`Time trouble · ${Math.round(pct)}%`);
+            }
+          }
+          if (bucket !== 'roughlyEqual') tags.push(GAME_STATE_LABEL[bucket]);
+          if (tags.length > 0) contextTags = tags;
+        }
+      }
+
       const cell = {
         san: p.sanMove,
         key: `i${i}`,
         grade: annot?.classification ?? null,
         tag,
+        contextTags,
       };
       if (p.sideToMove === 'white') {
         current = { moveNumber: p.moveNumber, white: cell, black: undefined };
@@ -77,7 +111,7 @@ export function ReviewRoute() {
       }
     }
     return out;
-  }, [r.positions, r.annotations, r.bookMoves, r.lastBookMoveIndex]);
+  }, [r.positions, r.annotations, r.bookMoves, r.lastBookMoveIndex, r.engineEvals, r.game]);
 
   if (r.loading) return <div className="text-text-secondary text-sm">Loading game…</div>;
   if (r.error)

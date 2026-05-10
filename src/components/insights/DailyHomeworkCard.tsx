@@ -3,6 +3,7 @@ import { useAuth } from '../../auth/useAuth';
 import { useDueBlunders } from '../../hooks/useDueBlunders';
 import { useCompletedToday } from '../../hooks/useTrainingActivity';
 import { useSyncStore } from '../../state/syncStore';
+import { DueByStage } from './DueByStage';
 
 export function DailyHomeworkCard() {
   const navigate = useNavigate();
@@ -39,6 +40,7 @@ export function DailyHomeworkCard() {
             blunder{dueCount === 1 ? '' : 's'} due
           </span>
         </div>
+        <DueByStage data={dueQuery.data ?? []} />
         <div className="flex gap-3">
           <button className="btn-primary" onClick={() => navigate('/training')}>
             Start training

@@ -2,11 +2,19 @@ import clsx from 'clsx';
 import { useEffect, useRef } from 'react';
 import { MOVE_GRADE_TW_BG, type MoveGrade } from '../models/gameAnnotation';
 
+export interface MoveCell {
+  san: string;
+  key: string;
+  grade?: MoveGrade | null;
+  tag?: string;
+  contextTags?: string[];
+}
+
 export interface MovePair {
   /** Full-move number (1, 2, 3, …) */
   moveNumber: number;
-  white?: { san: string; key: string; grade?: MoveGrade | null; tag?: string };
-  black?: { san: string; key: string; grade?: MoveGrade | null; tag?: string };
+  white?: MoveCell;
+  black?: MoveCell;
 }
 
 export function MoveSequencePanel({
@@ -52,7 +60,7 @@ function Cell({
   active,
   onSelect,
 }: {
-  move: MovePair['white'];
+  move: MoveCell | undefined;
   active: boolean;
   onSelect?: (key: string) => void;
 }) {
@@ -63,7 +71,7 @@ function Cell({
       data-key={move.key}
       onClick={() => onSelect?.(move.key)}
       className={clsx(
-        'flex items-center gap-1.5 rounded px-1.5 py-0.5 text-left transition hover:bg-surface-2',
+        'flex items-center gap-1.5 rounded px-1.5 py-0.5 text-left transition hover:bg-surface-2 flex-wrap',
         active && 'bg-accent/15 text-accent-light',
       )}
     >
@@ -83,6 +91,14 @@ function Cell({
           {move.tag}
         </span>
       )}
+      {move.contextTags?.map((t) => (
+        <span
+          key={t}
+          className="px-1 rounded text-[9px] font-bold uppercase bg-bg/60 text-text-secondary border border-surface-2"
+        >
+          {t}
+        </span>
+      ))}
     </button>
   );
 }

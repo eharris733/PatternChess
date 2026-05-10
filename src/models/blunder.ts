@@ -21,6 +21,8 @@ export interface Blunder {
   nextDrillAt: Date | null;
   timesCorrect: number;
   timesAttempted: number;
+  /** True iff the most recent drill's first attempt was incorrect — drives the "Try again" bucket. */
+  lastDrillFailed: boolean;
   createdAt: Date;
   phase: BlunderPhase;
 }
@@ -83,14 +85,53 @@ export function blunderFromJson(json: any): Blunder {
     nextDrillAt: json.next_drill_at ? new Date(json.next_drill_at as string) : null,
     timesCorrect: (json.times_correct as number | null) ?? 0,
     timesAttempted: (json.times_attempted as number | null) ?? 0,
+    lastDrillFailed: (json.last_drill_failed as boolean | null) ?? false,
     createdAt: new Date(json.created_at as string),
     phase: parsePhase(json.phase),
   };
 }
 
-/** A blunder is "mastered" when it has graduated all 7 spaced-rep cycles with ≥80% recall. */
+/**
+ * A blunder is "mastered" when it has graduated all 7 spaced-rep cycles with ≥80% recall.
+ * Stricter than `srBucket(b) === 'mastered'`, which only checks the cycle threshold.
+ * Used by `getBlunderStats()` for the global mastery achievement count.
+ */
 export function isMastered(b: Blunder): boolean {
   if (b.cycleNumber < SPACED_REPETITION_DAYS.length) return false;
   if (b.timesAttempted === 0) return false;
   return b.timesCorrect / b.timesAttempted >= 0.8;
+}
+
+/**
+ * Canonical SR taxonomy used across the UI. Every component that surfaces SR state
+ * MUST go through `srBucket()` and `SR_BUCKET_LABEL` — do not invent ad-hoc categories.
+ *
+ * - `new`       — never drilled.
+ * - `learning`  — actively progressing through the 7-cycle ladder.
+ * - `tryAgain`  — most recent drill's first attempt was a fail; awaiting retry.
+ * - `mastered`  — graduated past the ladder.
+ */
+export type SrBucket = 'new' | 'learning' | 'tryAgain' | 'mastered';
+
+export const SR_BUCKET_LABEL: Record<SrBucket, string> = {
+  new: 'New',
+  learning: 'Learning',
+  tryAgain: 'Try again',
+  mastered: 'Mastered',
+};
+
+export const SR_BUCKET_ORDER: readonly SrBucket[] = [
+  'new',
+  'learning',
+  'tryAgain',
+  'mastered',
+] as const;
+
+export function srBucket(
+  b: Pick<Blunder, 'timesAttempted' | 'lastDrillFailed' | 'cycleNumber'>,
+): SrBucket {
+  if (b.timesAttempted === 0) return 'new';
+  if (b.lastDrillFailed) return 'tryAgain';
+  if (b.cycleNumber >= SPACED_REPETITION_DAYS.length) return 'mastered';
+  return 'learning';
 }

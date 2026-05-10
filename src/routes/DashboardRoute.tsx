@@ -7,6 +7,8 @@ import { RankBadge } from '../components/insights/RankBadge';
 import { OpeningInsightsCard } from '../components/insights/OpeningInsightsCard';
 import { PhaseBlunderCard } from '../components/insights/PhaseBlunderCard';
 import { TimeManagementCard } from '../components/insights/TimeManagementCard';
+import { TimeTroubleCard } from '../components/insights/TimeTroubleCard';
+import { GameStateCard } from '../components/insights/GameStateCard';
 
 export function DashboardRoute() {
   const { profile, user } = useAuth();
@@ -45,6 +47,8 @@ export function DashboardRoute() {
       <OpeningInsightsCard />
       <PhaseBlunderCard />
       <TimeManagementCard />
+      <TimeTroubleCard />
+      <GameStateCard />
     </div>
   );
 }

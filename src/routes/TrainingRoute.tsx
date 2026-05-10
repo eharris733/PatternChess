@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
 import { useTrainingStore } from '../state/trainingStore';
@@ -11,7 +12,18 @@ import { MoveSequencePanel } from '../components/MoveSequencePanel';
 import { ProgressBar } from '../components/ProgressBar';
 import { FeedbackBadge } from '../components/FeedbackBadge';
 import { WinningChancesDisplay } from '../components/WinningChancesDisplay';
+import { PositionSrState } from '../components/training/PositionSrState';
+import { BlunderContextBadges } from '../components/training/BlunderContextBadges';
 import { classify, winningChancesLost } from '../chess/winningChances';
+import {
+  ContextFilter,
+  GAME_STATE_LABEL,
+  computeBlunderContext,
+} from '../chess/blunderContext';
+import { Blunder } from '../models/blunder';
+import { GameRecord } from '../models/gameRecord';
+import { supabase } from '../lib/supabase';
+import { gameRecordFromJson } from '../models/gameRecord';
 import {
   externalAnalysisUrl,
   resolvePlatform,
@@ -19,6 +31,36 @@ import {
 
 interface LocationState {
   gameIds?: string[];
+  contextFilter?: ContextFilter;
+}
+
+function filterLabel(filter: ContextFilter): string {
+  if (filter === 'timeTrouble') return 'Time trouble';
+  return GAME_STATE_LABEL[filter];
+}
+
+async function fetchGamesByIds(ids: string[]): Promise<Map<string, GameRecord>> {
+  if (ids.length === 0) return new Map();
+  const { data, error } = await supabase.from('games').select().in('id', ids);
+  if (error) throw error;
+  const map = new Map<string, GameRecord>();
+  for (const row of data ?? []) {
+    const g = gameRecordFromJson(row);
+    map.set(g.id, g);
+  }
+  return map;
+}
+
+function applyContextFilter(
+  blunders: Blunder[],
+  games: Map<string, GameRecord>,
+  filter: ContextFilter,
+): Blunder[] {
+  return blunders.filter((b) => {
+    const ctx = computeBlunderContext(b, games.get(b.gameId) ?? null);
+    if (filter === 'timeTrouble') return ctx.inTimeTrouble;
+    return ctx.gameState === filter;
+  });
 }
 
 const SHORT_LABEL = (cl: ReturnType<typeof classify>) =>
@@ -31,10 +73,38 @@ export function TrainingRoute() {
 
   const state = useTrainingStore();
   const setBlunders = useTrainingStore((s) => s.setBlunders);
+  const setContextFilter = useTrainingStore((s) => s.setContextFilter);
   const beginSession = useTrainingStore((s) => s.beginSession);
 
+  const contextFilter = location.state?.contextFilter ?? null;
   const dueBlunders = useDueBlunders(location.state?.gameIds);
-  const initialBlunders = dueBlunders.data;
+  const dueData = dueBlunders.data;
+
+  // Batch-fetch the games these blunders belong to, only when a context filter is
+  // active (otherwise the per-blunder game fetch in the store is enough).
+  const gameIdsForFilter = useMemo(() => {
+    if (!contextFilter || !dueData) return null;
+    const ids = new Set<string>();
+    for (const b of dueData) ids.add(b.gameId);
+    return Array.from(ids);
+  }, [contextFilter, dueData]);
+
+  const filterGamesQuery = useQuery({
+    queryKey: ['training', 'filterGames', gameIdsForFilter],
+    queryFn: () => fetchGamesByIds(gameIdsForFilter ?? []),
+    enabled: !!contextFilter && !!gameIdsForFilter,
+  });
+
+  const filteredBlunders = useMemo(() => {
+    if (!dueData) return null;
+    if (!contextFilter) return dueData;
+    if (!filterGamesQuery.data) return null; // wait for game data
+    return applyContextFilter(dueData, filterGamesQuery.data, contextFilter);
+  }, [dueData, contextFilter, filterGamesQuery.data]);
+
+  useEffect(() => {
+    setContextFilter(contextFilter);
+  }, [contextFilter, setContextFilter]);
 
   const [paused, setPaused] = useState(false);
   useEffect(() => {
@@ -42,18 +112,18 @@ export function TrainingRoute() {
   }, [state.currentIndex]);
 
   useEffect(() => {
-    if (!initialBlunders) return;
+    if (!filteredBlunders) return;
     // Only initialize the store from the query when we haven't started training yet
     // (loading) or when the queue was empty (waiting for a sync to populate).
     // Don't interrupt an active session (reviewing/solving/correct/incorrect/complete).
     const { phase } = useTrainingStore.getState();
     if (phase === 'loading' || phase === 'empty') {
-      setBlunders(initialBlunders);
-      if (initialBlunders.length > 0 && profile) {
+      setBlunders(filteredBlunders);
+      if (filteredBlunders.length > 0 && profile) {
         void beginSession(profile);
       }
     }
-  }, [initialBlunders, profile, setBlunders, beginSession]);
+  }, [filteredBlunders, profile, setBlunders, beginSession]);
 
   const refreshProfileRef = useRef(refreshProfile);
   useEffect(() => {
@@ -103,19 +173,34 @@ export function TrainingRoute() {
     return () => window.removeEventListener('keydown', onKey);
   }, [state]);
 
-  if (dueBlunders.isLoading || state.phase === 'loading') {
+  if (
+    dueBlunders.isLoading ||
+    (contextFilter && filterGamesQuery.isLoading) ||
+    state.phase === 'loading'
+  ) {
     return <div className="text-text-secondary text-sm">Loading…</div>;
   }
 
   if (state.phase === 'empty' || (state.phase === 'complete' && state.totalAttempted === 0)) {
     return (
       <div className="max-w-md mx-auto card text-center flex flex-col gap-4">
-        <h1 className="heading-lg">No blunders due</h1>
+        <h1 className="heading-lg">
+          {contextFilter
+            ? `No ${filterLabel(contextFilter).toLowerCase()} blunders due`
+            : 'No blunders due'}
+        </h1>
         <p className="text-text-secondary text-sm">
-          {hasAccount
-            ? 'Sync your latest games to fill the queue.'
-            : 'Link a Lichess or Chess.com account to start.'}
+          {contextFilter
+            ? 'Try drilling the full queue or come back after another sync.'
+            : hasAccount
+              ? 'Sync your latest games to fill the queue.'
+              : 'Link a Lichess or Chess.com account to start.'}
         </p>
+        {contextFilter && (
+          <button className="btn-outline" onClick={() => navigate('/training', { replace: true })}>
+            Drill full queue
+          </button>
+        )}
         {hasAccount ? (
           <button
             className="btn-primary"
@@ -158,6 +243,20 @@ export function TrainingRoute() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
       <div className="flex flex-col gap-3">
+        {contextFilter && (
+          <div className="flex items-baseline justify-between rounded-md bg-surface-2/60 px-3 py-2">
+            <span className="text-xs uppercase tracking-wider text-accent-light font-bold">
+              {filterLabel(contextFilter)} · {state.blunders.length} blunder
+              {state.blunders.length === 1 ? '' : 's'}
+            </span>
+            <button
+              className="text-xs text-text-secondary hover:text-text-primary"
+              onClick={() => navigate('/training', { replace: true })}
+            >
+              Clear filter
+            </button>
+          </div>
+        )}
         <div
           className={clsx(
             'transition duration-200',
@@ -197,6 +296,10 @@ export function TrainingRoute() {
           </span>
         </header>
 
+        {blunder && <PositionSrState blunder={blunder} />}
+
+        {state.currentContext && <BlunderContextBadges context={state.currentContext} />}
+
         {blunder && (
           <WinningChancesDisplay evalBefore={blunder.evalBefore} evalAfter={blunder.evalAfter} />
         )}
@@ -209,6 +312,24 @@ export function TrainingRoute() {
               <p className="text-incorrect text-xs font-bold mt-1 uppercase tracking-wider">
                 {SHORT_LABEL(classify(winningChancesLost(blunder.evalBefore, blunder.evalAfter)))}
               </p>
+              {state.currentContext?.inTimeTrouble && (
+                <p className="text-incorrect text-xs font-bold mt-1 uppercase tracking-wider">
+                  Time trouble · {Math.round(state.currentContext.timeRemainingPercent ?? 0)}% left
+                </p>
+              )}
+              {state.currentContext &&
+                state.currentContext.gameState !== 'roughlyEqual' && (
+                  <p
+                    className={clsx(
+                      'text-xs font-bold mt-1 uppercase tracking-wider',
+                      state.currentContext.gameState === 'missedWin'
+                        ? 'text-mistake'
+                        : 'text-text-secondary',
+                    )}
+                  >
+                    {GAME_STATE_LABEL[state.currentContext.gameState]}
+                  </p>
+                )}
             </div>
             {state.refutationPairs.length > 0 && (
               <div>

@@ -4,6 +4,8 @@ import {
   PhaseCounts,
   OpeningGroupRow,
   TimeManagementSample,
+  GameStateStats,
+  TimeTroubleStats,
   supabaseService,
 } from '../services/supabaseService';
 import {
@@ -163,5 +165,23 @@ export function useTimeManagementInsight() {
         benchmarkSource: set.sources.phase_seconds_per_move ?? null,
       };
     },
+  });
+}
+
+export function useTimeTroubleInsight() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['insights', 'timeTrouble', user?.id],
+    enabled: !!user,
+    queryFn: async (): Promise<TimeTroubleStats> => supabaseService.getTimeTroubleStats(),
+  });
+}
+
+export function useGameStateInsight() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['insights', 'gameState', user?.id],
+    enabled: !!user,
+    queryFn: async (): Promise<GameStateStats> => supabaseService.getBlunderGameStateStats(),
   });
 }

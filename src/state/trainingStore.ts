@@ -1,7 +1,12 @@
 import { create } from 'zustand';
 import { Chess } from 'chess.js';
 import type { DrawShape } from 'chessground/draw';
-import { Blunder, CorrectMove, isCorrectMove, nextDrillDate } from '../models/blunder';
+import {
+  Blunder,
+  CorrectMove,
+  SPACED_REPETITION_DAYS,
+  isCorrectMove,
+} from '../models/blunder';
 import { GameRecord } from '../models/gameRecord';
 import { UserProfile } from '../models/userProfile';
 import { supabaseService } from '../services/supabaseService';
@@ -12,6 +17,11 @@ import {
   winPercent,
   winningChancesLost,
 } from '../chess/winningChances';
+import {
+  BlunderContext,
+  ContextFilter,
+  computeBlunderContext,
+} from '../chess/blunderContext';
 import { moveToUci, parseUciMove } from '../chess/moveUtils';
 import type { MovePair } from '../components/MoveSequencePanel';
 import { computeNextStreak, detectTimezone, localDate } from '../services/streakService';
@@ -47,7 +57,6 @@ export interface TrainingStateShape {
   phase: TrainingPhase;
   blunders: Blunder[];
   currentIndex: number;
-  currentCycle: number;
   totalCorrect: number;
   totalAttempted: number;
   attemptedBlunderIds: Set<string>;
@@ -67,6 +76,8 @@ export interface TrainingStateShape {
   incorrectFeedback: IncorrectFeedback | null;
   evaluating: boolean;
   game: GameRecord | null;
+  currentContext: BlunderContext | null;
+  contextFilter: ContextFilter | null;
   showWhatYouPlayed: boolean;
   hintLevel: 0 | 1 | 2;
   sessionId: string | null;
@@ -74,6 +85,7 @@ export interface TrainingStateShape {
   streakApplied: boolean;
 
   setBlunders: (blunders: Blunder[]) => void;
+  setContextFilter: (filter: ContextFilter | null) => void;
   beginSession: (profile: UserProfile) => Promise<void>;
   loadCurrentBlunder: () => Promise<void>;
   proceedFromReview: () => void;
@@ -89,6 +101,7 @@ export interface TrainingStateShape {
 
 type InitialShape = Omit<TrainingStateShape,
   | 'setBlunders'
+  | 'setContextFilter'
   | 'beginSession'
   | 'loadCurrentBlunder'
   | 'proceedFromReview'
@@ -106,7 +119,6 @@ function makeInitial(): InitialShape {
     phase: 'loading',
     blunders: [],
     currentIndex: 0,
-    currentCycle: 0,
     totalCorrect: 0,
     totalAttempted: 0,
     attemptedBlunderIds: new Set<string>(),
@@ -126,6 +138,8 @@ function makeInitial(): InitialShape {
     incorrectFeedback: null,
     evaluating: false,
     game: null,
+    currentContext: null,
+    contextFilter: null,
     showWhatYouPlayed: false,
     hintLevel: 0,
     sessionId: null,
@@ -235,6 +249,7 @@ function buildRefutationPairs(
   blunder: Blunder,
   blunderSan: string,
   pvMoves: ReviewMove[],
+  contextTags: string[],
 ): { pairs: MovePair[]; movesPlusBlunder: ReviewMove[] } {
   const moves: ReviewMove[] = [
     { fenBefore: blunder.fen, san: blunderSan, uci: blunder.playedMove },
@@ -244,12 +259,13 @@ function buildRefutationPairs(
   const blunderIsWhite = blunder.sideToMove === 'white';
   const grade = classifyShortLabel(blunder);
   const tag = grade.toUpperCase();
+  const tagsForBlunder = contextTags.length > 0 ? contextTags : undefined;
 
   const pairs: MovePair[] = [];
   if (blunderIsWhite) {
     pairs.push({
       moveNumber: startMoveNum,
-      white: { san: blunderSan, key: 'r0', tag },
+      white: { san: blunderSan, key: 'r0', tag, contextTags: tagsForBlunder },
       black: moves[1] ? { san: moves[1].san, key: 'r1' } : undefined,
     });
     for (let i = 2; i < moves.length; i += 2) {
@@ -263,7 +279,7 @@ function buildRefutationPairs(
     pairs.push({
       moveNumber: startMoveNum,
       white: undefined,
-      black: { san: blunderSan, key: 'r0', tag },
+      black: { san: blunderSan, key: 'r0', tag, contextTags: tagsForBlunder },
     });
     for (let i = 1; i < moves.length; i += 2) {
       pairs.push({
@@ -349,19 +365,22 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
 
   setBlunders: (blunders) => {
     if (blunders.length === 0) {
-      set({ ...makeInitial(), phase: 'empty' });
+      set({ ...makeInitial(), phase: 'empty', contextFilter: get().contextFilter });
       return;
     }
     set({
       blunders,
       currentIndex: 0,
-      currentCycle: 0,
       totalCorrect: 0,
       totalAttempted: 0,
       attemptedBlunderIds: new Set<string>(),
       phase: 'loading',
     });
     void get().loadCurrentBlunder();
+  },
+
+  setContextFilter: (filter) => {
+    set({ contextFilter: filter });
   },
 
   loadCurrentBlunder: async () => {
@@ -384,6 +403,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
 
     const blunderSan = sanFromUci(blunder.fen, blunder.playedMove);
     const playerSide: 'white' | 'black' = blunder.sideToMove === 'white' ? 'white' : 'black';
+    const currentContext = computeBlunderContext(blunder, game);
 
     // Try to pre-play the blunder so we can show the position after the bad move.
     // If the FEN or move can't be parsed (corrupt data, exotic encoding), skip the
@@ -419,6 +439,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         shapes: [{ orig: preplay.from as any, dest: preplay.to as any, brush: 'red' }],
         blunderSan,
         game,
+        currentContext,
         refutationMoves: [],
         refutationPairs: [],
         activeRefutationIndex: 0,
@@ -434,7 +455,11 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         const sf = await getStockfish();
         const result = await sf.evaluatePositionFull(preplay.afterFen, 18);
         const pvMoves = buildLineMoves(preplay.afterFen, result.principalVariation);
-        const { pairs, movesPlusBlunder } = buildRefutationPairs(blunder, blunderSan, pvMoves);
+        const tags: string[] = [];
+        if (currentContext.inTimeTrouble) tags.push('Time trouble');
+        if (currentContext.gameState === 'missedWin') tags.push('Missed win');
+        else if (currentContext.gameState === 'alreadyLosing') tags.push('Already losing');
+        const { pairs, movesPlusBlunder } = buildRefutationPairs(blunder, blunderSan, pvMoves, tags);
         set({
           refutationMoves: movesPlusBlunder,
           refutationPairs: pairs,
@@ -453,6 +478,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         shapes: [],
         blunderSan,
         game,
+        currentContext,
         refutationMoves: [],
         refutationPairs: [],
         activeRefutationIndex: null,
@@ -548,6 +574,13 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       blunder.timesCorrect++;
       blunder.timesAttempted++;
       blunder.lastDrilledAt = new Date();
+      if (isFirstAttempt) {
+        blunder.cycleNumber = Math.min(
+          blunder.cycleNumber + 1,
+          SPACED_REPETITION_DAYS.length,
+        );
+        blunder.lastDrillFailed = false;
+      }
       void supabaseService.updateBlunderAfterDrill(blunder).catch(() => {});
 
       set((s) => {
@@ -607,6 +640,11 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       }
     } else {
       blunder.timesAttempted++;
+      blunder.lastDrilledAt = new Date();
+      if (isFirstAttempt) {
+        blunder.cycleNumber = 0;
+        blunder.lastDrillFailed = true;
+      }
       void supabaseService.updateBlunderAfterDrill(blunder).catch(() => {});
 
       let feedback: IncorrectFeedback;
@@ -731,5 +769,3 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     });
   },
 }));
-
-void nextDrillDate;
