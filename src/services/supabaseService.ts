@@ -61,7 +61,20 @@ export async function insertBlunders(blunders: Array<Record<string, unknown>>): 
   if (blunders.length === 0) return;
   const userId = await currentUserId();
   const enriched = userId ? blunders.map((b) => ({ ...b, user_id: userId })) : blunders;
-  const { error } = await supabase.from('blunders').insert(enriched);
+  // Drop intra-batch duplicates (e.g. threefold repetition) — Postgres rejects
+  // an upsert payload that conflicts with itself on the onConflict target.
+  const seen = new Set<string>();
+  const deduped: Array<Record<string, unknown>> = [];
+  for (const row of enriched) {
+    const r = row as Record<string, unknown>;
+    const key = `${r.user_id ?? ''}|${r.fen ?? ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(row);
+  }
+  const { error } = await supabase
+    .from('blunders')
+    .upsert(deduped, { onConflict: 'user_id,fen', ignoreDuplicates: true });
   if (error) throw error;
 }
 
