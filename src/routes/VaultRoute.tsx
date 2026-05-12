@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
 import { useGames } from '../hooks/useGames';
 import { useSyncStore } from '../state/syncStore';
+import { usePgnUploadStore } from '../state/pgnUploadStore';
 import { supabaseService } from '../services/supabaseService';
 import { platformGameUrl } from '../services/externalAnalysisUrlService';
 import { extractHeaders } from '../services/pgnParserService';
@@ -98,6 +99,7 @@ export function VaultRoute() {
       phase === 'fetching' || phase === 'inserting' || phase === 'analyzing';
     return busy(s.providers.lichess.phase) || busy(s.providers.chesscom.phase);
   });
+  const openUpload = usePgnUploadStore((s) => s.openModal);
   const hasAccount = !!(profile?.lichessUsername || profile?.chesscomUsername);
 
   if (isLoading) {
@@ -110,33 +112,43 @@ export function VaultRoute() {
         <h1 className="heading-lg">No games yet</h1>
         <p className="text-text-secondary text-sm">
           {hasAccount
-            ? 'Sync your latest games to populate the vault.'
-            : 'Link a Lichess or Chess.com account to start.'}
+            ? 'Sync your latest games, or upload your own PGNs to populate the vault.'
+            : 'Connect a Lichess or Chess.com account, or upload your own PGNs to start.'}
         </p>
-        {hasAccount ? (
-          <button
-            className="btn-primary"
-            disabled={isSyncing || !profile}
-            onClick={() => profile && void triggerNow(profile)}
-          >
-            {isSyncing ? 'Syncing…' : 'Sync now'}
+        <div className="flex items-center justify-center gap-3 flex-wrap">
+          {hasAccount ? (
+            <button
+              className="btn-primary"
+              disabled={isSyncing || !profile}
+              onClick={() => profile && void triggerNow(profile)}
+            >
+              {isSyncing ? 'Syncing…' : 'Sync now'}
+            </button>
+          ) : (
+            <button className="btn-primary" onClick={() => navigate('/profile')}>
+              Go to Profile
+            </button>
+          )}
+          <button className="btn-outline" onClick={openUpload}>
+            Upload PGNs
           </button>
-        ) : (
-          <button className="btn-primary" onClick={() => navigate('/profile')}>
-            Go to Profile
-          </button>
-        )}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="max-w-3xl mx-auto flex flex-col gap-4">
-      <header>
-        <h1 className="heading-xl">Vault</h1>
-        <p className="text-text-secondary text-sm mt-1">
-          {games.length} game{games.length === 1 ? '' : 's'} synced.
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="heading-xl">Vault</h1>
+          <p className="text-text-secondary text-sm mt-1">
+            {games.length} game{games.length === 1 ? '' : 's'} synced.
+          </p>
+        </div>
+        <button className="btn-outline shrink-0" onClick={openUpload}>
+          Upload PGNs
+        </button>
       </header>
 
       <ul className="card divide-y divide-surface-2 p-0 overflow-hidden">

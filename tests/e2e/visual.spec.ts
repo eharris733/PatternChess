@@ -46,7 +46,9 @@ const ROUTES: Array<{ path: string; name: string; expect: (p: import('@playwrigh
     name: 'dashboard',
     expect: async (p) => {
       await expect(p.getByText(/Hey/i)).toBeVisible();
-      await expect(p.getByText(/Today's homework/i)).toBeVisible();
+      // Stubbed session has no linked account and no games -> first-run hero.
+      await expect(p.getByText(/Welcome to PatternChess/i)).toBeVisible();
+      await expect(p.getByRole('button', { name: /Connect Lichess or Chess\.com/i })).toBeVisible();
     },
   },
   {

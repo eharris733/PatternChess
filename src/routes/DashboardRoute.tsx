@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { useGames } from '../hooks/useGames';
 import { DailyHomeworkCard } from '../components/insights/DailyHomeworkCard';
+import { GetStartedHero } from '../components/insights/GetStartedHero';
 import { StreakTile } from '../components/insights/StreakTile';
 import { RankBadge } from '../components/insights/RankBadge';
 import { OpeningInsightsCard } from '../components/insights/OpeningInsightsCard';
@@ -18,6 +19,11 @@ export function DashboardRoute() {
 
   const gamesLoading = gamesQuery.isPending;
   const gamesCount = gamesQuery.data?.length ?? 0;
+  const hasAccount = !!(profile?.lichessUsername || profile?.chesscomUsername);
+  // First-run: never linked an external account and no games (uploaded PGNs
+  // count as games, so a PGN-only user falls out of this state once they
+  // import).
+  const isFirstRun = !gamesLoading && !hasAccount && gamesCount === 0;
   const greeting =
     profile?.displayName ??
     (user?.user_metadata?.full_name as string | undefined) ??
@@ -27,28 +33,39 @@ export function DashboardRoute() {
   return (
     <div className="max-w-3xl mx-auto flex flex-col gap-6">
       <header className="flex flex-col gap-2">
-        <p className="text-text-secondary text-sm">Welcome back</p>
-        <h1 className="heading-xl">Hey {greeting}.</h1>
-        <RankBadge variant="compact" />
+        {isFirstRun ? (
+          <>
+            <p className="text-text-secondary text-sm">Welcome to PatternChess</p>
+            <h1 className="heading-xl">Hey {greeting}, let's get started.</h1>
+          </>
+        ) : (
+          <>
+            <p className="text-text-secondary text-sm">Welcome back</p>
+            <h1 className="heading-xl">Hey {greeting}.</h1>
+            <RankBadge variant="compact" />
+          </>
+        )}
       </header>
 
-      <DailyHomeworkCard />
+      {isFirstRun ? <GetStartedHero /> : <DailyHomeworkCard />}
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <StreakTile />
-        <button
-          className="card text-left hover:border-accent transition"
-          onClick={() => navigate('/vault')}
-        >
-          <span className="label">Vault</span>
-          {gamesLoading ? (
-            <Skeleton className="h-6 w-24 mt-2" />
-          ) : (
-            <p className="heading-md mt-2">{gamesCount} games</p>
-          )}
-          <p className="text-text-secondary text-sm mt-1">Browse and review your imports.</p>
-        </button>
-      </section>
+      {!isFirstRun && (
+        <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <StreakTile />
+          <button
+            className="card text-left hover:border-accent transition"
+            onClick={() => navigate('/vault')}
+          >
+            <span className="label">Vault</span>
+            {gamesLoading ? (
+              <Skeleton className="h-6 w-24 mt-2" />
+            ) : (
+              <p className="heading-md mt-2">{gamesCount} games</p>
+            )}
+            <p className="text-text-secondary text-sm mt-1">Browse and review your imports.</p>
+          </button>
+        </section>
+      )}
 
       <OpeningInsightsCard />
       <PhaseBlunderCard />

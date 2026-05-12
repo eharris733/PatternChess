@@ -1,8 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/useAuth';
 import { useDueBlunders } from '../../hooks/useDueBlunders';
+import { useGames } from '../../hooks/useGames';
 import { useCompletedToday } from '../../hooks/useTrainingActivity';
 import { useSyncStore } from '../../state/syncStore';
+import { usePgnUploadStore } from '../../state/pgnUploadStore';
 import { DueByStage } from './DueByStage';
 import { Skeleton } from '../Skeleton';
 
@@ -10,8 +12,10 @@ export function DailyHomeworkCard() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const dueQuery = useDueBlunders();
+  const gamesQuery = useGames();
   const completedTodayQuery = useCompletedToday();
   const triggerNow = useSyncStore((s) => s.triggerNow);
+  const openUpload = usePgnUploadStore((s) => s.openModal);
   const isSyncing = useSyncStore((s) => {
     const busy = (phase: string) =>
       phase === 'fetching' || phase === 'inserting' || phase === 'analyzing';
@@ -20,8 +24,10 @@ export function DailyHomeworkCard() {
 
   const isInitialLoad = dueQuery.isPending;
   const dueCount = dueQuery.data?.length ?? 0;
+  const gamesCount = gamesQuery.data?.length ?? 0;
   const completedToday = completedTodayQuery.data === true;
   const hasAccount = !!(profile?.lichessUsername || profile?.chesscomUsername);
+  const pgnOnly = !hasAccount && gamesCount > 0;
 
   if (isInitialLoad) {
     return (
@@ -101,7 +107,9 @@ export function DailyHomeworkCard() {
           <p className="text-text-secondary text-sm">
             {hasAccount
               ? 'New drills will appear after your next sync.'
-              : 'Link an account to import games and surface new drills.'}
+              : pgnOnly
+                ? 'Upload more PGNs or connect an account to surface new drills.'
+                : 'Sync your online account to get started, or upload your own PGNs to your vault.'}
           </p>
         </div>
       </div>
@@ -114,10 +122,19 @@ export function DailyHomeworkCard() {
           >
             {isSyncing ? 'Syncing…' : 'Sync now'}
           </button>
-        ) : (
-          <button className="btn-primary" onClick={() => navigate('/profile')}>
-            Add account
+        ) : pgnOnly ? (
+          <button className="btn-primary" onClick={openUpload}>
+            Upload PGNs
           </button>
+        ) : (
+          <>
+            <button className="btn-primary" onClick={() => navigate('/profile')}>
+              Connect account
+            </button>
+            <button className="btn-outline" onClick={openUpload}>
+              Upload PGNs
+            </button>
+          </>
         )}
       </div>
     </section>

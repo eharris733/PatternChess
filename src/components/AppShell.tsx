@@ -1,6 +1,7 @@
 import { ReactNode, useState } from 'react';
 import { SidebarNav } from './SidebarNav';
 import { ErrorBoundary } from './ErrorBoundary';
+import { PgnUploadModal } from './PgnUploadModal';
 import clsx from 'clsx';
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -29,6 +30,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <ErrorBoundary>{children}</ErrorBoundary>
         </div>
       </main>
+      <PgnUploadModal />
     </div>
   );
 }

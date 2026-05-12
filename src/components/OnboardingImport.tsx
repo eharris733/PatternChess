@@ -41,7 +41,7 @@ export function OnboardingImport() {
 
   const onContinue = () => {
     dismiss();
-    navigate('/vault');
+    navigate('/training');
   };
 
   const onEditProfile = () => {
@@ -108,7 +108,8 @@ export function OnboardingImport() {
           disabled={phase !== 'done'}
           className="px-5 py-2 rounded-lg bg-accent text-bg font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 transition"
         >
-          Continue to your vault
+          Start training
+
         </button>
       </div>
     </div>
