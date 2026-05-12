@@ -1,5 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { SidebarNav } from './SidebarNav';
+import { ErrorBoundary } from './ErrorBoundary';
 import clsx from 'clsx';
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -24,7 +25,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         </button>
       </aside>
       <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
-        <div className="p-6 lg:p-10 max-w-[1400px] mx-auto">{children}</div>
+        <div className="p-6 lg:p-10 max-w-[1400px] mx-auto">
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </div>
       </main>
     </div>
   );

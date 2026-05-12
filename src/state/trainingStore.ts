@@ -537,10 +537,23 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     const isRepeatedBlunder = uci === blunder.playedMove;
     let isCorrect = isCorrectMove(blunder, uci);
 
-    // Apply move locally to compute next FEN
+    // Apply move locally to compute next FEN. chess.js v1 throws on illegal
+    // moves; treat any throw as "no-op" and snap the board back to the
+    // current FEN (chessground may briefly display the bad piece position
+    // after a drag, e.g. from a stale dests/animation race).
     const chess = new Chess(blunder.fen);
-    const result = chess.move({ from: move.from, to: move.to, promotion: move.promotion });
-    if (!result) return;
+    let result;
+    try {
+      result = chess.move({ from: move.from, to: move.to, promotion: move.promotion });
+    } catch (err) {
+      console.warn('[training] processMove rejected illegal move', {
+        fen: blunder.fen,
+        move,
+        err,
+      });
+      set({ fen: state.fen, lastMove: state.lastMove });
+      return;
+    }
     const newFen = chess.fen();
 
     set({
@@ -779,8 +792,16 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     const rm = refutationMoves[idx];
     const chess = new Chess(rm.fenBefore);
     const m = parseUciMove(rm.uci);
-    const r = chess.move({ from: m.from, to: m.to, promotion: m.promotion });
-    if (!r) return;
+    try {
+      chess.move({ from: m.from, to: m.to, promotion: m.promotion });
+    } catch (err) {
+      console.warn('[training] selectRefutationIndex skipped illegal stored move', {
+        fenBefore: rm.fenBefore,
+        uci: rm.uci,
+        err,
+      });
+      return;
+    }
     set({
       fen: chess.fen(),
       lastMove: [m.from, m.to],
@@ -810,8 +831,16 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     const rm = postCorrectMoves[idx];
     const chess = new Chess(rm.fenBefore);
     const m = parseUciMove(rm.uci);
-    const r = chess.move({ from: m.from, to: m.to, promotion: m.promotion });
-    if (!r) return;
+    try {
+      chess.move({ from: m.from, to: m.to, promotion: m.promotion });
+    } catch (err) {
+      console.warn('[training] selectPostCorrectIndex skipped illegal stored move', {
+        fenBefore: rm.fenBefore,
+        uci: rm.uci,
+        err,
+      });
+      return;
+    }
     set({
       fen: chess.fen(),
       lastMove: [m.from, m.to],
