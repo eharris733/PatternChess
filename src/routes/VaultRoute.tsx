@@ -54,7 +54,9 @@ function gameOutcome(game: GameRecord): Outcome | null {
     return 'loss';
   }
 
-  if (game.platform === 'lichess') {
+  // Both lichess (PGN-derived) and user-uploaded PGNs encode the result as
+  // "1-0" / "0-1" / "1/2-1/2"; map it relative to the user's side.
+  if (game.platform === 'lichess' || game.platform === 'pgn') {
     if (result === '1/2-1/2') return 'draw';
     if (result === '*') return null;
     const isWhite =

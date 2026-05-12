@@ -135,6 +135,10 @@ export async function uploadPgns(args: {
     try {
       const inserted = await supabaseService.insertGames(fresh.map((p) => p.row));
       insertedIds = inserted.map((g) => g.id);
+      console.info('[pgn-upload] inserted games', {
+        ids: insertedIds,
+        playedAt: inserted.map((g) => g.playedAt?.toISOString() ?? null),
+      });
     } catch (e) {
       const err = e as { code?: string; message?: string; details?: string; hint?: string } | null;
       // 23505 = unique_violation -> race with concurrent insert, treat as no-op.

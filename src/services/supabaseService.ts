@@ -36,7 +36,12 @@ export async function insertGames(
 export async function getGames(opts?: { userId?: string }): Promise<GameRecord[]> {
   let q = supabase.from('games').select();
   if (opts?.userId) q = q.eq('user_id', opts.userId);
-  const { data, error } = await q.order('played_at', { ascending: false });
+  // Sort by played_at primarily, but break ties (and rank PGN uploads with
+  // missing/old [Date] headers) by insertion time so freshly-imported games
+  // always surface at the top of the vault.
+  const { data, error } = await q
+    .order('played_at', { ascending: false, nullsFirst: true })
+    .order('created_at', { ascending: false });
   if (error) throw error;
   return (data ?? []).map(gameRecordFromJson);
 }

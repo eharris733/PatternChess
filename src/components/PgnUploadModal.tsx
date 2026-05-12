@@ -88,9 +88,13 @@ export function PgnUploadModal() {
       });
       setResult(res);
       setStage('done');
-      await queryClient.invalidateQueries({ queryKey: ['games'] });
-      await queryClient.invalidateQueries({ queryKey: ['dueBlunders'] });
-      await queryClient.invalidateQueries({ queryKey: ['blunderCounts'] });
+      // Invalidate + force refetch so /vault and the homework card show the
+      // new rows immediately, even if no component is currently subscribed.
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['games'], type: 'all' }),
+        queryClient.refetchQueries({ queryKey: ['dueBlunders'], type: 'all' }),
+        queryClient.refetchQueries({ queryKey: ['blunderCounts'], type: 'all' }),
+      ]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Upload failed';
       setErrorMsg(msg);

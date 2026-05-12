@@ -121,5 +121,8 @@ export function platformGameUrl(game: GameRecord): string | null {
     }
     return link;
   }
+  // PGN uploads (or anything else without a platform-native link) fall back
+  // to opening the full PGN in Lichess's analysis board.
+  if (game.pgn) return lichessAnalysisPgnUrl(game.pgn);
   return null;
 }
