@@ -62,11 +62,7 @@ export function PositionSrState({ blunder }: { blunder: Blunder }) {
             </>
           )}
         </span>
-        {lastSeen && (
-          <span className={clsx('font-mono', isOverdue && 'text-mistake')}>
-            {isOverdue ? 'overdue' : `seen ${lastSeen}`}
-          </span>
-        )}
+        {lastSeen && <span className="font-mono">seen {lastSeen}</span>}
       </div>
     </div>
   );
