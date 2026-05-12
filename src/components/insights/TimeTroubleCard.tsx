@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useTimeTroubleInsight } from '../../hooks/useInsights';
+import { InsightCardSkeleton } from '../Skeleton';
 
 const MIN_BLUNDERS_WITH_CLOCK = 20;
 
@@ -10,7 +11,8 @@ function pct(n: number, total: number): number {
 export function TimeTroubleCard() {
   const navigate = useNavigate();
   const insight = useTimeTroubleInsight();
-  if (insight.isLoading || !insight.data) return null;
+  if (insight.isPending) return <InsightCardSkeleton rows={3} />;
+  if (!insight.data) return null;
   const stats = insight.data;
   if (stats.total < MIN_BLUNDERS_WITH_CLOCK) return null;
 

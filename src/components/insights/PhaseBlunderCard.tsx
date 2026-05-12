@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { usePhaseBlunderInsight } from '../../hooks/useInsights';
+import { InsightCardSkeleton } from '../Skeleton';
 
 const MIN_BLUNDERS = 30;
 
@@ -40,7 +41,8 @@ function Bar({ label, userPct, benchmarkPct, benchmarkSampleSize }: BarProps) {
 
 export function PhaseBlunderCard() {
   const insight = usePhaseBlunderInsight();
-  if (insight.isLoading || !insight.data) return null;
+  if (insight.isPending) return <InsightCardSkeleton rows={3} />;
+  if (!insight.data) return null;
   const { counts, benchmark, band, benchmarkSampleSize, benchmarkSource } = insight.data;
   if (counts.total < MIN_BLUNDERS) return null;
 

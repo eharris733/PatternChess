@@ -6,6 +6,7 @@ import {
   GameStateBucket,
 } from '../../chess/blunderContext';
 import { useGameStateInsight } from '../../hooks/useInsights';
+import { InsightCardSkeleton } from '../Skeleton';
 
 const MIN_BLUNDERS = 20;
 
@@ -22,7 +23,8 @@ const BAR_COLOR: Record<GameStateBucket, string> = {
 export function GameStateCard() {
   const navigate = useNavigate();
   const insight = useGameStateInsight();
-  if (insight.isLoading || !insight.data) return null;
+  if (insight.isPending) return <InsightCardSkeleton rows={3} />;
+  if (!insight.data) return null;
   const stats = insight.data;
   if (stats.total < MIN_BLUNDERS) return null;
 

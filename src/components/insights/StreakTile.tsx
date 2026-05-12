@@ -1,12 +1,30 @@
 import clsx from 'clsx';
 import { useAuth } from '../../auth/useAuth';
 import { useTrainingActivityWindow } from '../../hooks/useTrainingActivity';
+import { Skeleton } from '../Skeleton';
 
 export function StreakTile() {
   const { profile } = useAuth();
   const grid = useTrainingActivityWindow(28);
 
-  if (!profile) return null;
+  if (!profile) {
+    return (
+      <section className="card flex flex-col gap-3" aria-busy="true">
+        <header className="flex items-baseline justify-between">
+          <span className="label">Streak</span>
+          <Skeleton className="h-3 w-20" />
+        </header>
+        <div className="flex items-end gap-3">
+          <Skeleton className="h-10 w-10 rounded-full" />
+          <div className="flex flex-col gap-1">
+            <Skeleton className="h-7 w-12" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+        </div>
+        <Skeleton className="h-4 w-full mt-1" />
+      </section>
+    );
+  }
 
   const current = profile.currentStreakDays;
   const longest = profile.longestStreakDays;

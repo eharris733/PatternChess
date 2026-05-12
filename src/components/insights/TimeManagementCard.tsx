@@ -1,4 +1,5 @@
 import { useTimeManagementInsight } from '../../hooks/useInsights';
+import { InsightCardSkeleton } from '../Skeleton';
 
 const MIN_TOTAL_PLIES = 50;
 
@@ -25,7 +26,8 @@ function Tile({ label, userSec, gmSec, hasData }: TileProps) {
 
 export function TimeManagementCard() {
   const insight = useTimeManagementInsight();
-  if (insight.isLoading || !insight.data) return null;
+  if (insight.isPending) return <InsightCardSkeleton rows={2} />;
+  if (!insight.data) return null;
   const { samples, benchmark, benchmarkSource } = insight.data;
 
   const totalPlies = samples.reduce((acc, s) => acc + s.plyCount, 0);

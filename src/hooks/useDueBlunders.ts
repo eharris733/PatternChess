@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
 import { supabaseService } from '../services/supabaseService';
 
@@ -13,5 +13,6 @@ export function useDueBlunders(gameIds?: string[]) {
       return supabaseService.getDueBlunders({ userId: user?.id });
     },
     enabled: !!user,
+    placeholderData: keepPreviousData,
   });
 }

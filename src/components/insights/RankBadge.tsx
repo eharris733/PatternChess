@@ -1,5 +1,6 @@
 import { useBlunderStats } from '../../hooks/useBlunderStats';
 import { rankFor } from '../../lib/ranks';
+import { Skeleton } from '../Skeleton';
 
 interface RankBadgeProps {
   variant?: 'compact' | 'full';
@@ -7,11 +8,20 @@ interface RankBadgeProps {
 
 export function RankBadge({ variant = 'full' }: RankBadgeProps) {
   const stats = useBlunderStats();
+  const isInitialLoad = stats.isPending;
   const reviewed = stats.data?.reviewed ?? 0;
   const mastered = stats.data?.mastered ?? 0;
   const progress = rankFor(mastered);
 
   if (variant === 'compact') {
+    if (isInitialLoad) {
+      return (
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-2/70 border border-surface-2">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-3 w-20" />
+        </div>
+      );
+    }
     return (
       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-2/70 border border-surface-2">
         <span className="text-xs font-semibold text-accent">{progress.current.name}</span>
@@ -19,6 +29,22 @@ export function RankBadge({ variant = 'full' }: RankBadgeProps) {
           {reviewed.toLocaleString()} reviews
         </span>
       </div>
+    );
+  }
+
+  if (isInitialLoad) {
+    return (
+      <section className="card flex flex-col gap-3" aria-busy="true">
+        <header className="flex items-baseline justify-between">
+          <span className="label">Rank</span>
+          <Skeleton className="h-3 w-24" />
+        </header>
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-7 w-40" />
+          <Skeleton className="h-4 w-56" />
+        </div>
+        <Skeleton className="h-2 w-full rounded-full" />
+      </section>
     );
   }
 

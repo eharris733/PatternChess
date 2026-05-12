@@ -4,6 +4,7 @@ import { useDueBlunders } from '../../hooks/useDueBlunders';
 import { useCompletedToday } from '../../hooks/useTrainingActivity';
 import { useSyncStore } from '../../state/syncStore';
 import { DueByStage } from './DueByStage';
+import { Skeleton } from '../Skeleton';
 
 export function DailyHomeworkCard() {
   const navigate = useNavigate();
@@ -17,9 +18,33 @@ export function DailyHomeworkCard() {
     return busy(s.providers.lichess.phase) || busy(s.providers.chesscom.phase);
   });
 
+  const isInitialLoad = dueQuery.isPending;
   const dueCount = dueQuery.data?.length ?? 0;
   const completedToday = completedTodayQuery.data === true;
   const hasAccount = !!(profile?.lichessUsername || profile?.chesscomUsername);
+
+  if (isInitialLoad) {
+    return (
+      <section className="card flex flex-col gap-4">
+        <header className="flex items-baseline justify-between">
+          <span className="label">Today's homework</span>
+        </header>
+        <div className="flex items-end gap-3">
+          <Skeleton className="h-14 w-24" />
+          <Skeleton className="h-4 w-28 mb-2" />
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <Skeleton className="h-5 w-16" />
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-5 w-20" />
+        </div>
+        <div className="flex gap-3">
+          <Skeleton className="h-10 w-32" />
+        </div>
+      </section>
+    );
+  }
 
   if (dueCount > 0) {
     return (

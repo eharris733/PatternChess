@@ -4,6 +4,7 @@ import {
   MIN_TOTAL_GAMES_FOR_OPENING,
   useOpeningInsight,
 } from '../../hooks/useInsights';
+import { InsightCardSkeleton } from '../Skeleton';
 
 function formatPct(v: number): string {
   return `${Math.round(v * 100)}%`;
@@ -17,7 +18,8 @@ function deltaTone(delta: number): 'good' | 'bad' | 'neutral' {
 
 export function OpeningInsightsCard() {
   const insight = useOpeningInsight();
-  if (insight.isLoading || !insight.data) return null;
+  if (insight.isPending) return <InsightCardSkeleton rows={3} />;
+  if (!insight.data) return null;
   const { rows, totalGames, band, benchmarkSource } = insight.data;
   if (totalGames < MIN_TOTAL_GAMES_FOR_OPENING) return null;
   if (rows.length === 0) return null;

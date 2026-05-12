@@ -9,12 +9,14 @@ import { PhaseBlunderCard } from '../components/insights/PhaseBlunderCard';
 import { TimeManagementCard } from '../components/insights/TimeManagementCard';
 import { TimeTroubleCard } from '../components/insights/TimeTroubleCard';
 import { GameStateCard } from '../components/insights/GameStateCard';
+import { Skeleton } from '../components/Skeleton';
 
 export function DashboardRoute() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const gamesQuery = useGames();
 
+  const gamesLoading = gamesQuery.isPending;
   const gamesCount = gamesQuery.data?.length ?? 0;
   const greeting =
     profile?.displayName ??
@@ -39,7 +41,11 @@ export function DashboardRoute() {
           onClick={() => navigate('/vault')}
         >
           <span className="label">Vault</span>
-          <p className="heading-md mt-2">{gamesCount} games</p>
+          {gamesLoading ? (
+            <Skeleton className="h-6 w-24 mt-2" />
+          ) : (
+            <p className="heading-md mt-2">{gamesCount} games</p>
+          )}
           <p className="text-text-secondary text-sm mt-1">Browse and review your imports.</p>
         </button>
       </section>
