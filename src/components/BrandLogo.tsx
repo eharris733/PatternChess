@@ -56,77 +56,44 @@ export function BrandMark({
   );
 }
 
+export type BrandLockupSize = 'sm' | 'md' | 'lg' | 'xl';
+
+const LOCKUP_SIZE: Record<
+  BrandLockupSize,
+  { mark: string; text: string; gap: string }
+> = {
+  sm: { mark: 'h-6 w-6', text: 'text-lg', gap: 'gap-1.5' },
+  md: { mark: 'h-9 w-9', text: 'text-2xl', gap: 'gap-2' },
+  lg: { mark: 'h-12 w-12', text: 'text-3xl', gap: 'gap-2.5' },
+  xl: { mark: 'h-16 w-16', text: 'text-4xl', gap: 'gap-3' },
+};
+
 export function BrandLockup({
   className,
   title = 'PatternChess',
   variant = 'dark',
-}: CommonProps & { variant?: 'dark' | 'light' }) {
-  const wordmarkColor = variant === 'dark' ? COLORS.light : COLORS.bg;
-  const italicColor = variant === 'dark' ? COLORS.goldLight : COLORS.goldDark;
-  const innerStroke = variant === 'dark' ? COLORS.bg : '#FFFFFF';
-  const dotColor = variant === 'dark' ? COLORS.light : COLORS.bg;
-  const trajectoryOpacity = variant === 'dark' ? 0.75 : 0.6;
-
+  size = 'md',
+}: CommonProps & { variant?: 'dark' | 'light'; size?: BrandLockupSize }) {
+  const s = LOCKUP_SIZE[size];
+  const wordmarkColor = variant === 'dark' ? 'text-text-primary' : 'text-bg';
+  const italicColor = variant === 'dark' ? 'text-gold-light' : 'text-gold-dark';
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 480 120"
+    <span
+      className={clsx('inline-flex items-center', s.gap, className)}
       role="img"
       aria-label={title}
-      className={className}
     >
-      <title>{title}</title>
-      <g transform="translate(20, 20)">
-        <rect x="40" y="0" width="40" height="40" fill={COLORS.goldLight} />
-        <rect x="40" y="40" width="40" height="40" fill={COLORS.goldDark} />
-        <rect x="40" y="80" width="40" height="40" fill={COLORS.goldLight} />
-        <rect x="0" y="80" width="40" height="40" fill={COLORS.goldDark} />
-        <path
-          d="M 0 80 L 80 80 M 40 0 L 40 120 M 40 40 L 80 40 M 40 80 L 80 80"
-          stroke={innerStroke}
-          strokeWidth="1.5"
-          fill="none"
-        />
-        <circle cx="20" cy="100" r="4" fill={dotColor} />
-        <path
-          d="M 20 100 Q 20 50 60 20"
-          stroke={dotColor}
-          strokeWidth="2"
-          strokeDasharray="3 4"
-          fill="none"
-          opacity={trajectoryOpacity}
-        />
-        <circle cx="60" cy="20" r="4" fill={dotColor} />
-      </g>
-      <text
-        x="160"
-        y="73"
-        fontFamily="Georgia, 'Times New Roman', serif"
-        fontSize="40"
-        fontWeight="400"
-        fill={wordmarkColor}
-        letterSpacing="-0.5"
+      <BrandMark className={clsx('shrink-0', s.mark)} title={title} />
+      <span
+        className={clsx(
+          'font-serif font-normal tracking-tight leading-none whitespace-nowrap',
+          s.text,
+          wordmarkColor,
+        )}
       >
         Pattern
-        <tspan fontStyle="italic" fill={italicColor}>
-          Chess
-        </tspan>
-      </text>
-    </svg>
+        <span className={clsx('italic', italicColor)}>Chess</span>
+      </span>
+    </span>
   );
-}
-
-export function BrandLogo({
-  collapsed,
-  className,
-  variant = 'dark',
-}: {
-  collapsed?: boolean;
-  className?: string;
-  variant?: 'dark' | 'light';
-}) {
-  if (collapsed) {
-    return <BrandMark className={clsx('h-7 w-7', className)} />;
-  }
-  return <BrandLockup variant={variant} className={clsx('h-9 w-auto', className)} />;
 }

@@ -29,7 +29,7 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
         {collapsed ? (
           <BrandMark className="h-8 w-8 shrink-0" />
         ) : (
-          <BrandLockup className="h-10 w-auto shrink-0" />
+          <BrandLockup size="md" />
         )}
       </button>
 

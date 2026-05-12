@@ -4,6 +4,7 @@ import { useSyncStore } from '../state/syncStore';
 import { useOnboardingStore } from '../state/onboardingStore';
 import type { ProviderProgress } from '../services/syncService';
 import { ProgressBar } from './ProgressBar';
+import { BrandLockup } from './BrandLogo';
 
 type Phase = 'fetching' | 'analyzing' | 'done' | 'error' | 'idle';
 
@@ -50,7 +51,7 @@ export function OnboardingImport() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-xl mx-auto text-center">
-      <h1 className="text-3xl font-semibold mb-2">Welcome to PatternChess</h1>
+      <BrandLockup size="lg" className="mb-4" />
       <p className="text-text-secondary mb-8">
         We're importing your last 200 games and finding the blunders you'll
         train against. This usually takes about five to ten minutes.

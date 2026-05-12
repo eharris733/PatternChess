@@ -27,7 +27,6 @@ export function PositionSrState({ blunder }: { blunder: Blunder }) {
 
   const now = new Date();
   const lastSeen = blunder.lastDrilledAt ? formatRelative(blunder.lastDrilledAt, now) : null;
-  const isOverdue = blunder.nextDrillAt !== null && blunder.nextDrillAt.getTime() < now.getTime();
 
   return (
     <div className="flex flex-col gap-1.5">

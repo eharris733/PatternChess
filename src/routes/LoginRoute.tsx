@@ -38,7 +38,7 @@ export function LoginRoute() {
     <div className="min-h-screen flex items-center justify-center bg-bg p-6">
       <div className="card w-full max-w-md flex flex-col gap-6 text-center">
         <div className="flex flex-col items-center gap-3">
-          <BrandLockup className="h-14 w-auto" />
+          <BrandLockup size="xl" />
           <p className="text-text-secondary text-sm">
             Don't play the same blunder twice.
           </p>
