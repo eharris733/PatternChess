@@ -578,7 +578,8 @@ export async function getUnanalyzedGameIds(opts: {
     .select('id')
     .eq('platform', opts.platform)
     .eq('username', opts.username)
-    .is('analyzed_at', null);
+    .is('analyzed_at', null)
+    .order('played_at', { ascending: false, nullsFirst: false });
   if (userId) q = q.eq('user_id', userId);
   const { data, error } = await q;
   if (error) throw error;

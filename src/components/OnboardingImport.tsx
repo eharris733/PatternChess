@@ -105,13 +105,17 @@ export function OnboardingImport() {
         <button
           type="button"
           onClick={onContinue}
-          disabled={phase !== 'done'}
+          disabled={phase !== 'done' && blundersFound < 1}
           className="px-5 py-2 rounded-lg bg-accent text-bg font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 transition"
         >
           Start training
-
         </button>
       </div>
+      {phase === 'analyzing' && blundersFound >= 1 && (
+        <p className="mt-3 text-xs text-text-secondary">
+          More blunders will keep arriving as we finish analyzing.
+        </p>
+      )}
     </div>
   );
 }
