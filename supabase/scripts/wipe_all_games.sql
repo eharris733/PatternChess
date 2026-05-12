@@ -21,6 +21,13 @@ DELETE FROM training_sessions;
 -- Finally, the games themselves
 DELETE FROM games;
 
+-- Reset the per-platform last-synced timestamps so the next sync is treated
+-- as a fresh onboarding (large initial batch) rather than an incremental
+-- fetch limited by the stale "since" cursor.
+UPDATE profiles
+SET last_synced_lichess_at = NULL,
+    last_synced_chesscom_at = NULL;
+
 -- Sanity check — every counter below should print 0.
 SELECT 'games'             AS table_name, COUNT(*) AS remaining FROM games
 UNION ALL SELECT 'blunders',          COUNT(*) FROM blunders

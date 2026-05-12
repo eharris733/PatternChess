@@ -42,15 +42,6 @@ const initial = {
   blundersFound: 0,
 };
 
-function dedupeKey(g: {
-  platform: string;
-  username: string;
-  opponent: string;
-  played_at: string | null;
-}): string {
-  return `${g.platform}|${g.username}|${g.opponent}|${g.played_at ?? ''}`;
-}
-
 export async function syncProvider(
   platform: Platform,
   username: string,
@@ -98,9 +89,9 @@ export async function syncProvider(
     ...initial,
   });
 
-  let existingKeys: Set<string>;
+  let existingIds: Set<string>;
   try {
-    existingKeys = await supabaseService.getExistingGameKeys(platform, username);
+    existingIds = await supabaseService.getExistingExternalGameIds(platform);
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lookup failed';
     onProgress({
@@ -114,7 +105,7 @@ export async function syncProvider(
     throw e;
   }
 
-  const newOnly = fetched.filter((g) => !existingKeys.has(dedupeKey(g)));
+  const newOnly = fetched.filter((g) => !existingIds.has(g.external_game_id));
 
   let inserted: GameRecord[] = [];
   if (newOnly.length > 0) {
@@ -123,23 +114,37 @@ export async function syncProvider(
         newOnly.map((g) => ({ ...g })) as Array<Record<string, unknown>>,
       );
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Insert failed';
-      onProgress({
-        phase: 'error',
-        fetched: fetched.length,
-        inserted: 0,
-        total: fetched.length,
-        error: msg,
-        ...initial,
-      });
-      throw e;
+      // 23505 = unique_violation. A concurrent sync raced us; the row already
+      // exists, so treat it as a successful no-op rather than failing the
+      // whole sync run.
+      const code = (e as { code?: string } | null)?.code;
+      if (code === '23505') {
+        console.warn('[sync] unique violation on game insert (race with concurrent sync)', e);
+        inserted = [];
+      } else {
+        const msg = e instanceof Error ? e.message : 'Insert failed';
+        onProgress({
+          phase: 'error',
+          fetched: fetched.length,
+          inserted: 0,
+          total: fetched.length,
+          error: msg,
+          ...initial,
+        });
+        throw e;
+      }
     }
   }
 
+  // Advance the cursor based on the latest game we *saw* from the platform,
+  // not just newly inserted ones. Otherwise a no-op sync (all dupes) leaves
+  // last_synced_*_at frozen and we keep re-fetching the same window forever.
   let latest: Date | null = null;
-  for (const g of inserted) {
-    if (!g.playedAt) continue;
-    if (!latest || g.playedAt > latest) latest = g.playedAt;
+  for (const g of fetched) {
+    if (!g.played_at) continue;
+    const ts = new Date(g.played_at);
+    if (Number.isNaN(ts.getTime())) continue;
+    if (!latest || ts > latest) latest = ts;
   }
 
   // Analyze every un-analyzed game for this user+platform+username, not just

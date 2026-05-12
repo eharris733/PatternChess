@@ -89,12 +89,31 @@ async function runOne(
   }
 }
 
-function buildTasks(
+async function resolveSince(
+  platform: Platform,
+  username: string,
+  profileTs: Date | null,
+): Promise<Date | null> {
+  // If the games table is empty for this user+platform, treat it as a
+  // first-time/post-wipe sync and ignore any stale profile timestamp — that
+  // way onboarding (or wipes that didn't clear the profile) pull a real
+  // backlog instead of just the handful of games played since last sync.
+  if (!profileTs) return null;
+  try {
+    const count = await supabaseService.getGameCount(platform, username);
+    if (count === 0) return null;
+  } catch (err) {
+    console.warn('[sync] getGameCount failed, falling back to profile timestamp', err);
+  }
+  return profileTs;
+}
+
+async function buildTasks(
   profile: UserProfile,
   providers: Record<ProviderKey, ProviderProgress>,
   set: SetState,
   forceSince: Date | null | 'profile',
-): Promise<void>[] {
+): Promise<Promise<void>[]> {
   const tasks: Promise<void>[] = [];
   const filters = filtersFor(profile);
   const lichessUsername = profile.lichessUsername?.trim() ?? '';
@@ -103,14 +122,20 @@ function buildTasks(
   if (lichessUsername) {
     const cur = providers.lichess;
     if (cur.phase !== 'fetching' && cur.phase !== 'inserting') {
-      const since = forceSince === 'profile' ? profile.lastSyncedLichessAt : forceSince;
+      const since =
+        forceSince === 'profile'
+          ? await resolveSince('lichess', lichessUsername, profile.lastSyncedLichessAt)
+          : forceSince;
       tasks.push(runOne('lichess', lichessUsername, since, filters, set));
     }
   }
   if (chesscomUsername) {
     const cur = providers.chesscom;
     if (cur.phase !== 'fetching' && cur.phase !== 'inserting') {
-      const since = forceSince === 'profile' ? profile.lastSyncedChesscomAt : forceSince;
+      const since =
+        forceSince === 'profile'
+          ? await resolveSince('chess.com', chesscomUsername, profile.lastSyncedChesscomAt)
+          : forceSince;
       tasks.push(runOne('chess.com', chesscomUsername, since, filters, set));
     }
   }
@@ -131,7 +156,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     const fp = fingerprint(profile);
     if (get().lastTriggeredFor === fp) return;
 
-    const tasks = buildTasks(profile, get().providers, set, 'profile');
+    const tasks = await buildTasks(profile, get().providers, set, 'profile');
     if (tasks.length === 0) return;
 
     set({ lastTriggeredFor: fp });
@@ -139,7 +164,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   },
 
   triggerNow: async (profile) => {
-    const tasks = buildTasks(profile, get().providers, set, 'profile');
+    const tasks = await buildTasks(profile, get().providers, set, 'profile');
     if (tasks.length === 0) return;
     set({ lastTriggeredFor: fingerprint(profile) });
     await Promise.allSettled(tasks);

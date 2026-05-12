@@ -593,30 +593,47 @@ export async function resetGameAnalyzed(gameId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function getExistingGameKeys(
+export async function getExistingExternalGameIds(
   platform: string,
-  username: string,
 ): Promise<Set<string>> {
   const userId = await currentUserId();
-  let q = supabase
-    .from('games')
-    .select('platform, username, opponent, played_at')
-    .eq('platform', platform)
-    .eq('username', username);
+  let q = supabase.from('games').select('external_game_id').eq('platform', platform);
   if (userId) q = q.eq('user_id', userId);
   const { data, error } = await q;
   if (error) throw error;
-  const keys = new Set<string>();
+  const ids = new Set<string>();
   for (const row of data ?? []) {
-    const r = row as {
-      platform: string;
-      username: string;
-      opponent: string;
-      played_at: string | null;
-    };
-    keys.add(`${r.platform}|${r.username}|${r.opponent}|${r.played_at ?? ''}`);
+    const id = (row as { external_game_id: string | null }).external_game_id;
+    if (id) ids.add(id);
   }
-  return keys;
+  return ids;
+}
+
+export async function getGameCount(
+  platform: string,
+  username: string,
+): Promise<number> {
+  const userId = await currentUserId();
+  let q = supabase
+    .from('games')
+    .select('id', { count: 'exact', head: true })
+    .eq('platform', platform)
+    .eq('username', username);
+  if (userId) q = q.eq('user_id', userId);
+  const { count, error } = await q;
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function getTotalGameCount(): Promise<number> {
+  const userId = await currentUserId();
+  if (!userId) return 0;
+  const { count, error } = await supabase
+    .from('games')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId);
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export async function updateProfileLastSynced(
@@ -845,7 +862,9 @@ export const supabaseService = {
   saveAnnotations,
   getCachedExplorerResult,
   cacheExplorerResult,
-  getExistingGameKeys,
+  getExistingExternalGameIds,
+  getGameCount,
+  getTotalGameCount,
   getUnanalyzedGameIds,
   deleteBlundersForGame,
   resetGameAnalyzed,

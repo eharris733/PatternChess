@@ -11,6 +11,7 @@ export interface ImportedGame {
   rated: boolean;
   result: string | null;
   played_at: string | null;
+  external_game_id: string;
 }
 
 export interface FetchOpts {
@@ -25,7 +26,7 @@ export async function fetchChessComGames(
   username: string,
   opts: FetchOpts = {},
 ): Promise<ImportedGame[]> {
-  const { maxGames = 25, ratedOnly = false, timeControls = [], since = null } = opts;
+  const { maxGames = 200, ratedOnly = false, timeControls = [], since = null } = opts;
   const sinceMs = since?.getTime() ?? null;
   const sinceMonthKey = since ? archiveKeyFromDate(since) : null;
 
@@ -72,6 +73,17 @@ export async function fetchChessComGames(
       const black = game.black as { username: string; result: string | null };
       const isWhite = white.username.toLowerCase() === username.toLowerCase();
 
+      const externalId = extractChesscomGameId(
+        typeof game.url === 'string' ? game.url : null,
+        game.pgn as string,
+      );
+      if (!externalId) {
+        console.warn('[sync] chess.com game has no extractable id, skipping', {
+          url: game.url,
+        });
+        continue;
+      }
+
       out.push({
         platform: 'chess.com',
         username,
@@ -84,6 +96,7 @@ export async function fetchChessComGames(
           typeof game.end_time === 'number'
             ? new Date(game.end_time * 1000).toISOString()
             : null,
+        external_game_id: externalId,
       });
     }
   }
@@ -94,7 +107,7 @@ export async function fetchLichessGames(
   username: string,
   opts: FetchOpts = {},
 ): Promise<ImportedGame[]> {
-  const { maxGames = 25, ratedOnly = false, timeControls = [], since = null } = opts;
+  const { maxGames = 200, ratedOnly = false, timeControls = [], since = null } = opts;
   const effectiveMax = since ? Math.max(maxGames, 200) : maxGames;
   const params = new URLSearchParams({
     max: String(effectiveMax),
@@ -121,6 +134,13 @@ export async function fetchLichessGames(
     const white = headers.White ?? '';
     const black = headers.Black ?? '';
     const isWhite = white.toLowerCase() === username.toLowerCase();
+    const externalId = extractLichessGameId(headers.Site);
+    if (!externalId) {
+      console.warn('[sync] lichess game has no extractable id, skipping', {
+        site: headers.Site,
+      });
+      continue;
+    }
     out.push({
       platform: 'lichess',
       username,
@@ -133,9 +153,23 @@ export async function fetchLichessGames(
         headers.UTCDate && headers.UTCTime
           ? parseLichessDateTime(headers.UTCDate, headers.UTCTime)
           : null,
+      external_game_id: externalId,
     });
   }
   return out;
+}
+
+function extractLichessGameId(site: string | undefined): string | null {
+  if (!site) return null;
+  const m = /^https?:\/\/lichess\.org\/([A-Za-z0-9]{8})(?:\/|$|[^A-Za-z0-9])/.exec(site);
+  return m ? m[1] : null;
+}
+
+function extractChesscomGameId(url: string | null, pgn: string): string | null {
+  const fromUrl = url ? /\/game\/(?:live|daily)\/(\d+)/.exec(url) : null;
+  if (fromUrl) return fromUrl[1];
+  const linkMatch = /\[Link "https?:\/\/www\.chess\.com\/game\/(?:live|daily)\/(\d+)"\]/.exec(pgn);
+  return linkMatch ? linkMatch[1] : null;
 }
 
 function splitPgnGames(text: string): string[] {

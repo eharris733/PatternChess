@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { authService } from '../services/authService';
 import type { UserProfile } from '../models/userProfile';
 import { useSyncStore } from '../state/syncStore';
+import { useOnboardingStore } from '../state/onboardingStore';
 
 export interface AuthContextValue {
   session: Session | null;
@@ -82,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === 'SIGNED_OUT') {
         setProfile(null);
         useSyncStore.getState().reset();
+        useOnboardingStore.getState().reset();
       }
     });
 

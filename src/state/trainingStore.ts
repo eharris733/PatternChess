@@ -430,7 +430,13 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
             to: rawM.to,
           };
         }
-      } catch {
+      } catch (err) {
+        console.warn('[training] blunder rejected by preplay validator', {
+          id: blunder.id,
+          fen: blunder.fen,
+          playedMove: blunder.playedMove,
+          err,
+        });
         preplay = null;
       }
     }

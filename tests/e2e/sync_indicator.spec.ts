@@ -103,12 +103,17 @@ async function stubProfileAndApis(
               }),
             );
           }
-          // Supabase REST: existing game keys / inserts → empty
+          // Supabase REST: existing game keys / inserts → empty. Report a
+          // non-zero Content-Range so the onboarding gate (which uses
+          // getTotalGameCount) treats this as a returning user.
           if (url.includes(`${project}.supabase.co/rest/v1/games`)) {
             return Promise.resolve(
               new Response(JSON.stringify([]), {
                 status: 200,
-                headers: { 'content-type': 'application/json' },
+                headers: {
+                  'content-type': 'application/json',
+                  'content-range': '*/200',
+                },
               }),
             );
           }

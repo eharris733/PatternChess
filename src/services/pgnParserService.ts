@@ -38,11 +38,26 @@ export function parseGame(pgn: string): ParsedPosition[] {
 
   const positions: ParsedPosition[] = [];
 
+  // Apply each move on the replay board BEFORE recording the position so we
+  // never emit an entry whose `uciMove` is illegal on its `fen`. chess.js v1
+  // throws on illegal moves; if that ever happens (chess960 mismatch, FEN
+  // header that didn't load cleanly, exotic PGN annotations), truncate the
+  // game rather than desync the replay vs. history cursors.
   let moveNumber = 1;
   for (let i = 0; i < moves.length; i++) {
     const m = moves[i];
     const fenBefore = replay.fen();
     const sideToMove: 'white' | 'black' = m.color === 'w' ? 'white' : 'black';
+    try {
+      replay.move({ from: m.from, to: m.to, promotion: m.promotion });
+    } catch (err) {
+      console.warn('[pgnParser] replay.move failed, truncating game', {
+        fenBefore,
+        move: { from: m.from, to: m.to, promotion: m.promotion, san: m.san },
+        err,
+      });
+      break;
+    }
     positions.push({
       fen: fenBefore,
       sanMove: m.san,
@@ -50,7 +65,6 @@ export function parseGame(pgn: string): ParsedPosition[] {
       moveNumber,
       sideToMove,
     });
-    replay.move({ from: m.from, to: m.to, promotion: m.promotion });
     if (m.color === 'b') moveNumber++;
   }
 
