@@ -296,6 +296,15 @@ export function TrainingRoute() {
           </span>
         </header>
 
+        {state.isRetry && (
+          <div className="flex items-center gap-2 rounded-md border border-mistake/40 bg-mistake/15 px-3 py-2">
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-mistake/30 text-mistake border border-mistake/50">
+              Retry
+            </span>
+            <span className="text-xs text-text-primary">You missed this last time</span>
+          </div>
+        )}
+
         {blunder && <PositionSrState blunder={blunder} />}
 
         {state.currentContext && <BlunderContextBadges context={state.currentContext} />}

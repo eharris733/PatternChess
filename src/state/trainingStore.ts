@@ -83,6 +83,7 @@ export interface TrainingStateShape {
   sessionId: string | null;
   streakSnapshot: StreakSnapshot | null;
   streakApplied: boolean;
+  isRetry: boolean;
 
   setBlunders: (blunders: Blunder[]) => void;
   setContextFilter: (filter: ContextFilter | null) => void;
@@ -145,6 +146,7 @@ function makeInitial(): InitialShape {
     sessionId: null,
     streakSnapshot: null,
     streakApplied: false,
+    isRetry: false,
   };
 }
 
@@ -404,12 +406,14 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     const blunderSan = sanFromUci(blunder.fen, blunder.playedMove);
     const playerSide: 'white' | 'black' = blunder.sideToMove === 'white' ? 'white' : 'black';
     const currentContext = computeBlunderContext(blunder, game);
+    const isNewBlunder = blunder.cycleNumber === 0 && blunder.timesAttempted === 0;
+    const isRetry = blunder.lastDrillFailed;
 
     // Try to pre-play the blunder so we can show the position after the bad move.
     // If the FEN or move can't be parsed (corrupt data, exotic encoding), skip the
     // reviewing step entirely and fall through to solving — never leave phase='loading'.
     let preplay: { afterFen: string; lastMove: [string, string]; from: string; to: string } | null = null;
-    if (blunder.cycleNumber === 0 && blunder.timesAttempted === 0) {
+    if (isNewBlunder || isRetry) {
       try {
         const chess = new Chess(blunder.fen);
         const rawM = parseUciMove(blunder.playedMove);
@@ -440,6 +444,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         blunderSan,
         game,
         currentContext,
+        isRetry,
         refutationMoves: [],
         refutationPairs: [],
         activeRefutationIndex: 0,
@@ -479,6 +484,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         blunderSan,
         game,
         currentContext,
+        isRetry,
         refutationMoves: [],
         refutationPairs: [],
         activeRefutationIndex: null,
