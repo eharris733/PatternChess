@@ -26,13 +26,22 @@ export function chesscomAnalysisUrl(fen: string): string {
  * caller can fall back to a plain FEN URL).
  */
 export function buildPgnFromUciMoves(startFen: string, uciMoves: string[]): string | null {
-  const chess = new Chess(startFen);
+  let chess: Chess;
+  try {
+    chess = new Chess(startFen);
+  } catch {
+    return null;
+  }
   const sans: string[] = [];
   for (const uci of uciMoves) {
     const normalized = CASTLING_NORMALIZE[uci] ?? uci;
     const parsed = parseUciMove(normalized);
-    const result = chess.move({ from: parsed.from, to: parsed.to, promotion: parsed.promotion });
-    if (!result) return null;
+    let result;
+    try {
+      result = chess.move({ from: parsed.from, to: parsed.to, promotion: parsed.promotion });
+    } catch {
+      return null;
+    }
     sans.push(result.san);
   }
   const fullmoveStart = Number.parseInt(startFen.split(' ')[5] ?? '1', 10);
