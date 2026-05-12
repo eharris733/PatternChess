@@ -414,10 +414,20 @@ export function TrainingRoute() {
             {state.postCorrectPairs.length > 0 ? (
               <div>
                 <p className="label mb-2">Game may have continued</p>
+                <button
+                  type="button"
+                  onClick={() => state.selectPostCorrectIndex(-1)}
+                  className={clsx(
+                    'w-full text-left font-mono text-[13px] rounded px-2 py-1.5 transition hover:bg-surface-2 text-text-secondary',
+                    state.activePostCorrectIndex === -1 && 'bg-accent/15 text-accent-light',
+                  )}
+                >
+                  Puzzle start
+                </button>
                 <MoveSequencePanel
                   pairs={state.postCorrectPairs}
                   activeKey={
-                    state.activePostCorrectIndex !== null
+                    state.activePostCorrectIndex !== null && state.activePostCorrectIndex >= 0
                       ? `p${state.activePostCorrectIndex}`
                       : null
                   }

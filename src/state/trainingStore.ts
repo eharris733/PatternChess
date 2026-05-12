@@ -792,8 +792,21 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
   },
 
   selectPostCorrectIndex: (idx) => {
-    const { postCorrectMoves } = get();
-    if (idx < 0 || idx >= postCorrectMoves.length) return;
+    const { postCorrectMoves, blunders, currentIndex } = get();
+    if (idx < -1 || idx >= postCorrectMoves.length) return;
+    if (idx === -1) {
+      const blunder = blunders[currentIndex];
+      if (!blunder) return;
+      set({
+        fen: blunder.fen,
+        lastMove: null,
+        shapes: [],
+        activePostCorrectIndex: -1,
+        activeRefutationIndex: null,
+        playedMovesFromBlunder: [],
+      });
+      return;
+    }
     const rm = postCorrectMoves[idx];
     const chess = new Chess(rm.fenBefore);
     const m = parseUciMove(rm.uci);
