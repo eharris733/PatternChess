@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { useAuth } from '../auth/useAuth';
+import { BrandLockup } from '../components/BrandLogo';
 
 export function LoginRoute() {
   const { session, loading } = useAuth();
@@ -36,11 +37,10 @@ export function LoginRoute() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg p-6">
       <div className="card w-full max-w-md flex flex-col gap-6 text-center">
-        <div className="flex flex-col items-center gap-2">
-          <span className="text-accent text-3xl">♞</span>
-          <h1 className="heading-xl">PatternChess</h1>
+        <div className="flex flex-col items-center gap-3">
+          <BrandLockup className="h-14 w-auto" />
           <p className="text-text-secondary text-sm">
-            Don't play the same blunder twice.  
+            Don't play the same blunder twice.
           </p>
         </div>
         <button className="btn-primary" onClick={onSignIn} disabled={signingIn}>

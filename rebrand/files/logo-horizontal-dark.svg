@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 120" role="img" aria-label="PatternChess">
+  <title>PatternChess</title>
+  <!-- Mark -->
+  <g transform="translate(20, 20)">
+    <!-- Vertical column (right side, 3 squares tall) -->
+    <rect x="40" y="0"  width="40" height="40" fill="#C49B2A"/>
+    <rect x="40" y="40" width="40" height="40" fill="#8B6914"/>
+    <rect x="40" y="80" width="40" height="40" fill="#C49B2A"/>
+    <!-- Foot (bottom-left) -->
+    <rect x="0"  y="80" width="40" height="40" fill="#8B6914"/>
+    <!-- Subtle inner divisions -->
+    <path d="M 0 80 L 80 80 M 40 0 L 40 120 M 40 40 L 80 40 M 40 80 L 80 80" stroke="#1A1A1A" stroke-width="1.5" fill="none"/>
+    <!-- Knight trajectory -->
+    <circle cx="20" cy="100" r="4" fill="#E8E8E8"/>
+    <path d="M 20 100 Q 20 50 60 20" stroke="#E8E8E8" stroke-width="2" stroke-dasharray="3 4" fill="none" opacity="0.75"/>
+    <circle cx="60" cy="20" r="4" fill="#E8E8E8"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="160" y="73" font-family="Georgia, 'Times New Roman', serif" font-size="40" font-weight="400" fill="#E8E8E8" letter-spacing="-0.5">Pattern<tspan font-style="italic" fill="#C49B2A">Chess</tspan></text>
+</svg>

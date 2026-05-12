@@ -10,6 +10,8 @@ export default {
         'surface-2': '#3A3A3A',
         accent: '#8B6914',
         'accent-light': '#C49B2A',
+        'gold-dark': '#8B6914',
+        'gold-light': '#C49B2A',
         'text-primary': '#E8E8E8',
         'text-secondary': '#9E9E9E',
         correct: '#4CAF50',
@@ -21,6 +23,7 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        serif: ['Georgia', '"Times New Roman"', 'serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
       },
       boxShadow: {

@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
 import { SyncIndicator } from './SyncIndicator';
 import { StreakBadge } from './insights/StreakBadge';
+import { BrandLockup, BrandMark } from './BrandLogo';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: '◐' },
@@ -19,12 +20,16 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
     <div className="flex flex-col h-full py-3">
       <button
         onClick={onToggle}
-        className="mx-2 mb-2 flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-2 transition text-left"
+        className={clsx(
+          'mx-2 mb-2 flex items-center rounded-lg hover:bg-surface-2 transition text-left',
+          collapsed ? 'justify-center p-2' : 'px-3 py-2',
+        )}
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
-        <span className="text-accent text-xl shrink-0">♞</span>
-        {!collapsed && (
-          <span className="font-semibold tracking-tight text-base">PatternChess</span>
+        {collapsed ? (
+          <BrandMark className="h-8 w-8 shrink-0" />
+        ) : (
+          <BrandLockup className="h-10 w-auto shrink-0" />
         )}
       </button>
 
