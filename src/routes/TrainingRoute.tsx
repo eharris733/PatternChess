@@ -238,7 +238,12 @@ export function TrainingRoute() {
 
   const externalPlatform = resolvePlatform(state.game?.platform, 'lichess');
   const externalAnalysis =
-    externalPlatform && state.fen ? externalAnalysisUrl(externalPlatform, state.fen) : null;
+    externalPlatform && state.fen
+      ? externalAnalysisUrl(externalPlatform, state.fen, {
+          startFen: blunder?.fen,
+          movesFromStart: state.playedMovesFromBlunder,
+        })
+      : null;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6">

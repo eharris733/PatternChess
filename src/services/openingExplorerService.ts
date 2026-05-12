@@ -61,7 +61,9 @@ export async function fetchMasters(fen: string): Promise<ExplorerResult | null> 
     const json = await res.json();
     const result = fromJson(json);
     memoryCache.set(fen, result);
-    void supabaseService.cacheExplorerResult(fen, json).catch(() => {});
+    void supabaseService
+      .cacheExplorerResult(fen, json)
+      .catch((err) => console.warn('[explorer] cacheExplorerResult failed', err));
     return result;
   } catch {
     return null;

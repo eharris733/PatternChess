@@ -84,6 +84,7 @@ export interface TrainingStateShape {
   streakSnapshot: StreakSnapshot | null;
   streakApplied: boolean;
   isRetry: boolean;
+  playedMovesFromBlunder: string[];
 
   setBlunders: (blunders: Blunder[]) => void;
   setContextFilter: (filter: ContextFilter | null) => void;
@@ -147,6 +148,7 @@ function makeInitial(): InitialShape {
     streakSnapshot: null,
     streakApplied: false,
     isRetry: false,
+    playedMovesFromBlunder: [],
   };
 }
 
@@ -159,7 +161,7 @@ function endActiveSession(state: TrainingStateShape): void {
       blundersCorrect: state.totalCorrect,
       endedAt: new Date(),
     })
-    .catch(() => {});
+    .catch((err) => console.warn('[training] endActiveSession failed', err));
 }
 
 async function applyStreakUpdate(snapshot: StreakSnapshot): Promise<void> {
@@ -445,6 +447,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         game,
         currentContext,
         isRetry,
+        playedMovesFromBlunder: [blunder.playedMove],
         refutationMoves: [],
         refutationPairs: [],
         activeRefutationIndex: 0,
@@ -485,6 +488,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         game,
         currentContext,
         isRetry,
+        playedMovesFromBlunder: [],
         refutationMoves: [],
         refutationPairs: [],
         activeRefutationIndex: null,
@@ -510,6 +514,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       movableFor: playerSide,
       lastMove: null,
       shapes: [],
+      playedMovesFromBlunder: [],
       refutationMoves: [],
       refutationPairs: [],
       activeRefutationIndex: null,
@@ -564,7 +569,9 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           const updated = [...blunder.correctMoves];
           if (!updated.some((cm) => cm.move === uci)) updated.push(newCorrect);
           blunder.correctMoves = updated;
-          void supabaseService.appendCorrectMove(blunder.id, updated).catch(() => {});
+          void supabaseService
+            .appendCorrectMove(blunder.id, updated)
+            .catch((err) => console.warn('[training] appendCorrectMove failed', err));
         }
       } catch {
         /* engine optional */
@@ -589,7 +596,9 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         );
         blunder.lastDrillFailed = false;
       }
-      void supabaseService.updateBlunderAfterDrill(blunder).catch(() => {});
+      void supabaseService
+        .updateBlunderAfterDrill(blunder)
+        .catch((err) => console.warn('[training] updateBlunderAfterDrill (correct) failed', err));
 
       set((s) => {
         const nextAttempted = isFirstAttempt
@@ -602,6 +611,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           attemptedBlunderIds: nextAttempted,
           shapes: [{ orig: move.from as any, dest: move.to as any, brush: 'green' }],
           incorrectFeedback: null,
+          playedMovesFromBlunder: [uci],
           refutationMoves: [],
           refutationPairs: [],
           activeRefutationIndex: null,
@@ -618,7 +628,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
             blundersAttempted: afterCorrect.totalAttempted,
             blundersCorrect: afterCorrect.totalCorrect,
           })
-          .catch(() => {});
+          .catch((err) => console.warn('[training] updateTrainingSession (correct) failed', err));
       }
       if (!afterCorrect.streakApplied && afterCorrect.streakSnapshot) {
         set({ streakApplied: true });
@@ -653,7 +663,9 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         blunder.cycleNumber = 0;
         blunder.lastDrillFailed = true;
       }
-      void supabaseService.updateBlunderAfterDrill(blunder).catch(() => {});
+      void supabaseService
+        .updateBlunderAfterDrill(blunder)
+        .catch((err) => console.warn('[training] updateBlunderAfterDrill (incorrect) failed', err));
 
       let feedback: IncorrectFeedback;
       if (isRepeatedBlunder) {
@@ -679,7 +691,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
             blundersAttempted: afterIncorrect.totalAttempted + 1,
             blundersCorrect: afterIncorrect.totalCorrect + (firstAttemptRecalled ? 1 : 0),
           })
-          .catch(() => {});
+          .catch((err) => console.warn('[training] updateTrainingSession (incorrect) failed', err));
       }
 
       set((s) => {
@@ -693,6 +705,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           attemptedBlunderIds: nextAttempted,
           shapes: [],
           incorrectFeedback: feedback,
+          playedMovesFromBlunder: [uci],
         };
       });
     }
@@ -774,6 +787,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       shapes: [{ orig: m.from as any, dest: m.to as any, brush: 'red' }],
       activeRefutationIndex: idx,
       activePostCorrectIndex: null,
+      playedMovesFromBlunder: refutationMoves.slice(0, idx + 1).map((rm) => rm.uci),
     });
   },
 
@@ -791,6 +805,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       shapes: [{ orig: m.from as any, dest: m.to as any, brush: 'green' }],
       activePostCorrectIndex: idx,
       activeRefutationIndex: null,
+      playedMovesFromBlunder: postCorrectMoves.slice(0, idx + 1).map((rm) => rm.uci),
     });
   },
 }));

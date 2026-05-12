@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setProfile(p);
             void useSyncStore.getState().startForProfile(p);
           })
-          .catch(() => {});
+          .catch((err) => console.warn('[auth] getOrCreateProfile failed', err));
       }
       if (event === 'SIGNED_OUT') {
         setProfile(null);
