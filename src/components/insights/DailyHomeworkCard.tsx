@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/useAuth';
 import { useDueBlunders } from '../../hooks/useDueBlunders';
+import { useDueTomorrowCount } from '../../hooks/useDueTomorrowCount';
 import { useGames } from '../../hooks/useGames';
 import { useCompletedToday } from '../../hooks/useTrainingActivity';
 import { useSyncStore } from '../../state/syncStore';
@@ -12,6 +13,7 @@ export function DailyHomeworkCard() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const dueQuery = useDueBlunders();
+  const tomorrowQuery = useDueTomorrowCount();
   const gamesQuery = useGames();
   const completedTodayQuery = useCompletedToday();
   const triggerNow = useSyncStore((s) => s.triggerNow);
@@ -24,6 +26,7 @@ export function DailyHomeworkCard() {
 
   const isInitialLoad = dueQuery.isPending;
   const dueCount = dueQuery.data?.length ?? 0;
+  const tomorrowCount = tomorrowQuery.data ?? 0;
   const gamesCount = gamesQuery.data?.length ?? 0;
   const completedToday = completedTodayQuery.data === true;
   const hasAccount = !!(profile?.lichessUsername || profile?.chesscomUsername);
@@ -70,6 +73,16 @@ export function DailyHomeworkCard() {
           <span className="text-text-secondary mb-2">
             blunder{dueCount === 1 ? '' : 's'} due
           </span>
+          {tomorrowCount > 0 && (
+            <div className="ml-auto self-end mb-1 px-3 py-2 rounded-md bg-surface-2 text-sm">
+              <span className="font-mono font-semibold tabular-nums text-text-primary">
+                {tomorrowCount}
+              </span>{' '}
+              <span className="text-text-secondary">
+                position{tomorrowCount === 1 ? '' : 's'} due tomorrow
+              </span>
+            </div>
+          )}
         </div>
         <DueByStage data={dueQuery.data ?? []} />
         <div className="flex gap-3">

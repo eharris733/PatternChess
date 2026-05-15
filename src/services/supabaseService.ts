@@ -117,6 +117,21 @@ export async function getDueBlunders(opts?: { userId?: string }): Promise<Blunde
   return (data ?? []).map(blunderFromJson);
 }
 
+export async function getDueTomorrowCount(opts?: { userId?: string }): Promise<number> {
+  const now = new Date();
+  const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const startOfDayAfter = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
+  let q = supabase
+    .from('blunders')
+    .select('*', { count: 'exact', head: true })
+    .gte('next_drill_at', startOfTomorrow.toISOString())
+    .lt('next_drill_at', startOfDayAfter.toISOString());
+  if (opts?.userId) q = q.eq('user_id', opts.userId);
+  const { count, error } = await q;
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function appendCorrectMove(
   blunderId: string,
   updatedMoves: CorrectMove[],
@@ -862,6 +877,7 @@ export const supabaseService = {
   getBlundersForGames,
   getBlunderCountsByGame,
   getDueBlunders,
+  getDueTomorrowCount,
   appendCorrectMove,
   updateBlunderAfterDrill,
   getAnnotations,
