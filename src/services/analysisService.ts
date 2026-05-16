@@ -1,6 +1,15 @@
 import { getAnalysisStockfish } from '../hooks/useStockfish';
 import { derivePhase } from '../models/blunder';
-import { extractHeaders, parseGame, parsePgnMetadata } from './pgnParserService';
+import type {
+  BlunderCandidate,
+  StockfishWorkerClient,
+} from '../stockfish/stockfishWorkerClient';
+import {
+  extractHeaders,
+  parseGame,
+  parsePgnMetadata,
+  type ParsedPosition,
+} from './pgnParserService';
 import { supabaseService } from './supabaseService';
 
 export interface AnalysisProgress {
@@ -9,6 +18,50 @@ export interface AnalysisProgress {
   positionIndex: number;
   positionsTotal: number;
   blundersFound: number;
+}
+
+export interface PgnAnalysisResult {
+  blunders: BlunderCandidate[];
+  positions: ParsedPosition[];
+  headers: ReturnType<typeof extractHeaders>;
+  playerSide: 'white' | 'black' | null;
+}
+
+/**
+ * Canonical per-PGN blunder analysis. Both the signed-in sync path
+ * (`analyzeGames`) and the public landing-page demo route through this so the
+ * pipeline (PGN → parse → playerSide → Stockfish depth-12 → 15% threshold)
+ * stays bit-identical. The caller supplies the engine handle so the UI engine
+ * and the background analysis engine can each be used in the right context.
+ */
+export async function analyzePgn(
+  sf: StockfishWorkerClient,
+  pgn: string,
+  username: string | null,
+  opts: {
+    onProgress?: (current: number, total: number) => void;
+    maxPlies?: number;
+  } = {},
+): Promise<PgnAnalysisResult> {
+  const headers = extractHeaders(pgn);
+  const allPositions = parseGame(pgn);
+  const positions =
+    opts.maxPlies != null
+      ? allPositions.slice(0, opts.maxPlies + 1)
+      : allPositions;
+  const lower = username?.toLowerCase();
+  const playerSide: 'white' | 'black' | null =
+    lower && headers.White?.toLowerCase() === lower
+      ? 'white'
+      : lower && headers.Black?.toLowerCase() === lower
+        ? 'black'
+        : null;
+  const blunders = await sf.analyzeGame(positions, {
+    depth: 12,
+    playerSide,
+    onProgress: opts.onProgress,
+  });
+  return { blunders, positions, headers, playerSide };
 }
 
 export async function analyzeGames(
@@ -22,33 +75,15 @@ export async function analyzeGames(
 
   for (let i = 0; i < gameIds.length; i++) {
     const game = await supabaseService.getGame(gameIds[i]);
-    const positions = parseGame(game.pgn);
-    const headers = extractHeaders(game.pgn);
-    const username = game.username || fallbackUsername || '';
-    const playerSide: 'white' | 'black' | null =
-      headers.White?.toLowerCase() === username.toLowerCase()
-        ? 'white'
-        : headers.Black?.toLowerCase() === username.toLowerCase()
-          ? 'black'
-          : null;
+    const username = game.username || fallbackUsername || null;
 
-    onProgress?.({
-      gameIndex: i,
-      gamesTotal: gameIds.length,
-      positionIndex: 0,
-      positionsTotal: positions.length,
-      blundersFound,
-    });
-
-    const blunders = await sf.analyzeGame(positions, {
-      depth: 12,
-      playerSide,
-      onProgress: (cur) =>
+    const { blunders } = await analyzePgn(sf, game.pgn, username, {
+      onProgress: (cur, total) =>
         onProgress?.({
           gameIndex: i,
           gamesTotal: gameIds.length,
           positionIndex: cur,
-          positionsTotal: positions.length,
+          positionsTotal: total,
           blundersFound,
         }),
     });

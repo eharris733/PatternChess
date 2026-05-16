@@ -88,7 +88,7 @@ for (const route of ROUTES) {
 
 test('keyboard A grade is wired on review (key handler attaches)', async ({ page }) => {
   await stubAuth(page);
-  await page.goto('/');
+  await page.goto('/dashboard');
   // Sanity-check the document keydown listener doesn't blow up.
   await page.keyboard.press('Space');
 });

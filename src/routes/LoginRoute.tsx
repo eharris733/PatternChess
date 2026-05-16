@@ -19,7 +19,7 @@ export function LoginRoute() {
   }
 
   if (session) {
-    const dest = location.state?.from?.pathname ?? '/';
+    const dest = location.state?.from?.pathname ?? '/dashboard';
     return <Navigate to={dest} replace />;
   }
 

@@ -227,7 +227,7 @@ export function TrainingRoute() {
         <p className="text-text-secondary">
           {pct}% recall · {state.totalCorrect}/{state.totalAttempted} correct
         </p>
-        <button className="btn-primary" onClick={() => navigate('/')}>
+        <button className="btn-primary" onClick={() => navigate('/dashboard')}>
           Back to dashboard
         </button>
       </div>

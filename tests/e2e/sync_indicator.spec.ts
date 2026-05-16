@@ -171,7 +171,7 @@ async function getCaptured(page: import('@playwright/test').Page) {
 
 test('SyncIndicator stays visible after sync and exposes Sync now', async ({ page }) => {
   await stubProfileAndApis(page);
-  await page.goto('/');
+  await page.goto('/dashboard');
 
   const pill = page.getByRole('button', { name: /Sync/ });
   await expect(pill).toBeVisible();
@@ -247,7 +247,7 @@ test('Saving sends the selected time controls as an array in the PATCH body', as
 
 test('Lichess fetch joins selected time controls comma-separated as perfType', async ({ page }) => {
   await stubProfileAndApis(page, { preferred_time_controls: ['blitz', 'rapid'] });
-  await page.goto('/');
+  await page.goto('/dashboard');
 
   // Sync auto-fires on sign-in; wait for the lichess request to be captured.
   await expect
@@ -264,7 +264,7 @@ test('Lichess fetch joins selected time controls comma-separated as perfType', a
 
 test('Empty time-control selection omits perfType from the Lichess request', async ({ page }) => {
   await stubProfileAndApis(page, { preferred_time_controls: [] });
-  await page.goto('/');
+  await page.goto('/dashboard');
 
   await expect
     .poll(async () => (await getCaptured(page)).lichessUrls.length, { timeout: 10_000 })

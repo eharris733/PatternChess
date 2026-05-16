@@ -6,7 +6,7 @@ import { StreakBadge } from './insights/StreakBadge';
 import { BrandLockup, BrandMark } from './BrandLogo';
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard', icon: '◐' },
+  { to: '/dashboard', label: 'Dashboard', icon: '◐' },
   { to: '/vault', label: 'Vault', icon: '▤' },
   { to: '/training', label: 'Train', icon: '✦' },
 ];
@@ -38,7 +38,7 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
           <NavLink
             key={item.to}
             to={item.to}
-            end={item.to === '/'}
+            end={item.to === '/dashboard'}
             className={({ isActive }) =>
               clsx(
                 'mx-2 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition',

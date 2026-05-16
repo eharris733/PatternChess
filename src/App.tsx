@@ -4,6 +4,7 @@ import { RequireAuth } from './auth/RequireAuth';
 import { DashboardRoute } from './routes/DashboardRoute';
 import { TrainingRoute } from './routes/TrainingRoute';
 import { VaultRoute } from './routes/VaultRoute';
+import { LandingRoute } from './routes/LandingRoute';
 import { LoginRoute } from './routes/LoginRoute';
 import { ProfileRoute } from './routes/ProfileRoute';
 import { SandboxRoute } from './routes/SandboxRoute';
@@ -12,6 +13,7 @@ import { EngineTestRoute } from './routes/EngineTestRoute';
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<LandingRoute />} />
       <Route path="/login" element={<LoginRoute />} />
       <Route
         element={
@@ -20,13 +22,13 @@ export default function App() {
           </AppShell>
         }
       >
-        <Route path="/" element={<DashboardRoute />} />
+        <Route path="/dashboard" element={<DashboardRoute />} />
         <Route path="/training" element={<TrainingRoute />} />
         <Route path="/vault" element={<VaultRoute />} />
         <Route path="/profile" element={<ProfileRoute />} />
         <Route path="/__sandbox" element={<SandboxRoute />} />
         <Route path="/__engine-test" element={<EngineTestRoute />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
     </Routes>
   );

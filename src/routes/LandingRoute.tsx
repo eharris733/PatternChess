@@ -1,0 +1,38 @@
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../auth/useAuth';
+import { LandingTopBar } from '../components/landing/LandingTopBar';
+import { LandingHero } from '../components/landing/LandingHero';
+import { LandingFooter } from '../components/landing/LandingFooter';
+import { UsernameInput } from '../components/landing/UsernameInput';
+import { DemoResult } from '../components/landing/DemoResult';
+import { HowItWorks } from '../components/landing/HowItWorks';
+import { AboutCreator } from '../components/landing/AboutCreator';
+import { useDemoAnalysis } from '../hooks/useDemoAnalysis';
+
+export function LandingRoute() {
+  const { session, loading } = useAuth();
+  const demo = useDemoAnalysis();
+
+  if (loading) return null;
+  if (session) return <Navigate to="/dashboard" replace />;
+
+  return (
+    <div className="min-h-screen bg-[#F4F4F0] text-[#1A1A1A] font-sans">
+      <LandingTopBar />
+      <main>
+        <LandingHero>
+          <div className="flex flex-col gap-8 max-w-3xl">
+            <UsernameInput
+              loading={demo.status === 'loading'}
+              onSubmit={(platform, username) => demo.run({ platform, username })}
+            />
+            <DemoResult demo={demo} />
+          </div>
+        </LandingHero>
+        <HowItWorks />
+        <AboutCreator />
+      </main>
+      <LandingFooter />
+    </div>
+  );
+}

@@ -8,6 +8,8 @@ declare const _default: {
                 'surface-2': string;
                 accent: string;
                 'accent-light': string;
+                'gold-dark': string;
+                'gold-light': string;
                 'text-primary': string;
                 'text-secondary': string;
                 correct: string;
@@ -19,6 +21,7 @@ declare const _default: {
             };
             fontFamily: {
                 sans: [string, string, string];
+                serif: [string, string, string];
                 mono: [string, string, string];
             };
             boxShadow: {
