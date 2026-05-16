@@ -3,18 +3,18 @@ import { SPACED_REPETITION_DAYS } from '../../models/blunder';
 const STEPS = [
   {
     num: '01',
-    title: 'Woodpecker method',
-    body: 'Repeat the same positions on shrinking intervals until you can’t miss them. Same idea Magnus uses, applied to your own mistakes.',
+    title: 'Repeat until it’s automatic',
+    body: 'The same positions, on shrinking intervals, until you can’t miss them. Same idea Magnus uses, applied to your own mistakes.',
   },
   {
     num: '02',
-    title: 'Spaced repetition',
-    body: 'A seven-stage ladder spaces drills out across days, not hours. You learn the pattern for good — not just for one session.',
+    title: 'Drills spread across days',
+    body: 'A seven-stage ladder spaces your drills across days. The pattern locks into long-term memory instead of disappearing after the session.',
   },
   {
     num: '03',
-    title: 'Your blunders, not puzzles',
-    body: 'Stockfish flags the moves where you lost real ground in your own games. No tactics trainer — just the mistakes you keep repeating.',
+    title: 'Stockfish finds them in your games',
+    body: 'We pull your last games, run Stockfish over every move, and turn each one where you actually lost ground into a drill in your queue.',
   },
 ];
 

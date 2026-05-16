@@ -4,7 +4,7 @@ export function AboutCreator() {
       <div className="max-w-6xl mx-auto px-6 py-16 lg:py-24">
         <div className="flex items-baseline justify-between mb-12 border-b-2 border-[#1A1A1A] pb-4">
           <h2 className="font-mono uppercase tracking-tight text-2xl sm:text-3xl text-[#1A1A1A]">
-            Who built this
+            Why I built this
           </h2>
           <span className="font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/60">
             One person · one problem
@@ -17,26 +17,24 @@ export function AboutCreator() {
           </div>
 
           <div className="flex flex-col gap-5">
-            <p className="font-mono uppercase text-[10px] tracking-tight text-gold-dark">
-              Hi — I'm Elliot.
+            <p className="text-base sm:text-lg text-[#1A1A1A] leading-relaxed">
+              I built PatternChess because I wanted to test an insight I had from my own
+              training. I started studying chess seriously as an adult, and the only method
+              that got me results was spaced repetition. I'd print out a set of puzzles and
+              review them every night until I could solve a set of 200-300 puzzles in one
+              sitting.
             </p>
             <p className="text-base sm:text-lg text-[#1A1A1A] leading-relaxed">
-              I built PatternChess because I kept losing games the same way. The same hanging
-              bishop. The same back-rank panic. Puzzle apps trained me on{' '}
-              <em>other people's</em> mistakes — useful, but not the ones I actually make.
-            </p>
-            <p className="text-base text-[#1A1A1A]/80 leading-relaxed">
-              So I built a tool that pulls down my own games, finds the moments where I gave
-              the game away, and drills me on those positions until the pattern sticks.
-              Woodpecker method, spaced repetition, my blunders.
-            </p>
-            <p className="text-base text-[#1A1A1A]/80 leading-relaxed">
-              It's working. If you've ever stared at a position thinking <em>"I knew that"</em>
-              {' '}— this is for you.
+              The issue was, these positions taught me how to win. They didn't teach me how to
+              stop losing. Without an expensive coach, no one could tell me exactly where my
+              blindspots were, and I had no way of training the exact positions I was losing
+              in. As a professional software engineer, I thought I might finally be able to
+              come up with a solution. So I built one.
             </p>
             <div className="mt-2 flex flex-wrap gap-3 pt-3 border-t-2 border-[#1A1A1A]/10">
-              <CreatorLink label="Twitter" href="#" />
-              <CreatorLink label="Email" href="#" />
+              <CreatorLink label="Chess.com" href="https://www.chess.com/member/eharris733" />
+              <CreatorLink label="Lichess" href="https://lichess.org/@/bewaretheschnook" />
+              <CreatorLink label="GitHub" href="https://github.com/eharris733" />
             </div>
           </div>
         </div>
@@ -49,6 +47,8 @@ function CreatorLink({ label, href }: { label: string; href: string }) {
   return (
     <a
       href={href}
+      target="_blank"
+      rel="noopener noreferrer"
       className="font-mono uppercase text-[11px] tracking-tight border-2 border-[#1A1A1A] px-3 py-1.5 rounded-none text-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-[#F4F4F0] transition-colors"
     >
       {label}

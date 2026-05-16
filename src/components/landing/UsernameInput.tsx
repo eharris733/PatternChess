@@ -68,7 +68,7 @@ export function UsernameInput({ onSubmit, loading = false }: Props) {
         </button>
       </div>
       <p className="font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/50">
-        We never store anything until you sign up.
+        We only look at your chess games. Promise. 
       </p>
     </form>
   );
