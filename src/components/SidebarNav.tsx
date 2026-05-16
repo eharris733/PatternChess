@@ -21,7 +21,7 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
       <button
         onClick={onToggle}
         className={clsx(
-          'mx-2 mb-2 flex items-center rounded-lg hover:bg-surface-2 transition text-left',
+          'mx-2 mb-2 flex items-center rounded-none hover:bg-[#1A1A1A]/5 transition text-left',
           collapsed ? 'justify-center p-2' : 'px-3 py-2',
         )}
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -41,16 +41,18 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
             end={item.to === '/dashboard'}
             className={({ isActive }) =>
               clsx(
-                'mx-2 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition',
+                'mx-2 flex items-center gap-3 px-3 py-2.5 rounded-none font-mono uppercase tracking-tight text-xs transition-colors',
                 isActive
-                  ? 'bg-accent/20 text-text-primary font-semibold'
-                  : 'text-text-secondary hover:bg-surface-2 hover:text-text-primary',
+                  ? 'bg-[#1A1A1A] text-[#F4F4F0]'
+                  : 'text-[#1A1A1A] hover:bg-[#1A1A1A]/5',
               )
             }
           >
             {({ isActive }) => (
               <>
-                <span className={clsx('shrink-0 text-base', isActive && 'text-accent')}>{item.icon}</span>
+                <span className={clsx('shrink-0 text-base', isActive ? 'text-gold-light' : 'text-[#1A1A1A]')}>
+                  {item.icon}
+                </span>
                 {!collapsed && <span>{item.label}</span>}
               </>
             )}
@@ -68,10 +70,10 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
         to="/profile"
         className={({ isActive }) =>
           clsx(
-            'mx-2 mb-1 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition',
+            'mx-2 mb-1 flex items-center gap-3 px-3 py-2.5 rounded-none font-mono uppercase tracking-tight text-xs transition-colors',
             isActive
-              ? 'bg-accent/20 text-text-primary font-semibold'
-              : 'text-text-secondary hover:bg-surface-2 hover:text-text-primary',
+              ? 'bg-[#1A1A1A] text-[#F4F4F0]'
+              : 'text-[#1A1A1A] hover:bg-[#1A1A1A]/5',
           )
         }
       >
@@ -81,10 +83,10 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
             alt=""
             crossOrigin="anonymous"
             referrerPolicy="no-referrer"
-            className="w-7 h-7 rounded-full shrink-0 border border-surface-2"
+            className="w-7 h-7 rounded-full shrink-0 border-2 border-[#1A1A1A]"
           />
         ) : (
-          <span className="w-7 h-7 rounded-full bg-surface-2 shrink-0 flex items-center justify-center text-xs">
+          <span className="w-7 h-7 rounded-full bg-[#1A1A1A] text-[#F4F4F0] shrink-0 flex items-center justify-center text-xs">
             {displayName.charAt(0).toUpperCase()}
           </span>
         )}

@@ -130,7 +130,7 @@ export function PgnUploadModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/40 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
       aria-label="Upload PGNs"
@@ -180,7 +180,7 @@ export function PgnUploadModal() {
                 type="file"
                 accept=".pgn,.txt,application/x-chess-pgn,text/plain"
                 multiple
-                className="block w-full text-sm text-text-primary file:mr-3 file:inline-flex file:items-center file:h-10 file:px-4 file:rounded-md file:border file:border-surface-2 file:bg-surface-2 file:text-text-primary file:text-sm file:font-medium file:cursor-pointer file:transition hover:file:border-accent hover:file:text-accent-light"
+                className="block w-full text-sm text-text-primary file:mr-3 file:inline-flex file:items-center file:h-10 file:px-4 file:rounded-none file:border-2 file:border-[#1A1A1A] file:bg-white file:text-text-primary file:font-mono file:uppercase file:text-xs file:tracking-tight file:cursor-pointer file:transition-colors hover:file:bg-[#1A1A1A] hover:file:text-[#F4F4F0]"
                 onChange={(e) => void onFilePick(e.target.files)}
               />
               {fileLabel && (
@@ -276,8 +276,8 @@ export function PgnUploadModal() {
 
         {stage === 'error' && (
           <div className="flex flex-col gap-4">
-            <div className="bg-incorrect/10 border border-incorrect/40 text-incorrect rounded-lg p-4 text-sm">
-              <div className="font-medium mb-1">Upload failed</div>
+            <div className="bg-incorrect/10 border-2 border-incorrect/50 text-incorrect rounded-none p-4 text-sm">
+              <div className="font-mono uppercase text-xs tracking-tight mb-1">Upload failed</div>
               <div className="text-text-secondary">{errorMsg ?? 'Something went wrong.'}</div>
             </div>
             <div className="flex items-center justify-end gap-3">

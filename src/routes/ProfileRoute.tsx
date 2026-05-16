@@ -112,10 +112,10 @@ export function ProfileRoute() {
             alt=""
             crossOrigin="anonymous"
             referrerPolicy="no-referrer"
-            className="w-14 h-14 rounded-full border border-surface-2"
+            className="w-14 h-14 rounded-full border-2 border-[#1A1A1A]"
           />
         ) : (
-          <div className="w-14 h-14 rounded-full bg-surface-2" />
+          <div className="w-14 h-14 rounded-full bg-[#1A1A1A]" />
         )}
         <div>
           <h1 className="heading-lg">{profile?.displayName ?? 'Your profile'}</h1>
@@ -167,7 +167,7 @@ export function ProfileRoute() {
             {TIME_CONTROL_OPTIONS.map((opt) => (
               <label
                 key={opt.value}
-                className="flex items-center gap-2 select-none px-3 py-1.5 rounded-md bg-surface-2 border border-surface-2 hover:bg-surface cursor-pointer"
+                className="flex items-center gap-2 select-none px-3 py-1.5 rounded-none bg-white border-2 border-[#1A1A1A] hover:bg-[#1A1A1A]/5 cursor-pointer"
               >
                 <input
                   type="checkbox"
@@ -198,9 +198,9 @@ export function ProfileRoute() {
           </p>
           {backfillProgress && (
             <div className="flex flex-col gap-2">
-              <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
+              <div className="h-2 rounded-none bg-[#1A1A1A]/10 overflow-hidden border border-[#1A1A1A]/20">
                 <div
-                  className="h-full bg-accent transition-[width] duration-150"
+                  className="h-full bg-gold-dark transition-[width] duration-150"
                   style={{
                     width: `${
                       backfillProgress.total === 0
@@ -242,7 +242,7 @@ export function ProfileRoute() {
       {recentSessions.data && recentSessions.data.length > 0 && (
         <section className="card flex flex-col gap-3">
           <h2 className="heading-md">Recent sessions</h2>
-          <ul className="flex flex-col divide-y divide-surface-2/60">
+          <ul className="flex flex-col divide-y divide-[#1A1A1A]/15">
             {recentSessions.data.map((s) => {
               const ended = s.endedAt ?? s.startedAt;
               const duration = Math.max(

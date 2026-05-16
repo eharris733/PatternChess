@@ -32,7 +32,7 @@ export function TimeTroubleCard() {
     <button
       type="button"
       onClick={() => navigate('/training', { state: { contextFilter: 'timeTrouble' } })}
-      className="card flex flex-col gap-3 text-left hover:border-accent transition"
+      className="card flex flex-col gap-3 text-left hover:shadow-[1px_1px_0_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
     >
       <header className="flex items-baseline justify-between">
         <span className="label">Time-trouble blunders</span>
@@ -41,7 +41,7 @@ export function TimeTroubleCard() {
         </span>
       </header>
       <div className="flex items-end gap-3">
-        <span className="text-5xl font-bold tabular-nums tracking-tight text-text-primary">
+        <span className="font-mono text-5xl tabular-nums tracking-tight text-gold-dark">
           {totalTrouble}
         </span>
         <span className="text-text-secondary mb-1 tabular-nums">
@@ -61,7 +61,7 @@ export function TimeTroubleCard() {
           {stats.excludedBlunders === 1 ? '' : 's'} excluded — no clock data on those games.
         </p>
       )}
-      <span className="text-accent-light text-xs uppercase tracking-wider">
+      <span className="font-mono uppercase text-xs tracking-tight text-gold-dark">
         Drill these →
       </span>
     </button>

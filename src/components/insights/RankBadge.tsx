@@ -16,15 +16,17 @@ export function RankBadge({ variant = 'full' }: RankBadgeProps) {
   if (variant === 'compact') {
     if (isInitialLoad) {
       return (
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-2/70 border border-surface-2">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-none border-2 border-[#1A1A1A] bg-white">
           <Skeleton className="h-3 w-16" />
           <Skeleton className="h-3 w-20" />
         </div>
       );
     }
     return (
-      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-2/70 border border-surface-2">
-        <span className="text-xs font-semibold text-accent">{progress.current.name}</span>
+      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-none border-2 border-[#1A1A1A] bg-white">
+        <span className="font-mono uppercase text-xs tracking-tight text-gold-dark">
+          {progress.current.name}
+        </span>
         <span className="text-xs text-text-secondary tabular-nums">
           {reviewed.toLocaleString()} reviews
         </span>
@@ -57,7 +59,7 @@ export function RankBadge({ variant = 'full' }: RankBadgeProps) {
         </span>
       </header>
       <div>
-        <p className="heading-lg text-accent">{progress.current.name}</p>
+        <p className="heading-lg text-gold-dark">{progress.current.name}</p>
         <p className="text-text-secondary text-sm mt-1">
           {mastered.toLocaleString()} mastered
           {progress.next
@@ -65,9 +67,9 @@ export function RankBadge({ variant = 'full' }: RankBadgeProps) {
             : ' · top tier reached'}
         </p>
       </div>
-      <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
+      <div className="h-2 rounded-none bg-[#1A1A1A]/10 overflow-hidden border border-[#1A1A1A]/20">
         <div
-          className="h-full bg-accent transition-[width] duration-300"
+          className="h-full bg-gold-dark transition-[width] duration-300"
           style={{ width: `${Math.min(100, Math.round(progress.fraction * 100))}%` }}
         />
       </div>

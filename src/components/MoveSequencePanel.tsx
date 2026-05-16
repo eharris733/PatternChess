@@ -39,7 +39,7 @@ export function MoveSequencePanel({
   return (
     <div
       ref={containerRef}
-      className={clsx('font-mono text-[13px] divide-y divide-surface-2', className)}
+      className={clsx('font-mono text-[13px] divide-y divide-[#1A1A1A]/15', className)}
     >
       {pairs.map((p) => (
         <div
@@ -71,15 +71,15 @@ function Cell({
       data-key={move.key}
       onClick={() => onSelect?.(move.key)}
       className={clsx(
-        'flex items-center gap-1.5 rounded px-1.5 py-0.5 text-left transition hover:bg-surface-2 flex-wrap',
-        active && 'bg-accent/15 text-accent-light',
+        'flex items-center gap-1.5 rounded-none px-1.5 py-0.5 text-left transition-colors hover:bg-[#1A1A1A]/5 flex-wrap',
+        active && 'bg-[#1A1A1A] text-[#F4F4F0]',
       )}
     >
       <span>{move.san}</span>
       {move.grade && (
         <span
           className={clsx(
-            'px-1 rounded text-[9px] font-bold uppercase border',
+            'px-1 rounded-none text-[9px] font-bold uppercase border',
             MOVE_GRADE_TW_BG[move.grade],
           )}
         >
@@ -87,14 +87,14 @@ function Cell({
         </span>
       )}
       {move.tag && (
-        <span className="px-1 rounded text-[9px] font-bold uppercase bg-surface-2 text-text-secondary border border-surface-2">
+        <span className="px-1 rounded-none text-[9px] font-bold uppercase bg-surface-3 text-text-secondary border border-[#1A1A1A]/40">
           {move.tag}
         </span>
       )}
       {move.contextTags?.map((t) => (
         <span
           key={t}
-          className="px-1 rounded text-[9px] font-bold uppercase bg-bg/60 text-text-secondary border border-surface-2"
+          className="px-1 rounded-none text-[9px] font-bold uppercase bg-surface-3 text-text-secondary border border-[#1A1A1A]/40"
         >
           {t}
         </span>

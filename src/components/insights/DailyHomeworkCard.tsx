@@ -67,15 +67,15 @@ export function DailyHomeworkCard() {
           )}
         </header>
         <div className="flex items-end gap-3">
-          <span className="text-6xl font-bold tabular-nums tracking-tight text-text-primary">
+          <span className="font-mono text-6xl tabular-nums tracking-tight text-gold-dark">
             {dueCount}
           </span>
           <span className="text-text-secondary mb-2">
             blunder{dueCount === 1 ? '' : 's'} due
           </span>
           {tomorrowCount > 0 && (
-            <div className="ml-auto self-end mb-1 px-3 py-2 rounded-md bg-surface-2 text-sm">
-              <span className="font-mono font-semibold tabular-nums text-text-primary">
+            <div className="ml-auto self-end mb-1 px-3 py-2 rounded-none border-2 border-[#1A1A1A] bg-white text-sm">
+              <span className="font-mono font-semibold tabular-nums text-gold-dark">
                 {tomorrowCount}
               </span>{' '}
               <span className="text-text-secondary">
@@ -114,9 +114,9 @@ export function DailyHomeworkCard() {
         )}
       </header>
       <div className="flex items-center gap-3">
-        <span className="text-4xl" aria-hidden>✓</span>
+        <span className="text-4xl text-gold-dark" aria-hidden>✓</span>
         <div>
-          <p className="text-text-primary heading-md">All caught up</p>
+          <p className="heading-md">All caught up</p>
           <p className="text-text-secondary text-sm">
             {hasAccount
               ? 'New drills will appear after your next sync.'

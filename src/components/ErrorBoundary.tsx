@@ -30,7 +30,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="card max-w-md w-full flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <span className="label text-mistake">Something went wrong</span>
-            <h1 className="text-lg font-semibold text-text-primary">
+            <h1 className="heading-md">
               The page hit an unexpected error
             </h1>
           </div>
@@ -38,7 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
             We've logged it to the console. You can reload the page or head back to the
             dashboard.
           </p>
-          <pre className="text-xs font-mono bg-surface-2 rounded-md p-3 text-text-secondary overflow-auto max-h-40">
+          <pre className="text-xs font-mono bg-surface-3 rounded-none border-2 border-[#1A1A1A] p-3 text-[#1A1A1A] overflow-auto max-h-40">
             {error.name}: {error.message}
           </pre>
           <div className="flex gap-2">

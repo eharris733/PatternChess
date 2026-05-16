@@ -12,9 +12,9 @@ interface TileProps {
 
 function Tile({ label, userSec, gmSec, hasData }: TileProps) {
   return (
-    <div className="flex flex-col items-start gap-1 bg-surface-2/60 rounded-md px-3 py-2">
+    <div className="flex flex-col items-start gap-1 bg-surface-3 rounded-none border-2 border-[#1A1A1A] px-3 py-2">
       <span className="label text-[10px]">{label}</span>
-      <span className="text-2xl font-bold tabular-nums text-text-primary">
+      <span className="font-mono text-2xl tabular-nums text-gold-dark">
         {hasData ? `${Math.round(userSec)}s` : '—'}
       </span>
       <span className="text-text-secondary text-xs tabular-nums">

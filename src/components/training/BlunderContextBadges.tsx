@@ -2,9 +2,9 @@ import clsx from 'clsx';
 import { BlunderContext, GAME_STATE_LABEL } from '../../chess/blunderContext';
 
 const GAME_STATE_TONE: Record<BlunderContext['gameState'], string> = {
-  missedWin: 'bg-mistake/20 text-mistake border-mistake/40',
-  roughlyEqual: 'bg-surface-2 text-text-secondary border-surface-2',
-  alreadyLosing: 'bg-surface-2 text-text-secondary border-surface-2',
+  missedWin: 'bg-mistake/20 text-mistake border-mistake/50',
+  roughlyEqual: 'bg-surface-3 text-text-secondary border-[#1A1A1A]',
+  alreadyLosing: 'bg-surface-3 text-text-secondary border-[#1A1A1A]',
 };
 
 export function BlunderContextBadges({ context }: { context: BlunderContext }) {
@@ -18,14 +18,14 @@ export function BlunderContextBadges({ context }: { context: BlunderContext }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {showTimeTrouble && (
-        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-incorrect/20 text-incorrect border border-incorrect/40">
+        <span className="px-2 py-0.5 rounded-none font-mono text-[10px] uppercase tracking-tight bg-incorrect/20 text-incorrect border-2 border-incorrect/50">
           Time trouble · {Math.round(context.timeRemainingPercent ?? 0)}%
         </span>
       )}
       {showGameState && (
         <span
           className={clsx(
-            'px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border',
+            'px-2 py-0.5 rounded-none font-mono text-[10px] uppercase tracking-tight border-2',
             GAME_STATE_TONE[context.gameState],
           )}
         >

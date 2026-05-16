@@ -249,13 +249,13 @@ export function TrainingRoute() {
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
       <div className="flex flex-col gap-3">
         {contextFilter && (
-          <div className="flex items-baseline justify-between rounded-md bg-surface-2/60 px-3 py-2">
-            <span className="text-xs uppercase tracking-wider text-accent-light font-bold">
+          <div className="flex items-baseline justify-between rounded-none border-2 border-[#1A1A1A] bg-surface-3 px-3 py-2">
+            <span className="font-mono text-xs uppercase tracking-tight text-gold-dark">
               {filterLabel(contextFilter)} · {state.blunders.length} blunder
               {state.blunders.length === 1 ? '' : 's'}
             </span>
             <button
-              className="text-xs text-text-secondary hover:text-text-primary"
+              className="font-mono text-xs uppercase tracking-tight text-text-secondary hover:text-[#1A1A1A]"
               onClick={() => navigate('/training', { replace: true })}
             >
               Clear filter
@@ -296,17 +296,17 @@ export function TrainingRoute() {
       <aside className="card flex flex-col gap-4 sticky top-6 self-start max-h-[calc(100vh-3rem)] overflow-y-auto">
         <header className="flex items-center justify-between">
           <span className="label">{state.game ? `${state.game.username} vs ${state.game.opponent}` : 'Training'}</span>
-          <span className="text-xs font-mono text-accent-light">
+          <span className="font-mono text-xs tabular-nums text-gold-dark">
             {`${state.currentIndex + 1}/${state.blunders.length}`}
           </span>
         </header>
 
         {state.isRetry && (
-          <div className="flex items-center gap-2 rounded-md border border-mistake/40 bg-mistake/15 px-3 py-2">
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-mistake/30 text-mistake border border-mistake/50">
+          <div className="flex items-center gap-2 rounded-none border-2 border-mistake/50 bg-mistake/15 px-3 py-2">
+            <span className="px-2 py-0.5 rounded-none font-mono text-[10px] uppercase tracking-tight bg-mistake/30 text-mistake border-2 border-mistake/60">
               Retry
             </span>
-            <span className="text-xs text-text-primary">You missed this last time</span>
+            <span className="text-xs text-[#1A1A1A]">You missed this last time</span>
           </div>
         )}
 
@@ -320,7 +320,7 @@ export function TrainingRoute() {
 
         {state.phase === 'reviewing' && blunder && (
           <>
-            <div className="bg-surface-2 rounded-md p-3 text-sm">
+            <div className="bg-surface-3 rounded-none border-2 border-[#1A1A1A] p-3 text-sm">
               <span className="text-text-secondary">You played </span>
               <span className="font-mono font-bold text-incorrect">{state.blunderSan}</span>
               <p className="text-incorrect text-xs font-bold mt-1 uppercase tracking-wider">
@@ -376,7 +376,7 @@ export function TrainingRoute() {
             <div className="flex items-center gap-2 text-text-primary">
               <span
                 className={clsx(
-                  'w-3 h-3 rounded-full border border-text-secondary',
+                  'w-3 h-3 rounded-full border-2 border-[#1A1A1A]',
                   blunder.sideToMove === 'white' ? 'bg-white' : 'bg-black',
                 )}
               />
@@ -386,11 +386,11 @@ export function TrainingRoute() {
             </div>
 
             <button
-              className="text-left bg-surface-2 rounded-md p-3 text-sm hover:bg-surface-2/70 transition"
+              className="text-left bg-surface-3 rounded-none border-2 border-[#1A1A1A] p-3 text-sm hover:bg-[#1A1A1A]/5 transition-colors"
               onClick={() => state.toggleShowWhatYouPlayed()}
               type="button"
             >
-              <span className="text-text-secondary text-xs uppercase tracking-wider">
+              <span className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
                 {state.showWhatYouPlayed ? 'Hide' : 'See'} what you played
               </span>
               {state.showWhatYouPlayed && (
@@ -418,8 +418,8 @@ export function TrainingRoute() {
                   type="button"
                   onClick={() => state.selectPostCorrectIndex(-1)}
                   className={clsx(
-                    'w-full text-left font-mono text-[13px] rounded px-2 py-1.5 transition hover:bg-surface-2 text-text-secondary',
-                    state.activePostCorrectIndex === -1 && 'bg-accent/15 text-accent-light',
+                    'w-full text-left font-mono text-[13px] rounded-none px-2 py-1.5 transition-colors hover:bg-[#1A1A1A]/5 text-text-secondary',
+                    state.activePostCorrectIndex === -1 && 'bg-[#1A1A1A] text-[#F4F4F0]',
                   )}
                 >
                   Puzzle start

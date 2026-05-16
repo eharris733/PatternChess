@@ -18,14 +18,14 @@ function Bar({ label, userPct, benchmarkPct, benchmarkSampleSize }: BarProps) {
         <span className="text-text-secondary">{label}</span>
         <span className="tabular-nums text-text-primary">{Math.round(userPct)}%</span>
       </div>
-      <div className="relative h-3 rounded-full bg-surface-2 overflow-visible">
+      <div className="relative h-3 rounded-none bg-[#1A1A1A]/10 overflow-visible border border-[#1A1A1A]/20">
         <div
-          className="absolute inset-y-0 left-0 rounded-full bg-accent"
+          className="absolute inset-y-0 left-0 rounded-none bg-gold-dark"
           style={{ width: `${Math.min(100, userPct)}%` }}
         />
         {benchmarkPct !== null && (
           <span
-            className="absolute -top-0.5 h-4 w-px bg-text-primary"
+            className="absolute -top-0.5 h-4 w-0.5 bg-[#1A1A1A]"
             style={{ left: `${Math.min(100, benchmarkPct)}%` }}
             title={
               benchmarkSampleSize

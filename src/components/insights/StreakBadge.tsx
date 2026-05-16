@@ -28,7 +28,7 @@ export function StreakBadge({ collapsed }: StreakBadgeProps) {
   return (
     <div
       className={clsx(
-        'mx-2 mb-1 flex items-center gap-3 px-3 py-2 rounded-lg bg-surface-2/60',
+        'mx-2 mb-1 flex items-center gap-3 px-3 py-2 rounded-none border-2 border-[#1A1A1A] bg-surface-3',
         stale && 'opacity-50',
       )}
       title={
@@ -40,7 +40,7 @@ export function StreakBadge({ collapsed }: StreakBadgeProps) {
       <span className="text-base shrink-0" aria-hidden>🔥</span>
       {!collapsed && (
         <span className="text-sm tabular-nums">
-          <span className="font-semibold text-text-primary">{days}</span>
+          <span className="font-mono font-semibold text-gold-dark">{days}</span>
           <span className="text-text-secondary"> day{days === 1 ? '' : 's'}</span>
         </span>
       )}

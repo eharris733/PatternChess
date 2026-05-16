@@ -40,7 +40,7 @@ export function StreakTile() {
       <div className="flex items-end gap-3">
         <span className="text-4xl" aria-hidden>🔥</span>
         <div>
-          <p className="text-3xl font-bold tabular-nums text-text-primary">
+          <p className="font-mono text-3xl tabular-nums text-gold-dark">
             {current}
           </p>
           <p className="text-text-secondary text-xs">
@@ -55,8 +55,8 @@ export function StreakTile() {
               key={d.date}
               title={d.date}
               className={clsx(
-                'flex-1 aspect-square rounded-sm',
-                d.active ? 'bg-accent' : 'bg-surface-2',
+                'flex-1 aspect-square rounded-none border border-[#1A1A1A]/30',
+                d.active ? 'bg-gold-dark' : 'bg-[#1A1A1A]/10',
               )}
             />
           ))}

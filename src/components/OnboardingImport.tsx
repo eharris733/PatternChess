@@ -57,7 +57,7 @@ export function OnboardingImport() {
         train against. This usually takes about five to ten minutes.
       </p>
 
-      <div className="w-full space-y-6 bg-surface rounded-xl p-6 border border-surface-2">
+      <div className="w-full space-y-6 bg-white rounded-none p-6 border-2 border-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A]">
         <Step
           label="Importing games"
           done={phase === 'analyzing' || phase === 'done'}
@@ -82,13 +82,13 @@ export function OnboardingImport() {
       </div>
 
       {phase === 'error' && (
-        <div className="mt-6 w-full bg-incorrect/10 border border-incorrect/40 text-incorrect rounded-lg p-4 text-sm text-left">
-          <div className="font-medium mb-1">Something went wrong</div>
+        <div className="mt-6 w-full bg-incorrect/10 border-2 border-incorrect/50 text-incorrect rounded-none p-4 text-sm text-left">
+          <div className="font-mono uppercase text-xs tracking-tight mb-1">Something went wrong</div>
           <div className="text-text-secondary">{errorMsg ?? 'Sync failed.'}</div>
           <button
             type="button"
             onClick={onEditProfile}
-            className="mt-3 text-text-primary underline"
+            className="mt-3 text-[#1A1A1A] underline"
           >
             Check your profile
           </button>
@@ -99,7 +99,7 @@ export function OnboardingImport() {
         <button
           type="button"
           onClick={onEditProfile}
-          className="px-4 py-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-surface-2 transition"
+          className="btn-outline"
         >
           Edit profile
         </button>
@@ -107,7 +107,7 @@ export function OnboardingImport() {
           type="button"
           onClick={onContinue}
           disabled={phase !== 'done' && blundersFound < 1}
-          className="px-5 py-2 rounded-lg bg-accent text-bg font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 transition"
+          className="btn-primary"
         >
           Start training
         </button>
@@ -144,7 +144,7 @@ function Step({
             done
               ? 'text-correct'
               : active
-                ? 'text-accent'
+                ? 'text-gold-dark'
                 : 'text-text-secondary opacity-50'
           }
         >

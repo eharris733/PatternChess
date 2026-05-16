@@ -153,7 +153,7 @@ export function VaultRoute() {
         </button>
       </header>
 
-      <ul className="card divide-y divide-surface-2 p-0 overflow-hidden">
+      <ul className="card divide-y divide-[#1A1A1A]/15 p-0 overflow-hidden">
         {games.map((g) => {
           const externalUrl = platformGameUrl(g);
           const outcome = gameOutcome(g);
@@ -221,16 +221,16 @@ export function VaultRoute() {
 
 function ResultBadge({ outcome }: { outcome: Outcome | null }) {
   const map = {
-    win: { letter: 'W', cls: 'bg-correct/20 text-correct border-correct/40' },
-    loss: { letter: 'L', cls: 'bg-incorrect/20 text-incorrect border-incorrect/40' },
-    draw: { letter: 'D', cls: 'bg-surface-2 text-text-secondary border-surface-2' },
+    win: { letter: 'W', cls: 'bg-correct/20 text-correct border-correct/50' },
+    loss: { letter: 'L', cls: 'bg-incorrect/20 text-incorrect border-incorrect/50' },
+    draw: { letter: 'D', cls: 'bg-surface-3 text-text-secondary border-[#1A1A1A]' },
   } as const;
   const meta = outcome ? map[outcome] : null;
   return (
     <span
       className={clsx(
-        'inline-flex items-center justify-center w-6 h-6 rounded-md border font-mono text-xs font-bold',
-        meta?.cls ?? 'bg-surface-2 text-text-secondary border-surface-2',
+        'inline-flex items-center justify-center w-6 h-6 rounded-none border-2 font-mono text-xs font-bold',
+        meta?.cls ?? 'bg-surface-3 text-text-secondary border-[#1A1A1A]',
       )}
       title={outcome ?? 'unknown result'}
     >

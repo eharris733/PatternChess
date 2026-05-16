@@ -41,10 +41,10 @@ export function PositionSrState({ blunder }: { blunder: Blunder }) {
           <span
             key={i}
             className={clsx(
-              'w-3 h-3 rounded-full border',
+              'w-3 h-3 rounded-none border-2',
               i < filled
-                ? 'bg-accent-light border-accent-light'
-                : 'border-surface-2 bg-transparent',
+                ? 'bg-gold-dark border-[#1A1A1A]'
+                : 'border-[#1A1A1A] bg-white',
             )}
           />
         ))}

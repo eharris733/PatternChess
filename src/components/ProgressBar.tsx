@@ -22,9 +22,9 @@ export function ProgressBar({
           </span>
         </div>
       )}
-      <div className="w-full h-2 rounded-full bg-surface-2 overflow-hidden">
+      <div className="w-full h-2 rounded-none bg-[#1A1A1A]/10 overflow-hidden border border-[#1A1A1A]/20">
         <div
-          className="h-full bg-accent rounded-full transition-[width] duration-300"
+          className="h-full bg-gold-dark rounded-none transition-[width] duration-300"
           style={{ width: `${pct}%` }}
         />
       </div>

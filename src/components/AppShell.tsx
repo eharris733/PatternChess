@@ -11,7 +11,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex h-screen overflow-hidden bg-bg text-text-primary">
       <aside
         className={clsx(
-          'relative shrink-0 border-r border-surface-2 bg-surface flex flex-col transition-[width] duration-200',
+          'relative shrink-0 border-r-2 border-[#1A1A1A] bg-white flex flex-col transition-[width] duration-200',
           collapsed ? 'w-14' : 'w-[220px]',
         )}
       >
@@ -20,7 +20,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           type="button"
           onClick={() => setCollapsed((c) => !c)}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 z-10 w-6 h-6 rounded-full bg-surface-2 border border-surface flex items-center justify-center text-text-secondary hover:bg-accent/20 hover:text-text-primary transition-colors"
+          className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 z-10 w-6 h-6 rounded-full bg-white border-2 border-[#1A1A1A] flex items-center justify-center text-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-[#F4F4F0] transition-colors"
         >
           <span className="text-xs leading-none">{collapsed ? '▶' : '◀'}</span>
         </button>

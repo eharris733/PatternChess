@@ -35,12 +35,12 @@ export function DashboardRoute() {
       <header className="flex flex-col gap-2">
         {isFirstRun ? (
           <>
-            <p className="text-text-secondary text-sm">Welcome to PatternChess</p>
+            <span className="label">Welcome to PatternChess</span>
             <h1 className="heading-xl">Hey {greeting}, let's get started.</h1>
           </>
         ) : (
           <>
-            <p className="text-text-secondary text-sm">Welcome back</p>
+            <span className="label">Welcome back</span>
             <h1 className="heading-xl">Hey {greeting}.</h1>
             <RankBadge variant="compact" />
           </>

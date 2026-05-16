@@ -6,6 +6,7 @@ declare const _default: {
                 bg: string;
                 surface: string;
                 'surface-2': string;
+                'surface-3': string;
                 accent: string;
                 'accent-light': string;
                 'gold-dark': string;
@@ -26,6 +27,7 @@ declare const _default: {
             };
             boxShadow: {
                 card: string;
+                'card-hover': string;
             };
         };
     };

@@ -88,7 +88,7 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
 
   const glyph =
     display === 'syncing' ? (
-      <span className="inline-block w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      <span className="inline-block w-3.5 h-3.5 border-2 border-gold-dark border-t-transparent rounded-full animate-spin" />
     ) : display === 'done' ? (
       <span className="text-correct">✓</span>
     ) : display === 'error' ? (
@@ -134,8 +134,8 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
       aria-label={`Sync: ${headline}`}
       title={collapsed ? headline : undefined}
       className={clsx(
-        'mx-2 mb-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition text-left',
-        'text-text-secondary hover:bg-surface-2 hover:text-text-primary',
+        'mx-2 mb-1 flex items-center gap-3 px-3 py-2 rounded-none font-mono uppercase text-xs tracking-tight transition-colors text-left',
+        'text-text-secondary hover:bg-[#1A1A1A]/5 hover:text-[#1A1A1A]',
         'disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-text-secondary',
         collapsed && 'justify-center',
       )}
@@ -143,9 +143,9 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
       <span className="shrink-0 w-4 flex items-center justify-center text-base">{glyph}</span>
       {!collapsed && (
         <span className="flex flex-col min-w-0">
-          <span className="truncate text-text-primary">{headline}</span>
+          <span className="truncate text-[#1A1A1A]">{headline}</span>
           {subTitle && (
-            <span className="truncate text-[10px] uppercase tracking-wider text-text-secondary">
+            <span className="truncate text-[10px] tracking-tight text-text-secondary normal-case">
               {subTitle}
             </span>
           )}

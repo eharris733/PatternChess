@@ -20,14 +20,14 @@ export function WinningChancesDisplay({
         <span>Before</span>
         <span className="font-mono">{before.toFixed(1)}%</span>
       </div>
-      <div className="w-full h-2 rounded-full bg-surface-2 overflow-hidden">
+      <div className="w-full h-2 rounded-none bg-[#1A1A1A]/10 overflow-hidden border border-[#1A1A1A]/20">
         <div className="h-full bg-correct/70" style={{ width: `${before}%` }} />
       </div>
       <div className="flex justify-between text-xs text-text-secondary mt-2">
         <span>After</span>
         <span className="font-mono">{after.toFixed(1)}%</span>
       </div>
-      <div className="w-full h-2 rounded-full bg-surface-2 overflow-hidden">
+      <div className="w-full h-2 rounded-none bg-[#1A1A1A]/10 overflow-hidden border border-[#1A1A1A]/20">
         <div className="h-full bg-incorrect/70" style={{ width: `${after}%` }} />
       </div>
       <div className="flex justify-between text-xs mt-2">

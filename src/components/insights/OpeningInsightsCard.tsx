@@ -32,7 +32,7 @@ export function OpeningInsightsCard() {
           band {band}
         </span>
       </header>
-      <ul className="flex flex-col divide-y divide-surface-2/60">
+      <ul className="flex flex-col divide-y divide-[#1A1A1A]/15">
         {rows.map((row) => {
           const colorLabel = row.userColor === 'white' ? '♔' : row.userColor === 'black' ? '♚' : '·';
           const sample = row.games;
@@ -60,10 +60,10 @@ export function OpeningInsightsCard() {
                 {showDelta && delta !== null && (
                   <span
                     className={clsx(
-                      'text-xs tabular-nums px-1.5 py-0.5 rounded-full',
-                      tone === 'good' && 'bg-correct/20 text-correct',
-                      tone === 'bad' && 'bg-incorrect/20 text-incorrect',
-                      tone === 'neutral' && 'bg-surface-2 text-text-secondary',
+                      'font-mono uppercase text-[10px] tabular-nums tracking-tight px-1.5 py-0.5 rounded-none border-2 border-[#1A1A1A]',
+                      tone === 'good' && 'bg-correct/15 text-correct',
+                      tone === 'bad' && 'bg-incorrect/15 text-incorrect',
+                      tone === 'neutral' && 'bg-surface-3 text-text-secondary',
                     )}
                   >
                     {delta >= 0 ? '+' : ''}

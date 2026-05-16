@@ -39,16 +39,16 @@ export function BrandMark({
         />
         {showTrajectory && (
           <>
-            <circle cx="20" cy="100" r="4" fill={COLORS.light} />
+            <circle cx="20" cy="100" r="4" fill={COLORS.bg} />
             <path
               d="M 20 100 Q 20 50 60 20"
-              stroke={COLORS.light}
+              stroke={COLORS.bg}
               strokeWidth="2"
               strokeDasharray="3 4"
               fill="none"
               opacity="0.75"
             />
-            <circle cx="60" cy="20" r="4" fill={COLORS.light} />
+            <circle cx="60" cy="20" r="4" fill={COLORS.bg} />
           </>
         )}
       </g>

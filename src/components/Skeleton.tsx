@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={clsx('animate-pulse rounded-md bg-surface-2/60', className)} />;
+  return <div className={clsx('animate-pulse rounded-none bg-[#1A1A1A]/10', className)} />;
 }
 
 export function InsightCardSkeleton({ rows = 3 }: { rows?: number }) {

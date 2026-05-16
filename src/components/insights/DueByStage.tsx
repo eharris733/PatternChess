@@ -17,12 +17,14 @@ export function DueByStage({ data }: { data: Blunder[] }) {
           <span
             key={bucket}
             className={clsx(
-              'inline-flex items-baseline gap-1 px-2 py-0.5 rounded-md bg-surface-2 text-xs',
-              empty ? 'text-text-secondary opacity-40' : 'text-text-primary',
+              'inline-flex items-baseline gap-1 px-2 py-0.5 rounded-none border-2 border-[#1A1A1A] bg-white text-xs',
+              empty ? 'opacity-40' : '',
             )}
           >
-            <span className="font-mono font-semibold">{count}</span>
-            <span className="text-text-secondary">{SR_BUCKET_LABEL[bucket]}</span>
+            <span className="font-mono font-semibold text-gold-dark">{count}</span>
+            <span className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
+              {SR_BUCKET_LABEL[bucket]}
+            </span>
           </span>
         );
       })}

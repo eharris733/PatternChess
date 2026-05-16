@@ -22,10 +22,10 @@ export function ClassificationButtons({
             aria-pressed={active}
             onClick={() => onChange(active ? null : g)}
             className={clsx(
-              'flex flex-col items-center gap-1 py-2 rounded-md border text-xs font-bold uppercase tracking-wider transition disabled:opacity-50',
+              'flex flex-col items-center gap-1 py-2 rounded-none border-2 text-xs font-mono uppercase tracking-tight transition-colors disabled:opacity-50',
               active
                 ? MOVE_GRADE_TW_BG[g]
-                : 'bg-surface-2 text-text-secondary border-transparent hover:text-text-primary hover:border-surface-2',
+                : 'bg-white text-[#1A1A1A] border-[#1A1A1A] hover:bg-[#1A1A1A]/5',
             )}
           >
             <span className="text-lg leading-none">{g}</span>

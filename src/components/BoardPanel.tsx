@@ -91,12 +91,12 @@ export function BoardPanel({
     <div className={clsx('relative aspect-square w-full max-w-[min(640px,calc(100vh-5rem))] mx-auto', className)}>
       <ChessgroundReact config={config} className="w-full h-full" />
       {pendingPromo && (
-        <div className="absolute inset-0 flex items-center justify-center bg-bg/70 backdrop-blur-sm z-10">
-          <div className="bg-surface rounded-xl border border-surface-2 p-3 shadow-card flex gap-2">
+        <div className="absolute inset-0 flex items-center justify-center bg-[#1A1A1A]/40 backdrop-blur-sm z-10">
+          <div className="bg-white rounded-none border-2 border-[#1A1A1A] p-3 shadow-[3px_3px_0_#1A1A1A] flex gap-2">
             {PROMO_PIECES.map((p) => (
               <button
                 key={p.role}
-                className="w-12 h-12 text-3xl rounded-md hover:bg-surface-2 text-text-primary transition"
+                className="w-12 h-12 text-3xl rounded-none border-2 border-transparent hover:border-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-[#F4F4F0] text-[#1A1A1A] transition-colors"
                 onClick={() => {
                   if (!pendingPromo || !onMove) return;
                   onMove({ from: pendingPromo.from, to: pendingPromo.to, promotion: p.role });

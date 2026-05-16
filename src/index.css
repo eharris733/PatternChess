@@ -22,64 +22,66 @@
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center h-12 px-5 rounded-md bg-accent text-text-primary font-semibold transition hover:bg-accent-light disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center h-11 px-5 rounded-none border-2 border-[#1A1A1A] bg-gold-dark text-[#F4F4F0] font-mono uppercase text-sm tracking-tight shadow-[3px_3px_0_#1A1A1A] transition-all hover:shadow-[1px_1px_0_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-outline {
-    @apply inline-flex items-center justify-center h-12 px-5 rounded-md border border-surface-2 text-text-secondary transition hover:text-text-primary hover:border-accent disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center h-11 px-5 rounded-none border-2 border-[#1A1A1A] bg-transparent text-[#1A1A1A] font-mono uppercase text-sm tracking-tight transition-colors hover:bg-[#1A1A1A] hover:text-[#F4F4F0] disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center h-10 px-3 rounded-md text-text-secondary transition hover:text-text-primary hover:bg-surface-2;
+    @apply inline-flex items-center justify-center h-10 px-3 rounded-none font-mono uppercase text-xs tracking-tight text-[#1A1A1A] transition-colors hover:bg-[#1A1A1A]/5;
   }
   .pill {
-    @apply inline-flex items-center justify-center h-9 px-3 rounded-full bg-surface-2 text-sm text-text-secondary border border-transparent transition hover:bg-surface hover:text-text-primary;
+    @apply inline-flex items-center justify-center h-9 px-3 rounded-none border-2 border-[#1A1A1A] bg-transparent font-mono uppercase text-xs tracking-tight text-[#1A1A1A] transition-colors hover:bg-[#1A1A1A]/5;
   }
   .pill[aria-pressed='true'] {
-    @apply bg-accent/30 text-accent-light border-accent;
+    @apply bg-[#1A1A1A] text-[#F4F4F0];
   }
   .card {
-    @apply bg-surface rounded-xl p-6 border border-surface-2 shadow-card;
+    @apply bg-white rounded-none p-6 border-2 border-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A];
   }
   .input {
-    @apply h-11 w-full rounded-md bg-surface-2 px-3 text-text-primary placeholder:text-text-secondary border border-transparent focus:border-accent focus:outline-none;
+    @apply h-11 w-full rounded-none bg-white px-3 text-[#1A1A1A] placeholder:text-[#1A1A1A]/40 border-2 border-[#1A1A1A] focus:outline-none focus:shadow-[3px_3px_0_#8B6914] transition-shadow;
   }
   .label {
-    @apply text-xs font-medium uppercase tracking-wider text-text-secondary;
+    @apply font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/60;
   }
   .heading-xl {
-    @apply text-3xl lg:text-4xl font-bold tracking-tight text-text-primary;
+    @apply font-mono uppercase tracking-tight text-3xl lg:text-4xl text-[#1A1A1A];
   }
   .heading-lg {
-    @apply text-2xl font-bold tracking-tight text-text-primary;
+    @apply font-mono uppercase tracking-tight text-2xl sm:text-3xl text-[#1A1A1A];
   }
   .heading-md {
-    @apply text-lg font-semibold text-text-primary;
+    @apply font-mono uppercase tracking-tight text-lg sm:text-xl text-[#1A1A1A];
   }
 }
 
-/* Chessground board theme overrides — dark charcoal/brown */
+/* Chessground board theme — warm cream/gold to match brutalist palette */
 cg-board square.light {
-  background-color: #d4a76a;
+  background-color: #f2e4c9;
 }
 cg-board square.dark {
-  background-color: #6b4226;
+  background-color: #c49b2a;
 }
 cg-board square.last-move {
-  background-color: rgba(139, 105, 20, 0.55);
+  background-color: rgba(139, 105, 20, 0.45);
 }
 cg-board square.selected {
-  background-color: rgba(196, 155, 42, 0.55);
+  background-color: rgba(139, 105, 20, 0.55);
 }
 cg-board square.move-dest {
-  background: radial-gradient(rgba(196, 155, 42, 0.45) 22%, transparent 24%);
+  background: radial-gradient(rgba(26, 26, 26, 0.35) 22%, transparent 24%);
 }
 cg-board square.premove-dest {
-  background: radial-gradient(rgba(255, 193, 7, 0.4) 22%, transparent 24%);
+  background: radial-gradient(rgba(196, 155, 42, 0.55) 22%, transparent 24%);
 }
 cg-board square.check {
-  background: radial-gradient(rgba(244, 67, 54, 0.85) 25%, rgba(244, 67, 54, 0.5) 60%, transparent 70%);
+  background: radial-gradient(rgba(196, 40, 32, 0.85) 25%, rgba(196, 40, 32, 0.5) 60%, transparent 70%);
 }
 
 .cg-wrap {
-  border-radius: 8px;
+  border-radius: 0;
   overflow: hidden;
+  border: 2px solid #1a1a1a;
+  box-shadow: 3px 3px 0 #1a1a1a;
 }
