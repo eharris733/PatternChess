@@ -731,7 +731,8 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
   },
 
   advance: () => {
-    set((s) => ({ currentIndex: s.currentIndex + 1 }));
+    if (get().phase !== 'correct') return;
+    set((s) => ({ currentIndex: s.currentIndex + 1, phase: 'loading' }));
     const { currentIndex, blunders } = get();
     if (currentIndex >= blunders.length) {
       set({ phase: 'complete' });
@@ -741,6 +742,8 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
   },
 
   retry: () => {
+    if (get().phase !== 'incorrect') return;
+    set({ phase: 'loading' });
     void get().loadCurrentBlunder();
   },
 
