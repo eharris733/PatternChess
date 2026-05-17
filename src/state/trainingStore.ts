@@ -83,7 +83,16 @@ export interface TrainingStateShape {
   sessionId: string | null;
   streakSnapshot: StreakSnapshot | null;
   streakApplied: boolean;
-  isRetry: boolean;
+  /**
+   * UI flag: show the "Try again / You missed this last time" banner + suppress
+   * the literal "Try again" SR pill label. Active only at the *initial presentation*
+   * of a previously-failed position within a drill session — cleared as soon as
+   * the user makes any move (correct, incorrect, or "good but not best").
+   * Decoupled from `blunder.lastDrillFailed`, which persists across sessions.
+   */
+  pendingTryAgain: boolean;
+  /** Blunders the user has made at least one move on this session — used to gate `pendingTryAgain` across retries. */
+  interactedBlunderIds: Set<string>;
   playedMovesFromBlunder: string[];
 
   setBlunders: (blunders: Blunder[]) => void;
@@ -147,7 +156,8 @@ function makeInitial(): InitialShape {
     sessionId: null,
     streakSnapshot: null,
     streakApplied: false,
-    isRetry: false,
+    pendingTryAgain: false,
+    interactedBlunderIds: new Set<string>(),
     playedMovesFromBlunder: [],
   };
 }
@@ -410,6 +420,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     const currentContext = computeBlunderContext(blunder, game);
     const isNewBlunder = blunder.cycleNumber === 0 && blunder.timesAttempted === 0;
     const isRetry = blunder.lastDrillFailed;
+    const pendingTryAgain = isRetry && !get().interactedBlunderIds.has(blunder.id);
 
     // Try to pre-play the blunder so we can show the position after the bad move.
     // If the FEN or move can't be parsed (corrupt data, exotic encoding), skip the
@@ -452,7 +463,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         blunderSan,
         game,
         currentContext,
-        isRetry,
+        pendingTryAgain,
         playedMovesFromBlunder: [blunder.playedMove],
         refutationMoves: [],
         refutationPairs: [],
@@ -493,7 +504,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         blunderSan,
         game,
         currentContext,
-        isRetry,
+        pendingTryAgain,
         playedMovesFromBlunder: [],
         refutationMoves: [],
         refutationPairs: [],
@@ -599,9 +610,31 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       }
     }
 
-    const firstAttemptRecalled =
-      isCorrect ||
-      (chancesLost !== null && chancesLost < inaccuracyThresholdPercent);
+    // "Good but not best" — chancesLost in (5, 10). Engine classifies as 'good'
+    // but it didn't pass the on-the-fly accept rule (≤5%). Treat as a no-op
+    // gentle nudge: show feedback so the user can keep looking, but DON'T touch
+    // any SR counters, the cycle, lastDrillFailed, session totals, or Supabase.
+    // Also doesn't count as an "attempt" — the next move is still first-attempt.
+    if (
+      !isCorrect &&
+      chancesLost !== null &&
+      chancesLost < inaccuracyThresholdPercent
+    ) {
+      set((s) => ({
+        phase: 'incorrect',
+        pendingTryAgain: false,
+        interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
+        shapes: [],
+        incorrectFeedback: {
+          message: 'Good move, but keep looking for the best one',
+          tone: 'success',
+        },
+        playedMovesFromBlunder: [uci],
+      }));
+      return;
+    }
+
+    const firstAttemptRecalled = isCorrect;
     const isFirstAttempt = !state.attemptedBlunderIds.has(blunder.id);
 
     if (isCorrect) {
@@ -625,6 +658,8 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           : s.attemptedBlunderIds;
         return {
           phase: 'correct',
+          pendingTryAgain: false,
+          interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
           totalCorrect: isFirstAttempt && firstAttemptRecalled ? s.totalCorrect + 1 : s.totalCorrect,
           totalAttempted: isFirstAttempt ? s.totalAttempted + 1 : s.totalAttempted,
           attemptedBlunderIds: nextAttempted,
@@ -696,9 +731,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
             ? { message: "That's a blunder, try again", tone: 'danger' }
             : cl === 'mistake'
               ? { message: "That's a mistake, try again", tone: 'warning' }
-              : cl === 'inaccuracy'
-                ? { message: "That's an inaccuracy, try again", tone: 'info' }
-                : { message: 'Good move, but keep looking for the best one', tone: 'success' };
+              : { message: "That's an inaccuracy, try again", tone: 'info' };
       } else {
         feedback = { message: 'Incorrect, try again', tone: 'danger' };
       }
@@ -719,6 +752,8 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           : s.attemptedBlunderIds;
         return {
           phase: 'incorrect',
+          pendingTryAgain: false,
+          interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
           totalCorrect: isFirstAttempt && firstAttemptRecalled ? s.totalCorrect + 1 : s.totalCorrect,
           totalAttempted: isFirstAttempt ? s.totalAttempted + 1 : s.totalAttempted,
           attemptedBlunderIds: nextAttempted,

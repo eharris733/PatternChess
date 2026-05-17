@@ -3,6 +3,7 @@ import {
   Blunder,
   SPACED_REPETITION_DAYS,
   SR_BUCKET_LABEL,
+  SrBucket,
   srBucket,
 } from '../../models/blunder';
 
@@ -19,11 +20,31 @@ function formatRelative(d: Date, now: Date): string {
   return diffMs < 0 ? `${value} ago` : `in ${value}`;
 }
 
-export function PositionSrState({ blunder }: { blunder: Blunder }) {
+export function PositionSrState({
+  blunder,
+  showTryAgainLabel = false,
+}: {
+  blunder: Blunder;
+  /**
+   * Whether to render the literal "Try again" label when the blunder is in the
+   * tryAgain bucket. When false, render the bucket the blunder would otherwise
+   * be in (Learning / Mastered / New) — used to suppress the label outside of
+   * the initial presentation in a subsequent cycle. Does not mutate SR state.
+   */
+  showTryAgainLabel?: boolean;
+}) {
   const total = SPACED_REPETITION_DAYS.length; // 7
   const filled = Math.min(blunder.cycleNumber, total);
-  const bucket = srBucket(blunder);
-  const stageLabel = SR_BUCKET_LABEL[bucket];
+  const rawBucket = srBucket(blunder);
+  const displayBucket: SrBucket =
+    rawBucket === 'tryAgain' && !showTryAgainLabel
+      ? blunder.cycleNumber >= total
+        ? 'mastered'
+        : blunder.timesAttempted > 0
+          ? 'learning'
+          : 'new'
+      : rawBucket;
+  const stageLabel = SR_BUCKET_LABEL[displayBucket];
 
   const now = new Date();
   const lastSeen = blunder.lastDrilledAt ? formatRelative(blunder.lastDrilledAt, now) : null;

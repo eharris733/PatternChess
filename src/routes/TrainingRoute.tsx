@@ -301,7 +301,7 @@ export function TrainingRoute() {
           </span>
         </header>
 
-        {state.isRetry && (
+        {state.pendingTryAgain && (
           <div className="flex items-center gap-2 rounded-none border-2 border-mistake/50 bg-mistake/15 px-3 py-2">
             <span className="px-2 py-0.5 rounded-none font-mono text-[10px] uppercase tracking-tight bg-mistake/30 text-mistake border-2 border-mistake/60">
               Retry
@@ -310,7 +310,9 @@ export function TrainingRoute() {
           </div>
         )}
 
-        {blunder && <PositionSrState blunder={blunder} />}
+        {blunder && (
+          <PositionSrState blunder={blunder} showTryAgainLabel={state.pendingTryAgain} />
+        )}
 
         {state.currentContext && <BlunderContextBadges context={state.currentContext} />}
 

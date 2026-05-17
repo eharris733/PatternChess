@@ -43,10 +43,9 @@ const BEATS: Beat[] = [
     title: 'Blunders decide your games',
     body: (
       <>
-        Most games below 2000 are decided by one player handing the other a winning position.
+        Most games below 2000 elo are decided by one player handing the other a winning position.
         I've coached adult improvers for years and climbed to 2100 chess.com myself — that's the
-        pattern, every game. Time pressure, a familiar shape, one missed move. That's what we
-        drill.
+        pattern, every time. Not a set of strategic innacuracies; One missed move. That's what you need to drill.
       </>
     ),
   },
@@ -117,13 +116,10 @@ export function WhyYouAreStuck() {
   return (
     <section className="border-b-2 border-[#1A1A1A]">
       <div className="max-w-6xl mx-auto px-6 py-16 lg:py-24">
-        <div className="flex items-baseline justify-between mb-12 border-b-2 border-[#1A1A1A] pb-4">
+        <div className="mb-12 border-b-2 border-[#1A1A1A] pb-4">
           <h2 className="font-mono uppercase tracking-tight text-2xl sm:text-3xl text-[#1A1A1A]">
             Why you're stuck
           </h2>
-          <span className="font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/60">
-            Three reasons
-          </span>
         </div>
 
         <div className="flex flex-col">

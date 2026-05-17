@@ -1,4 +1,4 @@
-import { SPACED_REPETITION_DAYS } from '../../models/blunder';
+import { SevenStageLadder } from './SevenStageLadder';
 
 const STEPS = [
   {
@@ -22,13 +22,10 @@ export function HowItWorks() {
   return (
     <section className="border-b-2 border-[#1A1A1A]">
       <div className="max-w-6xl mx-auto px-6 py-16 lg:py-24">
-        <div className="flex items-baseline justify-between mb-12 border-b-2 border-[#1A1A1A] pb-4">
+        <div className="mb-12 border-b-2 border-[#1A1A1A] pb-4">
           <h2 className="font-mono uppercase tracking-tight text-2xl sm:text-3xl text-[#1A1A1A]">
             How it works
           </h2>
-          <span className="font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/60">
-            03 steps
-          </span>
         </div>
 
         <div className="grid md:grid-cols-3 gap-0 border-2 border-[#1A1A1A] bg-white">
@@ -49,25 +46,7 @@ export function HowItWorks() {
           ))}
         </div>
 
-        <div className="mt-10 border-2 border-[#1A1A1A] bg-[#F4F4F0] p-6 flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between">
-          <div>
-            <div className="font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/60 mb-1">
-              The seven-stage ladder
-            </div>
-            <div className="font-mono text-sm sm:text-base text-[#1A1A1A]">
-              Day{' '}
-              {SPACED_REPETITION_DAYS.map((d, i) => (
-                <span key={d}>
-                  <span className="text-gold-dark font-bold">{d}</span>
-                  {i < SPACED_REPETITION_DAYS.length - 1 ? ' · ' : ''}
-                </span>
-              ))}
-            </div>
-          </div>
-          <span className="font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/60">
-            Each drill survived advances you one rung.
-          </span>
-        </div>
+        <SevenStageLadder />
       </div>
     </section>
   );

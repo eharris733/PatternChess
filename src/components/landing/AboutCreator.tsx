@@ -2,18 +2,19 @@ export function AboutCreator() {
   return (
     <section>
       <div className="max-w-6xl mx-auto px-6 py-16 lg:py-24">
-        <div className="flex items-baseline justify-between mb-12 border-b-2 border-[#1A1A1A] pb-4">
+        <div className="mb-12 border-b-2 border-[#1A1A1A] pb-4">
           <h2 className="font-mono uppercase tracking-tight text-2xl sm:text-3xl text-[#1A1A1A]">
             Why I built this
           </h2>
-          <span className="font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/60">
-            One person · one problem
-          </span>
         </div>
 
         <div className="grid md:grid-cols-[200px_1fr] gap-8 lg:gap-12 items-start">
-          <div className="border-2 border-[#1A1A1A] bg-white aspect-square w-full md:w-[200px] flex items-center justify-center shadow-[3px_3px_0_#1A1A1A]">
-            <span className="font-serif text-7xl text-[#1A1A1A]">E</span>
+          <div className="border-2 border-[#1A1A1A] bg-white aspect-square w-full md:w-[200px] flex items-center justify-center shadow-[3px_3px_0_#1A1A1A] overflow-hidden">
+            <img
+              src="/popchess-brenda.png"
+              alt="PatternChess mascot"
+              className="w-full h-full object-contain p-2"
+            />
           </div>
 
           <div className="flex flex-col gap-5">
