@@ -3,7 +3,6 @@ import { useAuth } from '../auth/useAuth';
 import { useGames } from '../hooks/useGames';
 import { DailyHomeworkCard } from '../components/insights/DailyHomeworkCard';
 import { GetStartedHero } from '../components/insights/GetStartedHero';
-import { StreakTile } from '../components/insights/StreakTile';
 import { RankBadge } from '../components/insights/RankBadge';
 import { OpeningInsightsCard } from '../components/insights/OpeningInsightsCard';
 import { PhaseBlunderCard } from '../components/insights/PhaseBlunderCard';
@@ -50,21 +49,18 @@ export function DashboardRoute() {
       {isFirstRun ? <GetStartedHero /> : <DailyHomeworkCard />}
 
       {!isFirstRun && (
-        <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <StreakTile />
-          <button
-            className="card text-left hover:border-accent transition"
-            onClick={() => navigate('/vault')}
-          >
-            <span className="label">Vault</span>
-            {gamesLoading ? (
-              <Skeleton className="h-6 w-24 mt-2" />
-            ) : (
-              <p className="heading-md mt-2">{gamesCount} games</p>
-            )}
-            <p className="text-text-secondary text-sm mt-1">Browse and review your imports.</p>
-          </button>
-        </section>
+        <button
+          className="card text-left hover:border-accent transition"
+          onClick={() => navigate('/vault')}
+        >
+          <span className="label">Vault</span>
+          {gamesLoading ? (
+            <Skeleton className="h-6 w-24 mt-2" />
+          ) : (
+            <p className="heading-md mt-2">{gamesCount} games</p>
+          )}
+          <p className="text-text-secondary text-sm mt-1">Browse and review your imports.</p>
+        </button>
       )}
 
       <OpeningInsightsCard />

@@ -64,6 +64,7 @@ tests/e2e/       Playwright specs
 - **Annotation save**: 2-second debounce in `reviewStore.ts`.
 - **Opening book**: prefetch first ~22 plies with 300 ms throttle (`useReviewStore.prefetchBook`).
 - **Dev-only routes**: `/__sandbox` (chess board sandbox), `/__engine-test` (Stockfish status). Useful for manual checks and Playwright specs.
+- **No emojis in UI**: never render Unicode emoji (fire, checkmarks, etc.) in components. Use inline SVG icons — follow the `BrandMark` pattern in `src/components/BrandLogo.tsx` for hand-written SVGs, or add new ones under `src/components/icons/` (see `FlameIcon` for the established shape: palette constants, `viewBox="0 0 24 24"`, `aria-hidden` by default with optional `title`).
 
 ## Where things live
 

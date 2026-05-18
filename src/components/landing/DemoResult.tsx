@@ -50,7 +50,8 @@ export function DemoResult({ demo }: Props) {
           gamesAnalyzed={r.gamesAnalyzed}
           blundersFound={0}
           biggestSwing={null}
-          opening={r.opening}
+          eco={r.eco}
+          openingName={r.openingName}
         />
         <div className="border-2 border-[#1A1A1A] bg-white p-6">
           <div className="font-mono uppercase text-xs tracking-tight text-[#1A1A1A]/60 mb-2">
@@ -74,7 +75,8 @@ export function DemoResult({ demo }: Props) {
         gamesAnalyzed={r.gamesAnalyzed}
         blundersFound={r.blundersFound}
         biggestSwing={r.biggestSwing}
-        opening={r.opening}
+        eco={r.eco}
+        openingName={r.openingName}
       />
       {r.blunder && (
         <BlunderPreview

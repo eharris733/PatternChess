@@ -4,6 +4,7 @@ import {
   MIN_TOTAL_GAMES_FOR_OPENING,
   useOpeningInsight,
 } from '../../hooks/useInsights';
+import { formatOpeningDisplay, resolveOpeningFamilyName } from '../../chess/openingNames';
 import { InsightCardSkeleton } from '../Skeleton';
 
 function formatPct(v: number): string {
@@ -47,7 +48,7 @@ export function OpeningInsightsCard() {
               <div className="min-w-0">
                 <p className="text-text-primary text-sm font-semibold truncate">
                   <span className="text-text-secondary mr-1">{colorLabel}</span>
-                  {row.openingName ?? row.ecoFamily}
+                  {formatOpeningDisplay(resolveOpeningFamilyName(row.ecoFamily))}
                 </p>
                 <p className="text-text-secondary text-xs tabular-nums">
                   {row.wins}W / {row.losses}L / {row.draws}D · {Math.round(row.blunderRate * 10) / 10} blunders/game

@@ -62,36 +62,39 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
 
       <div className="mt-auto" />
 
-      <StreakBadge collapsed={collapsed} />
-
       <SyncIndicator collapsed={collapsed} />
 
-      <NavLink
-        to="/profile"
-        className={({ isActive }) =>
-          clsx(
-            'mx-2 mb-1 flex items-center gap-3 px-3 py-2.5 rounded-none font-mono uppercase tracking-tight text-xs transition-colors',
-            isActive
-              ? 'bg-[#1A1A1A] text-[#F4F4F0]'
-              : 'text-[#1A1A1A] hover:bg-[#1A1A1A]/5',
-          )
-        }
-      >
-        {profile?.avatarUrl ? (
-          <img
-            src={profile.avatarUrl}
-            alt=""
-            crossOrigin="anonymous"
-            referrerPolicy="no-referrer"
-            className="w-7 h-7 rounded-full shrink-0 border-2 border-[#1A1A1A]"
-          />
-        ) : (
-          <span className="w-7 h-7 rounded-full bg-[#1A1A1A] text-[#F4F4F0] shrink-0 flex items-center justify-center text-xs">
-            {displayName.charAt(0).toUpperCase()}
-          </span>
-        )}
-        {!collapsed && <span className="truncate">{displayName}</span>}
-      </NavLink>
+      <div className="mx-2 mb-1 border-2 border-[#1A1A1A] bg-surface-3 divide-y-2 divide-[#1A1A1A]/30">
+        <StreakBadge collapsed={collapsed} />
+
+        <NavLink
+          to="/profile"
+          className={({ isActive }) =>
+            clsx(
+              'flex items-center gap-3 px-3 py-2.5 rounded-none font-mono uppercase tracking-tight text-xs transition-colors',
+              isActive
+                ? 'bg-[#1A1A1A] text-[#F4F4F0]'
+                : 'text-[#1A1A1A] hover:bg-[#1A1A1A]/10',
+              collapsed && 'justify-center',
+            )
+          }
+        >
+          {profile?.avatarUrl ? (
+            <img
+              src={profile.avatarUrl}
+              alt=""
+              crossOrigin="anonymous"
+              referrerPolicy="no-referrer"
+              className="w-7 h-7 rounded-full shrink-0 border-2 border-[#1A1A1A]"
+            />
+          ) : (
+            <span className="w-7 h-7 rounded-full bg-[#1A1A1A] text-[#F4F4F0] shrink-0 flex items-center justify-center text-xs">
+              {displayName.charAt(0).toUpperCase()}
+            </span>
+          )}
+          {!collapsed && <span className="truncate">{displayName}</span>}
+        </NavLink>
+      </div>
     </div>
   );
 }

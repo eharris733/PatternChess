@@ -12,7 +12,8 @@ export interface DemoResult {
   positionsAnalyzed: number;
   blundersFound: number;
   biggestSwing: number | null;
-  opening: string | null;
+  eco: string | null;
+  openingName: string | null;
   blunder: BlunderCandidate | null;
 }
 
@@ -100,6 +101,7 @@ export async function runDemoAnalysis(opts: RunOpts): Promise<DemoResult> {
   const allBlunders: BlunderCandidate[] = [];
   let positionsAnalyzed = 0;
   let openingName: string | null = null;
+  let eco: string | null = null;
 
   for (let gi = 0; gi < gamesWithHeaders.length; gi++) {
     ensureLive();
@@ -109,8 +111,10 @@ export async function runDemoAnalysis(opts: RunOpts): Promise<DemoResult> {
       openingName =
         game.headers.Opening?.trim() ||
         game.headers.Variation?.trim() ||
-        game.headers.ECO?.trim() ||
         null;
+    }
+    if (!eco) {
+      eco = game.headers.ECO?.trim() || null;
     }
 
     const { blunders, positions } = await analyzePgn(sf, game.pgn, username, {
@@ -142,7 +146,8 @@ export async function runDemoAnalysis(opts: RunOpts): Promise<DemoResult> {
     positionsAnalyzed,
     blundersFound: allBlunders.length,
     biggestSwing: top ? top.evalSwing : null,
-    opening: openingName,
+    eco,
+    openingName,
     blunder: top,
   };
 }

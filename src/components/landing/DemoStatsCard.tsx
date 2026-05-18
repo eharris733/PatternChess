@@ -1,11 +1,21 @@
+import { formatOpeningDisplay, resolveOpeningName } from '../../chess/openingNames';
+
 interface Props {
   gamesAnalyzed: number;
   blundersFound: number;
   biggestSwing: number | null;
-  opening: string | null;
+  eco: string | null;
+  openingName: string | null;
 }
 
-export function DemoStatsCard({ gamesAnalyzed, blundersFound, biggestSwing, opening }: Props) {
+export function DemoStatsCard({
+  gamesAnalyzed,
+  blundersFound,
+  biggestSwing,
+  eco,
+  openingName,
+}: Props) {
+  const opening = formatOpeningDisplay(resolveOpeningName(eco, openingName));
   return (
     <div className="border-2 border-[#1A1A1A] bg-white">
       <div className="grid grid-cols-3 divide-x-2 divide-[#1A1A1A]">

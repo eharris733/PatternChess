@@ -1,16 +1,17 @@
 import clsx from 'clsx';
 import { useAuth } from '../../auth/useAuth';
 import { addDays, detectTimezone, localDate } from '../../services/streakService';
+import { FlameIcon } from '../icons/FlameIcon';
 
 interface StreakBadgeProps {
   collapsed?: boolean;
 }
 
 /**
- * Compact streak indicator for the sidebar. Shows the user's current streak
- * with a flame icon. Visually de-emphasizes if the streak has already lapsed
- * (last drill > 1 day ago) — the displayed number won't reset until the next
- * drill.
+ * Compact streak indicator for the sidebar. Rendered inside the identity
+ * cluster wrapper in SidebarNav (no standalone border/background). Visually
+ * de-emphasizes if the streak has already lapsed (last drill > 1 day ago) —
+ * the displayed number won't reset until the next drill.
  */
 export function StreakBadge({ collapsed }: StreakBadgeProps) {
   const { profile } = useAuth();
@@ -28,7 +29,8 @@ export function StreakBadge({ collapsed }: StreakBadgeProps) {
   return (
     <div
       className={clsx(
-        'mx-2 mb-1 flex items-center gap-3 px-3 py-2 rounded-none border-2 border-[#1A1A1A] bg-surface-3',
+        'flex items-center gap-3 px-3 py-2.5',
+        collapsed && 'justify-center',
         stale && 'opacity-50',
       )}
       title={
@@ -37,8 +39,12 @@ export function StreakBadge({ collapsed }: StreakBadgeProps) {
           : `${days}-day streak`
       }
     >
-      <span className="text-base shrink-0" aria-hidden>🔥</span>
-      {!collapsed && (
+      <FlameIcon className="h-4 w-4 shrink-0" />
+      {collapsed ? (
+        <span className="font-mono font-semibold text-gold-dark text-xs tabular-nums">
+          {days}
+        </span>
+      ) : (
         <span className="text-sm tabular-nums">
           <span className="font-mono font-semibold text-gold-dark">{days}</span>
           <span className="text-text-secondary"> day{days === 1 ? '' : 's'}</span>
