@@ -47,6 +47,12 @@ sessions and parallel agents. Item numbers map 1:1 to `improvements.md`.
   questions; TimeManagementCard → `contextFilter: 'longThink'`). TrainingRoute now unifies
   context/phase/opening filters under one `activeFilterLabel`. Verified all three filter paths
   via Playwright (chip + queue count correct; long-think math validated). **Completes #2 and #3.**
+- **Session 4 (2026-05-27) — done & verified** on branch `improvements-session-1`:
+  Workstream C / #9 social proof. Rating progress derived from synced games (no new API calls):
+  `categoryForTimeControl` added to `chessApiService` (`matchesTimeCategory` refactored onto it),
+  `useRatingProgress` hook (earliest→latest `userRating` per time-control category, ≥5 games),
+  `RatingProgressCard` on the dashboard. Per-category rows resolve the "which rating to headline"
+  open question. Verified via Playwright (Rapid +160, Blitz −20). **Completes #9.**
 
 ## Workstreams
 
