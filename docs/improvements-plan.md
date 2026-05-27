@@ -39,6 +39,14 @@ sessions and parallel agents. Item numbers map 1:1 to `improvements.md`.
   typecheck + Playwright (played a wrong move → refutation panel + scrub; reviewing refutation
   intact post-refactor; skeleton renders with `aria-busy`). A1 also resolves the "refutation
   isn't showing" half of #6.
+- **Session 3 (2026-05-27) — done & verified** on branch `improvements-session-1`:
+  Workstream B (actionable insights). B2 drill-by-phase (PhaseBlunderCard bars → `phaseFilter`),
+  B3 drill-by-opening (OpeningInsightsCard rows → `openingFilter`, matched on eco family + user
+  color), B4 drill long-think (new `moveTimeSpentSeconds`/`isLongThink` in `blunderContext`,
+  long-think = ≥20% of the starting clock spent on one move — **tunable default**, see open
+  questions; TimeManagementCard → `contextFilter: 'longThink'`). TrainingRoute now unifies
+  context/phase/opening filters under one `activeFilterLabel`. Verified all three filter paths
+  via Playwright (chip + queue count correct; long-think math validated). **Completes #2 and #3.**
 
 ## Workstreams
 
