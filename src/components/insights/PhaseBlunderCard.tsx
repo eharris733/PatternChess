@@ -1,6 +1,8 @@
 import clsx from 'clsx';
+import { useNavigate } from 'react-router-dom';
 import { usePhaseBlunderInsight } from '../../hooks/useInsights';
 import { InsightCardSkeleton } from '../Skeleton';
+import type { BlunderPhase } from '../../models/blunder';
 
 const MIN_BLUNDERS = 30;
 
@@ -9,11 +11,12 @@ interface BarProps {
   userPct: number;
   benchmarkPct: number | null;
   benchmarkSampleSize: number | null;
+  onClick?: () => void;
 }
 
-function Bar({ label, userPct, benchmarkPct, benchmarkSampleSize }: BarProps) {
-  return (
-    <div className="flex flex-col gap-1.5">
+function Bar({ label, userPct, benchmarkPct, benchmarkSampleSize, onClick }: BarProps) {
+  const inner = (
+    <>
       <div className="flex items-baseline justify-between text-sm">
         <span className="text-text-secondary">{label}</span>
         <span className="tabular-nums text-text-primary">{Math.round(userPct)}%</span>
@@ -35,11 +38,24 @@ function Bar({ label, userPct, benchmarkPct, benchmarkSampleSize }: BarProps) {
           />
         )}
       </div>
-    </div>
+    </>
   );
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex flex-col gap-1.5 text-left w-full rounded-none transition-opacity hover:opacity-75"
+      >
+        {inner}
+      </button>
+    );
+  }
+  return <div className="flex flex-col gap-1.5">{inner}</div>;
 }
 
 export function PhaseBlunderCard() {
+  const navigate = useNavigate();
   const insight = usePhaseBlunderInsight();
   if (insight.isPending) return <InsightCardSkeleton rows={3} />;
   if (!insight.data) return null;
@@ -64,6 +80,8 @@ export function PhaseBlunderCard() {
     }
   }
 
+  const drill = (phase: BlunderPhase) => navigate('/training', { state: { phaseFilter: phase } });
+
   return (
     <section className={clsx('card flex flex-col gap-4')}>
       <header className="flex items-baseline justify-between">
@@ -78,20 +96,26 @@ export function PhaseBlunderCard() {
           userPct={openingPct}
           benchmarkPct={benchmarkShare?.opening ?? null}
           benchmarkSampleSize={benchmarkSampleSize}
+          onClick={counts.opening > 0 ? () => drill('opening') : undefined}
         />
         <Bar
           label="Middlegame"
           userPct={middlePct}
           benchmarkPct={benchmarkShare?.middlegame ?? null}
           benchmarkSampleSize={benchmarkSampleSize}
+          onClick={counts.middlegame > 0 ? () => drill('middlegame') : undefined}
         />
         <Bar
           label="Endgame"
           userPct={endPct}
           benchmarkPct={benchmarkShare?.endgame ?? null}
           benchmarkSampleSize={benchmarkSampleSize}
+          onClick={counts.endgame > 0 ? () => drill('endgame') : undefined}
         />
       </div>
+      <p className="font-mono uppercase text-[10px] tracking-tight text-gold-dark">
+        Select a phase to drill those blunders →
+      </p>
       {benchmarkShare && benchmarkSource && (
         <p className="text-text-secondary text-xs">
           Tick = same-rating peer share ({band}). {benchmarkSource}

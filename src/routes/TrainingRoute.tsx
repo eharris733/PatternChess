@@ -22,10 +22,10 @@ import {
   GAME_STATE_LABEL,
   computeBlunderContext,
 } from '../chess/blunderContext';
-import { Blunder } from '../models/blunder';
+import { Blunder, BlunderPhase } from '../models/blunder';
 import { GameRecord } from '../models/gameRecord';
 import { supabase } from '../lib/supabase';
-import { gameRecordFromJson } from '../models/gameRecord';
+import { gameRecordFromJson, ecoFamily } from '../models/gameRecord';
 import {
   externalAnalysisUrl,
   resolvePlatform,
@@ -34,11 +34,20 @@ import {
 interface LocationState {
   gameIds?: string[];
   contextFilter?: ContextFilter;
+  phaseFilter?: BlunderPhase;
+  openingFilter?: string;
+  openingColor?: 'white' | 'black' | null;
+  openingLabel?: string;
 }
 
 function filterLabel(filter: ContextFilter): string {
   if (filter === 'timeTrouble') return 'Time trouble';
+  if (filter === 'longThink') return 'Long think';
   return GAME_STATE_LABEL[filter];
+}
+
+function phaseLabel(phase: BlunderPhase): string {
+  return phase === 'opening' ? 'Opening' : phase === 'endgame' ? 'Endgame' : 'Middlegame';
 }
 
 async function fetchGamesByIds(ids: string[]): Promise<Map<string, GameRecord>> {
@@ -61,6 +70,7 @@ function applyContextFilter(
   return blunders.filter((b) => {
     const ctx = computeBlunderContext(b, games.get(b.gameId) ?? null);
     if (filter === 'timeTrouble') return ctx.inTimeTrouble;
+    if (filter === 'longThink') return ctx.isLongThink;
     return ctx.gameState === filter;
   });
 }
@@ -79,30 +89,64 @@ export function TrainingRoute() {
   const beginSession = useTrainingStore((s) => s.beginSession);
 
   const contextFilter = location.state?.contextFilter ?? null;
+  const phaseFilter = location.state?.phaseFilter ?? null;
+  const openingFilter = location.state?.openingFilter ?? null;
+  const openingColor = location.state?.openingColor ?? null;
+  const openingLabel = location.state?.openingLabel ?? null;
   const dueBlunders = useDueBlunders(location.state?.gameIds);
   const dueData = dueBlunders.data;
 
-  // Batch-fetch the games these blunders belong to, only when a context filter is
-  // active (otherwise the per-blunder game fetch in the store is enough).
+  // Context and opening filters both need the blunders' games (the per-blunder
+  // game fetch in the store isn't enough for batch filtering); phase doesn't.
+  const needsGames = !!contextFilter || !!openingFilter;
   const gameIdsForFilter = useMemo(() => {
-    if (!contextFilter || !dueData) return null;
+    if (!needsGames || !dueData) return null;
     const ids = new Set<string>();
     for (const b of dueData) ids.add(b.gameId);
     return Array.from(ids);
-  }, [contextFilter, dueData]);
+  }, [needsGames, dueData]);
 
   const filterGamesQuery = useQuery({
     queryKey: ['training', 'filterGames', gameIdsForFilter],
     queryFn: () => fetchGamesByIds(gameIdsForFilter ?? []),
-    enabled: !!contextFilter && !!gameIdsForFilter,
+    enabled: needsGames && !!gameIdsForFilter,
   });
 
   const filteredBlunders = useMemo(() => {
     if (!dueData) return null;
-    if (!contextFilter) return dueData;
-    if (!filterGamesQuery.data) return null; // wait for game data
-    return applyContextFilter(dueData, filterGamesQuery.data, contextFilter);
-  }, [dueData, contextFilter, filterGamesQuery.data]);
+    let list = phaseFilter ? dueData.filter((b) => b.phase === phaseFilter) : dueData;
+    if (needsGames) {
+      if (!filterGamesQuery.data) return null; // wait for game data
+      const games = filterGamesQuery.data;
+      if (openingFilter) {
+        list = list.filter((b) => {
+          const g = games.get(b.gameId);
+          if (!g || ecoFamily(g.eco) !== openingFilter) return false;
+          return openingColor ? g.userColor === openingColor : true;
+        });
+      }
+      if (contextFilter) list = applyContextFilter(list, games, contextFilter);
+    }
+    return list;
+  }, [
+    dueData,
+    needsGames,
+    contextFilter,
+    openingFilter,
+    openingColor,
+    phaseFilter,
+    filterGamesQuery.data,
+  ]);
+
+  // Whichever drill filter is active (only one is set at a time in practice) —
+  // drives the filter chip and empty-state copy.
+  const activeFilterLabel = contextFilter
+    ? filterLabel(contextFilter)
+    : openingFilter
+      ? openingLabel ?? openingFilter
+      : phaseFilter
+        ? phaseLabel(phaseFilter)
+        : null;
 
   useEffect(() => {
     setContextFilter(contextFilter);
@@ -181,7 +225,7 @@ export function TrainingRoute() {
 
   if (
     dueBlunders.isLoading ||
-    (contextFilter && filterGamesQuery.isLoading) ||
+    (needsGames && filterGamesQuery.isLoading) ||
     state.phase === 'loading'
   ) {
     return (
@@ -215,18 +259,18 @@ export function TrainingRoute() {
     return (
       <div className="max-w-md mx-auto card text-center flex flex-col gap-4">
         <h1 className="heading-lg">
-          {contextFilter
-            ? `No ${filterLabel(contextFilter).toLowerCase()} blunders due`
+          {activeFilterLabel
+            ? `No ${activeFilterLabel.toLowerCase()} blunders due`
             : 'No blunders due'}
         </h1>
         <p className="text-text-secondary text-sm">
-          {contextFilter
+          {activeFilterLabel
             ? 'Try drilling the full queue or come back after another sync.'
             : hasAccount
               ? 'Sync your latest games to fill the queue.'
               : 'Link a Lichess or Chess.com account to start.'}
         </p>
-        {contextFilter && (
+        {activeFilterLabel && (
           <button className="btn-outline" onClick={() => navigate('/training', { replace: true })}>
             Drill full queue
           </button>
@@ -278,10 +322,10 @@ export function TrainingRoute() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
       <div className="flex flex-col gap-3">
-        {contextFilter && (
+        {activeFilterLabel && (
           <div className="flex items-baseline justify-between rounded-none border-2 border-[#1A1A1A] bg-surface-3 px-3 py-2">
             <span className="font-mono text-xs uppercase tracking-tight text-gold-dark">
-              {filterLabel(contextFilter)} · {state.blunders.length} blunder
+              {activeFilterLabel} · {state.blunders.length} blunder
               {state.blunders.length === 1 ? '' : 's'}
             </span>
             <button
