@@ -215,18 +215,24 @@ function archiveKeyFromDate(d: Date): string {
   return `${y}-${m}`;
 }
 
-function matchesTimeCategory(rawTc: string, category: TimeControlCategory): boolean {
+/** Base seconds from a raw TC header ("600+5", chess.com "G/1800", etc.). */
+function baseSecondsOf(rawTc: string): number | null {
   const basePart = rawTc.split('+')[0].split('/').pop() ?? '';
   const baseSeconds = Number.parseInt(basePart, 10);
-  if (Number.isNaN(baseSeconds)) return false;
-  switch (category) {
-    case 'bullet':
-      return baseSeconds < 180;
-    case 'blitz':
-      return baseSeconds >= 180 && baseSeconds < 600;
-    case 'rapid':
-      return baseSeconds >= 600 && baseSeconds < 1800;
-    case 'classical':
-      return baseSeconds >= 1800;
-  }
+  return Number.isNaN(baseSeconds) ? null : baseSeconds;
+}
+
+/** Classify a raw time-control header into a category (null if unparseable). */
+export function categoryForTimeControl(rawTc: string | null): TimeControlCategory | null {
+  if (!rawTc) return null;
+  const baseSeconds = baseSecondsOf(rawTc);
+  if (baseSeconds === null) return null;
+  if (baseSeconds < 180) return 'bullet';
+  if (baseSeconds < 600) return 'blitz';
+  if (baseSeconds < 1800) return 'rapid';
+  return 'classical';
+}
+
+function matchesTimeCategory(rawTc: string, category: TimeControlCategory): boolean {
+  return categoryForTimeControl(rawTc) === category;
 }

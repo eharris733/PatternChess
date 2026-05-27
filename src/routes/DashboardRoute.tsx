@@ -9,6 +9,7 @@ import { PhaseBlunderCard } from '../components/insights/PhaseBlunderCard';
 import { TimeManagementCard } from '../components/insights/TimeManagementCard';
 import { TimeTroubleCard } from '../components/insights/TimeTroubleCard';
 import { GameStateCard } from '../components/insights/GameStateCard';
+import { RatingProgressCard } from '../components/insights/RatingProgressCard';
 import { Skeleton } from '../components/Skeleton';
 
 export function DashboardRoute() {
@@ -47,6 +48,8 @@ export function DashboardRoute() {
       </header>
 
       {isFirstRun ? <GetStartedHero /> : <DailyHomeworkCard />}
+
+      {!isFirstRun && <RatingProgressCard />}
 
       {!isFirstRun && (
         <button
