@@ -13,6 +13,7 @@ import { ProgressBar } from '../components/ProgressBar';
 import { FeedbackBadge } from '../components/FeedbackBadge';
 import { WinningChancesDisplay } from '../components/WinningChancesDisplay';
 import { TrophyIcon } from '../components/icons/TrophyIcon';
+import { Skeleton } from '../components/Skeleton';
 import { PositionSrState } from '../components/training/PositionSrState';
 import { BlunderContextBadges } from '../components/training/BlunderContextBadges';
 import { classify, winningChancesLost } from '../chess/winningChances';
@@ -161,12 +162,16 @@ export function TrainingRoute() {
           state.selectPostCorrectIndex((state.activePostCorrectIndex ?? -1) + 1);
         } else if (state.phase === 'reviewing' && state.refutationMoves.length > 0) {
           state.selectRefutationIndex((state.activeRefutationIndex ?? -1) + 1);
+        } else if (state.phase === 'incorrect' && state.playedRefutationMoves.length > 0) {
+          state.selectPlayedRefutationIndex((state.activePlayedRefutationIndex ?? -1) + 1);
         }
       } else if (e.code === 'ArrowLeft') {
         if (state.phase === 'correct' && state.postCorrectMoves.length > 0) {
           state.selectPostCorrectIndex((state.activePostCorrectIndex ?? 0) - 1);
         } else if (state.phase === 'reviewing' && state.refutationMoves.length > 0) {
           state.selectRefutationIndex((state.activeRefutationIndex ?? 0) - 1);
+        } else if (state.phase === 'incorrect' && state.playedRefutationMoves.length > 0) {
+          state.selectPlayedRefutationIndex((state.activePlayedRefutationIndex ?? 0) - 1);
         }
       }
     };
@@ -179,7 +184,31 @@ export function TrainingRoute() {
     (contextFilter && filterGamesQuery.isLoading) ||
     state.phase === 'loading'
   ) {
-    return <div className="text-text-secondary text-sm">Loading…</div>;
+    return (
+      <div
+        className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6"
+        aria-busy="true"
+        aria-label="Loading position"
+      >
+        <div className="flex flex-col gap-3">
+          <Skeleton className="aspect-square w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
+        <aside className="card flex flex-col gap-4 self-start">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-3 w-24" />
+          <div className="flex gap-1.5">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <Skeleton key={i} className="h-3 w-3" />
+            ))}
+          </div>
+          <Skeleton className="h-2 w-full" />
+          <Skeleton className="h-2 w-full" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="mt-auto h-10 w-full" />
+        </aside>
+      </div>
+    );
   }
 
   if (state.phase === 'empty' || (state.phase === 'complete' && state.totalAttempted === 0)) {
@@ -455,6 +484,23 @@ export function TrainingRoute() {
             <FeedbackBadge tone={state.incorrectFeedback.tone}>
               {state.incorrectFeedback.message}
             </FeedbackBadge>
+            {state.playedRefutationPairs.length > 0 && (
+              <div>
+                <p className="label mb-2">Engine refutation</p>
+                <MoveSequencePanel
+                  pairs={state.playedRefutationPairs}
+                  activeKey={
+                    state.activePlayedRefutationIndex !== null
+                      ? `r${state.activePlayedRefutationIndex}`
+                      : null
+                  }
+                  onSelect={(key) => {
+                    const i = Number.parseInt(key.slice(1), 10);
+                    if (!Number.isNaN(i)) state.selectPlayedRefutationIndex(i);
+                  }}
+                />
+              </div>
+            )}
             <button className="btn-primary mt-auto" onClick={() => state.retry()}>
               Retry (Space)
             </button>

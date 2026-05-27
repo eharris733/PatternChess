@@ -69,6 +69,10 @@ export interface TrainingStateShape {
   refutationMoves: ReviewMove[];
   refutationPairs: MovePair[];
   activeRefutationIndex: number | null;
+  /** Engine refutation of the wrong move the user just played (incorrect phase). */
+  playedRefutationMoves: ReviewMove[];
+  playedRefutationPairs: MovePair[];
+  activePlayedRefutationIndex: number | null;
   postCorrectMoves: ReviewMove[];
   postCorrectPairs: MovePair[];
   activePostCorrectIndex: number | null;
@@ -106,6 +110,7 @@ export interface TrainingStateShape {
   toggleShowWhatYouPlayed: () => void;
   showHint: () => void;
   selectRefutationIndex: (idx: number) => void;
+  selectPlayedRefutationIndex: (idx: number) => void;
   selectPostCorrectIndex: (idx: number) => void;
   reset: () => void;
 }
@@ -122,6 +127,7 @@ type InitialShape = Omit<TrainingStateShape,
   | 'toggleShowWhatYouPlayed'
   | 'showHint'
   | 'selectRefutationIndex'
+  | 'selectPlayedRefutationIndex'
   | 'selectPostCorrectIndex'
   | 'reset'>;
 
@@ -142,6 +148,9 @@ function makeInitial(): InitialShape {
     refutationMoves: [],
     refutationPairs: [],
     activeRefutationIndex: null,
+    playedRefutationMoves: [],
+    playedRefutationPairs: [],
+    activePlayedRefutationIndex: null,
     postCorrectMoves: [],
     postCorrectPairs: [],
     activePostCorrectIndex: null,
@@ -259,27 +268,36 @@ function buildLineMoves(initialFen: string, uciList: string[]): ReviewMove[] {
   return out;
 }
 
-function buildRefutationPairs(
-  blunder: Blunder,
-  blunderSan: string,
-  pvMoves: ReviewMove[],
-  contextTags: string[],
-): { pairs: MovePair[]; movesPlusBlunder: ReviewMove[] } {
+/**
+ * Build the move-pair table for a refutation line: a first move (the original
+ * blunder, or the wrong move the user just played) tagged with its grade,
+ * followed by the engine's principal variation. Shared by the reviewing-phase
+ * refutation and the played-move refutation.
+ */
+function buildRefutationPairs(opts: {
+  fen: string;
+  moveNumber: number;
+  sideToMove: string;
+  firstSan: string;
+  firstUci: string;
+  tag: string;
+  contextTags?: string[];
+  pvMoves: ReviewMove[];
+}): { pairs: MovePair[]; movesPlusFirst: ReviewMove[] } {
+  const { fen, moveNumber, sideToMove, firstSan, firstUci, tag, contextTags, pvMoves } = opts;
   const moves: ReviewMove[] = [
-    { fenBefore: blunder.fen, san: blunderSan, uci: blunder.playedMove },
+    { fenBefore: fen, san: firstSan, uci: firstUci },
     ...pvMoves,
   ];
-  const startMoveNum = blunder.moveNumber;
-  const blunderIsWhite = blunder.sideToMove === 'white';
-  const grade = classifyShortLabel(blunder);
-  const tag = grade.toUpperCase();
-  const tagsForBlunder = contextTags.length > 0 ? contextTags : undefined;
+  const startMoveNum = moveNumber;
+  const firstIsWhite = sideToMove === 'white';
+  const tagsForFirst = contextTags && contextTags.length > 0 ? contextTags : undefined;
 
   const pairs: MovePair[] = [];
-  if (blunderIsWhite) {
+  if (firstIsWhite) {
     pairs.push({
       moveNumber: startMoveNum,
-      white: { san: blunderSan, key: 'r0', tag, contextTags: tagsForBlunder },
+      white: { san: firstSan, key: 'r0', tag, contextTags: tagsForFirst },
       black: moves[1] ? { san: moves[1].san, key: 'r1' } : undefined,
     });
     for (let i = 2; i < moves.length; i += 2) {
@@ -293,7 +311,7 @@ function buildRefutationPairs(
     pairs.push({
       moveNumber: startMoveNum,
       white: undefined,
-      black: { san: blunderSan, key: 'r0', tag, contextTags: tagsForBlunder },
+      black: { san: firstSan, key: 'r0', tag, contextTags: tagsForFirst },
     });
     for (let i = 1; i < moves.length; i += 2) {
       pairs.push({
@@ -303,7 +321,7 @@ function buildRefutationPairs(
       });
     }
   }
-  return { pairs, movesPlusBlunder: moves };
+  return { pairs, movesPlusFirst: moves };
 }
 
 function buildPostCorrectPairs(
@@ -405,6 +423,16 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       return;
     }
 
+    // Prefetch the next blunder's game so advancing to it is instant (the
+    // network fetch is the visible gap in the 'loading' phase).
+    const upcoming = blunders[currentIndex + 1];
+    if (upcoming && !gameCache.has(upcoming.gameId)) {
+      void supabaseService
+        .getGame(upcoming.gameId)
+        .then((g) => gameCache.set(upcoming.gameId, g))
+        .catch(() => {});
+    }
+
     let game: GameRecord | null = gameCache.get(blunder.gameId) ?? null;
     if (!game) {
       try {
@@ -484,9 +512,18 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         if (currentContext.inTimeTrouble) tags.push('Time trouble');
         if (currentContext.gameState === 'missedWin') tags.push('Missed win');
         else if (currentContext.gameState === 'alreadyLosing') tags.push('Already losing');
-        const { pairs, movesPlusBlunder } = buildRefutationPairs(blunder, blunderSan, pvMoves, tags);
+        const { pairs, movesPlusFirst } = buildRefutationPairs({
+          fen: blunder.fen,
+          moveNumber: blunder.moveNumber,
+          sideToMove: blunder.sideToMove,
+          firstSan: blunderSan,
+          firstUci: blunder.playedMove,
+          tag: classifyShortLabel(blunder).toUpperCase(),
+          contextTags: tags,
+          pvMoves,
+        });
         set({
-          refutationMoves: movesPlusBlunder,
+          refutationMoves: movesPlusFirst,
           refutationPairs: pairs,
           activeRefutationIndex: 0,
         });
@@ -582,6 +619,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     });
 
     let chancesLost: number | null = null;
+    let playedPv: string[] | null = null;
 
     // On-the-fly engine verification for non-stored moves
     if (!isCorrect && blunder.correctMoves.length > 0) {
@@ -589,6 +627,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       try {
         const sf = await getStockfish();
         const ev = await sf.evaluatePositionFull(newFen, 18);
+        playedPv = ev.principalVariation;
         const bestEval = blunder.correctMoves[0].eval;
         const bestWinPct = winPercent(bestEval);
         const moveWinPct = winPercent(-ev.scoreCp);
@@ -625,6 +664,9 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         pendingTryAgain: false,
         interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
         shapes: [],
+        playedRefutationMoves: [],
+        playedRefutationPairs: [],
+        activePlayedRefutationIndex: null,
         incorrectFeedback: {
           message: 'Good move, but keep looking for the best one',
           tone: 'success',
@@ -736,6 +778,21 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         feedback = { message: 'Incorrect, try again', tone: 'danger' };
       }
 
+      // Engine refutation of the move the user just played — the PV from the
+      // position after their move is exactly why it fails.
+      const playedRefutation =
+        playedPv && playedPv.length > 0
+          ? buildRefutationPairs({
+              fen: blunder.fen,
+              moveNumber: blunder.moveNumber,
+              sideToMove: blunder.sideToMove,
+              firstSan: result.san,
+              firstUci: uci,
+              tag: (chancesLost !== null ? classify(chancesLost) : 'blunder').toUpperCase(),
+              pvMoves: buildLineMoves(newFen, playedPv),
+            })
+          : null;
+
       const afterIncorrect = get();
       if (afterIncorrect.sessionId && isFirstAttempt) {
         void supabaseService
@@ -759,6 +816,9 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           attemptedBlunderIds: nextAttempted,
           shapes: [],
           incorrectFeedback: feedback,
+          playedRefutationMoves: playedRefutation ? playedRefutation.movesPlusFirst : [],
+          playedRefutationPairs: playedRefutation ? playedRefutation.pairs : [],
+          activePlayedRefutationIndex: playedRefutation ? 0 : null,
           playedMovesFromBlunder: [uci],
         };
       });
@@ -853,6 +913,31 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       activeRefutationIndex: idx,
       activePostCorrectIndex: null,
       playedMovesFromBlunder: refutationMoves.slice(0, idx + 1).map((rm) => rm.uci),
+    });
+  },
+
+  selectPlayedRefutationIndex: (idx) => {
+    const { playedRefutationMoves } = get();
+    if (idx < 0 || idx >= playedRefutationMoves.length) return;
+    const rm = playedRefutationMoves[idx];
+    const chess = new Chess(rm.fenBefore);
+    const m = parseUciMove(rm.uci);
+    try {
+      chess.move({ from: m.from, to: m.to, promotion: m.promotion });
+    } catch (err) {
+      console.warn('[training] selectPlayedRefutationIndex skipped illegal stored move', {
+        fenBefore: rm.fenBefore,
+        uci: rm.uci,
+        err,
+      });
+      return;
+    }
+    set({
+      fen: chess.fen(),
+      lastMove: [m.from, m.to],
+      shapes: [{ orig: m.from as any, dest: m.to as any, brush: 'red' }],
+      activePlayedRefutationIndex: idx,
+      playedMovesFromBlunder: playedRefutationMoves.slice(0, idx + 1).map((rm) => rm.uci),
     });
   },
 
