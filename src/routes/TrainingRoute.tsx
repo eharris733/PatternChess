@@ -12,6 +12,7 @@ import { MoveSequencePanel } from '../components/MoveSequencePanel';
 import { ProgressBar } from '../components/ProgressBar';
 import { FeedbackBadge } from '../components/FeedbackBadge';
 import { WinningChancesDisplay } from '../components/WinningChancesDisplay';
+import { TrophyIcon } from '../components/icons/TrophyIcon';
 import { PositionSrState } from '../components/training/PositionSrState';
 import { BlunderContextBadges } from '../components/training/BlunderContextBadges';
 import { classify, winningChancesLost } from '../chess/winningChances';
@@ -222,7 +223,7 @@ export function TrainingRoute() {
     const pct = state.totalAttempted > 0 ? Math.round((state.totalCorrect / state.totalAttempted) * 100) : 0;
     return (
       <div className="max-w-md mx-auto card text-center flex flex-col gap-4">
-        <span className="text-5xl">🏆</span>
+        <TrophyIcon className="h-14 w-14 self-center text-gold-dark" />
         <h1 className="heading-lg">Cycle complete</h1>
         <p className="text-text-secondary">
           {pct}% recall · {state.totalCorrect}/{state.totalAttempted} correct
@@ -343,7 +344,8 @@ export function TrainingRoute() {
                         : 'text-text-secondary',
                     )}
                   >
-                    {GAME_STATE_LABEL[state.currentContext.gameState]}
+                    {GAME_STATE_LABEL[state.currentContext.gameState]} ·{' '}
+                    {Math.round(state.currentContext.preMoveWinPercent)}% win chance
                   </p>
                 )}
             </div>

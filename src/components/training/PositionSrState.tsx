@@ -7,6 +7,13 @@ import {
   srBucket,
 } from '../../models/blunder';
 
+const SR_BUCKET_PILL: Record<SrBucket, string> = {
+  new: 'bg-gold-light text-[#1A1A1A] border-[#1A1A1A]',
+  learning: 'bg-surface-3 text-text-secondary border-[#1A1A1A]',
+  tryAgain: 'bg-mistake/20 text-mistake border-mistake/60',
+  mastered: 'bg-correct/20 text-correct border-correct/60',
+};
+
 function formatRelative(d: Date, now: Date): string {
   const diffMs = d.getTime() - now.getTime();
   const absMs = Math.abs(diffMs);
@@ -53,38 +60,49 @@ export function PositionSrState({
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
         <span className="label">Repetition</span>
+        <span
+          className={clsx(
+            'px-2 py-0.5 rounded-none font-mono text-[10px] uppercase tracking-tight border-2',
+            SR_BUCKET_PILL[displayBucket],
+          )}
+        >
+          {stageLabel}
+        </span>
+      </div>
+      <div className="flex items-center justify-between">
+        <div
+          className="flex items-center gap-1.5"
+          aria-label={`${filled} of ${total} cycles completed`}
+        >
+          {Array.from({ length: total }).map((_, i) => (
+            <span
+              key={i}
+              className={clsx(
+                'w-3 h-3 rounded-none border-2',
+                i < filled ? 'bg-gold-dark border-[#1A1A1A]' : 'border-[#1A1A1A] bg-white',
+              )}
+            />
+          ))}
+        </div>
         <span className="text-xs font-mono text-text-secondary">
           {filled}/{total}
         </span>
       </div>
-      <div className="flex items-center gap-1.5" aria-label={`${filled} of ${total} cycles completed`}>
-        {Array.from({ length: total }).map((_, i) => (
-          <span
-            key={i}
-            className={clsx(
-              'w-3 h-3 rounded-none border-2',
-              i < filled
-                ? 'bg-gold-dark border-[#1A1A1A]'
-                : 'border-[#1A1A1A] bg-white',
+      {(blunder.timesAttempted > 0 || lastSeen) && (
+        <div className="flex items-center justify-between text-xs text-text-secondary">
+          <span>
+            {blunder.timesAttempted > 0 && (
+              <>
+                <span className="font-mono">
+                  {blunder.timesCorrect}/{blunder.timesAttempted}
+                </span>{' '}
+                recalled
+              </>
             )}
-          />
-        ))}
-      </div>
-      <div className="flex items-center justify-between text-xs text-text-secondary">
-        <span>
-          {stageLabel}
-          {blunder.timesAttempted > 0 && (
-            <>
-              {' · '}
-              <span className="font-mono">
-                {blunder.timesCorrect}/{blunder.timesAttempted}
-              </span>{' '}
-              recalled
-            </>
-          )}
-        </span>
-        {lastSeen && <span className="font-mono">seen {lastSeen}</span>}
-      </div>
+          </span>
+          {lastSeen && <span className="font-mono">seen {lastSeen}</span>}
+        </div>
+      )}
     </div>
   );
 }
