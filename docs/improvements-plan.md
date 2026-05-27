@@ -31,6 +31,14 @@ sessions and parallel agents. Item numbers map 1:1 to `improvements.md`.
   + Playwright walk-through with a seeded blunder (reviewing panel, cycle-complete screen).
   Audit also confirmed: no ad-hoc SR labels anywhere; remaining glyph icons (board controls,
   promotion pieces, ↗ links) are conventional, deferred.
+- **Session 2 (2026-05-27) — done & verified** on branch `improvements-session-1`:
+  A1 engine refutation of the move the user just played (capture the already-computed PV;
+  parameterized `buildRefutationPairs` so the reviewing + played-move paths share it; added a
+  `selectPlayedRefutationIndex` scrubber + arrow-key nav). A2 board-shaped loading skeleton +
+  fire-and-forget prefetch of the next blunder's game in `loadCurrentBlunder`. Verified via
+  typecheck + Playwright (played a wrong move → refutation panel + scrub; reviewing refutation
+  intact post-refactor; skeleton renders with `aria-busy`). A1 also resolves the "refutation
+  isn't showing" half of #6.
 
 ## Workstreams
 
