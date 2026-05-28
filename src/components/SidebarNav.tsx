@@ -4,11 +4,14 @@ import { useAuth } from '../auth/useAuth';
 import { SyncIndicator } from './SyncIndicator';
 import { StreakBadge } from './insights/StreakBadge';
 import { BrandLockup, BrandMark } from './BrandLogo';
+import { DashboardIcon } from './icons/DashboardIcon';
+import { VaultIcon } from './icons/VaultIcon';
+import { TrainIcon } from './icons/TrainIcon';
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Dashboard', icon: '◐' },
-  { to: '/vault', label: 'Vault', icon: '▤' },
-  { to: '/training', label: 'Train', icon: '✦' },
+  { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
+  { to: '/vault', label: 'Vault', Icon: VaultIcon },
+  { to: '/training', label: 'Train', Icon: TrainIcon },
 ];
 
 export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
@@ -50,8 +53,8 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
           >
             {({ isActive }) => (
               <>
-                <span className={clsx('shrink-0 text-base', isActive ? 'text-gold-light' : 'text-[#1A1A1A]')}>
-                  {item.icon}
+                <span className={clsx('shrink-0', isActive ? 'text-gold-light' : 'text-[#1A1A1A]')}>
+                  <item.Icon className="h-5 w-5" />
                 </span>
                 {!collapsed && <span>{item.label}</span>}
               </>

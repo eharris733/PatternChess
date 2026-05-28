@@ -40,6 +40,9 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
   const hasLichess = !!profile?.lichessUsername;
   const hasChesscom = !!profile?.chesscomUsername;
   const agg = aggregate(hasLichess, hasChesscom, providers.lichess, providers.chesscom);
+  const rateLimited =
+    (hasLichess && providers.lichess.phase === 'error' && !!providers.lichess.rateLimited) ||
+    (hasChesscom && providers.chesscom.phase === 'error' && !!providers.chesscom.rateLimited);
 
   useEffect(() => {
     setCollapseDone(false);
@@ -82,7 +85,7 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
       if (totalBlundersFound > 0) parts.push(`+${totalBlundersFound} blunders`);
       return parts.length > 0 ? parts.join(' · ') : 'Up to date';
     }
-    if (display === 'error') return 'Sync failed';
+    if (display === 'error') return rateLimited ? 'Rate limited' : 'Sync failed';
     return 'Up to date';
   })();
 
@@ -122,7 +125,7 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
   const subTitle = (() => {
     if (display === 'syncing') return null;
     if (display === 'none') return 'Sync games to start';
-    if (display === 'error') return 'Tap to retry';
+    if (display === 'error') return rateLimited ? 'Wait a minute, then tap to retry' : 'Tap to retry';
     return 'Tap to sync now';
   })();
 

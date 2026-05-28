@@ -29,7 +29,7 @@ export function BlunderContextBadges({ context }: { context: BlunderContext }) {
             GAME_STATE_TONE[context.gameState],
           )}
         >
-          {GAME_STATE_LABEL[context.gameState]}
+          {GAME_STATE_LABEL[context.gameState]} · {Math.round(context.preMoveWinPercent)}%
         </span>
       )}
     </div>

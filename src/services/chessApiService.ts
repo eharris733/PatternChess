@@ -22,6 +22,66 @@ export interface FetchOpts {
   since?: Date | null;
 }
 
+/** Thrown when a provider keeps returning 429 after our retries are exhausted. */
+export class RateLimitError extends Error {
+  constructor(public readonly platform: string) {
+    super(`${platform} is rate-limiting requests right now. Wait a minute and sync again.`);
+    this.name = 'RateLimitError';
+  }
+}
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** Spacing between chess.com monthly-archive fetches so a big backlog doesn't trip Cloudflare. */
+const CHESSCOM_ARCHIVE_SPACING_MS = 300;
+
+function parseRetryAfterMs(res: Response): number | null {
+  const h = res.headers.get('Retry-After');
+  if (!h) return null;
+  const secs = Number(h);
+  if (Number.isFinite(secs)) return Math.max(0, secs * 1000);
+  const when = Date.parse(h);
+  return Number.isNaN(when) ? null : Math.max(0, when - Date.now());
+}
+
+/**
+ * fetch() with Retry-After-aware backoff. Retries on 429 and 5xx, honoring the
+ * Retry-After header (capped at maxDelayMs). Throws RateLimitError when a 429
+ * persists after all retries — so a throttled sync fails loudly instead of
+ * silently dropping games. Other statuses (incl. 404) return the response so
+ * callers handle them as before.
+ */
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit | undefined,
+  platform: string,
+  opts: { maxRetries?: number; baseDelayMs?: number; maxDelayMs?: number } = {},
+): Promise<Response> {
+  const { maxRetries = 3, baseDelayMs = 1000, maxDelayMs = 15000 } = opts;
+  let lastRes: Response | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(url, init);
+    } catch (e) {
+      if (attempt === maxRetries) throw e;
+      await sleep(Math.min(baseDelayMs * 2 ** attempt, maxDelayMs));
+      continue;
+    }
+    if (res.status !== 429 && res.status < 500) return res;
+    lastRes = res;
+    if (attempt === maxRetries) break;
+    const retryAfter = parseRetryAfterMs(res);
+    await sleep(
+      retryAfter !== null
+        ? Math.min(retryAfter, maxDelayMs)
+        : Math.min(baseDelayMs * 2 ** attempt, maxDelayMs),
+    );
+  }
+  if (lastRes && lastRes.status === 429) throw new RateLimitError(platform);
+  return lastRes as Response;
+}
+
 export async function fetchChessComGames(
   username: string,
   opts: FetchOpts = {},
@@ -30,8 +90,10 @@ export async function fetchChessComGames(
   const sinceMs = since?.getTime() ?? null;
   const sinceMonthKey = since ? archiveKeyFromDate(since) : null;
 
-  const archivesRes = await fetch(
+  const archivesRes = await fetchWithRetry(
     `https://api.chess.com/pub/player/${encodeURIComponent(username)}/games/archives`,
+    undefined,
+    'Chess.com',
   );
   if (!archivesRes.ok) throw new Error(`Failed to fetch chess.com archives for ${username}`);
   const archivesJson = (await archivesRes.json()) as { archives: string[] };
@@ -40,6 +102,7 @@ export async function fetchChessComGames(
   const out: ImportedGame[] = [];
   const cap = since ? Math.max(maxGames, 500) : maxGames;
 
+  let fetchedAnyMonth = false;
   for (const archiveUrl of archives) {
     if (out.length >= cap) break;
     if (sinceMonthKey) {
@@ -47,7 +110,12 @@ export async function fetchChessComGames(
       if (archiveKey && archiveKey < sinceMonthKey) break;
     }
 
-    const monthRes = await fetch(archiveUrl);
+    // Space out month fetches so a large backlog doesn't trip Cloudflare.
+    if (fetchedAnyMonth) await sleep(CHESSCOM_ARCHIVE_SPACING_MS);
+    const monthRes = await fetchWithRetry(archiveUrl, undefined, 'Chess.com');
+    fetchedAnyMonth = true;
+    // A persistent 429 throws RateLimitError inside fetchWithRetry; a genuine
+    // non-OK (e.g. 404) is skipped rather than failing the whole sync.
     if (!monthRes.ok) continue;
     const monthJson = (await monthRes.json()) as { games: any[] };
     const games = [...(monthJson.games ?? [])].sort(
@@ -119,9 +187,10 @@ export async function fetchLichessGames(
   if (timeControls.length > 0) params.set('perfType', timeControls.join(','));
   if (since) params.set('since', String(since.getTime()));
 
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://lichess.org/api/games/user/${encodeURIComponent(username)}?${params.toString()}`,
     { headers: { Accept: 'application/x-chess-pgn' } },
+    'Lichess',
   );
   if (!res.ok) throw new Error(`Failed to fetch lichess games for ${username}`);
   const text = await res.text();
@@ -215,18 +284,24 @@ function archiveKeyFromDate(d: Date): string {
   return `${y}-${m}`;
 }
 
-function matchesTimeCategory(rawTc: string, category: TimeControlCategory): boolean {
+/** Base seconds from a raw TC header ("600+5", chess.com "G/1800", etc.). */
+function baseSecondsOf(rawTc: string): number | null {
   const basePart = rawTc.split('+')[0].split('/').pop() ?? '';
   const baseSeconds = Number.parseInt(basePart, 10);
-  if (Number.isNaN(baseSeconds)) return false;
-  switch (category) {
-    case 'bullet':
-      return baseSeconds < 180;
-    case 'blitz':
-      return baseSeconds >= 180 && baseSeconds < 600;
-    case 'rapid':
-      return baseSeconds >= 600 && baseSeconds < 1800;
-    case 'classical':
-      return baseSeconds >= 1800;
-  }
+  return Number.isNaN(baseSeconds) ? null : baseSeconds;
+}
+
+/** Classify a raw time-control header into a category (null if unparseable). */
+export function categoryForTimeControl(rawTc: string | null): TimeControlCategory | null {
+  if (!rawTc) return null;
+  const baseSeconds = baseSecondsOf(rawTc);
+  if (baseSeconds === null) return null;
+  if (baseSeconds < 180) return 'bullet';
+  if (baseSeconds < 600) return 'blitz';
+  if (baseSeconds < 1800) return 'rapid';
+  return 'classical';
+}
+
+function matchesTimeCategory(rawTc: string, category: TimeControlCategory): boolean {
+  return categoryForTimeControl(rawTc) === category;
 }

@@ -2,6 +2,7 @@ import {
   fetchChessComGames,
   fetchLichessGames,
   ImportedGame,
+  RateLimitError,
   TimeControlCategory,
 } from './chessApiService';
 import { supabaseService } from './supabaseService';
@@ -16,6 +17,8 @@ export interface ProviderProgress {
   inserted: number;
   total: number | null;
   error: string | null;
+  /** Set when the error was a provider rate-limit (429) — lets the UI tell the user to wait. */
+  rateLimited?: boolean;
   analyzeGameIndex: number;
   analyzeGamesTotal: number;
   analyzePositionIndex: number;
@@ -75,6 +78,7 @@ export async function syncProvider(
       inserted: 0,
       total: null,
       error: msg,
+      rateLimited: e instanceof RateLimitError,
       ...initial,
     });
     throw e;

@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { useTimeManagementInsight } from '../../hooks/useInsights';
 import { InsightCardSkeleton } from '../Skeleton';
 
@@ -25,6 +26,7 @@ function Tile({ label, userSec, gmSec, hasData }: TileProps) {
 }
 
 export function TimeManagementCard() {
+  const navigate = useNavigate();
   const insight = useTimeManagementInsight();
   if (insight.isPending) return <InsightCardSkeleton rows={2} />;
   if (!insight.data) return null;
@@ -65,6 +67,13 @@ export function TimeManagementCard() {
           hasData={(end?.plyCount ?? 0) > 0}
         />
       </div>
+      <button
+        type="button"
+        onClick={() => navigate('/training', { state: { contextFilter: 'longThink' } })}
+        className="font-mono uppercase text-xs tracking-tight text-gold-dark text-left hover:text-[#1A1A1A] transition-colors"
+      >
+        Drill long-think blunders →
+      </button>
       {benchmarkSource && (
         <p className="text-text-secondary text-xs">{benchmarkSource}</p>
       )}
