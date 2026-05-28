@@ -78,6 +78,11 @@ export interface TrainingStateShape {
   activePostCorrectIndex: number | null;
   postCorrectStartsWithWhite: boolean;
   incorrectFeedback: IncorrectFeedback | null;
+  /**
+   * When true, the incorrect-phase action requeues the position later in the
+   * session; when false (a "good but not best" nudge) it retries in place.
+   */
+  incorrectRequeue: boolean;
   evaluating: boolean;
   game: GameRecord | null;
   currentContext: BlunderContext | null;
@@ -107,6 +112,7 @@ export interface TrainingStateShape {
   processMove: (move: { from: string; to: string; promotion?: 'q' | 'r' | 'b' | 'n' }) => Promise<void>;
   advance: () => void;
   retry: () => void;
+  requeueAndAdvance: () => void;
   toggleShowWhatYouPlayed: () => void;
   showHint: () => void;
   selectRefutationIndex: (idx: number) => void;
@@ -124,6 +130,7 @@ type InitialShape = Omit<TrainingStateShape,
   | 'processMove'
   | 'advance'
   | 'retry'
+  | 'requeueAndAdvance'
   | 'toggleShowWhatYouPlayed'
   | 'showHint'
   | 'selectRefutationIndex'
@@ -168,6 +175,7 @@ function makeInitial(): InitialShape {
     pendingTryAgain: false,
     interactedBlunderIds: new Set<string>(),
     playedMovesFromBlunder: [],
+    incorrectRequeue: false,
   };
 }
 
@@ -667,6 +675,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         playedRefutationMoves: [],
         playedRefutationPairs: [],
         activePlayedRefutationIndex: null,
+        incorrectRequeue: false,
         incorrectFeedback: {
           message: 'Good move, but keep looking for the best one',
           tone: 'success',
@@ -770,12 +779,12 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         const cl = classify(chancesLost);
         feedback =
           cl === 'blunder'
-            ? { message: "That's a blunder, try again", tone: 'danger' }
+            ? { message: "That's a blunder", tone: 'danger' }
             : cl === 'mistake'
-              ? { message: "That's a mistake, try again", tone: 'warning' }
-              : { message: "That's an inaccuracy, try again", tone: 'info' };
+              ? { message: "That's a mistake", tone: 'warning' }
+              : { message: "That's an inaccuracy", tone: 'info' };
       } else {
-        feedback = { message: 'Incorrect, try again', tone: 'danger' };
+        feedback = { message: 'Incorrect', tone: 'danger' };
       }
 
       // Engine refutation of the move the user just played — the PV from the
@@ -815,6 +824,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           totalAttempted: isFirstAttempt ? s.totalAttempted + 1 : s.totalAttempted,
           attemptedBlunderIds: nextAttempted,
           shapes: [],
+          incorrectRequeue: true,
           incorrectFeedback: feedback,
           playedRefutationMoves: playedRefutation ? playedRefutation.movesPlusFirst : [],
           playedRefutationPairs: playedRefutation ? playedRefutation.pairs : [],
@@ -839,6 +849,21 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
   retry: () => {
     if (get().phase !== 'incorrect') return;
     set({ phase: 'loading' });
+    void get().loadCurrentBlunder();
+  },
+
+  requeueAndAdvance: () => {
+    const { phase, blunders, currentIndex } = get();
+    if (phase !== 'incorrect') return;
+    // Move the just-failed position 3-7 spots later so it returns within the
+    // session (Anki-style relearning) rather than an immediate in-place retry.
+    const q = [...blunders];
+    const [item] = q.splice(currentIndex, 1);
+    if (item) {
+      const offset = 3 + Math.floor(Math.random() * 5); // 3..7
+      q.splice(Math.min(currentIndex + offset, q.length), 0, item);
+    }
+    set({ blunders: q, phase: 'loading' });
     void get().loadCurrentBlunder();
   },
 

@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import {
   Blunder,
+  nextIntervalDaysIfSolved,
   SPACED_REPETITION_DAYS,
   SR_BUCKET_LABEL,
   SrBucket,
@@ -30,6 +31,7 @@ function formatRelative(d: Date, now: Date): string {
 export function PositionSrState({
   blunder,
   showTryAgainLabel = false,
+  showNextReview = false,
 }: {
   blunder: Blunder;
   /**
@@ -39,6 +41,8 @@ export function PositionSrState({
    * the initial presentation in a subsequent cycle. Does not mutate SR state.
    */
   showTryAgainLabel?: boolean;
+  /** Show the "solve it → next review in N days" cadence hint (pre-solve only). */
+  showNextReview?: boolean;
 }) {
   const total = SPACED_REPETITION_DAYS.length; // 7
   const filled = Math.min(blunder.cycleNumber, total);
@@ -85,9 +89,14 @@ export function PositionSrState({
           ))}
         </div>
         <span className="text-xs font-mono text-text-secondary">
-          {filled}/{total}
+          cycle {filled}/{total}
         </span>
       </div>
+      {showNextReview && (
+        <p className="text-[11px] leading-tight text-text-secondary">
+          Solve it → next review in {nextIntervalDaysIfSolved(blunder)} days
+        </p>
+      )}
       {(blunder.timesAttempted > 0 || lastSeen) && (
         <div className="flex items-center justify-between text-xs text-text-secondary">
           <span>

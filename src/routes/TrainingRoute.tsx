@@ -200,7 +200,8 @@ export function TrainingRoute() {
         e.preventDefault();
         if (state.phase === 'reviewing') state.proceedFromReview();
         else if (state.phase === 'correct') state.advance();
-        else if (state.phase === 'incorrect') state.retry();
+        else if (state.phase === 'incorrect')
+          state.incorrectRequeue ? state.requeueAndAdvance() : state.retry();
       } else if (e.code === 'ArrowRight') {
         if (state.phase === 'correct' && state.postCorrectMoves.length > 0) {
           state.selectPostCorrectIndex((state.activePostCorrectIndex ?? -1) + 1);
@@ -385,7 +386,11 @@ export function TrainingRoute() {
         )}
 
         {blunder && (
-          <PositionSrState blunder={blunder} showTryAgainLabel={state.pendingTryAgain} />
+          <PositionSrState
+            blunder={blunder}
+            showTryAgainLabel={state.pendingTryAgain}
+            showNextReview={state.phase === 'reviewing' || state.phase === 'solving'}
+          />
         )}
 
         {state.currentContext && <BlunderContextBadges context={state.currentContext} />}
@@ -545,9 +550,19 @@ export function TrainingRoute() {
                 />
               </div>
             )}
-            <button className="btn-primary mt-auto" onClick={() => state.retry()}>
-              Retry (Space)
+            <button
+              className="btn-primary mt-auto"
+              onClick={() =>
+                state.incorrectRequeue ? state.requeueAndAdvance() : state.retry()
+              }
+            >
+              {state.incorrectRequeue ? 'Continue (Space)' : 'Try again (Space)'}
             </button>
+            {state.incorrectRequeue && (
+              <p className="text-text-secondary text-xs text-center -mt-1">
+                Comes back later this session
+              </p>
+            )}
           </>
         )}
 

@@ -56,6 +56,16 @@ export function nextDrillDate(b: Blunder): Date {
   return result;
 }
 
+/**
+ * Days until the next review if this position's current cycle is cleared on a
+ * first-attempt solve (the cycle advances by one, then the interval applies).
+ * Mirrors nextDrillDate + the cycle bump in the training store.
+ */
+export function nextIntervalDaysIfSolved(b: Pick<Blunder, 'cycleNumber'>): number {
+  const idx = Math.min(b.cycleNumber + 1, SPACED_REPETITION_DAYS.length - 1);
+  return SPACED_REPETITION_DAYS[idx];
+}
+
 export function recallRate(b: Blunder): number {
   return b.timesAttempted > 0 ? b.timesCorrect / b.timesAttempted : 0;
 }
