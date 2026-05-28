@@ -92,22 +92,17 @@ export const authService = {
       .eq('username', username)
       .is('user_id', null);
 
-    const rpc = await supabase.rpc('claim_blunders_for_user', {
-      p_user_id: user.id,
-      p_username: username,
-    });
-
-    if (rpc.error) {
-      // Fallback path: claim blunders through user's games.
-      const { data: games } = await supabase.from('games').select('id').eq('user_id', user.id);
-      const gameIds = (games ?? []).map((g: any) => g.id as string);
-      if (gameIds.length > 0) {
-        await supabase
-          .from('blunders')
-          .update({ user_id: user.id })
-          .in('game_id', gameIds)
-          .is('user_id', null);
-      }
+    // Claim blunders through the user's now-owned games. (Previously this went
+    // through a `claim_blunders_for_user` RPC, but that function isn't deployed
+    // and always 404'd straight into this path — so do it directly.)
+    const { data: games } = await supabase.from('games').select('id').eq('user_id', user.id);
+    const gameIds = (games ?? []).map((g: any) => g.id as string);
+    if (gameIds.length > 0) {
+      await supabase
+        .from('blunders')
+        .update({ user_id: user.id })
+        .in('game_id', gameIds)
+        .is('user_id', null);
     }
   },
 };

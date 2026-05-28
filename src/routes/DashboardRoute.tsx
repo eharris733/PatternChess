@@ -24,11 +24,13 @@ export function DashboardRoute() {
   // count as games, so a PGN-only user falls out of this state once they
   // import).
   const isFirstRun = !gamesLoading && !hasAccount && gamesCount === 0;
-  const greeting =
-    profile?.displayName ??
-    (user?.user_metadata?.full_name as string | undefined) ??
-    user?.email?.split('@')[0] ??
-    'there';
+  const firstName =
+    (profile?.displayName ??
+      (user?.user_metadata?.full_name as string | undefined) ??
+      user?.email?.split('@')[0] ??
+      'there')
+      .trim()
+      .split(/\s+/)[0];
 
   return (
     <div className="max-w-3xl mx-auto flex flex-col gap-6">
@@ -36,12 +38,12 @@ export function DashboardRoute() {
         {isFirstRun ? (
           <>
             <span className="label">Welcome to PatternChess</span>
-            <h1 className="heading-xl">Hey {greeting}, let's get started.</h1>
+            <h1 className="heading-xl">{firstName}, let's get started.</h1>
           </>
         ) : (
           <>
             <span className="label">Welcome back</span>
-            <h1 className="heading-xl">Hey {greeting}.</h1>
+            <h1 className="heading-xl">Hey {firstName}.</h1>
             <RankBadge variant="compact" />
           </>
         )}

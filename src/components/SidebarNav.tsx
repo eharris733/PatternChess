@@ -16,8 +16,12 @@ const NAV_ITEMS = [
 
 export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { profile, user } = useAuth();
-  const displayName =
-    profile?.displayName ?? (user?.email ? user.email.split('@')[0] : 'Guest');
+  const displayName = (
+    profile?.displayName ??
+    (user?.email ? user.email.split('@')[0] : 'Guest')
+  )
+    .trim()
+    .split(/\s+/)[0];
 
   return (
     <div className="flex flex-col h-full py-3">

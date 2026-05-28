@@ -8,8 +8,7 @@ export function GetStartedHero() {
   return (
     <section className="card flex flex-col gap-5">
       <div className="flex flex-col gap-2">
-        <span className="label">Get started</span>
-        <h2 className="heading-lg">Sync your online account to get started.</h2>
+        <h2 className="heading-lg">Sync your online account to find your blunders.</h2>
         <p className="text-text-secondary">
           PatternChess finds the blunders in your real games and turns them into
           spaced-repetition drills. Connect your Lichess or Chess.com account, or
