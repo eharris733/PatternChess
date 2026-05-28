@@ -53,6 +53,14 @@ sessions and parallel agents. Item numbers map 1:1 to `improvements.md`.
   `useRatingProgress` hook (earliest→latest `userRating` per time-control category, ≥5 games),
   `RatingProgressCard` on the dashboard. Per-category rows resolve the "which rating to headline"
   open question. Verified via Playwright (Rapid +160, Blitz −20). **Completes #9.**
+- **Session 5 (2026-05-27) — done & verified** on branch `improvements-session-1`:
+  Two quick wins. **#11 fail-requeue:** a real fail now moves the position 3-7 spots later
+  (`requeueAndAdvance`, Anki-style) instead of in-place retry — button reads "Continue" +
+  "Comes back later this session"; a "good but not best" nudge still retries in place (via the
+  `incorrectRequeue` flag); fail messages dropped the now-inaccurate "try again". **#8 SR clarity:**
+  `nextIntervalDaysIfSolved` helper + a "Solve it → next review in N days" caption (pre-solve only)
+  and "cycle N/7" in `PositionSrState`. Verified via Playwright (queue sequence showed failed
+  positions returning later; caption "in 2 days"). **Completes #8 and #11.**
 
 ## Workstreams
 
