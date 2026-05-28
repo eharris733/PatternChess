@@ -61,6 +61,14 @@ sessions and parallel agents. Item numbers map 1:1 to `improvements.md`.
   `nextIntervalDaysIfSolved` helper + a "Solve it → next review in N days" caption (pre-solve only)
   and "cycle N/7" in `PositionSrState`. Verified via Playwright (queue sequence showed failed
   positions returning later; caption "in 2 days"). **Completes #8 and #11.**
+- **Session 6 (2026-05-27) — done & verified** on branch `improvements-session-1`:
+  #12 rate-limit hardening (robustness only — client-side/per-user-IP architecture unchanged).
+  `fetchWithRetry` in chessApiService: Retry-After-aware backoff on 429/5xx, throws
+  `RateLimitError` when a 429 persists — fixing the silent chess.com month-skip
+  (`continue`-on-non-OK dropped games with no signal); genuine 404s still skip. ~300ms spacing
+  between archive fetches; a `rateLimited` flag on `ProviderProgress` flips SyncIndicator to
+  "Rate limited / Wait a minute, then tap to retry". Verified the backoff in-page
+  (429→429→200 succeeds; always-429 → RateLimitError after 4 calls). **Completes #12.**
 
 ## Workstreams
 
