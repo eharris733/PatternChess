@@ -59,6 +59,49 @@ export function gameRecordFromJson(json: any): GameRecord {
   };
 }
 
+export type GameOutcome = 'win' | 'loss' | 'draw';
+
+/** chess.com per-player `result` codes that mean a draw. */
+const CHESS_COM_DRAW_TERMS = new Set([
+  'stalemate',
+  'agreed',
+  'repetition',
+  'insufficient',
+  '50move',
+  'timevsinsufficient',
+]);
+
+/**
+ * Resolve a game's result to the user's outcome. chess.com stores a per-player
+ * status code (`win` / `resigned` / `timeout` / …); lichess and uploaded PGNs
+ * store the PGN result (`1-0` / `0-1` / `1/2-1/2`), interpreted relative to the
+ * user's color. Returns null when the result is unknown/in-progress (`*`).
+ */
+export function resolveOutcome(
+  platform: string | null,
+  result: string | null,
+  userColor: 'white' | 'black' | null,
+): GameOutcome | null {
+  if (!result) return null;
+
+  if (platform === 'chess.com') {
+    if (result === 'win') return 'win';
+    if (CHESS_COM_DRAW_TERMS.has(result)) return 'draw';
+    return 'loss';
+  }
+
+  // lichess / uploaded PGN: PGN-format result, relative to the user's side.
+  if (result === '1/2-1/2') return 'draw';
+  if (result === '1-0') return userColor === 'white' ? 'win' : userColor === 'black' ? 'loss' : null;
+  if (result === '0-1') return userColor === 'black' ? 'win' : userColor === 'white' ? 'loss' : null;
+
+  // Defensive fallback for any other storage format.
+  if (result === 'win') return 'win';
+  if (result === 'loss' || result === 'lose') return 'loss';
+  if (result === 'draw') return 'draw';
+  return null;
+}
+
 /** ECO family (`B33` → `B3*`) used for opening grouping. */
 export function ecoFamily(eco: string | null): string | null {
   if (!eco || eco.length < 2) return null;

@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { Blunder, blunderFromJson, CorrectMove, nextDrillDate } from '../models/blunder';
-import { GameRecord, gameRecordFromJson } from '../models/gameRecord';
+import { GameRecord, gameRecordFromJson, resolveOutcome } from '../models/gameRecord';
 import {
   GameAnnotation,
   gameAnnotationFromJson,
@@ -204,6 +204,7 @@ interface OpeningRawRow {
   opening_name: string | null;
   user_color: string | null;
   result: string | null;
+  platform: string | null;
 }
 
 /**
@@ -219,7 +220,7 @@ export async function getOpeningPerformance(opts?: {
 
   const { data: gamesData, error: gamesError } = await supabase
     .from('games')
-    .select('id, eco, opening_name, user_color, result')
+    .select('id, eco, opening_name, user_color, result, platform')
     .eq('user_id', userId)
     .not('eco', 'is', null);
   if (gamesError) throw gamesError;
@@ -252,12 +253,12 @@ export async function getOpeningPerformance(opts?: {
       groups.set(key, group);
     }
     group.games++;
-    // Result is stored as PGN format: "1-0", "0-1", "1/2-1/2".
-    if (g.result === '1/2-1/2') group.draws++;
-    else if (g.result === '1-0' && color === 'white') group.wins++;
-    else if (g.result === '0-1' && color === 'black') group.wins++;
-    else if (g.result === '1-0' && color === 'black') group.losses++;
-    else if (g.result === '0-1' && color === 'white') group.losses++;
+    // Result format varies by platform (chess.com per-player codes vs PGN);
+    // resolveOutcome normalizes both relative to the user's side.
+    const outcome = resolveOutcome(g.platform, g.result, color);
+    if (outcome === 'win') group.wins++;
+    else if (outcome === 'loss') group.losses++;
+    else if (outcome === 'draw') group.draws++;
   }
 
   if (gameIdToEcoFamily.size > 0) {

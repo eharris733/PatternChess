@@ -1,8 +1,9 @@
+import { Link } from 'react-router-dom';
 import { BrandMark } from '../BrandLogo';
 
 const LINKS = [
-  { label: 'Privacy', href: '#' },
-  { label: 'Terms', href: '#' },
+  { label: 'Privacy', to: '/privacy' },
+  { label: 'Terms', to: '/terms' },
 ];
 
 export function LandingFooter() {
@@ -18,13 +19,13 @@ export function LandingFooter() {
           </div>
           <nav className="flex items-center gap-5">
             {LINKS.map((link) => (
-              <a
+              <Link
                 key={link.label}
-                href={link.href}
+                to={link.to}
                 className="font-mono uppercase text-xs tracking-tight text-[#1A1A1A] hover:text-gold-dark transition-colors"
               >
                 {link.label}
-              </a>
+              </Link>
             ))}
           </nav>
         </div>

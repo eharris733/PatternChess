@@ -79,18 +79,14 @@ export function usePhaseBlunderInsight() {
 export interface OpeningInsightRow extends OpeningGroupRow {
   winRate: number;
   blunderRate: number;
-  benchmark: number | null;
-  benchmarkSampleSize: number | null;
 }
 
 export interface OpeningInsight {
   rows: OpeningInsightRow[];
   band: ReturnType<typeof ratingBand>;
-  benchmarkSource: string | null;
   totalGames: number;
 }
 
-export const MIN_GAMES_FOR_OPENING_DELTA = 10;
 export const MIN_TOTAL_GAMES_FOR_OPENING = 10;
 
 export function useOpeningInsight() {
@@ -101,45 +97,22 @@ export function useOpeningInsight() {
     queryKey: ['insights', 'opening', user?.id, ratingMean.data?.meanRating],
     enabled: !!user && ratingMean.isFetched,
     queryFn: async (): Promise<OpeningInsight> => {
-      const [groups, set] = await Promise.all([
-        supabaseService.getOpeningPerformance(),
-        loadBenchmarks(),
-      ]);
+      const groups = await supabaseService.getOpeningPerformance();
       const band = ratingBand(ratingMean.data?.meanRating ?? null);
       const totalGames = groups.reduce((acc, g) => acc + g.games, 0);
       const top = groups.slice(0, 3);
-      const rows: OpeningInsightRow[] = top.map((g) => {
-        const winRate = g.games > 0 ? (g.wins + 0.5 * g.draws) / g.games : 0;
-        const blunderRate = g.games > 0 ? g.blunders / g.games : 0;
-        let benchmark: number | null = null;
-        let benchmarkSampleSize: number | null = null;
-        if (g.userColor) {
-          const lookup = lookupBenchmark(
-            set,
-            'opening_winrate',
-            `${g.ecoFamily}:${g.userColor}:${band}`,
-          );
-          if (lookup) {
-            benchmark = lookup.value;
-            benchmarkSampleSize = lookup.sampleSize;
-          }
-        }
-        return { ...g, winRate, blunderRate, benchmark, benchmarkSampleSize };
-      });
-      return {
-        rows,
-        band,
-        benchmarkSource: set.sources.opening_winrate ?? null,
-        totalGames,
-      };
+      const rows: OpeningInsightRow[] = top.map((g) => ({
+        ...g,
+        winRate: g.games > 0 ? (g.wins + 0.5 * g.draws) / g.games : 0,
+        blunderRate: g.games > 0 ? g.blunders / g.games : 0,
+      }));
+      return { rows, band, totalGames };
     },
   });
 }
 
 export interface TimeManagementInsight {
   samples: TimeManagementSample[];
-  benchmark: { opening: number; middlegame: number; endgame: number } | null;
-  benchmarkSource: string | null;
 }
 
 export function useTimeManagementInsight() {
@@ -149,21 +122,8 @@ export function useTimeManagementInsight() {
     queryKey: ['insights', 'timeManagement', user?.id],
     enabled: !!user,
     queryFn: async (): Promise<TimeManagementInsight> => {
-      const [samples, set] = await Promise.all([
-        supabaseService.getUserTimeManagement(),
-        loadBenchmarks(),
-      ]);
-      const open = lookupBenchmark(set, 'phase_seconds_per_move', 'opening:gm');
-      const mid = lookupBenchmark(set, 'phase_seconds_per_move', 'middlegame:gm');
-      const end = lookupBenchmark(set, 'phase_seconds_per_move', 'endgame:gm');
-      const benchmark = open && mid && end
-        ? { opening: open.value, middlegame: mid.value, endgame: end.value }
-        : null;
-      return {
-        samples,
-        benchmark,
-        benchmarkSource: set.sources.phase_seconds_per_move ?? null,
-      };
+      const samples = await supabaseService.getUserTimeManagement();
+      return { samples };
     },
   });
 }

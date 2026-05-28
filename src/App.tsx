@@ -6,6 +6,8 @@ import { TrainingRoute } from './routes/TrainingRoute';
 import { VaultRoute } from './routes/VaultRoute';
 import { LandingRoute } from './routes/LandingRoute';
 import { LoginRoute } from './routes/LoginRoute';
+import { TermsRoute } from './routes/TermsRoute';
+import { PrivacyRoute } from './routes/PrivacyRoute';
 import { ProfileRoute } from './routes/ProfileRoute';
 import { SandboxRoute } from './routes/SandboxRoute';
 import { EngineTestRoute } from './routes/EngineTestRoute';
@@ -15,6 +17,8 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingRoute />} />
       <Route path="/login" element={<LoginRoute />} />
+      <Route path="/terms" element={<TermsRoute />} />
+      <Route path="/privacy" element={<PrivacyRoute />} />
       <Route
         element={
           <AppShell>

@@ -1,55 +1,80 @@
 {
   "version": 1,
   "sources": {
-    "phase_blunder_rate": "Approximate values from Regan/Haworth (2011) and aggregated Lichess open-database analyses. Refine with empirical data in v1.1.",
-    "opening_winrate": "Aggregated Chess.com explorer popular-line statistics, 2024. Sample sizes are approximate.",
-    "phase_seconds_per_move": "Rough averages from TWIC top-event archives (classical & rapid). Approximate."
+    "phase_blunder_rate": "Approximate values from Regan/Haworth (2011) and aggregated Lichess open-database analyses. Refine with empirical data in v1.1."
   },
   "data": [
-    { "kind": "phase_blunder_rate", "bucket": "opening:<1400", "value": 0.045, "sample_size": 50000 },
-    { "kind": "phase_blunder_rate", "bucket": "middlegame:<1400", "value": 0.16, "sample_size": 50000 },
-    { "kind": "phase_blunder_rate", "bucket": "endgame:<1400", "value": 0.20, "sample_size": 50000 },
-    { "kind": "phase_blunder_rate", "bucket": "opening:1400-1799", "value": 0.03, "sample_size": 50000 },
-    { "kind": "phase_blunder_rate", "bucket": "middlegame:1400-1799", "value": 0.11, "sample_size": 50000 },
-    { "kind": "phase_blunder_rate", "bucket": "endgame:1400-1799", "value": 0.14, "sample_size": 50000 },
-    { "kind": "phase_blunder_rate", "bucket": "opening:1800-2199", "value": 0.02, "sample_size": 50000 },
-    { "kind": "phase_blunder_rate", "bucket": "middlegame:1800-2199", "value": 0.07, "sample_size": 50000 },
-    { "kind": "phase_blunder_rate", "bucket": "endgame:1800-2199", "value": 0.09, "sample_size": 50000 },
-    { "kind": "phase_blunder_rate", "bucket": "opening:2200+", "value": 0.01, "sample_size": 30000 },
-    { "kind": "phase_blunder_rate", "bucket": "middlegame:2200+", "value": 0.04, "sample_size": 30000 },
-    { "kind": "phase_blunder_rate", "bucket": "endgame:2200+", "value": 0.05, "sample_size": 30000 },
-
-    { "kind": "phase_seconds_per_move", "bucket": "opening:gm", "value": 5, "sample_size": 8000 },
-    { "kind": "phase_seconds_per_move", "bucket": "middlegame:gm", "value": 60, "sample_size": 8000 },
-    { "kind": "phase_seconds_per_move", "bucket": "endgame:gm", "value": 45, "sample_size": 8000 },
-
-    { "kind": "opening_winrate", "bucket": "B0*:white:1400-1799", "value": 0.54, "sample_size": 120000 },
-    { "kind": "opening_winrate", "bucket": "B0*:black:1400-1799", "value": 0.44, "sample_size": 120000 },
-    { "kind": "opening_winrate", "bucket": "B2*:white:1400-1799", "value": 0.55, "sample_size": 95000 },
-    { "kind": "opening_winrate", "bucket": "B2*:black:1400-1799", "value": 0.46, "sample_size": 95000 },
-    { "kind": "opening_winrate", "bucket": "B3*:white:1400-1799", "value": 0.53, "sample_size": 80000 },
-    { "kind": "opening_winrate", "bucket": "B3*:black:1400-1799", "value": 0.47, "sample_size": 80000 },
-    { "kind": "opening_winrate", "bucket": "B4*:white:1400-1799", "value": 0.55, "sample_size": 60000 },
-    { "kind": "opening_winrate", "bucket": "B4*:black:1400-1799", "value": 0.45, "sample_size": 60000 },
-    { "kind": "opening_winrate", "bucket": "B9*:white:1400-1799", "value": 0.52, "sample_size": 70000 },
-    { "kind": "opening_winrate", "bucket": "B9*:black:1400-1799", "value": 0.48, "sample_size": 70000 },
-    { "kind": "opening_winrate", "bucket": "C0*:white:1400-1799", "value": 0.55, "sample_size": 90000 },
-    { "kind": "opening_winrate", "bucket": "C0*:black:1400-1799", "value": 0.44, "sample_size": 90000 },
-    { "kind": "opening_winrate", "bucket": "C2*:white:1400-1799", "value": 0.53, "sample_size": 75000 },
-    { "kind": "opening_winrate", "bucket": "C2*:black:1400-1799", "value": 0.46, "sample_size": 75000 },
-    { "kind": "opening_winrate", "bucket": "C4*:white:1400-1799", "value": 0.55, "sample_size": 110000 },
-    { "kind": "opening_winrate", "bucket": "C4*:black:1400-1799", "value": 0.44, "sample_size": 110000 },
-    { "kind": "opening_winrate", "bucket": "C5*:white:1400-1799", "value": 0.55, "sample_size": 95000 },
-    { "kind": "opening_winrate", "bucket": "C5*:black:1400-1799", "value": 0.45, "sample_size": 95000 },
-    { "kind": "opening_winrate", "bucket": "C6*:white:1400-1799", "value": 0.54, "sample_size": 85000 },
-    { "kind": "opening_winrate", "bucket": "C6*:black:1400-1799", "value": 0.46, "sample_size": 85000 },
-    { "kind": "opening_winrate", "bucket": "D0*:white:1400-1799", "value": 0.54, "sample_size": 80000 },
-    { "kind": "opening_winrate", "bucket": "D0*:black:1400-1799", "value": 0.45, "sample_size": 80000 },
-    { "kind": "opening_winrate", "bucket": "D3*:white:1400-1799", "value": 0.54, "sample_size": 70000 },
-    { "kind": "opening_winrate", "bucket": "D3*:black:1400-1799", "value": 0.46, "sample_size": 70000 },
-    { "kind": "opening_winrate", "bucket": "E0*:white:1400-1799", "value": 0.53, "sample_size": 65000 },
-    { "kind": "opening_winrate", "bucket": "E0*:black:1400-1799", "value": 0.47, "sample_size": 65000 },
-    { "kind": "opening_winrate", "bucket": "E6*:white:1400-1799", "value": 0.53, "sample_size": 55000 },
-    { "kind": "opening_winrate", "bucket": "E6*:black:1400-1799", "value": 0.47, "sample_size": 55000 }
+    {
+      "kind": "phase_blunder_rate",
+      "bucket": "opening:<1400",
+      "value": 0.045,
+      "sample_size": 50000
+    },
+    {
+      "kind": "phase_blunder_rate",
+      "bucket": "middlegame:<1400",
+      "value": 0.16,
+      "sample_size": 50000
+    },
+    {
+      "kind": "phase_blunder_rate",
+      "bucket": "endgame:<1400",
+      "value": 0.2,
+      "sample_size": 50000
+    },
+    {
+      "kind": "phase_blunder_rate",
+      "bucket": "opening:1400-1799",
+      "value": 0.03,
+      "sample_size": 50000
+    },
+    {
+      "kind": "phase_blunder_rate",
+      "bucket": "middlegame:1400-1799",
+      "value": 0.11,
+      "sample_size": 50000
+    },
+    {
+      "kind": "phase_blunder_rate",
+      "bucket": "endgame:1400-1799",
+      "value": 0.14,
+      "sample_size": 50000
+    },
+    {
+      "kind": "phase_blunder_rate",
+      "bucket": "opening:1800-2199",
+      "value": 0.02,
+      "sample_size": 50000
+    },
+    {
+      "kind": "phase_blunder_rate",
+      "bucket": "middlegame:1800-2199",
+      "value": 0.07,
+      "sample_size": 50000
+    },
+    {
+      "kind": "phase_blunder_rate",
+      "bucket": "endgame:1800-2199",
+      "value": 0.09,
+      "sample_size": 50000
+    },
+    {
+      "kind": "phase_blunder_rate",
+      "bucket": "opening:2200+",
+      "value": 0.01,
+      "sample_size": 30000
+    },
+    {
+      "kind": "phase_blunder_rate",
+      "bucket": "middlegame:2200+",
+      "value": 0.04,
+      "sample_size": 30000
+    },
+    {
+      "kind": "phase_blunder_rate",
+      "bucket": "endgame:2200+",
+      "value": 0.05,
+      "sample_size": 30000
+    }
   ]
 }

@@ -9,18 +9,10 @@ import { usePgnUploadStore } from '../state/pgnUploadStore';
 import { supabaseService } from '../services/supabaseService';
 import { platformGameUrl } from '../services/externalAnalysisUrlService';
 import { extractHeaders } from '../services/pgnParserService';
+import { resolveOutcome, type GameOutcome } from '../models/gameRecord';
 import type { GameRecord } from '../models/gameRecord';
 
-type Outcome = 'win' | 'loss' | 'draw';
-
-const CHESS_COM_DRAW_TERMS = new Set([
-  'stalemate',
-  'agreed',
-  'repetition',
-  'insufficient',
-  '50move',
-  'timevsinsufficient',
-]);
+type Outcome = GameOutcome;
 
 const ANALYZED_STORAGE_PREFIX = 'pc:analyzed-externally:';
 
@@ -45,31 +37,15 @@ function persistAnalyzedSet(userId: string, set: Set<string>): void {
 }
 
 function gameOutcome(game: GameRecord): Outcome | null {
-  const result = game.result;
-  if (!result) return null;
-
-  if (game.platform === 'chess.com') {
-    if (result === 'win') return 'win';
-    if (CHESS_COM_DRAW_TERMS.has(result)) return 'draw';
-    return 'loss';
-  }
-
-  // Both lichess (PGN-derived) and user-uploaded PGNs encode the result as
-  // "1-0" / "0-1" / "1/2-1/2"; map it relative to the user's side.
-  if (game.platform === 'lichess' || game.platform === 'pgn') {
-    if (result === '1/2-1/2') return 'draw';
-    if (result === '*') return null;
+  // Prefer the stored color; fall back to PGN headers for older rows where
+  // user_color was never parsed.
+  let color = game.userColor;
+  if (!color && (game.platform === 'lichess' || game.platform === 'pgn')) {
     const isWhite =
       extractHeaders(game.pgn).White?.toLowerCase() === game.username.toLowerCase();
-    if (result === '1-0') return isWhite ? 'win' : 'loss';
-    if (result === '0-1') return isWhite ? 'loss' : 'win';
-    return null;
+    color = isWhite ? 'white' : 'black';
   }
-
-  if (result === 'win') return 'win';
-  if (result === 'loss' || result === 'lose') return 'loss';
-  if (result === 'draw' || result === '1/2-1/2') return 'draw';
-  return null;
+  return resolveOutcome(game.platform, game.result, color);
 }
 
 export function VaultRoute() {
