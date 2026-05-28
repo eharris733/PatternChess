@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { useAuth } from '../auth/useAuth';
 import { BrandLockup } from '../components/BrandLogo';
@@ -48,7 +48,18 @@ export function LoginRoute() {
         </button>
         {error && <p className="text-incorrect text-sm">{error}</p>}
         <p className="text-text-secondary text-xs">
-          We only store your chess.com / lichess username and game data — no personal info used or shared. 
+          We only store your chess.com / lichess username and game data — no personal info used or shared.
+        </p>
+        <p className="text-text-secondary text-xs">
+          By continuing, you agree to our{' '}
+          <Link to="/terms" className="underline hover:text-text-primary">
+            Terms
+          </Link>{' '}
+          and{' '}
+          <Link to="/privacy" className="underline hover:text-text-primary">
+            Privacy Policy
+          </Link>
+          .
         </p>
       </div>
     </div>
