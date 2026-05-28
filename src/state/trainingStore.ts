@@ -288,7 +288,7 @@ function buildRefutationPairs(opts: {
   sideToMove: string;
   firstSan: string;
   firstUci: string;
-  tag: string;
+  tag?: string;
   contextTags?: string[];
   pvMoves: ReviewMove[];
 }): { pairs: MovePair[]; movesPlusFirst: ReviewMove[] } {
@@ -516,18 +516,23 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         const sf = await getStockfish();
         const result = await sf.evaluatePositionFull(preplay.afterFen, 18);
         const pvMoves = buildLineMoves(preplay.afterFen, result.principalVariation);
-        const tags: string[] = [];
-        if (currentContext.inTimeTrouble) tags.push('Time trouble');
-        if (currentContext.gameState === 'missedWin') tags.push('Missed win');
-        else if (currentContext.gameState === 'alreadyLosing') tags.push('Already losing');
+        // The move row carries a single tag notating the move. Prefer the
+        // game-state context (it's the more specific signal); for a roughly
+        // equal position fall back to the blunder classification so the row is
+        // never left untagged.
+        const moveTag =
+          currentContext.gameState === 'missedWin'
+            ? 'Missed win'
+            : currentContext.gameState === 'alreadyLosing'
+              ? 'Already losing'
+              : classifyShortLabel(blunder).toUpperCase();
         const { pairs, movesPlusFirst } = buildRefutationPairs({
           fen: blunder.fen,
           moveNumber: blunder.moveNumber,
           sideToMove: blunder.sideToMove,
           firstSan: blunderSan,
           firstUci: blunder.playedMove,
-          tag: classifyShortLabel(blunder).toUpperCase(),
-          contextTags: tags,
+          contextTags: [moveTag],
           pvMoves,
         });
         set({

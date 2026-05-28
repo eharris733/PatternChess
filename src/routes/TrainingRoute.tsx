@@ -16,7 +16,6 @@ import { TrophyIcon } from '../components/icons/TrophyIcon';
 import { Skeleton } from '../components/Skeleton';
 import { PositionSrState } from '../components/training/PositionSrState';
 import { BlunderContextBadges } from '../components/training/BlunderContextBadges';
-import { classify, winningChancesLost } from '../chess/winningChances';
 import {
   ContextFilter,
   GAME_STATE_LABEL,
@@ -74,9 +73,6 @@ function applyContextFilter(
     return ctx.gameState === filter;
   });
 }
-
-const SHORT_LABEL = (cl: ReturnType<typeof classify>) =>
-  cl === 'blunder' ? 'Blunder' : cl === 'inaccuracy' ? 'Inaccuracy' : 'Mistake';
 
 export function TrainingRoute() {
   const navigate = useNavigate();
@@ -404,28 +400,6 @@ export function TrainingRoute() {
             <div className="bg-surface-3 rounded-none border-2 border-[#1A1A1A] p-3 text-sm">
               <span className="text-text-secondary">You played </span>
               <span className="font-mono font-bold text-incorrect">{state.blunderSan}</span>
-              <p className="text-incorrect text-xs font-bold mt-1 uppercase tracking-wider">
-                {SHORT_LABEL(classify(winningChancesLost(blunder.evalBefore, blunder.evalAfter)))}
-              </p>
-              {state.currentContext?.inTimeTrouble && (
-                <p className="text-incorrect text-xs font-bold mt-1 uppercase tracking-wider">
-                  Time trouble · {Math.round(state.currentContext.timeRemainingPercent ?? 0)}% left
-                </p>
-              )}
-              {state.currentContext &&
-                state.currentContext.gameState !== 'roughlyEqual' && (
-                  <p
-                    className={clsx(
-                      'text-xs font-bold mt-1 uppercase tracking-wider',
-                      state.currentContext.gameState === 'missedWin'
-                        ? 'text-mistake'
-                        : 'text-text-secondary',
-                    )}
-                  >
-                    {GAME_STATE_LABEL[state.currentContext.gameState]} ·{' '}
-                    {Math.round(state.currentContext.preMoveWinPercent)}% win chance
-                  </p>
-                )}
             </div>
             {state.refutationPairs.length > 0 && (
               <div>
