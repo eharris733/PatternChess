@@ -34,6 +34,17 @@ export function LoginRoute() {
     }
   };
 
+  const onSignInLichess = async () => {
+    setSigningIn(true);
+    setError(null);
+    try {
+      await authService.signInWithLichess();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Sign-in failed');
+      setSigningIn(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg p-6">
       <div className="card w-full max-w-md flex flex-col gap-6 text-center">
@@ -43,9 +54,14 @@ export function LoginRoute() {
             Don't play the same blunder twice.
           </p>
         </div>
-        <button className="btn-primary" onClick={onSignIn} disabled={signingIn}>
-          {signingIn ? 'Redirecting…' : 'Continue with Google'}
-        </button>
+        <div className="flex flex-col gap-3">
+          <button className="btn-primary" onClick={onSignIn} disabled={signingIn}>
+            {signingIn ? 'Redirecting…' : 'Continue with Google'}
+          </button>
+          <button className="btn-outline" onClick={onSignInLichess} disabled={signingIn}>
+            {signingIn ? 'Redirecting…' : 'Continue with Lichess'}
+          </button>
+        </div>
         {error && <p className="text-incorrect text-sm">{error}</p>}
         <p className="text-text-secondary text-xs">
           We only store your chess.com / lichess username and game data — no personal info used or shared.

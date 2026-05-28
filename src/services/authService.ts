@@ -15,6 +15,15 @@ export const authService = {
     if (error) throw error;
   },
 
+  async signInWithLichess(): Promise<void> {
+    const { error } = await supabase.auth.signInWithOAuth({
+      // 'custom:lichess' isn't in supabase-js's Provider union yet.
+      provider: 'custom:lichess' as any,
+      options: { redirectTo: `${window.location.origin}/` },
+    });
+    if (error) throw error;
+  },
+
   async signOut(): Promise<void> {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -48,16 +57,28 @@ export const authService = {
     if (existing) return userProfileFromJson(existing);
 
     const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+    const isLichess =
+      (user.app_metadata as Record<string, unknown> | undefined)?.provider === 'custom:lichess';
+    // Lichess userinfo (/api/account) carries the username under a non-standard
+    // key; try the likely candidates. Confirmed against the live user object.
+    const lichessUsername = isLichess
+      ? ((meta.preferred_username as string | undefined) ??
+          (meta.user_name as string | undefined) ??
+          (meta.username as string | undefined) ??
+          (meta.name as string | undefined) ??
+          null)
+      : null;
     const profile: UserProfile = {
       id: user.id,
       displayName:
         (meta.full_name as string | undefined) ??
         (meta.name as string | undefined) ??
+        lichessUsername ??
         user.email?.split('@')[0] ??
         null,
       avatarUrl:
         (meta.avatar_url as string | undefined) ?? (meta.picture as string | undefined) ?? null,
-      lichessUsername: null,
+      lichessUsername,
       chesscomUsername: null,
       preferredRatedOnly: false,
       preferredTimeControls: [],
