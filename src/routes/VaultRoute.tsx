@@ -145,7 +145,8 @@ export function VaultRoute() {
         <div>
           <h1 className="heading-xl">Vault</h1>
           <p className="text-text-secondary text-sm mt-1">
-            {games.length} game{games.length === 1 ? '' : 's'} synced.
+            {games.length} game{games.length === 1 ? '' : 's'} synced. New games
+            are added automatically each time you visit.
           </p>
         </div>
         <button className="btn-outline shrink-0" onClick={openUpload}>

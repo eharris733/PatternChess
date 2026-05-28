@@ -31,15 +31,29 @@ export function MoveSequencePanel({
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!activeKey || !containerRef.current) return;
-    const el = containerRef.current.querySelector<HTMLElement>(`[data-key="${activeKey}"]`);
-    el?.scrollIntoView({ block: 'nearest' });
+    const container = containerRef.current;
+    if (!activeKey || !container) return;
+    const el = container.querySelector<HTMLElement>(`[data-key="${activeKey}"]`);
+    if (!el) return;
+    // Scroll *only* the panel's own scroll area to reveal the active move —
+    // never scrollIntoView, which would walk up to the page scroll container
+    // and drag the board out of view on narrow screens.
+    const cRect = container.getBoundingClientRect();
+    const eRect = el.getBoundingClientRect();
+    if (eRect.top < cRect.top) {
+      container.scrollTop -= cRect.top - eRect.top;
+    } else if (eRect.bottom > cRect.bottom) {
+      container.scrollTop += eRect.bottom - cRect.bottom;
+    }
   }, [activeKey]);
 
   return (
     <div
       ref={containerRef}
-      className={clsx('font-mono text-[13px] divide-y divide-[#1A1A1A]/15', className)}
+      className={clsx(
+        'font-mono text-[13px] divide-y divide-[#1A1A1A]/15 max-h-[45vh] overflow-y-auto',
+        className,
+      )}
     >
       {pairs.map((p) => (
         <div

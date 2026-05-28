@@ -117,7 +117,40 @@ export function OnboardingImport() {
           More blunders will keep arriving as we finish analyzing.
         </p>
       )}
+      <p className="mt-3 text-xs text-text-secondary">
+        New games sync automatically each time you visit — your vault stays
+        current.
+      </p>
     </div>
+  );
+}
+
+function StepMarker({ done, active }: { done: boolean; active: boolean }) {
+  const cls = done ? 'text-correct' : active ? 'text-gold-dark' : 'text-text-secondary opacity-50';
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      aria-hidden
+      className={cls}
+    >
+      {done ? (
+        <path
+          d="M5 12.5l4.5 4.5L19 7"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ) : active ? (
+        <circle cx="12" cy="12" r="6" fill="currentColor" />
+      ) : (
+        <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" strokeWidth="2" />
+      )}
+    </svg>
   );
 }
 
@@ -139,17 +172,7 @@ function Step({
   return (
     <div>
       <div className="flex items-center gap-3 mb-2">
-        <span
-          className={
-            done
-              ? 'text-correct'
-              : active
-                ? 'text-gold-dark'
-                : 'text-text-secondary opacity-50'
-          }
-        >
-          {done ? '✓' : active ? '●' : '○'}
-        </span>
+        <StepMarker done={done} active={active} />
         <span className="text-text-primary">{label}</span>
         {hint && <span className="text-xs text-text-secondary">· {hint}</span>}
       </div>

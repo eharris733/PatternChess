@@ -18,13 +18,42 @@ const FAKE_SESSION = {
 };
 const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
 
-async function stubAuth(page: import('@playwright/test').Page) {
+// `gameCount` controls the total-game-count HEAD query that drives the
+// onboarding gate: a positive count means an "established" user (gate stays
+// hidden, normal routes render); 0 means a brand-new user (the onboarding flow
+// preempts non-bypass routes).
+async function stubAuth(page: import('@playwright/test').Page, gameCount = 3) {
   await page.addInitScript(
-    ({ session, project }) => {
+    ({ session, project, gameCount }) => {
       const origFetch = window.fetch.bind(window);
       window.fetch = (input: any, init?: any) => {
         const url = typeof input === 'string' ? input : input?.url ?? '';
         if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
+          const method = (
+            init?.method ??
+            (typeof input === 'object' ? input?.method : undefined) ??
+            'GET'
+          ).toUpperCase();
+          // GoTrue user lookup — return the stubbed user so currentUserId()
+          // (used by the onboarding gate's game-count query) resolves.
+          if (url.includes('/auth/v1/user')) {
+            return Promise.resolve(
+              new Response(JSON.stringify(session.user), {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+              }),
+            );
+          }
+          // supabase-js issues a HEAD request for exact-count queries; PostgREST
+          // returns the total in the content-range header.
+          if (method === 'HEAD') {
+            return Promise.resolve(
+              new Response(null, {
+                status: 200,
+                headers: { 'content-range': `*/${gameCount}` },
+              }),
+            );
+          }
           return Promise.resolve(
             new Response(JSON.stringify([]), {
               status: 200,
@@ -36,7 +65,7 @@ async function stubAuth(page: import('@playwright/test').Page) {
       };
       localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
     },
-    { session: FAKE_SESSION, project: SUPABASE_PROJECT },
+    { session: FAKE_SESSION, project: SUPABASE_PROJECT, gameCount },
   );
 }
 
@@ -45,8 +74,8 @@ const ROUTES: Array<{ path: string; name: string; expect: (p: import('@playwrigh
     path: '/',
     name: 'dashboard',
     expect: async (p) => {
-      await expect(p.getByText(/Hey/i)).toBeVisible();
-      // Stubbed session has no linked account and no games -> first-run hero.
+      // Stubbed session has games (gate hidden) but no linked account and an
+      // empty games list -> first-run hero.
       await expect(p.getByText(/Welcome to PatternChess/i)).toBeVisible();
       await expect(p.getByRole('button', { name: /Connect Lichess or Chess\.com/i })).toBeVisible();
     },
@@ -85,6 +114,22 @@ for (const route of ROUTES) {
     await route.expect(page);
   });
 }
+
+test('new user with no games sees the onboarding connect step', async ({ page }) => {
+  await stubAuth(page, 0);
+  await page.goto('/dashboard');
+  // Onboarding preempts the dashboard for a zero-game user.
+  await expect(page.getByRole('button', { name: /Start import/i })).toBeVisible();
+  await expect(page.getByText(/Which games to train on/i)).toBeVisible();
+  // Still inside the shell.
+  await expect(page.getByRole('link', { name: /Dashboard/i })).toBeVisible();
+});
+
+test('onboarding does not preempt the profile route', async ({ page }) => {
+  await stubAuth(page, 0);
+  await page.goto('/profile');
+  await expect(page.getByText(/Linked accounts/i)).toBeVisible();
+});
 
 test('keyboard A grade is wired on review (key handler attaches)', async ({ page }) => {
   await stubAuth(page);

@@ -1,7 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './useAuth';
 import { useOnboardingGate } from '../hooks/useOnboardingGate';
-import { OnboardingImport } from '../components/OnboardingImport';
+import { OnboardingFlow } from '../components/OnboardingFlow';
 
 // Routes that bypass the onboarding gate even when it would otherwise fire.
 // /profile is essential so the user can fix a typo in their username; the
@@ -26,7 +26,7 @@ export function RequireAuth() {
   }
 
   if (gate === 'show' && !ONBOARDING_BYPASS.has(location.pathname)) {
-    return <OnboardingImport />;
+    return <OnboardingFlow />;
   }
 
   return <Outlet />;

@@ -1,9 +1,9 @@
-import { useNavigate } from 'react-router-dom';
 import { usePgnUploadStore } from '../../state/pgnUploadStore';
+import { useOnboardingStore } from '../../state/onboardingStore';
 
 export function GetStartedHero() {
-  const navigate = useNavigate();
   const openUpload = usePgnUploadStore((s) => s.openModal);
+  const resetOnboarding = useOnboardingStore((s) => s.reset);
 
   return (
     <section className="card flex flex-col gap-5">
@@ -19,7 +19,7 @@ export function GetStartedHero() {
         <button
           type="button"
           className="btn-primary"
-          onClick={() => navigate('/profile')}
+          onClick={() => resetOnboarding()}
         >
           Connect Lichess or Chess.com
         </button>

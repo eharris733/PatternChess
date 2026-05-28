@@ -16,12 +16,13 @@ const NAV_ITEMS = [
 
 export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { profile, user } = useAuth();
-  const displayName = (
-    profile?.displayName ??
-    (user?.email ? user.email.split('@')[0] : 'Guest')
-  )
-    .trim()
-    .split(/\s+/)[0];
+  const firstName =
+    (profile?.displayName ??
+      (user?.user_metadata?.full_name as string | undefined) ??
+      user?.email?.split('@')[0] ??
+      'there')
+      .trim()
+      .split(/\s+/)[0];
 
   return (
     <div className="flex flex-col h-full py-3">
@@ -96,10 +97,10 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
             />
           ) : (
             <span className="w-7 h-7 rounded-full bg-[#1A1A1A] text-[#F4F4F0] shrink-0 flex items-center justify-center text-xs">
-              {displayName.charAt(0).toUpperCase()}
+              {firstName.charAt(0).toUpperCase()}
             </span>
           )}
-          {!collapsed && <span className="truncate">{displayName}</span>}
+          {!collapsed && <span className="truncate">{firstName}</span>}
         </NavLink>
       </div>
     </div>

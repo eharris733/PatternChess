@@ -10,14 +10,8 @@ import {
   runGameMetadataBackfill,
 } from '../services/gameMetadataBackfill';
 import { RankBadge } from '../components/insights/RankBadge';
+import { GameTypePreferences } from '../components/GameTypePreferences';
 import { useRecentTrainingSessions } from '../hooks/useTrainingActivity';
-
-const TIME_CONTROL_OPTIONS: { value: TimeControlCategory; label: string }[] = [
-  { value: 'bullet', label: 'Bullet' },
-  { value: 'blitz', label: 'Blitz' },
-  { value: 'rapid', label: 'Rapid' },
-  { value: 'classical', label: 'Classical' },
-];
 
 export function ProfileRoute() {
   const { profile, refreshProfile, user } = useAuth();
@@ -148,37 +142,15 @@ export function ProfileRoute() {
 
         <h2 className="heading-md mt-2">Sync preferences</h2>
         <p className="text-text-secondary text-sm -mt-2">
-          Applied automatically after sign-in and when you click Sync now.
+          New games are imported automatically every time you sign in, and when
+          you click Sync now. These settings decide which games count.
         </p>
-        <label className="flex items-center gap-2 select-none">
-          <input
-            type="checkbox"
-            checked={ratedOnly}
-            onChange={(e) => setRatedOnly(e.target.checked)}
-          />
-          <span>Rated games only</span>
-        </label>
-        <div className="flex flex-col gap-2">
-          <label className="label">Time controls</label>
-          <p className="text-text-secondary text-xs -mt-1">
-            Leave all unchecked to sync every time control.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            {TIME_CONTROL_OPTIONS.map((opt) => (
-              <label
-                key={opt.value}
-                className="flex items-center gap-2 select-none px-3 py-1.5 rounded-none bg-white border-2 border-[#1A1A1A] hover:bg-[#1A1A1A]/5 cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  checked={timeControls.includes(opt.value)}
-                  onChange={() => toggleTimeControl(opt.value)}
-                />
-                <span>{opt.label}</span>
-              </label>
-            ))}
-          </div>
-        </div>
+        <GameTypePreferences
+          ratedOnly={ratedOnly}
+          onRatedOnlyChange={setRatedOnly}
+          timeControls={timeControls}
+          onToggleTimeControl={toggleTimeControl}
+        />
 
         <div className="flex items-center gap-3 mt-2">
           <button className="btn-primary" onClick={onSave} disabled={saving}>

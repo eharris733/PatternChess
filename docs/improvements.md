@@ -21,3 +21,22 @@ Where you blunder should turn into actionable insight: drill opening blunders no
 11. Spaced repition means that if I fail a position, it should get moved into the queue 3-7 positions later until I get it correctly, then it moves to the end. (research how anki or other spaced repition trainers do it. base it on science)
 
 12. How does this scale given chess.com and lichess ratelimiting? (research first)
+
+
+
+New:
+Onboarding errors: contentScript.bundle.js:1 Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'wasm-unsafe-eval' 'inline-speculation-rules' chrome-extension://8cad4477-1036-4a38-bddd-0fc24166a900/'. Either the 'unsafe-inline' keyword, a hash ('sha256-YovrZVYF56995nY6CSzWI89Wg8JftMKnbPvjulU8aMg='), or a nonce ('nonce-...') is required to enable inline execution. The action has been blocked.
+index-DtFKQukv.js:189 
+ POST https://ydfwppthwnlgxnntzrvg.supabase.co/rest/v1/rpc/claim_blunders_for_user 404 (Not Found)
+(anonymous)	@	index-DtFKQukv.js:189
+(anonymous)	@	index-DtFKQukv.js:189
+await in (anonymous)		
+(anonymous)	@	index-DtFKQukv.js:166
+then	@	index-DtFKQukv.js:166
+
+
+Rating progress shows progress and change despite initially onboarding. 
+No copy about how new games will be added to the vault. 
+onboarding flow makes you go to user profile, when you should have a separate clear flow. 
+You should also be able to initially select which types of games you count for training (existing settings in user info page)
+In smaller screens, the new moves shown moves the screen focus down, when we should be able to stay on the board. 
