@@ -1,12 +1,14 @@
 import { NavLink } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
+import { isAdminEmail } from '../auth/admin';
 import { SyncIndicator } from './SyncIndicator';
 import { StreakBadge } from './insights/StreakBadge';
 import { BrandLockup, BrandMark } from './BrandLogo';
 import { DashboardIcon } from './icons/DashboardIcon';
 import { VaultIcon } from './icons/VaultIcon';
 import { TrainIcon } from './icons/TrainIcon';
+import { AnalyticsIcon } from './icons/AnalyticsIcon';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
@@ -14,8 +16,11 @@ const NAV_ITEMS = [
   { to: '/training', label: 'Train', Icon: TrainIcon },
 ];
 
+const ADMIN_NAV_ITEM = { to: '/analytics', label: 'Analytics', Icon: AnalyticsIcon };
+
 export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { profile, user } = useAuth();
+  const navItems = isAdminEmail(user?.email) ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS;
   const firstName =
     (profile?.displayName ??
       (user?.user_metadata?.full_name as string | undefined) ??
@@ -42,7 +47,7 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
       </button>
 
       <nav className="flex flex-col gap-0.5 mt-2">
-        {NAV_ITEMS.map((item) => (
+        {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

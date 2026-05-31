@@ -13,6 +13,7 @@ import { ProgressBar } from '../components/ProgressBar';
 import { FeedbackBadge } from '../components/FeedbackBadge';
 import { WinningChancesDisplay } from '../components/WinningChancesDisplay';
 import { TrophyIcon } from '../components/icons/TrophyIcon';
+import { TrashIcon } from '../components/icons/TrashIcon';
 import { Skeleton } from '../components/Skeleton';
 import { PositionSrState } from '../components/training/PositionSrState';
 import { BlunderContextBadges } from '../components/training/BlunderContextBadges';
@@ -151,6 +152,12 @@ export function TrainingRoute() {
   const [paused, setPaused] = useState(false);
   useEffect(() => {
     setPaused(false);
+  }, [state.currentIndex]);
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  useEffect(() => {
+    setConfirmDelete(false);
   }, [state.currentIndex]);
 
   useEffect(() => {
@@ -540,7 +547,7 @@ export function TrainingRoute() {
           </>
         )}
 
-        <div className="mt-auto pt-2">
+        <div className="mt-auto pt-2 flex flex-col gap-3">
           <ProgressBar
             current={Math.round(
               state.totalAttempted > 0 ? (state.totalCorrect / state.totalAttempted) * 100 : 0,
@@ -548,8 +555,70 @@ export function TrainingRoute() {
             total={100}
             label="Recall rate"
           />
+          {blunder && (
+            <button
+              type="button"
+              className="btn-ghost text-xs inline-flex items-center justify-center gap-1.5 text-text-secondary hover:text-incorrect self-end"
+              onClick={() => setConfirmDelete(true)}
+              disabled={state.evaluating || paused || deleting}
+              title="Delete this position from your training"
+            >
+              <TrashIcon className="h-3.5 w-3.5" />
+              Delete position
+            </button>
+          )}
         </div>
       </aside>
+
+      {confirmDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/40 backdrop-blur-sm p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Delete position"
+          onClick={() => !deleting && setConfirmDelete(false)}
+        >
+          <div
+            className="card max-w-md w-full flex flex-col gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header>
+              <h2 className="heading-lg">Delete this position?</h2>
+            </header>
+            <p className="text-text-secondary text-sm">
+              This permanently removes the position from your training. You won't be
+              asked to drill it again. This can't be undone.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                className="btn-ghost"
+                disabled={deleting}
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary bg-incorrect hover:bg-incorrect border-incorrect inline-flex items-center gap-1.5"
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  try {
+                    await state.deleteCurrent();
+                    setConfirmDelete(false);
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+              >
+                <TrashIcon className="h-4 w-4" />
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

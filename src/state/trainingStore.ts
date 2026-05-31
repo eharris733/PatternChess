@@ -113,6 +113,7 @@ export interface TrainingStateShape {
   advance: () => void;
   retry: () => void;
   requeueAndAdvance: () => void;
+  deleteCurrent: () => Promise<void>;
   toggleShowWhatYouPlayed: () => void;
   showHint: () => void;
   selectRefutationIndex: (idx: number) => void;
@@ -131,6 +132,7 @@ type InitialShape = Omit<TrainingStateShape,
   | 'advance'
   | 'retry'
   | 'requeueAndAdvance'
+  | 'deleteCurrent'
   | 'toggleShowWhatYouPlayed'
   | 'showHint'
   | 'selectRefutationIndex'
@@ -869,6 +871,31 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       q.splice(Math.min(currentIndex + offset, q.length), 0, item);
     }
     set({ blunders: q, phase: 'loading' });
+    void get().loadCurrentBlunder();
+  },
+
+  deleteCurrent: async () => {
+    const { blunders, currentIndex } = get();
+    const target = blunders[currentIndex];
+    if (!target) return;
+
+    // Drop the position from the in-session queue. Removing the current item
+    // shifts the next one into `currentIndex`, so the index stays put.
+    const q = [...blunders];
+    q.splice(currentIndex, 1);
+    set({ blunders: q, phase: 'loading' });
+
+    // Best-effort permanent delete; keep the session moving regardless.
+    try {
+      await supabaseService.deleteBlunder(target.id);
+    } catch (err) {
+      console.error('Failed to delete blunder', err);
+    }
+
+    if (get().currentIndex >= get().blunders.length) {
+      set({ phase: 'complete' });
+      return;
+    }
     void get().loadCurrentBlunder();
   },
 

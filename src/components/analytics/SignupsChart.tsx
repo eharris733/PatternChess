@@ -1,0 +1,74 @@
+import { useMemo } from 'react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import type { AdminKpiSignupDay } from '../../hooks/useAdminKpis';
+
+const INK = '#1A1A1A';
+const MUTED = 'rgba(26,26,26,0.45)';
+const GOLD = '#8B6914';
+
+function formatTick(date: string): string {
+  const d = new Date(`${date}T00:00:00`);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+/** Daily signups bar chart. Mirrors RatingProgressCard's recharts styling. */
+export function SignupsChart({ data }: { data: AdminKpiSignupDay[] }) {
+  const rows = useMemo(
+    () => [...data].sort((a, b) => a.date.localeCompare(b.date)),
+    [data],
+  );
+  if (rows.length === 0) {
+    return <p className="text-text-secondary text-sm">No signups yet.</p>;
+  }
+  return (
+    <div className="h-48 -mx-1">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={rows} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid stroke={INK} strokeOpacity={0.08} vertical={false} />
+          <XAxis
+            dataKey="date"
+            tickFormatter={formatTick}
+            tick={{ fill: MUTED, fontSize: 11 }}
+            tickLine={{ stroke: MUTED }}
+            axisLine={{ stroke: MUTED }}
+            minTickGap={24}
+          />
+          <YAxis
+            allowDecimals={false}
+            tick={{ fill: MUTED, fontSize: 11 }}
+            tickLine={{ stroke: MUTED }}
+            axisLine={{ stroke: MUTED }}
+            width={28}
+          />
+          <Tooltip
+            contentStyle={{
+              background: '#F4F4F0',
+              border: `2px solid ${INK}`,
+              borderRadius: 0,
+              boxShadow: '3px 3px 0 #1A1A1A',
+              padding: '6px 10px',
+            }}
+            labelFormatter={(date) =>
+              new Date(`${date as string}T00:00:00`).toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              })
+            }
+            formatter={(value) => [value, 'Signups']}
+            cursor={{ fill: 'rgba(26,26,26,0.06)' }}
+          />
+          <Bar dataKey="count" fill={GOLD} isAnimationActive={false} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}

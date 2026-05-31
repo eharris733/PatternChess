@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
@@ -11,6 +11,7 @@ import { platformGameUrl } from '../services/externalAnalysisUrlService';
 import { extractHeaders } from '../services/pgnParserService';
 import { resolveOutcome, type GameOutcome } from '../models/gameRecord';
 import type { GameRecord } from '../models/gameRecord';
+import { TrashIcon } from '../components/icons/TrashIcon';
 
 type Outcome = GameOutcome;
 
@@ -50,8 +51,27 @@ function gameOutcome(game: GameRecord): Outcome | null {
 
 export function VaultRoute() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, profile } = useAuth();
   const { data: games, isLoading } = useGames();
+  const [deleteTarget, setDeleteTarget] = useState<GameRecord | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDeleteGame = useCallback(async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await supabaseService.deleteGame(deleteTarget.id);
+      await queryClient.invalidateQueries({ queryKey: ['games', user?.id] });
+      await queryClient.invalidateQueries({ queryKey: ['blunderCounts', user?.id] });
+      await queryClient.invalidateQueries({ queryKey: ['blunders'] });
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error('Failed to delete game', err);
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleteTarget, queryClient, user?.id]);
   const { data: blunderCounts } = useQuery({
     queryKey: ['blunderCounts', user?.id],
     queryFn: () => supabaseService.getBlunderCountsByGame({ userId: user?.id }),
@@ -187,11 +207,66 @@ export function VaultRoute() {
                     Analyze <span aria-hidden>↗</span>
                   </span>
                 )}
+                <button
+                  type="button"
+                  className="btn-ghost text-xs text-text-secondary hover:text-incorrect inline-flex items-center"
+                  onClick={() => setDeleteTarget(g)}
+                  title="Delete game and its blunders"
+                  aria-label="Delete game"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </button>
               </div>
             </li>
           );
         })}
       </ul>
+
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/40 backdrop-blur-sm p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Delete game"
+          onClick={() => !deleting && setDeleteTarget(null)}
+        >
+          <div
+            className="card max-w-md w-full flex flex-col gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header>
+              <h2 className="heading-lg">Delete this game?</h2>
+            </header>
+            <p className="text-text-secondary text-sm">
+              This permanently removes{' '}
+              <span className="text-text-primary font-medium">
+                {deleteTarget.username} vs {deleteTarget.opponent}
+              </span>{' '}
+              and any blunders found in it. The positions won't appear in
+              training again. This can't be undone.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                className="btn-ghost"
+                disabled={deleting}
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary bg-incorrect hover:bg-incorrect border-incorrect inline-flex items-center gap-1.5"
+                disabled={deleting}
+                onClick={confirmDeleteGame}
+              >
+                <TrashIcon className="h-4 w-4" />
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

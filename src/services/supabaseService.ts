@@ -607,6 +607,23 @@ export async function deleteBlundersForGame(gameId: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function deleteBlunder(blunderId: string): Promise<void> {
+  const { error } = await supabase.from('blunders').delete().eq('id', blunderId);
+  if (error) throw error;
+}
+
+export async function deleteGame(gameId: string): Promise<void> {
+  // Blunders reference games; remove them first so the game row delete succeeds
+  // even without an ON DELETE CASCADE on the FK.
+  const { error: blundersError } = await supabase
+    .from('blunders')
+    .delete()
+    .eq('game_id', gameId);
+  if (blundersError) throw blundersError;
+  const { error } = await supabase.from('games').delete().eq('id', gameId);
+  if (error) throw error;
+}
+
 export async function resetGameAnalyzed(gameId: string): Promise<void> {
   const { error } = await supabase
     .from('games')
@@ -890,6 +907,8 @@ export const supabaseService = {
   getTotalGameCount,
   getUnanalyzedGameIds,
   deleteBlundersForGame,
+  deleteBlunder,
+  deleteGame,
   resetGameAnalyzed,
   updateProfileLastSynced,
   createTrainingSession,

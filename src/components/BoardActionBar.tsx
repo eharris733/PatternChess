@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { HintIcon } from './icons/HintIcon';
 
 interface BoardActionBarProps {
   /** Resets the timer when this changes (e.g. blunder index advances). */
@@ -82,11 +83,12 @@ export function BoardActionBar({
       {showHint && (
         <button
           type="button"
-          className="btn-ghost text-sm"
+          className="btn-ghost text-sm inline-flex items-center gap-1.5"
           onClick={onHint}
           disabled={hintDisabled}
           title="Reveal a hint (counts as a fail)"
         >
+          <HintIcon className="h-4 w-4" />
           {hintLabel}
         </button>
       )}
