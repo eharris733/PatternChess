@@ -32,7 +32,7 @@ export function TimeTroubleCard() {
     <button
       type="button"
       onClick={() => navigate('/training', { state: { contextFilter: 'timeTrouble' } })}
-      className="card flex flex-col gap-3 text-left hover:shadow-[1px_1px_0_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+      className="card flex flex-col gap-3 text-left hover:shadow-card-hover hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
     >
       <header className="flex items-baseline justify-between">
         <span className="label">Time-trouble blunders</span>

@@ -38,7 +38,7 @@ export function LandingBrand({ small = false }: { small?: boolean }) {
         <circle cx="60" cy="20" r="5" fill="#1A1A1A" />
       </svg>
       <span
-        className={`font-serif ${textSize} leading-none whitespace-nowrap text-[#1A1A1A] tracking-tight`}
+        className={`font-serif ${textSize} leading-none whitespace-nowrap text-text-primary tracking-tight`}
       >
         Pattern<span className="italic text-gold-dark">Chess</span>
       </span>

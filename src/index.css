@@ -1,6 +1,7 @@
 @import 'chessground/assets/chessground.base.css';
 @import 'chessground/assets/chessground.brown.css';
 @import 'chessground/assets/chessground.cburnett.css';
+@import './styles/themes.css';
 
 @tailwind base;
 @tailwind components;
@@ -22,66 +23,83 @@
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center h-11 px-5 rounded-none border-2 border-[#1A1A1A] bg-gold-dark text-[#F4F4F0] font-mono uppercase text-sm tracking-tight shadow-[3px_3px_0_#1A1A1A] transition-all hover:shadow-[1px_1px_0_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center h-11 px-5 rounded-none border-2 border-text-primary bg-gold-dark text-bg font-mono uppercase text-sm tracking-tight shadow-card transition-all hover:shadow-card-hover hover:translate-x-[2px] hover:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-outline {
-    @apply inline-flex items-center justify-center h-11 px-5 rounded-none border-2 border-[#1A1A1A] bg-transparent text-[#1A1A1A] font-mono uppercase text-sm tracking-tight transition-colors hover:bg-[#1A1A1A] hover:text-[#F4F4F0] disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center h-11 px-5 rounded-none border-2 border-text-primary bg-transparent text-text-primary font-mono uppercase text-sm tracking-tight transition-colors hover:bg-text-primary hover:text-bg disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center h-10 px-3 rounded-none font-mono uppercase text-xs tracking-tight text-[#1A1A1A] transition-colors hover:bg-[#1A1A1A]/5;
+    @apply inline-flex items-center justify-center h-10 px-3 rounded-none font-mono uppercase text-xs tracking-tight text-text-primary transition-colors hover:bg-text-primary/5;
   }
   .pill {
-    @apply inline-flex items-center justify-center h-9 px-3 rounded-none border-2 border-[#1A1A1A] bg-transparent font-mono uppercase text-xs tracking-tight text-[#1A1A1A] transition-colors hover:bg-[#1A1A1A]/5;
+    @apply inline-flex items-center justify-center h-9 px-3 rounded-none border-2 border-text-primary bg-transparent font-mono uppercase text-xs tracking-tight text-text-primary transition-colors hover:bg-text-primary/5;
   }
   .pill[aria-pressed='true'] {
-    @apply bg-[#1A1A1A] text-[#F4F4F0];
+    @apply bg-text-primary text-bg;
   }
   .card {
-    @apply bg-white rounded-none p-6 border-2 border-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A];
+    @apply bg-surface rounded-none p-6 border-2 border-text-primary shadow-card;
   }
   .input {
-    @apply h-11 w-full rounded-none bg-white px-3 text-[#1A1A1A] placeholder:text-[#1A1A1A]/40 border-2 border-[#1A1A1A] focus:outline-none focus:shadow-[3px_3px_0_#8B6914] transition-shadow;
+    @apply h-11 w-full rounded-none bg-surface px-3 text-text-primary placeholder:text-text-primary/40 border-2 border-text-primary focus:outline-none transition-shadow;
+  }
+  .input:focus {
+    box-shadow: 3px 3px 0 rgb(var(--accent));
   }
   .label {
-    @apply font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/60;
+    @apply font-mono uppercase text-[10px] tracking-tight text-text-primary/60;
   }
   .heading-xl {
-    @apply font-mono uppercase tracking-tight text-3xl lg:text-4xl text-[#1A1A1A];
+    @apply font-mono uppercase tracking-tight text-3xl lg:text-4xl text-text-primary;
   }
   .heading-lg {
-    @apply font-mono uppercase tracking-tight text-2xl sm:text-3xl text-[#1A1A1A];
+    @apply font-mono uppercase tracking-tight text-2xl sm:text-3xl text-text-primary;
   }
   .heading-md {
-    @apply font-mono uppercase tracking-tight text-lg sm:text-xl text-[#1A1A1A];
+    @apply font-mono uppercase tracking-tight text-lg sm:text-xl text-text-primary;
   }
 }
 
-/* Chessground board theme — warm cream/gold to match brutalist palette */
-cg-board square.light {
-  background-color: #f2e4c9;
-}
-cg-board square.dark {
-  background-color: #c49b2a;
+/*
+ * Chessground board theme — colors driven by --board-* CSS variables.
+ * Chessground paints squares via a base64 SVG background-image on cg-board;
+ * we replace that with a CSS conic-gradient checker pattern so the theme
+ * tokens actually drive board appearance.
+ */
+cg-board {
+  background-color: var(--board-light);
+  background-image: conic-gradient(
+    var(--board-dark) 25%,
+    var(--board-light) 0 50%,
+    var(--board-dark) 0 75%,
+    var(--board-light) 0
+  );
+  background-size: 25% 25%;
+  background-position: 0 0;
 }
 cg-board square.last-move {
-  background-color: rgba(139, 105, 20, 0.45);
+  background-color: var(--board-last-move);
 }
 cg-board square.selected {
-  background-color: rgba(139, 105, 20, 0.55);
+  background-color: var(--board-selected);
 }
 cg-board square.move-dest {
-  background: radial-gradient(rgba(26, 26, 26, 0.35) 22%, transparent 24%);
+  background: radial-gradient(var(--board-move-dest) 22%, transparent 24%);
 }
 cg-board square.premove-dest {
-  background: radial-gradient(rgba(196, 155, 42, 0.55) 22%, transparent 24%);
+  background: radial-gradient(var(--board-premove-dest) 22%, transparent 24%);
 }
 cg-board square.check {
   background: radial-gradient(rgba(196, 40, 32, 0.85) 25%, rgba(196, 40, 32, 0.5) 60%, transparent 70%);
 }
 
+cg-board piece {
+  filter: var(--piece-filter, none);
+}
+
 .cg-wrap {
   border-radius: 0;
   overflow: hidden;
-  border: 2px solid #1a1a1a;
-  box-shadow: 3px 3px 0 #1a1a1a;
+  border: 2px solid rgb(var(--text-primary));
+  box-shadow: 3px 3px 0 rgb(var(--text-primary));
 }

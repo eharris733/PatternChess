@@ -3,8 +3,8 @@ import { BlunderContext, GAME_STATE_LABEL } from '../../chess/blunderContext';
 
 const GAME_STATE_TONE: Record<BlunderContext['gameState'], string> = {
   missedWin: 'bg-mistake/20 text-mistake border-mistake/50',
-  roughlyEqual: 'bg-surface-3 text-text-secondary border-[#1A1A1A]',
-  alreadyLosing: 'bg-surface-3 text-text-secondary border-[#1A1A1A]',
+  roughlyEqual: 'bg-surface-3 text-text-secondary border-text-primary',
+  alreadyLosing: 'bg-surface-3 text-text-secondary border-text-primary',
 };
 
 export function BlunderContextBadges({ context }: { context: BlunderContext }) {

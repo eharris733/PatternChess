@@ -42,7 +42,7 @@ export function GameTypePreferences({
           {TIME_CONTROL_OPTIONS.map((opt) => (
             <label
               key={opt.value}
-              className="flex items-center gap-2 select-none px-3 py-1.5 rounded-none bg-white border-2 border-[#1A1A1A] hover:bg-[#1A1A1A]/5 cursor-pointer"
+              className="flex items-center gap-2 select-none px-3 py-1.5 rounded-none bg-surface border-2 border-text-primary hover:bg-text-primary/5 cursor-pointer"
             >
               <input
                 type="checkbox"

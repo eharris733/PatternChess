@@ -11,21 +11,21 @@ interface LegalPageProps {
 
 export function LegalPage({ title, effectiveDate, children }: LegalPageProps) {
   return (
-    <div className="min-h-screen bg-[#F4F4F0] text-[#1A1A1A] font-sans flex flex-col">
+    <div className="min-h-screen bg-bg text-text-primary font-sans flex flex-col">
       <LandingTopBar />
       <main className="flex-1">
         <div className="max-w-3xl mx-auto px-6 py-12">
           <Link
             to="/"
-            className="font-mono uppercase text-xs tracking-tight text-[#1A1A1A]/60 hover:text-gold-dark transition-colors"
+            className="font-mono uppercase text-xs tracking-tight text-text-primary/60 hover:text-gold-dark transition-colors"
           >
             ← Back home
           </Link>
           <h1 className="mt-6 text-3xl font-bold tracking-tight">{title}</h1>
-          <p className="mt-2 font-mono uppercase text-xs tracking-tight text-[#1A1A1A]/50">
+          <p className="mt-2 font-mono uppercase text-xs tracking-tight text-text-primary/50">
             Effective {effectiveDate}
           </p>
-          <div className="legal-body mt-8 space-y-6 leading-relaxed text-[#1A1A1A]/90">
+          <div className="legal-body mt-8 space-y-6 leading-relaxed text-text-primary/90">
             {children}
           </div>
         </div>

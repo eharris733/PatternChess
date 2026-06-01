@@ -11,12 +11,16 @@ import {
 } from '../services/gameMetadataBackfill';
 import { RankBadge } from '../components/insights/RankBadge';
 import { GameTypePreferences } from '../components/GameTypePreferences';
+import { ThemePicker } from '../components/ThemePicker';
 import { useRecentTrainingSessions } from '../hooks/useTrainingActivity';
+import { useThemeStore, type BoardTheme } from '../state/themeStore';
 
 export function ProfileRoute() {
   const { profile, refreshProfile, user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const activeTheme = useThemeStore((s) => s.theme);
+  const setStoreTheme = useThemeStore((s) => s.setTheme);
   const [lichess, setLichess] = useState('');
   const [chesscom, setChesscom] = useState('');
   const [ratedOnly, setRatedOnly] = useState(false);
@@ -25,6 +29,16 @@ export function ProfileRoute() {
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [backfillRunning, setBackfillRunning] = useState(false);
   const [backfillProgress, setBackfillProgress] = useState<BackfillProgress | null>(null);
+
+  const onPickTheme = (next: BoardTheme) => {
+    setStoreTheme(next);
+    if (profile && profile.boardTheme !== next) {
+      void authService
+        .updateProfile({ ...profile, boardTheme: next })
+        .then(() => refreshProfile())
+        .catch((err) => console.warn('[profile] persist boardTheme failed', err));
+    }
+  };
 
   const unparsedQuery = useQuery({
     queryKey: ['games', 'unparsedCount', user?.id],
@@ -106,10 +120,10 @@ export function ProfileRoute() {
             alt=""
             crossOrigin="anonymous"
             referrerPolicy="no-referrer"
-            className="w-14 h-14 rounded-full border-2 border-[#1A1A1A]"
+            className="w-14 h-14 rounded-full border-2 border-text-primary"
           />
         ) : (
-          <div className="w-14 h-14 rounded-full bg-[#1A1A1A]" />
+          <div className="w-14 h-14 rounded-full bg-text-primary" />
         )}
         <div>
           <h1 className="heading-lg">{profile?.displayName ?? 'Your profile'}</h1>
@@ -162,6 +176,14 @@ export function ProfileRoute() {
         </div>
       </section>
 
+      <section className="card flex flex-col gap-4">
+        <h2 className="heading-md">Theme</h2>
+        <p className="text-text-secondary text-sm -mt-2">
+          Changes apply instantly across every screen except the landing and sign-in pages.
+        </p>
+        <ThemePicker value={activeTheme} onChange={onPickTheme} />
+      </section>
+
       {(unparsedCount > 0 || backfillProgress) && (
         <section className="card flex flex-col gap-3">
           <h2 className="heading-md">Game data backfill</h2>
@@ -170,7 +192,7 @@ export function ProfileRoute() {
           </p>
           {backfillProgress && (
             <div className="flex flex-col gap-2">
-              <div className="h-2 rounded-none bg-[#1A1A1A]/10 overflow-hidden border border-[#1A1A1A]/20">
+              <div className="h-2 rounded-none bg-text-primary/10 overflow-hidden border border-text-primary/20">
                 <div
                   className="h-full bg-gold-dark transition-[width] duration-150"
                   style={{
@@ -214,7 +236,7 @@ export function ProfileRoute() {
       {recentSessions.data && recentSessions.data.length > 0 && (
         <section className="card flex flex-col gap-3">
           <h2 className="heading-md">Recent sessions</h2>
-          <ul className="flex flex-col divide-y divide-[#1A1A1A]/15">
+          <ul className="flex flex-col divide-y divide-text-primary/15">
             {recentSessions.data.map((s) => {
               const ended = s.endedAt ?? s.startedAt;
               const duration = Math.max(

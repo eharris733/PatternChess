@@ -25,7 +25,7 @@ export function ClassificationButtons({
               'flex flex-col items-center gap-1 py-2 rounded-none border-2 text-xs font-mono uppercase tracking-tight transition-colors disabled:opacity-50',
               active
                 ? MOVE_GRADE_TW_BG[g]
-                : 'bg-white text-[#1A1A1A] border-[#1A1A1A] hover:bg-[#1A1A1A]/5',
+                : 'bg-surface text-text-primary border-text-primary hover:bg-text-primary/5',
             )}
           >
             <span className="text-lg leading-none">{g}</span>

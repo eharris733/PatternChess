@@ -27,7 +27,7 @@ export function OpeningInsightsCard() {
           win rate
         </span>
       </header>
-      <ul className="flex flex-col divide-y divide-[#1A1A1A]/15">
+      <ul className="flex flex-col divide-y divide-text-primary/15">
         {rows.map((row) => {
           const colorLabel = row.userColor === 'white' ? '♔' : row.userColor === 'black' ? '♚' : '·';
           const openingName = formatOpeningDisplay(resolveOpeningFamilyName(row.ecoFamily));
@@ -44,7 +44,7 @@ export function OpeningInsightsCard() {
                     },
                   })
                 }
-                className="flex items-center justify-between py-2.5 gap-3 w-full text-left hover:bg-[#1A1A1A]/5 transition-colors"
+                className="flex items-center justify-between py-2.5 gap-3 w-full text-left hover:bg-text-primary/5 transition-colors"
               >
                 <div className="min-w-0">
                   <p className="text-text-primary text-sm font-semibold truncate">

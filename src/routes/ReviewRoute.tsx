@@ -263,7 +263,7 @@ export function ReviewRoute() {
           </>
         )}
 
-        <div className="border-t-2 border-[#1A1A1A] pt-3">
+        <div className="border-t-2 border-text-primary pt-3">
           <p className="label mb-2">Moves</p>
           <MoveSequencePanel
             pairs={pairs}

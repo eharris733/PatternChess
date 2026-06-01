@@ -34,7 +34,7 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
       <button
         onClick={onToggle}
         className={clsx(
-          'mx-2 mb-2 flex items-center rounded-none hover:bg-[#1A1A1A]/5 transition text-left',
+          'mx-2 mb-2 flex items-center rounded-none hover:bg-text-primary/5 transition text-left',
           collapsed ? 'justify-center p-2' : 'px-3 py-2',
         )}
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -56,14 +56,14 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
               clsx(
                 'mx-2 flex items-center gap-3 px-3 py-2.5 rounded-none font-mono uppercase tracking-tight text-xs transition-colors',
                 isActive
-                  ? 'bg-[#1A1A1A] text-[#F4F4F0]'
-                  : 'text-[#1A1A1A] hover:bg-[#1A1A1A]/5',
+                  ? 'bg-text-primary text-bg'
+                  : 'text-text-primary hover:bg-text-primary/5',
               )
             }
           >
             {({ isActive }) => (
               <>
-                <span className={clsx('shrink-0', isActive ? 'text-gold-light' : 'text-[#1A1A1A]')}>
+                <span className={clsx('shrink-0', isActive ? 'text-gold-light' : 'text-text-primary')}>
                   <item.Icon className="h-5 w-5" />
                 </span>
                 {!collapsed && <span>{item.label}</span>}
@@ -77,7 +77,7 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
 
       <SyncIndicator collapsed={collapsed} />
 
-      <div className="mx-2 mb-1 border-2 border-[#1A1A1A] bg-surface-3 divide-y-2 divide-[#1A1A1A]/30">
+      <div className="mx-2 mb-1 border-2 border-text-primary bg-surface-3 divide-y-2 divide-text-primary/30">
         <StreakBadge collapsed={collapsed} />
 
         <NavLink
@@ -86,8 +86,8 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
             clsx(
               'flex items-center gap-3 px-3 py-2.5 rounded-none font-mono uppercase tracking-tight text-xs transition-colors',
               isActive
-                ? 'bg-[#1A1A1A] text-[#F4F4F0]'
-                : 'text-[#1A1A1A] hover:bg-[#1A1A1A]/10',
+                ? 'bg-text-primary text-bg'
+                : 'text-text-primary hover:bg-text-primary/10',
               collapsed && 'justify-center',
             )
           }
@@ -98,10 +98,10 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
               alt=""
               crossOrigin="anonymous"
               referrerPolicy="no-referrer"
-              className="w-7 h-7 rounded-full shrink-0 border-2 border-[#1A1A1A]"
+              className="w-7 h-7 rounded-full shrink-0 border-2 border-text-primary"
             />
           ) : (
-            <span className="w-7 h-7 rounded-full bg-[#1A1A1A] text-[#F4F4F0] shrink-0 flex items-center justify-center text-xs">
+            <span className="w-7 h-7 rounded-full bg-text-primary text-bg shrink-0 flex items-center justify-center text-xs">
               {firstName.charAt(0).toUpperCase()}
             </span>
           )}

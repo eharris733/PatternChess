@@ -8,12 +8,12 @@ const LINKS = [
 
 export function LandingFooter() {
   return (
-    <footer className="border-t-2 border-[#1A1A1A]">
+    <footer className="border-t-2 border-text-primary">
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <BrandMark className="h-6 w-6" showTrajectory={false} />
-            <span className="font-mono uppercase text-xs tracking-tight text-[#1A1A1A]">
+            <span className="font-mono uppercase text-xs tracking-tight text-text-primary">
               PatternChess
             </span>
           </div>
@@ -22,14 +22,14 @@ export function LandingFooter() {
               <Link
                 key={link.label}
                 to={link.to}
-                className="font-mono uppercase text-xs tracking-tight text-[#1A1A1A] hover:text-gold-dark transition-colors"
+                className="font-mono uppercase text-xs tracking-tight text-text-primary hover:text-gold-dark transition-colors"
               >
                 {link.label}
               </Link>
             ))}
           </nav>
         </div>
-        <div className="mt-6 text-center font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/50">
+        <div className="mt-6 text-center font-mono uppercase text-[10px] tracking-tight text-text-primary/50">
           © 2026 EH Solutions LLC. All rights reserved.
         </div>
       </div>

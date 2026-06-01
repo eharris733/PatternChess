@@ -57,7 +57,7 @@ export function OnboardingImport() {
         train against. This usually takes about five to ten minutes.
       </p>
 
-      <div className="w-full space-y-6 bg-white rounded-none p-6 border-2 border-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A]">
+      <div className="w-full space-y-6 bg-surface rounded-none p-6 border-2 border-text-primary shadow-card">
         <Step
           label="Importing games"
           done={phase === 'analyzing' || phase === 'done'}
@@ -88,7 +88,7 @@ export function OnboardingImport() {
           <button
             type="button"
             onClick={onEditProfile}
-            className="mt-3 text-[#1A1A1A] underline"
+            className="mt-3 text-text-primary underline"
           >
             Check your profile
           </button>

@@ -3,9 +3,10 @@ interface FlameIconProps {
   title?: string;
 }
 
+// Picks up the active theme's accent colors so the flame follows the palette.
 const COLORS = {
-  goldLight: '#C49B2A',
-  goldDark: '#8B6914',
+  goldLight: 'rgb(var(--gold-light))',
+  goldDark: 'rgb(var(--gold-dark))',
 };
 
 export function FlameIcon({ className, title }: FlameIconProps) {

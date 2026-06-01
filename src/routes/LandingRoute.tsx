@@ -11,10 +11,12 @@ import { AboutCreator } from '../components/landing/AboutCreator';
 import { useDemoAnalysis } from '../hooks/useDemoAnalysis';
 import { useLandingView } from '../hooks/useLandingView';
 import { trackDemoSubmit } from '../services/funnelService';
+import { useForceDefaultTheme } from '../state/themeStore';
 
 export function LandingRoute() {
   const { session, loading } = useAuth();
   const demo = useDemoAnalysis();
+  useForceDefaultTheme();
   // Records a single (human-gated) landing_view per session. Safe to call before
   // the auth/session early-returns below — the effect no-ops for signed-in users
   // since they're redirected away, and it only fires once per browser session.
@@ -24,7 +26,7 @@ export function LandingRoute() {
   if (session) return <Navigate to="/dashboard" replace />;
 
   return (
-    <div className="min-h-screen bg-[#F4F4F0] text-[#1A1A1A] font-sans">
+    <div className="min-h-screen bg-bg text-text-primary font-sans">
       <LandingTopBar />
       <main>
         <LandingHero>

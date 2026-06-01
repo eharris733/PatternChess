@@ -31,13 +31,14 @@ const PLATFORM_LABEL: Record<RatingPlatform, string> = {
 };
 
 // Ink for Lichess, gold for Chess.com — distinct on the cream surface.
+// Resolved at paint via CSS variables so the chart re-tints when the theme changes.
 const PLATFORM_STROKE: Record<RatingPlatform, string> = {
-  lichess: '#1A1A1A',
-  'chess.com': '#8B6914',
+  lichess: 'rgb(var(--text-primary))',
+  'chess.com': 'rgb(var(--accent))',
 };
 
-const INK = '#1A1A1A';
-const MUTED = 'rgba(26,26,26,0.45)';
+const INK = 'rgb(var(--text-primary))';
+const MUTED = 'rgb(var(--text-primary) / 0.45)';
 
 export function RatingProgressCard() {
   const { progress, isPending } = useRatingProgress();
@@ -108,10 +109,10 @@ function CategoryChart({ category }: { category: CategoryRatingProgress }) {
             />
             <Tooltip
               contentStyle={{
-                background: '#F4F4F0',
+                background: 'rgb(var(--bg))',
                 border: `2px solid ${INK}`,
                 borderRadius: 0,
-                boxShadow: '3px 3px 0 #1A1A1A',
+                boxShadow: `3px 3px 0 ${INK}`,
                 padding: '6px 10px',
               }}
               labelFormatter={(ms) =>
@@ -132,7 +133,7 @@ function CategoryChart({ category }: { category: CategoryRatingProgress }) {
                 stroke={PLATFORM_STROKE[s.platform]}
                 strokeWidth={2}
                 dot={false}
-                activeDot={{ r: 3, stroke: PLATFORM_STROKE[s.platform], fill: '#F4F4F0', strokeWidth: 2 }}
+                activeDot={{ r: 3, stroke: PLATFORM_STROKE[s.platform], fill: 'rgb(var(--bg))', strokeWidth: 2 }}
                 connectNulls
                 isAnimationActive={false}
               />
@@ -163,7 +164,7 @@ function CategoryLegend({ series }: { series: PlatformSeries[] }) {
                 ? 'text-correct border-correct/50 bg-correct/10'
                 : s.delta < 0
                   ? 'text-incorrect border-incorrect/50 bg-incorrect/10'
-                  : 'text-text-secondary border-[#1A1A1A]/40 bg-surface-3',
+                  : 'text-text-secondary border-text-primary/40 bg-surface-3',
             )}
           >
             {s.delta >= 0 ? '+' : ''}

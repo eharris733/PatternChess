@@ -130,7 +130,7 @@ export function PgnUploadModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/40 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
       aria-label="Upload PGNs"
@@ -180,7 +180,7 @@ export function PgnUploadModal() {
                 type="file"
                 accept=".pgn,.txt,application/x-chess-pgn,text/plain"
                 multiple
-                className="block w-full text-sm text-text-primary file:mr-3 file:inline-flex file:items-center file:h-10 file:px-4 file:rounded-none file:border-2 file:border-[#1A1A1A] file:bg-white file:text-text-primary file:font-mono file:uppercase file:text-xs file:tracking-tight file:cursor-pointer file:transition-colors hover:file:bg-[#1A1A1A] hover:file:text-[#F4F4F0]"
+                className="block w-full text-sm text-text-primary file:mr-3 file:inline-flex file:items-center file:h-10 file:px-4 file:rounded-none file:border-2 file:border-text-primary file:bg-surface file:text-text-primary file:font-mono file:uppercase file:text-xs file:tracking-tight file:cursor-pointer file:transition-colors hover:file:bg-text-primary hover:file:text-bg"
                 onChange={(e) => void onFilePick(e.target.files)}
               />
               {fileLabel && (
