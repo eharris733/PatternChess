@@ -2,7 +2,13 @@ import { Navigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
 import { isAdminEmail } from '../auth/admin';
-import { useAdminKpis, type AdminKpis, type AdminKpiSignup } from '../hooks/useAdminKpis';
+import {
+  useAdminKpis,
+  type AdminKpis,
+  type AdminKpiSignup,
+  type AdminLandingFunnel,
+  type AdminLead,
+} from '../hooks/useAdminKpis';
 import { SignupsChart } from '../components/analytics/SignupsChart';
 import { Skeleton } from '../components/Skeleton';
 
@@ -25,7 +31,7 @@ function AnalyticsContent() {
         <span className="label">Admin</span>
         <h1 className="heading-xl">Analytics</h1>
         <p className="text-text-secondary text-sm">
-          Signups, the find-your-blunders funnel, and activity across all users.
+          Landing funnel, signups, and activity across all users.
         </p>
       </header>
 
@@ -49,6 +55,8 @@ function AnalyticsContent() {
         <>
           <TotalsTiles data={data} />
 
+          {data.landingFunnel && <LandingFunnelCard funnel={data.landingFunnel} />}
+
           <section className="card flex flex-col gap-4">
             <header className="flex items-baseline justify-between">
               <span className="label">Signups over time</span>
@@ -62,6 +70,7 @@ function AnalyticsContent() {
           <FunnelCard data={data} />
           <ActivityCard data={data} />
           <PlatformsCard data={data} />
+          {data.leads && data.leads.length > 0 && <LeadsCard rows={data.leads} />}
           <RecentSignupsCard rows={data.recentSignups} />
         </>
       )}
@@ -139,6 +148,73 @@ function FunnelCard({ data }: { data: AdminKpis }) {
         <FunnelBar label="Synced games" count={totals.synced} signups={totals.signups} />
         <FunnelBar label="Found blunders" count={totals.foundBlunders} signups={totals.signups} />
         <FunnelBar label="Trained" count={totals.trained} signups={totals.signups} />
+      </div>
+    </section>
+  );
+}
+
+function LandingFunnelCard({ funnel }: { funnel: AdminLandingFunnel }) {
+  const { views, entered, converted } = funnel;
+  return (
+    <section className="card flex flex-col gap-4">
+      <header className="flex items-baseline justify-between">
+        <span className="label">Landing funnel</span>
+        <span className="text-text-secondary text-xs">% of visitors</span>
+      </header>
+      <div className="flex flex-col gap-3">
+        <FunnelBar label="Visited landing (humans)" count={views} signups={views} />
+        <FunnelBar label="Entered a username" count={entered} signups={views} />
+        <FunnelBar label="Created an account" count={converted} signups={views} />
+      </div>
+      <p className="text-text-secondary text-xs">
+        Bots filtered by user-agent and a human-interaction signal — approximate. A visitor is
+        counted as converted when their browser later created an account.
+      </p>
+    </section>
+  );
+}
+
+function LeadsCard({ rows }: { rows: AdminLead[] }) {
+  return (
+    <section className="card flex flex-col gap-3">
+      <header className="flex items-baseline justify-between">
+        <span className="label">Entered accounts (leads)</span>
+        <span className="text-text-secondary text-xs">latest {rows.length}</span>
+      </header>
+      <div className="flex flex-col divide-y-2 divide-[#1A1A1A]/10">
+        {rows.map((r, i) => {
+          const handle =
+            r.platform === 'lichess'
+              ? `lichess.org/@/${r.username}`
+              : r.platform === 'chesscom'
+                ? `chess.com/member/${r.username}`
+                : r.username;
+          return (
+            <div
+              key={`${r.platform ?? '?'}-${r.username}-${i}`}
+              className="flex items-center justify-between gap-2 py-2.5 first:pt-0"
+            >
+              <div className="flex flex-col min-w-0">
+                <span className="text-text-primary text-sm truncate">{r.username}</span>
+                <span className="text-text-secondary text-[10px] truncate">{handle}</span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {r.attempts > 1 && (
+                  <span className="text-text-secondary text-[10px] tabular-nums">
+                    ×{r.attempts}
+                  </span>
+                )}
+                <StageBadge on={r.converted} label={r.converted ? 'Signed up' : 'No account'} />
+                <span className="text-text-secondary text-xs tabular-nums">
+                  {new Date(r.lastSeen).toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </section>
   );

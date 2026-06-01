@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getAnonId } from '../lib/anonId';
 import {
   UserProfile,
   userProfileFromJson,
@@ -90,7 +91,14 @@ export const authService = {
       lastDrillLocalDate: null,
       timezone: null,
     };
-    await supabase.from('profiles').insert(userProfileToInsert(profile));
+    // Stamp the landing-page visitor id (if this browser ever hit the landing
+    // page) so the funnel can link anonymous view/demo events to this account.
+    // anon_id lives only in the DB, not on the UserProfile model — it's
+    // analytics metadata, never read back into the app.
+    const anonId = getAnonId();
+    await supabase
+      .from('profiles')
+      .insert({ ...userProfileToInsert(profile), anon_id: anonId || null });
     return profile;
   },
 

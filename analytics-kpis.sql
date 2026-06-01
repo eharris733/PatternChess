@@ -150,3 +150,38 @@ from profiles p
 join auth.users u on u.id = p.id
 order by p.longest_streak_days desc
 limit 20;
+
+-- ===== 8. Landing funnel (anonymous) =====
+-- Requires the 20260601120000_landing_funnel migration. Funnel:
+--   landing_view -> demo_submit (username entered) -> account created.
+-- Linked by anon_id (localStorage UUID stamped onto profiles at signup).
+-- "Human" views exclude obvious bot user-agents; still approximate.
+with human_views as (
+  select distinct anon_id
+  from funnel_events
+  where type = 'landing_view'
+    and user_agent is not null
+    and user_agent !~* '(bot|crawl|spider|slurp|bingpreview|facebookexternalhit|headless|python-requests|curl|wget|monitor|preview|scan|lighthouse|pingdom|uptime)'
+),
+demo_anon as (select distinct anon_id from funnel_events where type = 'demo_submit'),
+signup_anon as (select distinct anon_id from profiles where anon_id is not null)
+select
+  (select count(*) from human_views) as human_views,
+  (select count(*) from demo_anon) as entered_username,
+  (select count(*) from demo_anon d
+     where exists (select 1 from signup_anon s where s.anon_id = d.anon_id)) as created_account;
+
+-- ===== 9. Leads — every entered chess.com/lichess username (for follow-up) =====
+-- converted = that browser later created an account.
+select
+  fe.username,
+  fe.platform,
+  count(*) as attempts,
+  max(fe.created_at) as last_seen,
+  bool_or(exists (
+    select 1 from profiles p where p.anon_id = fe.anon_id
+  )) as converted
+from funnel_events fe
+where fe.type = 'demo_submit' and fe.username is not null
+group by fe.username, fe.platform
+order by max(fe.created_at) desc;

@@ -30,6 +30,27 @@ const KPIS = {
       blunders: 4,
     },
   ],
+  landingFunnel: { views: 200, entered: 60, converted: 12 },
+  viewsByDay: [
+    { date: '2026-05-29', count: 90 },
+    { date: '2026-05-30', count: 110 },
+  ],
+  leads: [
+    {
+      username: 'magnus',
+      platform: 'lichess',
+      attempts: 2,
+      lastSeen: '2026-05-30T11:00:00Z',
+      converted: true,
+    },
+    {
+      username: 'hikaru',
+      platform: 'chesscom',
+      attempts: 1,
+      lastSeen: '2026-05-29T08:00:00Z',
+      converted: false,
+    },
+  ],
 };
 
 function b64url(obj: unknown): string {
@@ -134,6 +155,11 @@ test('admin sees the KPI dashboard at /analytics', async ({ page }) => {
   await expect(page.getByText('Find-your-blunders funnel', { exact: true })).toBeVisible();
   await expect(page.getByText('player@example.com')).toBeVisible();
   await expect(page.getByRole('link', { name: /analytics/i })).toBeVisible();
+  // landing funnel + leads (from the landing_funnel migration)
+  await expect(page.getByText('Landing funnel', { exact: true })).toBeVisible();
+  await expect(page.getByText('Entered a username')).toBeVisible();
+  await expect(page.getByText('Entered accounts (leads)')).toBeVisible();
+  await expect(page.getByText('magnus', { exact: true })).toBeVisible();
 
   expect(errors, errors.join('\n')).toHaveLength(0);
 });

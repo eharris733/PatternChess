@@ -40,12 +40,31 @@ export interface AdminKpiSignup {
   blunders: number;
 }
 
+export interface AdminLandingFunnel {
+  views: number; // human (non-bot) landing visitors
+  entered: number; // visitors who entered a chess.com/lichess username
+  converted: number; // ...who then created an account
+}
+
+export interface AdminLead {
+  username: string;
+  platform: string | null;
+  attempts: number;
+  lastSeen: string;
+  converted: boolean;
+}
+
 export interface AdminKpis {
   totals: AdminKpiTotals;
   activity: AdminKpiActivity;
   signupsByDay: AdminKpiSignupDay[];
   platforms: AdminKpiPlatform[];
   recentSignups: AdminKpiSignup[];
+  // Added by the landing_funnel migration. Optional so the page still renders
+  // against the older RPC until that migration is applied.
+  landingFunnel?: AdminLandingFunnel;
+  viewsByDay?: AdminKpiSignupDay[];
+  leads?: AdminLead[];
 }
 
 export function useAdminKpis() {
