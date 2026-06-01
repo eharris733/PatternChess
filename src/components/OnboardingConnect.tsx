@@ -56,7 +56,7 @@ export function OnboardingConnect() {
         real games to train against.
       </p>
 
-      <div className="w-full space-y-5 bg-white rounded-none p-6 border-2 border-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A]">
+      <div className="w-full space-y-5 bg-surface rounded-none p-6 border-2 border-text-primary shadow-card">
         <div className="flex flex-col gap-2">
           <label className="label">Lichess username</label>
           <input
@@ -76,7 +76,7 @@ export function OnboardingConnect() {
           />
         </div>
 
-        <div className="pt-2 border-t-2 border-[#1A1A1A]/15">
+        <div className="pt-2 border-t-2 border-text-primary/15">
           <h2 className="heading-md mb-1">Which games to train on?</h2>
           <p className="text-text-secondary text-sm mb-3">
             Pick the games that count toward training. You can change this any

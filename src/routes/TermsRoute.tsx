@@ -96,7 +96,7 @@ export function TermsRoute() {
           </a>
           .
         </p>
-        <p className="text-sm text-[#1A1A1A]/60">
+        <p className="text-sm text-text-primary/60">
           See also our{' '}
           <Link className="underline hover:text-gold-dark" to="/privacy">
             Privacy Policy
@@ -105,7 +105,7 @@ export function TermsRoute() {
         </p>
       </LegalSection>
 
-      <p className="text-sm text-[#1A1A1A]/60">
+      <p className="text-sm text-text-primary/60">
         This document is a good-faith plain-language summary provided for transparency and is not
         legal advice.
       </p>

@@ -1,26 +1,29 @@
 import type { Config } from 'tailwindcss';
 
+const rgbVar = (name: string) => `rgb(var(${name}) / <alpha-value>)`;
+
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        bg: '#F4F4F0',
-        surface: '#FFFFFF',
-        'surface-2': '#1A1A1A',
-        'surface-3': '#EEEEE8',
-        accent: '#8B6914',
-        'accent-light': '#C49B2A',
-        'gold-dark': '#8B6914',
-        'gold-light': '#C49B2A',
-        'text-primary': '#1A1A1A',
-        'text-secondary': '#5A5A5A',
+        bg: rgbVar('--bg'),
+        surface: rgbVar('--surface'),
+        'surface-2': rgbVar('--surface-2'),
+        'surface-3': rgbVar('--surface-3'),
+        accent: rgbVar('--accent'),
+        'accent-light': rgbVar('--accent-light'),
+        'gold-dark': rgbVar('--gold-dark'),
+        'gold-light': rgbVar('--gold-light'),
+        'text-primary': rgbVar('--text-primary'),
+        'text-secondary': rgbVar('--text-secondary'),
+        'board-light': rgbVar('--board-light-rgb'),
+        'board-dark': rgbVar('--board-dark-rgb'),
+        // Feedback colors stay constant across themes (accessibility / convention).
         correct: '#1F7A1F',
         incorrect: '#C42820',
         mistake: '#B58300',
         inaccuracy: '#1A6BB8',
-        'board-dark': '#C49B2A',
-        'board-light': '#F2E4C9',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
@@ -28,8 +31,8 @@ export default {
         mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
       },
       boxShadow: {
-        card: '3px 3px 0 #1A1A1A',
-        'card-hover': '1px 1px 0 #1A1A1A',
+        card: '3px 3px 0 rgb(var(--text-primary))',
+        'card-hover': '1px 1px 0 rgb(var(--text-primary))',
       },
     },
   },

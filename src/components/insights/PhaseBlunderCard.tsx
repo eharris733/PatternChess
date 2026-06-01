@@ -21,14 +21,14 @@ function Bar({ label, userPct, benchmarkPct, benchmarkSampleSize, onClick }: Bar
         <span className="text-text-secondary">{label}</span>
         <span className="tabular-nums text-text-primary">{Math.round(userPct)}%</span>
       </div>
-      <div className="relative h-3 rounded-none bg-[#1A1A1A]/10 overflow-visible border border-[#1A1A1A]/20">
+      <div className="relative h-3 rounded-none bg-text-primary/10 overflow-visible border border-text-primary/20">
         <div
           className="absolute inset-y-0 left-0 rounded-none bg-gold-dark"
           style={{ width: `${Math.min(100, userPct)}%` }}
         />
         {benchmarkPct !== null && (
           <span
-            className="absolute -top-0.5 h-4 w-0.5 bg-[#1A1A1A]"
+            className="absolute -top-0.5 h-4 w-0.5 bg-text-primary"
             style={{ left: `${Math.min(100, benchmarkPct)}%` }}
             title={
               benchmarkSampleSize

@@ -17,7 +17,7 @@ export function DueByStage({ data }: { data: Blunder[] }) {
           <span
             key={bucket}
             className={clsx(
-              'inline-flex items-baseline gap-1 px-2 py-0.5 rounded-none border-2 border-[#1A1A1A] bg-white text-xs',
+              'inline-flex items-baseline gap-1 px-2 py-0.5 rounded-none border-2 border-text-primary bg-surface text-xs',
               empty ? 'opacity-40' : '',
             )}
           >

@@ -12,7 +12,7 @@ interface TileProps {
 
 function Tile({ label, userSec, hasData }: TileProps) {
   return (
-    <div className="flex flex-col items-start gap-1 bg-surface-3 rounded-none border-2 border-[#1A1A1A] px-3 py-2">
+    <div className="flex flex-col items-start gap-1 bg-surface-3 rounded-none border-2 border-text-primary px-3 py-2">
       <span className="label text-[10px]">{label}</span>
       <span className="font-mono text-2xl tabular-nums text-gold-dark">
         {hasData ? `${Math.round(userSec)}s` : '—'}
@@ -64,7 +64,7 @@ export function TimeManagementCard() {
       <button
         type="button"
         onClick={() => navigate('/training', { state: { contextFilter: 'longThink' } })}
-        className="font-mono uppercase text-xs tracking-tight text-gold-dark text-left hover:text-[#1A1A1A] transition-colors"
+        className="font-mono uppercase text-xs tracking-tight text-gold-dark text-left hover:text-text-primary transition-colors"
       >
         Drill long-think blunders →
       </button>

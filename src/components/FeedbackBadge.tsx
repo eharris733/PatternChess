@@ -7,7 +7,7 @@ const TONE_CLASSES: Record<FeedbackTone, string> = {
   warning: 'bg-mistake/15 text-mistake border-mistake/40',
   danger: 'bg-incorrect/15 text-incorrect border-incorrect/40',
   info: 'bg-inaccuracy/15 text-inaccuracy border-inaccuracy/40',
-  neutral: 'bg-surface-3 text-[#1A1A1A] border-[#1A1A1A]',
+  neutral: 'bg-surface-3 text-text-primary border-text-primary',
 };
 
 export function FeedbackBadge({

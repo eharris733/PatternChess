@@ -10,9 +10,9 @@ import {
 } from 'recharts';
 import type { AdminKpiSignupDay } from '../../hooks/useAdminKpis';
 
-const INK = '#1A1A1A';
-const MUTED = 'rgba(26,26,26,0.45)';
-const GOLD = '#8B6914';
+const INK = 'rgb(var(--text-primary))';
+const MUTED = 'rgb(var(--text-primary) / 0.45)';
+const GOLD = 'rgb(var(--accent))';
 
 function formatTick(date: string): string {
   const d = new Date(`${date}T00:00:00`);
@@ -50,10 +50,10 @@ export function SignupsChart({ data }: { data: AdminKpiSignupDay[] }) {
           />
           <Tooltip
             contentStyle={{
-              background: '#F4F4F0',
+              background: 'rgb(var(--bg))',
               border: `2px solid ${INK}`,
               borderRadius: 0,
-              boxShadow: '3px 3px 0 #1A1A1A',
+              boxShadow: `3px 3px 0 ${INK}`,
               padding: '6px 10px',
             }}
             labelFormatter={(date) =>
@@ -64,7 +64,7 @@ export function SignupsChart({ data }: { data: AdminKpiSignupDay[] }) {
               })
             }
             formatter={(value) => [value, 'Signups']}
-            cursor={{ fill: 'rgba(26,26,26,0.06)' }}
+            cursor={{ fill: 'rgb(var(--text-primary) / 0.06)' }}
           />
           <Bar dataKey="count" fill={GOLD} isAnimationActive={false} />
         </BarChart>

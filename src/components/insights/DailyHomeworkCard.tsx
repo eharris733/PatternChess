@@ -74,7 +74,7 @@ export function DailyHomeworkCard() {
             blunder{dueCount === 1 ? '' : 's'} due
           </span>
           {tomorrowCount > 0 && (
-            <div className="ml-auto self-end mb-1 px-3 py-2 rounded-none border-2 border-[#1A1A1A] bg-white text-sm">
+            <div className="ml-auto self-end mb-1 px-3 py-2 rounded-none border-2 border-text-primary bg-surface text-sm">
               <span className="font-mono font-semibold tabular-nums text-gold-dark">
                 {tomorrowCount}
               </span>{' '}

@@ -5,10 +5,12 @@ type CommonProps = {
   title?: string;
 };
 
+// Brand gold stays constant across themes (identity); ink uses --text-primary
+// so the BrandMark stays legible on dark backgrounds (e.g. inverse theme).
 const COLORS = {
   goldLight: '#C49B2A',
   goldDark: '#8B6914',
-  bg: '#1A1A1A',
+  bg: 'rgb(var(--text-primary))',
   light: '#E8E8E8',
 };
 

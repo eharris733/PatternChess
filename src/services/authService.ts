@@ -90,6 +90,7 @@ export const authService = {
       longestStreakDays: 0,
       lastDrillLocalDate: null,
       timezone: null,
+      boardTheme: 'default',
     };
     // Stamp the landing-page visitor id (if this browser ever hit the landing
     // page) so the funnel can link anonymous view/demo events to this account.

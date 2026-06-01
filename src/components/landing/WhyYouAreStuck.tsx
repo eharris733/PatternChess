@@ -5,7 +5,7 @@ function Cite({ n }: { n: string }) {
     <sup className="inline-block align-super">
       <a
         href={`#fn-${n}`}
-        className="font-mono text-[11px] text-gold-dark hover:text-[#1A1A1A] hover:bg-gold-dark/20 px-1 py-0.5 rounded-sm transition-colors"
+        className="font-mono text-[11px] text-gold-dark hover:text-text-primary hover:bg-gold-dark/20 px-1 py-0.5 rounded-sm transition-colors"
       >
         [{n}]
       </a>
@@ -114,10 +114,10 @@ const FOOTNOTES: Footnote[] = [
 
 export function WhyYouAreStuck() {
   return (
-    <section className="border-b-2 border-[#1A1A1A]">
+    <section className="border-b-2 border-text-primary">
       <div className="max-w-6xl mx-auto px-6 py-16 lg:py-24">
-        <div className="mb-12 border-b-2 border-[#1A1A1A] pb-4">
-          <h2 className="font-mono uppercase tracking-tight text-2xl sm:text-3xl text-[#1A1A1A]">
+        <div className="mb-12 border-b-2 border-text-primary pb-4">
+          <h2 className="font-mono uppercase tracking-tight text-2xl sm:text-3xl text-text-primary">
             Why you're stuck
           </h2>
         </div>
@@ -128,15 +128,15 @@ export function WhyYouAreStuck() {
               key={b.num}
               className={
                 'grid grid-cols-[auto_1fr] gap-6 lg:gap-10 py-8 lg:py-10 ' +
-                (i < BEATS.length - 1 ? 'border-b border-[#1A1A1A]/15' : '')
+                (i < BEATS.length - 1 ? 'border-b border-text-primary/15' : '')
               }
             >
               <span className="font-mono text-3xl text-gold-dark">{b.num}</span>
               <div className="flex flex-col gap-3 max-w-3xl">
-                <h3 className="font-mono uppercase tracking-tight text-lg sm:text-xl text-[#1A1A1A]">
+                <h3 className="font-mono uppercase tracking-tight text-lg sm:text-xl text-text-primary">
                   {b.title}
                 </h3>
-                <p className="text-base sm:text-lg text-[#1A1A1A]/85 leading-relaxed">
+                <p className="text-base sm:text-lg text-text-primary/85 leading-relaxed">
                   {b.body}
                 </p>
               </div>
@@ -144,11 +144,11 @@ export function WhyYouAreStuck() {
           ))}
         </div>
 
-        <div className="mt-12 border-2 border-[#1A1A1A] bg-white p-6">
-          <div className="font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/60 mb-4">
+        <div className="mt-12 border-2 border-text-primary bg-surface p-6">
+          <div className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60 mb-4">
             Footnotes
           </div>
-          <ol className="flex flex-col gap-3 text-xs sm:text-sm text-[#1A1A1A]/75 leading-relaxed">
+          <ol className="flex flex-col gap-3 text-xs sm:text-sm text-text-primary/75 leading-relaxed">
             {FOOTNOTES.map((f) => (
               <li
                 key={f.num}
@@ -162,7 +162,7 @@ export function WhyYouAreStuck() {
                     href={f.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-mono uppercase text-[10px] tracking-tight underline underline-offset-2 text-[#1A1A1A] hover:text-gold-dark"
+                    className="font-mono uppercase text-[10px] tracking-tight underline underline-offset-2 text-text-primary hover:text-gold-dark"
                   >
                     Source
                   </a>

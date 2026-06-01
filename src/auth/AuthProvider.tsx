@@ -5,6 +5,7 @@ import { authService } from '../services/authService';
 import type { UserProfile } from '../models/userProfile';
 import { useSyncStore } from '../state/syncStore';
 import { useOnboardingStore } from '../state/onboardingStore';
+import { useThemeStore } from '../state/themeStore';
 
 export interface AuthContextValue {
   session: Session | null;
@@ -115,6 +116,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile?.preferredRatedOnly,
     timeControlsKey,
   ]);
+
+  useEffect(() => {
+    if (profile?.boardTheme && profile.boardTheme !== useThemeStore.getState().theme) {
+      useThemeStore.getState().setTheme(profile.boardTheme);
+    }
+  }, [profile?.boardTheme]);
 
   return (
     <AuthContext.Provider

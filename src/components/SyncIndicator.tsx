@@ -138,7 +138,7 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
       title={collapsed ? headline : undefined}
       className={clsx(
         'mx-2 mb-1 flex items-center gap-3 px-3 py-2 rounded-none font-mono uppercase text-xs tracking-tight transition-colors text-left',
-        'text-text-secondary hover:bg-[#1A1A1A]/5 hover:text-[#1A1A1A]',
+        'text-text-secondary hover:bg-text-primary/5 hover:text-text-primary',
         'disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-text-secondary',
         collapsed && 'justify-center',
       )}
@@ -146,7 +146,7 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
       <span className="shrink-0 w-4 flex items-center justify-center text-base">{glyph}</span>
       {!collapsed && (
         <span className="flex flex-col min-w-0">
-          <span className="truncate text-[#1A1A1A]">{headline}</span>
+          <span className="truncate text-text-primary">{headline}</span>
           {subTitle && (
             <span className="truncate text-[10px] tracking-tight text-text-secondary normal-case">
               {subTitle}

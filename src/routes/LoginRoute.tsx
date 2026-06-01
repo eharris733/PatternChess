@@ -3,12 +3,14 @@ import { Link, Navigate, useLocation } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { useAuth } from '../auth/useAuth';
 import { BrandLockup } from '../components/BrandLogo';
+import { useForceDefaultTheme } from '../state/themeStore';
 
 export function LoginRoute() {
   const { session, loading } = useAuth();
   const location = useLocation() as { state?: { from?: { pathname: string } } };
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useForceDefaultTheme();
 
   if (loading) {
     return (

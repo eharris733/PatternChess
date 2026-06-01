@@ -1,4 +1,5 @@
 import type { TimeControlCategory } from '../services/chessApiService';
+import { BOARD_THEMES, type BoardTheme } from '../state/themeStore';
 
 export interface UserProfile {
   id: string;
@@ -15,6 +16,14 @@ export interface UserProfile {
   longestStreakDays: number;
   lastDrillLocalDate: string | null;
   timezone: string | null;
+  boardTheme: BoardTheme;
+}
+
+function parseBoardTheme(v: unknown): BoardTheme {
+  if (typeof v === 'string' && (BOARD_THEMES as readonly string[]).includes(v)) {
+    return v as BoardTheme;
+  }
+  return 'default';
 }
 
 function parseDate(v: unknown): Date | null {
@@ -52,6 +61,7 @@ export function userProfileFromJson(json: any): UserProfile {
     longestStreakDays: (json.longest_streak_days as number | null) ?? 0,
     lastDrillLocalDate: (json.last_drill_local_date as string | null) ?? null,
     timezone: (json.timezone as string | null) ?? null,
+    boardTheme: parseBoardTheme(json.board_theme),
   };
 }
 
@@ -64,6 +74,7 @@ export function userProfileToInsert(p: UserProfile): Record<string, unknown> {
     chesscom_username: p.chesscomUsername,
     preferred_rated_only: p.preferredRatedOnly,
     preferred_time_controls: p.preferredTimeControls,
+    board_theme: p.boardTheme,
   };
 }
 
@@ -75,5 +86,6 @@ export function userProfileToUpdate(p: UserProfile): Record<string, unknown> {
     chesscom_username: p.chesscomUsername,
     preferred_rated_only: p.preferredRatedOnly,
     preferred_time_controls: p.preferredTimeControls,
+    board_theme: p.boardTheme,
   };
 }

@@ -81,48 +81,48 @@ function MiniBoard({ shapes }: { shapes: Stage['shapes'] }) {
 
 export function SevenStageLadder() {
   return (
-    <div className="mt-12 border-2 border-[#1A1A1A] bg-white shadow-[3px_3px_0_#1A1A1A]">
-      <div className="border-b-2 border-[#1A1A1A] bg-[#F4F4F0] px-6 py-4 flex items-baseline justify-between gap-4 flex-wrap">
-        <div className="font-mono uppercase tracking-tight text-sm text-[#1A1A1A]">
+    <div className="mt-12 border-2 border-text-primary bg-surface shadow-card">
+      <div className="border-b-2 border-text-primary bg-bg px-6 py-4 flex items-baseline justify-between gap-4 flex-wrap">
+        <div className="font-mono uppercase tracking-tight text-sm text-text-primary">
           The seven-stage ladder
         </div>
-        <div className="font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/60">
+        <div className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60">
           One pattern · same position · drilled until it's yours
         </div>
       </div>
 
-      <div className="grid md:grid-cols-3 divide-y-2 md:divide-y-0 md:divide-x-2 divide-[#1A1A1A]">
+      <div className="grid md:grid-cols-3 divide-y-2 md:divide-y-0 md:divide-x-2 divide-text-primary">
         {STAGES.map((stage) => (
           <div
             key={stage.rep}
             className={
               'p-6 flex flex-col gap-4 ' +
-              (stage.highlight ? 'bg-gold-dark/10' : 'bg-white')
+              (stage.highlight ? 'bg-gold-dark/10' : 'bg-surface')
             }
           >
             <div className="flex items-baseline justify-between gap-3">
-              <span className="font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/60 whitespace-nowrap">
+              <span className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60 whitespace-nowrap">
                 Rep {stage.rep} · Day {stage.day}
               </span>
               <span
                 className={
                   'font-mono uppercase text-[11px] tracking-tight font-bold ' +
-                  (stage.highlight ? 'text-gold-dark' : 'text-[#1A1A1A]')
+                  (stage.highlight ? 'text-gold-dark' : 'text-text-primary')
                 }
               >
                 {stage.rank}
               </span>
             </div>
 
-            <div className="border-2 border-[#1A1A1A] p-2 bg-[#F4F4F0]">
+            <div className="border-2 border-text-primary p-2 bg-bg">
               <MiniBoard shapes={stage.shapes} />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <div className="font-mono uppercase text-sm text-[#1A1A1A]">
+              <div className="font-mono uppercase text-sm text-text-primary">
                 {stage.headline}
               </div>
-              <p className="text-xs sm:text-sm text-[#1A1A1A]/80 leading-relaxed">
+              <p className="text-xs sm:text-sm text-text-primary/80 leading-relaxed">
                 {stage.body}
               </p>
             </div>
@@ -130,8 +130,8 @@ export function SevenStageLadder() {
         ))}
       </div>
 
-      <div className="border-t-2 border-[#1A1A1A] px-6 py-6 bg-[#F4F4F0]">
-        <div className="font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/60 mb-4">
+      <div className="border-t-2 border-text-primary px-6 py-6 bg-bg">
+        <div className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60 mb-4">
           Every blunder climbs the same ladder — Apprentice to Master.
         </div>
         <div className="grid grid-cols-7 gap-1 sm:gap-3">
@@ -143,26 +143,26 @@ export function SevenStageLadder() {
                 <div className="flex items-center w-full">
                   <div
                     className={
-                      'flex-1 h-0.5 ' + (i === 0 ? 'invisible' : 'bg-[#1A1A1A]/40')
+                      'flex-1 h-0.5 ' + (i === 0 ? 'invisible' : 'bg-text-primary/40')
                     }
                   />
                   <div
                     className={
-                      'w-3 h-3 border-2 border-[#1A1A1A] flex-shrink-0 ' +
-                      (featured ? 'bg-gold-dark' : 'bg-white')
+                      'w-3 h-3 border-2 border-text-primary flex-shrink-0 ' +
+                      (featured ? 'bg-gold-dark' : 'bg-surface')
                     }
                   />
                   <div
                     className={
                       'flex-1 h-0.5 ' +
-                      (i === RANKS.length - 1 ? 'invisible' : 'bg-[#1A1A1A]/40')
+                      (i === RANKS.length - 1 ? 'invisible' : 'bg-text-primary/40')
                     }
                   />
                 </div>
                 <div
                   className={
                     'text-[9px] sm:text-[11px] font-mono uppercase tracking-tight truncate w-full text-center ' +
-                    (featured ? 'text-[#1A1A1A] font-bold' : 'text-[#1A1A1A]/70')
+                    (featured ? 'text-text-primary font-bold' : 'text-text-primary/70')
                   }
                 >
                   {rank.name}
@@ -174,7 +174,7 @@ export function SevenStageLadder() {
             );
           })}
         </div>
-        <div className="mt-4 font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/60 text-right">
+        <div className="mt-4 font-mono uppercase text-[10px] tracking-tight text-text-primary/60 text-right">
           Each drill survived advances you one rung.
         </div>
       </div>

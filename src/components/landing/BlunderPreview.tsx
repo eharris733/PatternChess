@@ -58,28 +58,28 @@ export function BlunderPreview({ blunder, moveLabel }: Props) {
   void playedMoveSquares;
 
   return (
-    <div className="border-2 border-[#1A1A1A] bg-white">
+    <div className="border-2 border-text-primary bg-surface">
       <div className="grid md:grid-cols-[280px_1fr]">
-        <div className="border-b-2 md:border-b-0 md:border-r-2 border-[#1A1A1A] p-4 bg-[#F4F4F0]">
+        <div className="border-b-2 md:border-b-0 md:border-r-2 border-text-primary p-4 bg-bg">
           <div className="aspect-square w-full">
             <ChessgroundReact config={config} />
           </div>
         </div>
         <div className="p-6 flex flex-col gap-4">
           {moveLabel && (
-            <div className="font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/60">
+            <div className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60">
               {moveLabel}
             </div>
           )}
-          <div className="font-mono uppercase text-base sm:text-lg leading-relaxed text-[#1A1A1A]">
+          <div className="font-mono uppercase text-base sm:text-lg leading-relaxed text-text-primary">
             You played{' '}
             <span className="font-bold">{playedSan}</span>.
             <br />
             <span className="text-gold-dark">{bestSan}</span> was{' '}
             <span className="text-gold-dark font-bold">{blunder.evalSwing}%</span> stronger.
           </div>
-          <div className="mt-auto pt-4 border-t-2 border-[#1A1A1A]/10">
-            <div className="font-mono uppercase text-[10px] tracking-tight text-[#1A1A1A]/60">
+          <div className="mt-auto pt-4 border-t-2 border-text-primary/10">
+            <div className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60">
               This is one position. We find every blunder like it.
             </div>
           </div>

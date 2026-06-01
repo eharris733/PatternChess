@@ -327,13 +327,13 @@ export function TrainingRoute() {
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
       <div className="flex flex-col gap-3">
         {activeFilterLabel && (
-          <div className="flex items-baseline justify-between rounded-none border-2 border-[#1A1A1A] bg-surface-3 px-3 py-2">
+          <div className="flex items-baseline justify-between rounded-none border-2 border-text-primary bg-surface-3 px-3 py-2">
             <span className="font-mono text-xs uppercase tracking-tight text-gold-dark">
               {activeFilterLabel} · {state.blunders.length} blunder
               {state.blunders.length === 1 ? '' : 's'}
             </span>
             <button
-              className="font-mono text-xs uppercase tracking-tight text-text-secondary hover:text-[#1A1A1A]"
+              className="font-mono text-xs uppercase tracking-tight text-text-secondary hover:text-text-primary"
               onClick={() => navigate('/training', { replace: true })}
             >
               Clear filter
@@ -384,7 +384,7 @@ export function TrainingRoute() {
             <span className="px-2 py-0.5 rounded-none font-mono text-[10px] uppercase tracking-tight bg-mistake/30 text-mistake border-2 border-mistake/60">
               Retry
             </span>
-            <span className="text-xs text-[#1A1A1A]">You missed this last time</span>
+            <span className="text-xs text-text-primary">You missed this last time</span>
           </div>
         )}
 
@@ -404,7 +404,7 @@ export function TrainingRoute() {
 
         {state.phase === 'reviewing' && blunder && (
           <>
-            <div className="bg-surface-3 rounded-none border-2 border-[#1A1A1A] p-3 text-sm">
+            <div className="bg-surface-3 rounded-none border-2 border-text-primary p-3 text-sm">
               <span className="text-text-secondary">You played </span>
               <span className="font-mono font-bold text-incorrect">{state.blunderSan}</span>
             </div>
@@ -439,8 +439,8 @@ export function TrainingRoute() {
             <div className="flex items-center gap-2 text-text-primary">
               <span
                 className={clsx(
-                  'w-3 h-3 rounded-full border-2 border-[#1A1A1A]',
-                  blunder.sideToMove === 'white' ? 'bg-white' : 'bg-black',
+                  'w-3 h-3 rounded-full border-2 border-text-primary',
+                  blunder.sideToMove === 'white' ? 'bg-surface' : 'bg-black',
                 )}
               />
               <span className="font-medium">
@@ -449,7 +449,7 @@ export function TrainingRoute() {
             </div>
 
             <button
-              className="text-left bg-surface-3 rounded-none border-2 border-[#1A1A1A] p-3 text-sm hover:bg-[#1A1A1A]/5 transition-colors"
+              className="text-left bg-surface-3 rounded-none border-2 border-text-primary p-3 text-sm hover:bg-text-primary/5 transition-colors"
               onClick={() => state.toggleShowWhatYouPlayed()}
               type="button"
             >
@@ -481,8 +481,8 @@ export function TrainingRoute() {
                   type="button"
                   onClick={() => state.selectPostCorrectIndex(-1)}
                   className={clsx(
-                    'w-full text-left font-mono text-[13px] rounded-none px-2 py-1.5 transition-colors hover:bg-[#1A1A1A]/5 text-text-secondary',
-                    state.activePostCorrectIndex === -1 && 'bg-[#1A1A1A] text-[#F4F4F0]',
+                    'w-full text-left font-mono text-[13px] rounded-none px-2 py-1.5 transition-colors hover:bg-text-primary/5 text-text-secondary',
+                    state.activePostCorrectIndex === -1 && 'bg-text-primary text-bg',
                   )}
                 >
                   Puzzle start
@@ -572,7 +572,7 @@ export function TrainingRoute() {
 
       {confirmDelete && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/40 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 backdrop-blur-sm p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Delete position"

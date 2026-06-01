@@ -29,8 +29,8 @@ export function PlatformPill({ platform, active, onClick }: Props) {
       className={
         'inline-flex items-center gap-2 font-mono uppercase text-xs tracking-tight border-2 px-3 py-2 rounded-none transition-colors ' +
         (active
-          ? 'border-[#1A1A1A] text-[#F4F4F0]'
-          : 'border-[#1A1A1A] bg-transparent text-[#1A1A1A] hover:bg-[#1A1A1A]/5')
+          ? 'border-text-primary text-bg'
+          : 'border-text-primary bg-transparent text-text-primary hover:bg-text-primary/5')
       }
       style={active ? { backgroundColor: meta.accent } : undefined}
     >

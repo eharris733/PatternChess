@@ -9,8 +9,8 @@ import {
 } from '../../models/blunder';
 
 const SR_BUCKET_PILL: Record<SrBucket, string> = {
-  new: 'bg-gold-light text-[#1A1A1A] border-[#1A1A1A]',
-  learning: 'bg-surface-3 text-text-secondary border-[#1A1A1A]',
+  new: 'bg-gold-light text-text-primary border-text-primary',
+  learning: 'bg-surface-3 text-text-secondary border-text-primary',
   tryAgain: 'bg-mistake/20 text-mistake border-mistake/60',
   mastered: 'bg-correct/20 text-correct border-correct/60',
 };
@@ -83,7 +83,7 @@ export function PositionSrState({
               key={i}
               className={clsx(
                 'w-3 h-3 rounded-none border-2',
-                i < filled ? 'bg-gold-dark border-[#1A1A1A]' : 'border-[#1A1A1A] bg-white',
+                i < filled ? 'bg-gold-dark border-text-primary' : 'border-text-primary bg-surface',
               )}
             />
           ))}

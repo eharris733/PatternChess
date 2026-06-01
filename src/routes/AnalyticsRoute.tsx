@@ -124,7 +124,7 @@ function FunnelBar({
           <span className="text-text-secondary"> · {Math.round(pct)}%</span>
         </span>
       </div>
-      <div className="relative h-3 rounded-none bg-[#1A1A1A]/10 overflow-hidden border border-[#1A1A1A]/20">
+      <div className="relative h-3 rounded-none bg-text-primary/10 overflow-hidden border border-text-primary/20">
         <div
           className="absolute inset-y-0 left-0 rounded-none bg-gold-dark"
           style={{ width: `${Math.min(100, pct)}%` }}
@@ -181,7 +181,7 @@ function LeadsCard({ rows }: { rows: AdminLead[] }) {
         <span className="label">Entered accounts (leads)</span>
         <span className="text-text-secondary text-xs">latest {rows.length}</span>
       </header>
-      <div className="flex flex-col divide-y-2 divide-[#1A1A1A]/10">
+      <div className="flex flex-col divide-y-2 divide-text-primary/10">
         {rows.map((r, i) => {
           const handle =
             r.platform === 'lichess'
@@ -272,7 +272,7 @@ function StageBadge({ on, label }: { on: boolean; label: string }) {
         'font-mono uppercase text-[9px] tracking-tight px-1 py-0.5 border rounded-none',
         on
           ? 'text-gold-dark border-gold-dark/50 bg-gold-dark/10'
-          : 'text-text-secondary/50 border-[#1A1A1A]/15',
+          : 'text-text-secondary/50 border-text-primary/15',
       )}
     >
       {label}
@@ -288,7 +288,7 @@ function RecentSignupsCard({ rows }: { rows: AdminKpiSignup[] }) {
         <span className="label">Recent signups</span>
         <span className="text-text-secondary text-xs">latest {rows.length}</span>
       </header>
-      <div className="flex flex-col divide-y-2 divide-[#1A1A1A]/10">
+      <div className="flex flex-col divide-y-2 divide-text-primary/10">
         {rows.map((r, i) => (
           <div key={`${r.email ?? 'anon'}-${i}`} className="flex flex-col gap-1.5 py-2.5 first:pt-0">
             <div className="flex items-baseline justify-between gap-2">

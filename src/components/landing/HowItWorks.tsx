@@ -20,28 +20,28 @@ const STEPS = [
 
 export function HowItWorks() {
   return (
-    <section className="border-b-2 border-[#1A1A1A]">
+    <section className="border-b-2 border-text-primary">
       <div className="max-w-6xl mx-auto px-6 py-16 lg:py-24">
-        <div className="mb-12 border-b-2 border-[#1A1A1A] pb-4">
-          <h2 className="font-mono uppercase tracking-tight text-2xl sm:text-3xl text-[#1A1A1A]">
+        <div className="mb-12 border-b-2 border-text-primary pb-4">
+          <h2 className="font-mono uppercase tracking-tight text-2xl sm:text-3xl text-text-primary">
             How it works
           </h2>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-0 border-2 border-[#1A1A1A] bg-white">
+        <div className="grid md:grid-cols-3 gap-0 border-2 border-text-primary bg-surface">
           {STEPS.map((s, i) => (
             <div
               key={s.num}
               className={
                 'p-6 lg:p-8 flex flex-col gap-3 ' +
-                (i < STEPS.length - 1 ? 'md:border-r-2 border-b-2 md:border-b-0 border-[#1A1A1A]' : '')
+                (i < STEPS.length - 1 ? 'md:border-r-2 border-b-2 md:border-b-0 border-text-primary' : '')
               }
             >
               <span className="font-mono text-3xl text-gold-dark">{s.num}</span>
-              <h3 className="font-mono uppercase tracking-tight text-base text-[#1A1A1A]">
+              <h3 className="font-mono uppercase tracking-tight text-base text-text-primary">
                 {s.title}
               </h3>
-              <p className="text-sm text-[#1A1A1A]/80 leading-relaxed">{s.body}</p>
+              <p className="text-sm text-text-primary/80 leading-relaxed">{s.body}</p>
             </div>
           ))}
         </div>
