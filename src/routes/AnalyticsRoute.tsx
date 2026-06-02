@@ -9,6 +9,7 @@ import {
   type AdminKpiSignup,
   type AdminLandingFunnel,
   type AdminLead,
+  type AdminTrainingAnalytics,
 } from '../hooks/useAdminKpis';
 import type { AdminUserCategory } from '../hooks/useAdminUserList';
 import { SignupsChart } from '../components/analytics/SignupsChart';
@@ -77,6 +78,12 @@ function AnalyticsContent() {
 
           <FunnelCard data={data} onDrilldown={setDrilldown} />
           <ActivityCard data={data} onDrilldown={setDrilldown} />
+          {data.trainingAnalytics && (
+            <TrainingAnalyticsCard
+              analytics={data.trainingAnalytics}
+              onDrilldown={setDrilldown}
+            />
+          )}
           <PlatformsCard data={data} />
           {data.leads && data.leads.length > 0 && <LeadsCard rows={data.leads} />}
           <RecentSignupsCard rows={data.recentSignups} />
@@ -349,6 +356,97 @@ function ActivityCard({
       <p className="text-text-secondary text-xs">Synced a game or trained in the window.</p>
     </section>
   );
+}
+
+function TrainingAnalyticsCard({
+  analytics,
+  onDrilldown,
+}: {
+  analytics: AdminTrainingAnalytics;
+  onDrilldown: (c: AdminUserCategory) => void;
+}) {
+  const { avgDurationSeconds, medianDurationSeconds, sessionsWithDuration } = analytics;
+  return (
+    <section className="card flex flex-col gap-4">
+      <header className="flex items-baseline justify-between">
+        <span className="label">Training engagement</span>
+        <span className="text-text-secondary text-xs">
+          {sessionsWithDuration.toLocaleString()} timed session
+          {sessionsWithDuration === 1 ? '' : 's'}
+        </span>
+      </header>
+
+      <div className="grid grid-cols-2 gap-3">
+        <DurationTile label="Avg session" seconds={avgDurationSeconds} />
+        <DurationTile label="Median session" seconds={medianDurationSeconds} />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <span className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
+          Sessions per day · last 30 days
+        </span>
+        <SignupsChart
+          data={analytics.sessionsByDay}
+          valueLabel="Sessions"
+          emptyLabel="No training sessions in the last 30 days."
+        />
+      </div>
+
+      {analytics.topTrainees.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-baseline justify-between">
+            <span className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
+              Top trainees
+            </span>
+            <button
+              type="button"
+              onClick={() => onDrilldown('trained')}
+              className="text-text-secondary text-xs hover:text-text-primary underline-offset-2 hover:underline"
+            >
+              see all
+            </button>
+          </div>
+          <div className="flex flex-col divide-y-2 divide-text-primary/10">
+            {analytics.topTrainees.map((t, i) => (
+              <div
+                key={`${t.email ?? 'anon'}-${i}`}
+                className="flex items-baseline justify-between gap-3 py-2 first:pt-0"
+              >
+                <span className="text-text-primary text-sm truncate">
+                  {t.email ?? t.displayName ?? 'unknown'}
+                </span>
+                <span className="text-text-secondary text-xs tabular-nums shrink-0">
+                  {t.sessions.toLocaleString()} session{t.sessions === 1 ? '' : 's'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DurationTile({ label, seconds }: { label: string; seconds: number }) {
+  return (
+    <div className="card flex flex-col gap-1 py-3">
+      <span className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
+        {label}
+      </span>
+      <span className="heading-md tabular-nums">{formatDuration(seconds)}</span>
+    </div>
+  );
+}
+
+function formatDuration(seconds: number): string {
+  if (!seconds || !Number.isFinite(seconds) || seconds < 1) return '—';
+  const total = Math.round(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
 }
 
 function PlatformsCard({ data }: { data: AdminKpis }) {

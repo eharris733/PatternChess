@@ -56,6 +56,21 @@ const KPIS = {
       converted: false,
     },
   ],
+  trainingAnalytics: {
+    avgDurationSeconds: 720,
+    medianDurationSeconds: 540,
+    sessionsWithDuration: 24,
+    sessionsByDay: [
+      { date: '2026-05-29', count: 2 },
+      { date: '2026-05-30', count: 5 },
+      { date: '2026-05-31', count: 3 },
+    ],
+    topTrainees: [
+      { email: 'big@trainer.com', displayName: 'Big Trainer', sessions: 17 },
+      { email: 'medium@trainer.com', displayName: null, sessions: 12 },
+      { email: 'small@trainer.com', displayName: null, sessions: 4 },
+    ],
+  },
 };
 
 function b64url(obj: unknown): string {
@@ -173,6 +188,11 @@ test('admin sees the KPI dashboard at /analytics', async ({ page }) => {
   await expect(page.getByText('Entered a username')).toBeVisible();
   await expect(page.getByText('Entered accounts (leads)')).toBeVisible();
   await expect(page.getByText('magnus', { exact: true })).toBeVisible();
+  // training engagement card (from the admin_drilldown migration)
+  await expect(page.getByText('Training engagement', { exact: true })).toBeVisible();
+  await expect(page.getByText('Avg session')).toBeVisible();
+  await expect(page.getByText('Median session')).toBeVisible();
+  await expect(page.getByText('big@trainer.com')).toBeVisible();
 
   expect(errors, errors.join('\n')).toHaveLength(0);
 });
@@ -229,7 +249,7 @@ test('clicking a KPI tile opens a drill-down with hyperlinked handles', async ({
   await expect(modal).toBeHidden();
 
   // Recent signups shows training-session count + linked handles.
-  await expect(page.getByText(/7 sessions/)).toBeVisible();
+  await expect(page.getByText('7 sessions · 10 games · 4 blunders')).toBeVisible();
   await expect(
     page.getByRole('link', { name: 'lichess.org/@/playerlich' }),
   ).toHaveAttribute('href', 'https://lichess.org/@/playerlich');

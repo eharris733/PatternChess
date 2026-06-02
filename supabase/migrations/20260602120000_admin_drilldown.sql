@@ -1,6 +1,8 @@
--- Admin drill-down: per-user training-session counts on the recent-signups
--- card, and a new admin_user_list(category) RPC so each KPI tile on the
--- analytics page can show the actual users behind the number.
+-- Admin drill-down + training analytics:
+--  * recent-signups card now carries per-user training-session counts + handles
+--  * admin_kpis() result gains a `trainingAnalytics` block (duration stats,
+--    sessions-per-day for the last 30d, top 5 trainees)
+--  * new admin_user_list(category) RPC powers each KPI tile's drill-down
 -- Apply via Supabase SQL editor (project: ydfwppthwnlgxnntzrvg).
 
 -- ===== admin_kpis(): extend recentSignups with engagement + handles =====
@@ -78,6 +80,34 @@ begin
     select user_id, count(*) as sessions, max(started_at) as last_session_at
     from training_sessions
     group by user_id
+  ),
+  training_durations as (
+    select extract(epoch from (ended_at - started_at))::float as duration_sec
+    from training_sessions
+    where ended_at is not null
+      and ended_at > started_at
+      and ended_at - started_at < interval '6 hours'
+  ),
+  training_summary as (
+    select
+      coalesce(avg(duration_sec), 0)::float as avg_duration_sec,
+      coalesce(percentile_cont(0.5) within group (order by duration_sec), 0)::float as median_duration_sec,
+      count(*)::int as sessions_with_duration
+    from training_durations
+  ),
+  sessions_by_day as (
+    select date_trunc('day', started_at)::date as day, count(*) as count
+    from training_sessions
+    where started_at >= now() - interval '30 days'
+    group by 1
+  ),
+  top_trainees as (
+    select u.email, p.display_name, tsc.sessions
+    from training_session_counts tsc
+    join profiles p on p.id = tsc.user_id
+    join auth.users u on u.id = tsc.user_id
+    order by tsc.sessions desc
+    limit 5
   ),
   recent as (
     select
@@ -220,6 +250,29 @@ begin
         ),
         '[]'::jsonb
       ) from leads
+    ),
+    'trainingAnalytics', jsonb_build_object(
+      'avgDurationSeconds', (select avg_duration_sec from training_summary),
+      'medianDurationSeconds', (select median_duration_sec from training_summary),
+      'sessionsWithDuration', (select sessions_with_duration from training_summary),
+      'sessionsByDay', (
+        select coalesce(
+          jsonb_agg(jsonb_build_object('date', day, 'count', count) order by day),
+          '[]'::jsonb
+        ) from sessions_by_day
+      ),
+      'topTrainees', (
+        select coalesce(
+          jsonb_agg(
+            jsonb_build_object(
+              'email', email,
+              'displayName', display_name,
+              'sessions', sessions
+            ) order by sessions desc
+          ),
+          '[]'::jsonb
+        ) from top_trainees
+      )
     )
   ) into result;
 
@@ -367,3 +420,8 @@ end;
 $$;
 
 grant execute on function admin_user_list(text) to authenticated;
+
+-- Tell PostgREST to drop its schema cache so the new function is exposed
+-- immediately, otherwise the REST layer 404s with "Could not find the function
+-- public.admin_user_list(category) in the schema cache" until the next reload.
+notify pgrst, 'reload schema';

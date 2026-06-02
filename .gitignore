@@ -32,3 +32,5 @@ playwright/.cache/
 
 # Background-shell artifacts
 .bg-shell/
+
+supabase/.temp

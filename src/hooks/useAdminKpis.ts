@@ -59,6 +59,20 @@ export interface AdminLead {
   converted: boolean;
 }
 
+export interface AdminTrainingTopTrainee {
+  email: string | null;
+  displayName: string | null;
+  sessions: number;
+}
+
+export interface AdminTrainingAnalytics {
+  avgDurationSeconds: number;
+  medianDurationSeconds: number;
+  sessionsWithDuration: number;
+  sessionsByDay: AdminKpiSignupDay[];
+  topTrainees: AdminTrainingTopTrainee[];
+}
+
 export interface AdminKpis {
   totals: AdminKpiTotals;
   activity: AdminKpiActivity;
@@ -70,6 +84,8 @@ export interface AdminKpis {
   landingFunnel?: AdminLandingFunnel;
   viewsByDay?: AdminKpiSignupDay[];
   leads?: AdminLead[];
+  // Added by the admin_drilldown migration.
+  trainingAnalytics?: AdminTrainingAnalytics;
 }
 
 export function useAdminKpis() {

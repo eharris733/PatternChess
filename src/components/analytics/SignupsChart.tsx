@@ -19,14 +19,22 @@ function formatTick(date: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-/** Daily signups bar chart. Mirrors RatingProgressCard's recharts styling. */
-export function SignupsChart({ data }: { data: AdminKpiSignupDay[] }) {
+/** Daily bar chart over `{date, count}` rows. Mirrors RatingProgressCard's recharts styling. */
+export function SignupsChart({
+  data,
+  valueLabel = 'Signups',
+  emptyLabel = 'No signups yet.',
+}: {
+  data: AdminKpiSignupDay[];
+  valueLabel?: string;
+  emptyLabel?: string;
+}) {
   const rows = useMemo(
     () => [...data].sort((a, b) => a.date.localeCompare(b.date)),
     [data],
   );
   if (rows.length === 0) {
-    return <p className="text-text-secondary text-sm">No signups yet.</p>;
+    return <p className="text-text-secondary text-sm">{emptyLabel}</p>;
   }
   return (
     <div className="h-48 -mx-1">
@@ -63,7 +71,7 @@ export function SignupsChart({ data }: { data: AdminKpiSignupDay[] }) {
                 day: 'numeric',
               })
             }
-            formatter={(value) => [value, 'Signups']}
+            formatter={(value) => [value, valueLabel]}
             cursor={{ fill: 'rgb(var(--text-primary) / 0.06)' }}
           />
           <Bar dataKey="count" fill={GOLD} isAnimationActive={false} />
