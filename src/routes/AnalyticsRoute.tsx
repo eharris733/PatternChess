@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
@@ -9,8 +10,14 @@ import {
   type AdminLandingFunnel,
   type AdminLead,
 } from '../hooks/useAdminKpis';
+import type { AdminUserCategory } from '../hooks/useAdminUserList';
 import { SignupsChart } from '../components/analytics/SignupsChart';
 import { Skeleton } from '../components/Skeleton';
+import { UserListModal } from '../components/admin/UserListModal';
+import {
+  chesscomProfileUrl,
+  lichessProfileUrl,
+} from '../lib/chessProfileUrl';
 
 export function AnalyticsRoute() {
   const { user, loading } = useAuth();
@@ -24,6 +31,7 @@ export function AnalyticsRoute() {
 
 function AnalyticsContent() {
   const { data, isPending, isError, error } = useAdminKpis();
+  const [drilldown, setDrilldown] = useState<AdminUserCategory | null>(null);
 
   return (
     <div className="max-w-3xl mx-auto flex flex-col gap-6">
@@ -53,7 +61,7 @@ function AnalyticsContent() {
 
       {data && (
         <>
-          <TotalsTiles data={data} />
+          <TotalsTiles data={data} onDrilldown={setDrilldown} />
 
           {data.landingFunnel && <LandingFunnelCard funnel={data.landingFunnel} />}
 
@@ -67,40 +75,70 @@ function AnalyticsContent() {
             <SignupsChart data={data.signupsByDay} />
           </section>
 
-          <FunnelCard data={data} />
-          <ActivityCard data={data} />
+          <FunnelCard data={data} onDrilldown={setDrilldown} />
+          <ActivityCard data={data} onDrilldown={setDrilldown} />
           <PlatformsCard data={data} />
           {data.leads && data.leads.length > 0 && <LeadsCard rows={data.leads} />}
           <RecentSignupsCard rows={data.recentSignups} />
         </>
       )}
+
+      {drilldown && (
+        <UserListModal category={drilldown} onClose={() => setDrilldown(null)} />
+      )}
     </div>
   );
 }
 
-function Tile({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="card flex flex-col gap-1 py-3">
+function Tile({
+  label,
+  value,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  onClick?: () => void;
+}) {
+  const inner = (
+    <>
       <span className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
         {label}
       </span>
       <span className="heading-md tabular-nums">{value.toLocaleString()}</span>
-    </div>
+    </>
   );
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="card flex flex-col gap-1 py-3 text-left hover:bg-text-primary/5 transition-colors focus:outline-none focus:ring-2 focus:ring-gold-dark"
+      >
+        {inner}
+      </button>
+    );
+  }
+  return <div className="card flex flex-col gap-1 py-3">{inner}</div>;
 }
 
-function TotalsTiles({ data }: { data: AdminKpis }) {
+function TotalsTiles({
+  data,
+  onDrilldown,
+}: {
+  data: AdminKpis;
+  onDrilldown: (c: AdminUserCategory) => void;
+}) {
   const { totals, activity } = data;
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      <Tile label="Signups" value={totals.signups} />
-      <Tile label="Synced games" value={totals.synced} />
-      <Tile label="Found blunders" value={totals.foundBlunders} />
-      <Tile label="Trained" value={totals.trained} />
-      <Tile label="Active 24h" value={activity.dau} />
-      <Tile label="Active 7d" value={activity.wau} />
-      <Tile label="Active 30d" value={activity.mau} />
-      <Tile label="Connected" value={totals.connected} />
+      <Tile label="Signups" value={totals.signups} onClick={() => onDrilldown('signups')} />
+      <Tile label="Synced games" value={totals.synced} onClick={() => onDrilldown('synced')} />
+      <Tile label="Found blunders" value={totals.foundBlunders} onClick={() => onDrilldown('foundBlunders')} />
+      <Tile label="Trained" value={totals.trained} onClick={() => onDrilldown('trained')} />
+      <Tile label="Active 24h" value={activity.dau} onClick={() => onDrilldown('dau')} />
+      <Tile label="Active 7d" value={activity.wau} onClick={() => onDrilldown('wau')} />
+      <Tile label="Active 30d" value={activity.mau} onClick={() => onDrilldown('mau')} />
+      <Tile label="Connected" value={totals.connected} onClick={() => onDrilldown('connected')} />
     </div>
   );
 }
@@ -109,14 +147,16 @@ function FunnelBar({
   label,
   count,
   signups,
+  onClick,
 }: {
   label: string;
   count: number;
   signups: number;
+  onClick?: () => void;
 }) {
   const pct = signups > 0 ? (count / signups) * 100 : 0;
-  return (
-    <div className="flex flex-col gap-1.5">
+  const inner = (
+    <>
       <div className="flex items-baseline justify-between text-sm">
         <span className="text-text-secondary">{label}</span>
         <span className="tabular-nums text-text-primary">
@@ -130,11 +170,29 @@ function FunnelBar({
           style={{ width: `${Math.min(100, pct)}%` }}
         />
       </div>
-    </div>
+    </>
   );
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex flex-col gap-1.5 w-full text-left p-1 -m-1 rounded-none hover:bg-text-primary/5 transition-colors focus:outline-none focus:ring-2 focus:ring-gold-dark"
+      >
+        {inner}
+      </button>
+    );
+  }
+  return <div className="flex flex-col gap-1.5">{inner}</div>;
 }
 
-function FunnelCard({ data }: { data: AdminKpis }) {
+function FunnelCard({
+  data,
+  onDrilldown,
+}: {
+  data: AdminKpis;
+  onDrilldown: (c: AdminUserCategory) => void;
+}) {
   const { totals } = data;
   return (
     <section className="card flex flex-col gap-4">
@@ -144,10 +202,30 @@ function FunnelCard({ data }: { data: AdminKpis }) {
       </header>
       <div className="flex flex-col gap-3">
         <FunnelBar label="Signed up" count={totals.signups} signups={totals.signups} />
-        <FunnelBar label="Connected account" count={totals.connected} signups={totals.signups} />
-        <FunnelBar label="Synced games" count={totals.synced} signups={totals.signups} />
-        <FunnelBar label="Found blunders" count={totals.foundBlunders} signups={totals.signups} />
-        <FunnelBar label="Trained" count={totals.trained} signups={totals.signups} />
+        <FunnelBar
+          label="Connected account"
+          count={totals.connected}
+          signups={totals.signups}
+          onClick={() => onDrilldown('connected')}
+        />
+        <FunnelBar
+          label="Synced games"
+          count={totals.synced}
+          signups={totals.signups}
+          onClick={() => onDrilldown('synced')}
+        />
+        <FunnelBar
+          label="Found blunders"
+          count={totals.foundBlunders}
+          signups={totals.signups}
+          onClick={() => onDrilldown('foundBlunders')}
+        />
+        <FunnelBar
+          label="Trained"
+          count={totals.trained}
+          signups={totals.signups}
+          onClick={() => onDrilldown('trained')}
+        />
       </div>
     </section>
   );
@@ -189,6 +267,12 @@ function LeadsCard({ rows }: { rows: AdminLead[] }) {
               : r.platform === 'chesscom'
                 ? `chess.com/member/${r.username}`
                 : r.username;
+          const href =
+            r.platform === 'lichess'
+              ? lichessProfileUrl(r.username)
+              : r.platform === 'chesscom'
+                ? chesscomProfileUrl(r.username)
+                : null;
           return (
             <div
               key={`${r.platform ?? '?'}-${r.username}-${i}`}
@@ -196,7 +280,18 @@ function LeadsCard({ rows }: { rows: AdminLead[] }) {
             >
               <div className="flex flex-col min-w-0">
                 <span className="text-text-primary text-sm truncate">{r.username}</span>
-                <span className="text-text-secondary text-[10px] truncate">{handle}</span>
+                {href ? (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-text-secondary text-[10px] truncate hover:text-text-primary underline-offset-2 hover:underline"
+                  >
+                    {handle}
+                  </a>
+                ) : (
+                  <span className="text-text-secondary text-[10px] truncate">{handle}</span>
+                )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {r.attempts > 1 && (
@@ -220,25 +315,35 @@ function LeadsCard({ rows }: { rows: AdminLead[] }) {
   );
 }
 
-function ActivityCard({ data }: { data: AdminKpis }) {
+function ActivityCard({
+  data,
+  onDrilldown,
+}: {
+  data: AdminKpis;
+  onDrilldown: (c: AdminUserCategory) => void;
+}) {
   const { activity } = data;
+  const cells: ReadonlyArray<readonly [string, number, AdminUserCategory]> = [
+    ['Daily', activity.dau, 'dau'],
+    ['Weekly', activity.wau, 'wau'],
+    ['Monthly', activity.mau, 'mau'],
+  ];
   return (
     <section className="card flex flex-col gap-3">
       <span className="label">Active users</span>
       <div className="grid grid-cols-3 gap-3 text-center">
-        {(
-          [
-            ['Daily', activity.dau],
-            ['Weekly', activity.wau],
-            ['Monthly', activity.mau],
-          ] as const
-        ).map(([label, value]) => (
-          <div key={label} className="flex flex-col gap-1">
+        {cells.map(([label, value, category]) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => onDrilldown(category)}
+            className="flex flex-col gap-1 py-1 hover:bg-text-primary/5 transition-colors focus:outline-none focus:ring-2 focus:ring-gold-dark"
+          >
             <span className="heading-md tabular-nums">{value.toLocaleString()}</span>
             <span className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
               {label}
             </span>
-          </div>
+          </button>
         ))}
       </div>
       <p className="text-text-secondary text-xs">Synced a game or trained in the window.</p>
@@ -265,7 +370,7 @@ function PlatformsCard({ data }: { data: AdminKpis }) {
   );
 }
 
-function StageBadge({ on, label }: { on: boolean; label: string }) {
+export function StageBadge({ on, label }: { on: boolean; label: string }) {
   return (
     <span
       className={clsx(
@@ -289,32 +394,65 @@ function RecentSignupsCard({ rows }: { rows: AdminKpiSignup[] }) {
         <span className="text-text-secondary text-xs">latest {rows.length}</span>
       </header>
       <div className="flex flex-col divide-y-2 divide-text-primary/10">
-        {rows.map((r, i) => (
-          <div key={`${r.email ?? 'anon'}-${i}`} className="flex flex-col gap-1.5 py-2.5 first:pt-0">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-text-primary text-sm truncate">
-                {r.email ?? r.displayName ?? 'unknown'}
-              </span>
-              <span className="text-text-secondary text-xs tabular-nums shrink-0">
-                {new Date(r.createdAt).toLocaleDateString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                })}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <StageBadge on={r.connected} label="Connected" />
-              <StageBadge on={r.synced} label="Synced" />
-              <StageBadge on={r.foundBlunders} label="Blunders" />
-              <StageBadge on={r.trained} label="Trained" />
-              {r.games > 0 && (
-                <span className="text-text-secondary text-[10px] tabular-nums ml-auto">
-                  {r.games} games · {r.blunders} blunders
+        {rows.map((r, i) => {
+          const handles: { href: string; label: string }[] = [];
+          if (r.lichessUsername)
+            handles.push({
+              href: lichessProfileUrl(r.lichessUsername),
+              label: `lichess.org/@/${r.lichessUsername}`,
+            });
+          if (r.chesscomUsername)
+            handles.push({
+              href: chesscomProfileUrl(r.chesscomUsername),
+              label: `chess.com/member/${r.chesscomUsername}`,
+            });
+          const meta: string[] = [];
+          if (r.trainingSessions > 0)
+            meta.push(`${r.trainingSessions} session${r.trainingSessions === 1 ? '' : 's'}`);
+          if (r.games > 0) meta.push(`${r.games} games`);
+          if (r.blunders > 0) meta.push(`${r.blunders} blunders`);
+          return (
+            <div key={`${r.email ?? 'anon'}-${i}`} className="flex flex-col gap-1.5 py-2.5 first:pt-0">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-text-primary text-sm truncate">
+                  {r.email ?? r.displayName ?? 'unknown'}
                 </span>
+                <span className="text-text-secondary text-xs tabular-nums shrink-0">
+                  {new Date(r.createdAt).toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <StageBadge on={r.connected} label="Connected" />
+                <StageBadge on={r.synced} label="Synced" />
+                <StageBadge on={r.foundBlunders} label="Blunders" />
+                <StageBadge on={r.trained} label="Trained" />
+                {meta.length > 0 && (
+                  <span className="text-text-secondary text-[10px] tabular-nums ml-auto">
+                    {meta.join(' · ')}
+                  </span>
+                )}
+              </div>
+              {handles.length > 0 && (
+                <div className="flex flex-col gap-0.5">
+                  {handles.map((h) => (
+                    <a
+                      key={h.href}
+                      href={h.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-text-secondary text-[10px] truncate hover:text-text-primary underline-offset-2 hover:underline"
+                    >
+                      {h.label}
+                    </a>
+                  ))}
+                </div>
               )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

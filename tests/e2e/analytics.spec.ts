@@ -25,9 +25,14 @@ const KPIS = {
       connected: true,
       synced: true,
       foundBlunders: true,
-      trained: false,
+      trained: true,
       games: 10,
       blunders: 4,
+      lichessUsername: 'playerlich',
+      chesscomUsername: 'playercc',
+      trainingSessions: 7,
+      lastSessionAt: '2026-05-31T09:00:00Z',
+      lastActive: '2026-05-31T09:00:00Z',
     },
   ],
   landingFunnel: { views: 200, entered: 60, converted: 12 },
@@ -89,12 +94,12 @@ function makeSession(email: string) {
 async function stub(
   page: Page,
   email: string,
-  opts: { gameCount?: number; kpis?: unknown } = {},
+  opts: { gameCount?: number; kpis?: unknown; userList?: unknown } = {},
 ): Promise<void> {
   const session = makeSession(email);
-  const { gameCount = 3, kpis = null } = opts;
+  const { gameCount = 3, kpis = null, userList = null } = opts;
   await page.addInitScript(
-    ({ session, project, gameCount, kpis }) => {
+    ({ session, project, gameCount, kpis, userList }) => {
       const origFetch = window.fetch.bind(window);
       window.fetch = (input: any, init?: any) => {
         const url = typeof input === 'string' ? input : input?.url ?? '';
@@ -120,6 +125,14 @@ async function stub(
               }),
             );
           }
+          if (url.includes('/rest/v1/rpc/admin_user_list')) {
+            return Promise.resolve(
+              new Response(JSON.stringify(userList ?? []), {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+              }),
+            );
+          }
           if (method === 'HEAD') {
             return Promise.resolve(
               new Response(null, { status: 200, headers: { 'content-range': `*/${gameCount}` } }),
@@ -136,7 +149,7 @@ async function stub(
       };
       localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
     },
-    { session, project: PROJECT, gameCount, kpis },
+    { session, project: PROJECT, gameCount, kpis, userList },
   );
 }
 
@@ -160,6 +173,71 @@ test('admin sees the KPI dashboard at /analytics', async ({ page }) => {
   await expect(page.getByText('Entered a username')).toBeVisible();
   await expect(page.getByText('Entered accounts (leads)')).toBeVisible();
   await expect(page.getByText('magnus', { exact: true })).toBeVisible();
+
+  expect(errors, errors.join('\n')).toHaveLength(0);
+});
+
+test('clicking a KPI tile opens a drill-down with hyperlinked handles', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(m.text());
+  });
+
+  const userList = [
+    {
+      email: 'trained@example.com',
+      displayName: null,
+      createdAt: '2026-05-29T12:00:00Z',
+      lichessUsername: 'magnusc',
+      chesscomUsername: 'hikarunakamura',
+      connected: true,
+      synced: true,
+      foundBlunders: true,
+      trained: true,
+      games: 25,
+      blunders: 11,
+      trainingSessions: 12,
+      lastSessionAt: '2026-05-31T08:00:00Z',
+      lastActive: '2026-05-31T08:00:00Z',
+    },
+  ];
+
+  await stub(page, ADMIN_EMAIL, { kpis: KPIS, userList });
+  await page.goto('/analytics');
+  await expect(page.getByRole('heading', { name: 'Analytics' })).toBeVisible({ timeout: 20_000 });
+
+  // Click the "Trained" KPI tile.
+  await page.getByRole('button', { name: /Trained\s+3/ }).first().click();
+
+  // Modal opens with the right title.
+  const modal = page.getByRole('dialog', { name: 'Trained' });
+  await expect(modal).toBeVisible();
+  await expect(modal.getByText('trained@example.com')).toBeVisible();
+  await expect(modal.getByText('12 sessions')).toBeVisible();
+
+  // Handles are real hyperlinks opening in a new tab.
+  const lichessLink = modal.getByRole('link', { name: 'lichess.org/@/magnusc' });
+  await expect(lichessLink).toHaveAttribute('href', 'https://lichess.org/@/magnusc');
+  await expect(lichessLink).toHaveAttribute('target', '_blank');
+  await expect(lichessLink).toHaveAttribute('rel', /noopener/);
+
+  const ccLink = modal.getByRole('link', { name: 'chess.com/member/hikarunakamura' });
+  await expect(ccLink).toHaveAttribute('href', 'https://www.chess.com/member/hikarunakamura');
+
+  // Esc closes.
+  await page.keyboard.press('Escape');
+  await expect(modal).toBeHidden();
+
+  // Recent signups shows training-session count + linked handles.
+  await expect(page.getByText(/7 sessions/)).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'lichess.org/@/playerlich' }),
+  ).toHaveAttribute('href', 'https://lichess.org/@/playerlich');
+
+  // Leads-card handle is now a link.
+  await expect(
+    page.getByRole('link', { name: 'lichess.org/@/magnus' }),
+  ).toHaveAttribute('href', 'https://lichess.org/@/magnus');
 
   expect(errors, errors.join('\n')).toHaveLength(0);
 });

@@ -38,6 +38,11 @@ export interface AdminKpiSignup {
   trained: boolean;
   games: number;
   blunders: number;
+  lichessUsername: string | null;
+  chesscomUsername: string | null;
+  trainingSessions: number;
+  lastSessionAt: string | null;
+  lastActive: string | null;
 }
 
 export interface AdminLandingFunnel {
