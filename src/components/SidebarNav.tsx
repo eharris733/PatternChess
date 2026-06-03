@@ -9,11 +9,13 @@ import { DashboardIcon } from './icons/DashboardIcon';
 import { VaultIcon } from './icons/VaultIcon';
 import { TrainIcon } from './icons/TrainIcon';
 import { AnalyticsIcon } from './icons/AnalyticsIcon';
+import { TrophyIcon } from './icons/TrophyIcon';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { to: '/vault', label: 'Vault', Icon: VaultIcon },
   { to: '/training', label: 'Train', Icon: TrainIcon },
+  { to: '/achievements', label: 'Achievements', Icon: TrophyIcon },
 ];
 
 const ADMIN_NAV_ITEM = { to: '/analytics', label: 'Analytics', Icon: AnalyticsIcon };
