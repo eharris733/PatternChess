@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { useGames } from '../hooks/useGames';
 import { DailyHomeworkCard } from '../components/insights/DailyHomeworkCard';
+import { DailyGoalCard } from '../components/insights/DailyGoalCard';
 import { GetStartedHero } from '../components/insights/GetStartedHero';
 import { RankBadge } from '../components/insights/RankBadge';
 import { OpeningInsightsCard } from '../components/insights/OpeningInsightsCard';
@@ -50,6 +51,8 @@ export function DashboardRoute() {
       </header>
 
       {isFirstRun ? <GetStartedHero /> : <DailyHomeworkCard />}
+
+      {!isFirstRun && <DailyGoalCard />}
 
       {!isFirstRun && <RatingProgressCard />}
 

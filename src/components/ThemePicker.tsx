@@ -16,8 +16,8 @@ const SWATCHES: Record<BoardTheme, ThemeSwatchPalette> = {
     surface: '#FFFFFF',
     textPrimary: '#1A1A1A',
     accent: '#C49B2A',
-    boardLight: '#F2E4C9',
-    boardDark: '#C49B2A',
+    boardLight: '#F0D9B5',
+    boardDark: '#C0AD90',
   },
   inverse: {
     bg: '#1A1A1A',

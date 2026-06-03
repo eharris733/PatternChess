@@ -25,6 +25,28 @@ import {
 import { moveToUci, parseUciMove } from '../chess/moveUtils';
 import type { MovePair } from '../components/MoveSequencePanel';
 import { computeNextStreak, detectTimezone, localDate } from '../services/streakService';
+import { queryClient } from '../lib/queryClient';
+
+// Drill SR writes are fire-and-forget, but leaving a session (e.g. to change
+// the theme) must not drop them or re-serve a stale "due" list on return.
+// Track every in-flight write so we can flush before invalidating caches.
+const pendingDrillWrites = new Set<Promise<unknown>>();
+function trackDrillWrite(p: Promise<unknown>): void {
+  pendingDrillWrites.add(p);
+  void p.finally(() => pendingDrillWrites.delete(p));
+}
+
+// Await all pending drill writes, then drop the cached due-blunders list so the
+// next training entry refetches post-drill state instead of replaying solved
+// puzzles. Fire-and-forget by callers; safe to run while unmounted.
+async function flushDrillWritesAndRefreshDue(): Promise<void> {
+  if (pendingDrillWrites.size > 0) {
+    await Promise.allSettled([...pendingDrillWrites]);
+  }
+  queryClient.removeQueries({ queryKey: ['blunders', 'due'] });
+  queryClient.removeQueries({ queryKey: ['blunders', 'forGames'] });
+  void queryClient.invalidateQueries({ queryKey: ['blunders'], refetchType: 'all' });
+}
 
 export type TrainingPhase =
   | 'loading'
@@ -383,6 +405,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
 
   reset: () => {
     endActiveSession(get());
+    void flushDrillWritesAndRefreshDue();
     set(makeInitial());
   },
 
@@ -706,9 +729,11 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         );
         blunder.lastDrillFailed = false;
       }
-      void supabaseService
-        .updateBlunderAfterDrill(blunder)
-        .catch((err) => console.warn('[training] updateBlunderAfterDrill (correct) failed', err));
+      trackDrillWrite(
+        supabaseService
+          .updateBlunderAfterDrill(blunder)
+          .catch((err) => console.warn('[training] updateBlunderAfterDrill (correct) failed', err)),
+      );
 
       set((s) => {
         const nextAttempted = isFirstAttempt
@@ -775,9 +800,11 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         blunder.cycleNumber = 0;
         blunder.lastDrillFailed = true;
       }
-      void supabaseService
-        .updateBlunderAfterDrill(blunder)
-        .catch((err) => console.warn('[training] updateBlunderAfterDrill (incorrect) failed', err));
+      trackDrillWrite(
+        supabaseService
+          .updateBlunderAfterDrill(blunder)
+          .catch((err) => console.warn('[training] updateBlunderAfterDrill (incorrect) failed', err)),
+      );
 
       let feedback: IncorrectFeedback;
       if (isRepeatedBlunder) {

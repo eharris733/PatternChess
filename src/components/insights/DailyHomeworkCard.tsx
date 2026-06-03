@@ -7,6 +7,7 @@ import { useCompletedToday } from '../../hooks/useTrainingActivity';
 import { useSyncStore } from '../../state/syncStore';
 import { usePgnUploadStore } from '../../state/pgnUploadStore';
 import { DueByStage } from './DueByStage';
+import { CheckIcon } from '../icons/CheckIcon';
 import { Skeleton } from '../Skeleton';
 
 export function DailyHomeworkCard() {
@@ -61,8 +62,9 @@ export function DailyHomeworkCard() {
         <header className="flex items-baseline justify-between">
           <span className="label">Today's homework</span>
           {completedToday && (
-            <span className="text-correct text-xs uppercase tracking-wider">
-              ✓ Drilled today
+            <span className="text-correct text-xs uppercase tracking-wider inline-flex items-center gap-1.5">
+              <CheckIcon className="h-3.5 w-3.5" />
+              Drilled today
             </span>
           )}
         </header>
@@ -108,13 +110,16 @@ export function DailyHomeworkCard() {
       <header className="flex items-baseline justify-between">
         <span className="label">Today's homework</span>
         {completedToday && (
-          <span className="text-correct text-xs uppercase tracking-wider">
-            ✓ Drilled today
+          <span className="text-correct text-xs uppercase tracking-wider inline-flex items-center gap-1.5">
+            <CheckIcon className="h-3.5 w-3.5" />
+            Drilled today
           </span>
         )}
       </header>
       <div className="flex items-center gap-3">
-        <span className="text-4xl text-gold-dark" aria-hidden>✓</span>
+        <span className="text-gold-dark shrink-0">
+          <CheckIcon className="h-9 w-9" />
+        </span>
         <div>
           <p className="heading-md">All caught up</p>
           <p className="text-text-secondary text-sm">
