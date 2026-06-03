@@ -15,6 +15,25 @@ export function useCompletedToday() {
   });
 }
 
+/**
+ * Number of drills (first-attempt position attempts) completed today, summed
+ * across today's training sessions. Feeds the dashboard daily-goal hook.
+ */
+export function useDrillsToday() {
+  const { user, profile } = useAuth();
+  const tz = profile?.timezone ?? detectTimezone();
+  const today = localDate(tz);
+  return useQuery({
+    queryKey: ['training', 'drillsToday', user?.id, today],
+    queryFn: async () => {
+      const sessions = await supabaseService.getTrainingSessionsSince(today);
+      return sessions.reduce((sum, s) => sum + s.blundersAttempted, 0);
+    },
+    enabled: !!user,
+    staleTime: 30_000,
+  });
+}
+
 export function useRecentTrainingSessions(limit = 10) {
   const { user } = useAuth();
   return useQuery({
