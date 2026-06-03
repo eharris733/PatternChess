@@ -5,7 +5,7 @@ import { authService } from '../services/authService';
 import type { UserProfile } from '../models/userProfile';
 import { useSyncStore } from '../state/syncStore';
 import { useOnboardingStore } from '../state/onboardingStore';
-import { useThemeStore } from '../state/themeStore';
+import { hasStoredTheme, useThemeStore } from '../state/themeStore';
 
 export interface AuthContextValue {
   session: Session | null;
@@ -117,11 +117,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     timeControlsKey,
   ]);
 
+  // Reconcile the signed-in profile's board theme with this device once per
+  // profile load. The device's own choice is authoritative: a device that has
+  // already picked a theme keeps it (so a stale/default server value can't
+  // revert it across sessions), and we sync that choice back up so the server
+  // converges. Only a device with no local choice adopts the server theme.
   useEffect(() => {
-    if (profile?.boardTheme && profile.boardTheme !== useThemeStore.getState().theme) {
-      useThemeStore.getState().setTheme(profile.boardTheme);
+    if (!profile) return;
+    const localTheme = useThemeStore.getState().theme;
+    if (!hasStoredTheme()) {
+      if (profile.boardTheme && profile.boardTheme !== localTheme) {
+        useThemeStore.getState().setTheme(profile.boardTheme);
+      }
+      return;
     }
-  }, [profile?.boardTheme]);
+    if (profile.boardTheme !== localTheme) {
+      void authService
+        .updateProfile({ ...profile, boardTheme: localTheme })
+        .then(() => refreshProfile())
+        .catch((err) => console.warn('[auth] sync boardTheme failed', err));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id]);
 
   return (
     <AuthContext.Provider

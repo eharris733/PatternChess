@@ -29,6 +29,21 @@ function readInitial(): BoardTheme {
   return 'default';
 }
 
+/**
+ * Whether this device has an explicit, persisted theme choice. Used to decide
+ * who wins when the local theme and the signed-in profile's theme disagree: a
+ * device that has chosen a theme keeps it (and syncs it up), so a stale/default
+ * server value can never clobber the user's choice across sessions.
+ */
+export function hasStoredTheme(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return isBoardTheme(window.localStorage.getItem(STORAGE_KEY));
+  } catch {
+    return false;
+  }
+}
+
 function applyToDom(theme: BoardTheme) {
   if (typeof document === 'undefined') return;
   document.documentElement.dataset.theme = theme;
