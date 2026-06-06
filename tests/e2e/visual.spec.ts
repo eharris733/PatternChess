@@ -103,6 +103,14 @@ const ROUTES: Array<{ path: string; name: string; expect: (p: import('@playwrigh
       await expect(p.getByPlaceholder(/drnykterstein/i)).toBeVisible();
     },
   },
+  {
+    path: '/achievements',
+    name: 'achievements',
+    expect: async (p) => {
+      await expect(p.getByText(/Your milestones/i)).toBeVisible();
+      await expect(p.getByText(/Unlocked/i)).toBeVisible();
+    },
+  },
 ];
 
 for (const route of ROUTES) {

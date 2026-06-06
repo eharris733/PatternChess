@@ -1,5 +1,12 @@
 import { supabase } from '../lib/supabase';
-import { Blunder, blunderFromJson, CorrectMove, nextDrillDate } from '../models/blunder';
+import {
+  Blunder,
+  blunderFromJson,
+  CorrectMove,
+  nextDrillDate,
+  SPACED_REPETITION_DAYS,
+  srBucket,
+} from '../models/blunder';
 import { GameRecord, gameRecordFromJson, resolveOutcome } from '../models/gameRecord';
 import {
   GameAnnotation,
@@ -554,6 +561,63 @@ export async function getBlunderStats(): Promise<BlunderStats> {
   return { reviewed, mastered, totalBlunders };
 }
 
+// --- Cycle distribution (woodpecker-ladder timeline) ---
+
+export interface CycleDistribution {
+  total: number;
+  newCount: number;
+  tryAgain: number;
+  mastered: number;
+  /** Learning positions by ladder rung (cycle 1..SPACED_REPETITION_DAYS.length-1). */
+  learningByCycle: { cycle: number; count: number }[];
+  learningTotal: number;
+}
+
+/**
+ * Count the user's trainable positions across the spaced-repetition ladder:
+ * new → cycle 1..N-1 (learning) → mastered, with try-again called out. Drives
+ * the dashboard "Training timeline". Buckets via the canonical `srBucket()` so
+ * it stays consistent with the rest of the SR taxonomy.
+ */
+export async function getCycleDistribution(): Promise<CycleDistribution> {
+  const maxCycle = SPACED_REPETITION_DAYS.length; // mastered at cycle >= maxCycle
+  const empty: CycleDistribution = {
+    total: 0,
+    newCount: 0,
+    tryAgain: 0,
+    mastered: 0,
+    learningByCycle: Array.from({ length: maxCycle - 1 }, (_, i) => ({ cycle: i + 1, count: 0 })),
+    learningTotal: 0,
+  };
+  const userId = await currentUserId();
+  if (!userId) return empty;
+  const { data, error } = await supabase
+    .from('blunders')
+    .select('cycle_number, times_attempted, last_drill_failed')
+    .eq('user_id', userId);
+  if (error) throw error;
+  for (const row of (data ?? []) as Array<{
+    cycle_number: number | null;
+    times_attempted: number | null;
+    last_drill_failed: boolean | null;
+  }>) {
+    const cycleNumber = row.cycle_number ?? 0;
+    const timesAttempted = row.times_attempted ?? 0;
+    const lastDrillFailed = row.last_drill_failed ?? false;
+    empty.total++;
+    const bucket = srBucket({ cycleNumber, timesAttempted, lastDrillFailed });
+    if (bucket === 'new') empty.newCount++;
+    else if (bucket === 'tryAgain') empty.tryAgain++;
+    else if (bucket === 'mastered') empty.mastered++;
+    else {
+      const idx = Math.min(Math.max(cycleNumber, 1), maxCycle - 1) - 1;
+      empty.learningByCycle[idx].count++;
+      empty.learningTotal++;
+    }
+  }
+  return empty;
+}
+
 // --- Game Annotations ---
 
 export async function getAnnotations(gameId: string): Promise<GameAnnotation | null> {
@@ -607,12 +671,20 @@ export async function deleteBlundersForGame(gameId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function deleteBlunder(blunderId: string): Promise<void> {
-  const { error } = await supabase.from('blunders').delete().eq('id', blunderId);
+export async function deleteBlunder(blunderId: string): Promise<number> {
+  // `.select()` returns the rows actually deleted. A row-level policy that
+  // blocks the delete removes 0 rows WITHOUT raising an error, so callers must
+  // check the returned count to know the delete really happened.
+  const { data, error } = await supabase
+    .from('blunders')
+    .delete()
+    .eq('id', blunderId)
+    .select('id');
   if (error) throw error;
+  return data?.length ?? 0;
 }
 
-export async function deleteGame(gameId: string): Promise<void> {
+export async function deleteGame(gameId: string): Promise<number> {
   // Blunders reference games; remove them first so the game row delete succeeds
   // even without an ON DELETE CASCADE on the FK.
   const { error: blundersError } = await supabase
@@ -620,8 +692,15 @@ export async function deleteGame(gameId: string): Promise<void> {
     .delete()
     .eq('game_id', gameId);
   if (blundersError) throw blundersError;
-  const { error } = await supabase.from('games').delete().eq('id', gameId);
+  // `.select()` lets the caller detect a 0-row delete (e.g. blocked by RLS),
+  // which Supabase reports without an error.
+  const { data, error } = await supabase
+    .from('games')
+    .delete()
+    .eq('id', gameId)
+    .select('id');
   if (error) throw error;
+  return data?.length ?? 0;
 }
 
 export async function resetGameAnalyzed(gameId: string): Promise<void> {
@@ -922,6 +1001,7 @@ export const supabaseService = {
   updateGameMetadata,
   getBenchmarks,
   getBlunderStats,
+  getCycleDistribution,
   getBlunderPhaseCounts,
   getOpeningPerformance,
   getUserTimeManagement,

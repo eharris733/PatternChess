@@ -1,7 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { useGames } from '../hooks/useGames';
-import { DailyHomeworkCard } from '../components/insights/DailyHomeworkCard';
+import { DailyHabitCard } from '../components/insights/DailyHabitCard';
+import { CycleTimelineCard } from '../components/insights/CycleTimelineCard';
+import { HowTrainingWorksCard } from '../components/insights/HowTrainingWorksCard';
 import { GetStartedHero } from '../components/insights/GetStartedHero';
 import { RankBadge } from '../components/insights/RankBadge';
 import { OpeningInsightsCard } from '../components/insights/OpeningInsightsCard';
@@ -42,14 +44,17 @@ export function DashboardRoute() {
           </>
         ) : (
           <>
-            <span className="label">Welcome back</span>
-            <h1 className="heading-xl">Hey {firstName}.</h1>
+            <h1 className="heading-xl">Hey {firstName}</h1>
             <RankBadge variant="compact" />
           </>
         )}
       </header>
 
-      {isFirstRun ? <GetStartedHero /> : <DailyHomeworkCard />}
+      {!isFirstRun && <HowTrainingWorksCard />}
+
+      {isFirstRun ? <GetStartedHero /> : <DailyHabitCard />}
+
+      {!isFirstRun && <CycleTimelineCard />}
 
       {!isFirstRun && <RatingProgressCard />}
 

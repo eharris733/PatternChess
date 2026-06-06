@@ -156,8 +156,10 @@ export function TrainingRoute() {
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   useEffect(() => {
     setConfirmDelete(false);
+    setDeleteError(null);
   }, [state.currentIndex]);
 
   useEffect(() => {
@@ -559,7 +561,10 @@ export function TrainingRoute() {
             <button
               type="button"
               className="btn-ghost text-xs inline-flex items-center justify-center gap-1.5 text-text-secondary hover:text-incorrect self-end"
-              onClick={() => setConfirmDelete(true)}
+              onClick={() => {
+                setDeleteError(null);
+                setConfirmDelete(true);
+              }}
               disabled={state.evaluating || paused || deleting}
               title="Delete this position from your training"
             >
@@ -589,6 +594,11 @@ export function TrainingRoute() {
               This permanently removes the position from your training. You won't be
               asked to drill it again. This can't be undone.
             </p>
+            {deleteError && (
+              <div className="bg-incorrect/10 border-2 border-incorrect/50 text-incorrect rounded-none p-3 text-sm">
+                {deleteError}
+              </div>
+            )}
             <div className="flex items-center justify-end gap-3">
               <button
                 type="button"
@@ -604,9 +614,14 @@ export function TrainingRoute() {
                 disabled={deleting}
                 onClick={async () => {
                   setDeleting(true);
+                  setDeleteError(null);
                   try {
-                    await state.deleteCurrent();
-                    setConfirmDelete(false);
+                    const res = await state.deleteCurrent();
+                    if (res.ok) {
+                      setConfirmDelete(false);
+                    } else {
+                      setDeleteError(res.error ?? 'Delete failed.');
+                    }
                   } finally {
                     setDeleting(false);
                   }

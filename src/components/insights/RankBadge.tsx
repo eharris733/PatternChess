@@ -28,7 +28,7 @@ export function RankBadge({ variant = 'full' }: RankBadgeProps) {
           {progress.current.name}
         </span>
         <span className="text-xs text-text-secondary tabular-nums">
-          {reviewed.toLocaleString()} reviews
+          {mastered.toLocaleString()} mastered
         </span>
       </div>
     );
@@ -55,16 +55,16 @@ export function RankBadge({ variant = 'full' }: RankBadgeProps) {
       <header className="flex items-baseline justify-between">
         <span className="label">Rank</span>
         <span className="text-text-secondary text-xs">
-          Reviews: <span className="text-text-primary tabular-nums">{reviewed.toLocaleString()}</span>
+          {progress.next
+            ? `${progress.remainingToNext} mastered until ${progress.next.name}`
+            : 'Top tier reached'}
         </span>
       </header>
       <div>
         <p className="heading-lg text-gold-dark">{progress.current.name}</p>
         <p className="text-text-secondary text-sm mt-1">
-          {mastered.toLocaleString()} mastered
-          {progress.next
-            ? ` · ${progress.remainingToNext} until ${progress.next.name}`
-            : ' · top tier reached'}
+          <span className="text-text-primary tabular-nums">{mastered.toLocaleString()}</span> position
+          {mastered === 1 ? '' : 's'} mastered
         </p>
       </div>
       <div className="h-2 rounded-none bg-text-primary/10 overflow-hidden border border-text-primary/20">
@@ -73,6 +73,10 @@ export function RankBadge({ variant = 'full' }: RankBadgeProps) {
           style={{ width: `${Math.min(100, Math.round(progress.fraction * 100))}%` }}
         />
       </div>
+      <p className="text-text-secondary text-xs">
+        Ranks advance as you master positions — 7 spaced cycles at ≥80% recall.
+        <span className="ml-1 opacity-70">{reviewed.toLocaleString()} reviews total.</span>
+      </p>
     </section>
   );
 }

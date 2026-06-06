@@ -179,7 +179,7 @@ export function ProfileRoute() {
       <section className="card flex flex-col gap-4">
         <h2 className="heading-md">Theme</h2>
         <p className="text-text-secondary text-sm -mt-2">
-          Changes apply instantly across every screen except the landing and sign-in pages.
+          Changes apply and save instantly across every screen except the landing and sign-in pages.
         </p>
         <ThemePicker value={activeTheme} onChange={onPickTheme} />
       </section>

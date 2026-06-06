@@ -56,18 +56,29 @@ export function VaultRoute() {
   const { data: games, isLoading } = useGames();
   const [deleteTarget, setDeleteTarget] = useState<GameRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const confirmDeleteGame = useCallback(async () => {
     if (!deleteTarget) return;
     setDeleting(true);
+    setDeleteError(null);
     try {
-      await supabaseService.deleteGame(deleteTarget.id);
+      const deleted = await supabaseService.deleteGame(deleteTarget.id);
+      if (deleted === 0) {
+        // No error raised, but nothing was removed — typically a row-level
+        // policy block. Surface it instead of pretending the delete worked.
+        setDeleteError(
+          "That game couldn't be deleted — it may be a permissions issue. Nothing was removed.",
+        );
+        return;
+      }
       await queryClient.invalidateQueries({ queryKey: ['games', user?.id] });
       await queryClient.invalidateQueries({ queryKey: ['blunderCounts', user?.id] });
       await queryClient.invalidateQueries({ queryKey: ['blunders'] });
       setDeleteTarget(null);
     } catch (err) {
       console.error('Failed to delete game', err);
+      setDeleteError(err instanceof Error ? err.message : 'Delete failed.');
     } finally {
       setDeleting(false);
     }
@@ -210,7 +221,10 @@ export function VaultRoute() {
                 <button
                   type="button"
                   className="btn-ghost text-xs text-text-secondary hover:text-incorrect inline-flex items-center"
-                  onClick={() => setDeleteTarget(g)}
+                  onClick={() => {
+                    setDeleteError(null);
+                    setDeleteTarget(g);
+                  }}
                   title="Delete game and its blunders"
                   aria-label="Delete game"
                 >
@@ -245,6 +259,11 @@ export function VaultRoute() {
               and any blunders found in it. The positions won't appear in
               training again. This can't be undone.
             </p>
+            {deleteError && (
+              <div className="bg-incorrect/10 border-2 border-incorrect/50 text-incorrect rounded-none p-3 text-sm">
+                {deleteError}
+              </div>
+            )}
             <div className="flex items-center justify-end gap-3">
               <button
                 type="button"

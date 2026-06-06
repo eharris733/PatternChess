@@ -22,10 +22,12 @@
   --accent-light: 196 155 42;
   --gold-dark: 139 105 20;
   --gold-light: 196 155 42;
-  --board-light: #f2e4c9;
-  --board-dark: #c49b2a;
-  --board-light-rgb: 242 228 201;
-  --board-dark-rgb: 196 155 42;
+  /* Original lichess "brown" board (soft tan). The gold default read as too
+   * garish, so the default theme keeps the classic board. */
+  --board-light: #f0d9b5;
+  --board-dark: #c0ad90;
+  --board-light-rgb: 240 217 181;
+  --board-dark-rgb: 192 173 144;
   --board-last-move: rgba(139, 105, 20, 0.45);
   --board-selected: rgba(139, 105, 20, 0.55);
   --board-move-dest: rgba(26, 26, 26, 0.35);
