@@ -92,7 +92,10 @@ export function PgnUploadModal() {
       // new rows immediately, even if no component is currently subscribed.
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ['games'], type: 'all' }),
-        queryClient.refetchQueries({ queryKey: ['dueBlunders'], type: 'all' }),
+        // ['blunders'] is the shared prefix for the due / dueTomorrow / stats
+        // queries; the old ['dueBlunders'] key matched nothing, so the goals
+        // card and dashboard never refreshed after an upload.
+        queryClient.refetchQueries({ queryKey: ['blunders'], type: 'all' }),
         queryClient.refetchQueries({ queryKey: ['blunderCounts'], type: 'all' }),
       ]);
     } catch (e) {

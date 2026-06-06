@@ -9,6 +9,7 @@ import { LoginRoute } from './routes/LoginRoute';
 import { TermsRoute } from './routes/TermsRoute';
 import { PrivacyRoute } from './routes/PrivacyRoute';
 import { ProfileRoute } from './routes/ProfileRoute';
+import { AchievementsRoute } from './routes/AchievementsRoute';
 import { AnalyticsRoute } from './routes/AnalyticsRoute';
 import { SandboxRoute } from './routes/SandboxRoute';
 import { EngineTestRoute } from './routes/EngineTestRoute';
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/training" element={<TrainingRoute />} />
         <Route path="/vault" element={<VaultRoute />} />
         <Route path="/profile" element={<ProfileRoute />} />
+        <Route path="/achievements" element={<AchievementsRoute />} />
         <Route path="/analytics" element={<AnalyticsRoute />} />
         <Route path="/__sandbox" element={<SandboxRoute />} />
         <Route path="/__engine-test" element={<EngineTestRoute />} />

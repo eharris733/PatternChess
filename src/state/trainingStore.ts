@@ -25,6 +25,28 @@ import {
 import { moveToUci, parseUciMove } from '../chess/moveUtils';
 import type { MovePair } from '../components/MoveSequencePanel';
 import { computeNextStreak, detectTimezone, localDate } from '../services/streakService';
+import { queryClient } from '../lib/queryClient';
+
+// Per-drill SR writes are fire-and-forget, but leaving a session (e.g. to change
+// the theme) must not drop them or re-serve a stale "due" list on return. Track
+// every in-flight write so we can flush before invalidating caches.
+const pendingDrillWrites = new Set<Promise<unknown>>();
+function trackDrillWrite(p: Promise<unknown>): void {
+  pendingDrillWrites.add(p);
+  void p.finally(() => pendingDrillWrites.delete(p));
+}
+
+// Await all pending drill writes, then drop the cached due-blunders list so the
+// next training entry refetches true post-drill state instead of replaying
+// just-solved puzzles. Fire-and-forget by callers; safe to run while unmounted.
+async function flushDrillWritesAndRefreshDue(): Promise<void> {
+  if (pendingDrillWrites.size > 0) {
+    await Promise.allSettled([...pendingDrillWrites]);
+  }
+  queryClient.removeQueries({ queryKey: ['blunders', 'due'] });
+  queryClient.removeQueries({ queryKey: ['blunders', 'forGames'] });
+  void queryClient.invalidateQueries({ queryKey: ['blunders'], refetchType: 'all' });
+}
 
 export type TrainingPhase =
   | 'loading'
@@ -44,6 +66,11 @@ interface ReviewMove {
 export interface IncorrectFeedback {
   message: string;
   tone: 'danger' | 'warning' | 'info' | 'success';
+}
+
+export interface DeleteResult {
+  ok: boolean;
+  error?: string;
 }
 
 export interface StreakSnapshot {
@@ -113,7 +140,7 @@ export interface TrainingStateShape {
   advance: () => void;
   retry: () => void;
   requeueAndAdvance: () => void;
-  deleteCurrent: () => Promise<void>;
+  deleteCurrent: () => Promise<DeleteResult>;
   toggleShowWhatYouPlayed: () => void;
   showHint: () => void;
   selectRefutationIndex: (idx: number) => void;
@@ -383,6 +410,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
 
   reset: () => {
     endActiveSession(get());
+    void flushDrillWritesAndRefreshDue();
     set(makeInitial());
   },
 
@@ -706,9 +734,11 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         );
         blunder.lastDrillFailed = false;
       }
-      void supabaseService
-        .updateBlunderAfterDrill(blunder)
-        .catch((err) => console.warn('[training] updateBlunderAfterDrill (correct) failed', err));
+      trackDrillWrite(
+        supabaseService
+          .updateBlunderAfterDrill(blunder)
+          .catch((err) => console.warn('[training] updateBlunderAfterDrill (correct) failed', err)),
+      );
 
       set((s) => {
         const nextAttempted = isFirstAttempt
@@ -775,9 +805,11 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         blunder.cycleNumber = 0;
         blunder.lastDrillFailed = true;
       }
-      void supabaseService
-        .updateBlunderAfterDrill(blunder)
-        .catch((err) => console.warn('[training] updateBlunderAfterDrill (incorrect) failed', err));
+      trackDrillWrite(
+        supabaseService
+          .updateBlunderAfterDrill(blunder)
+          .catch((err) => console.warn('[training] updateBlunderAfterDrill (incorrect) failed', err)),
+      );
 
       let feedback: IncorrectFeedback;
       if (isRepeatedBlunder) {
@@ -877,26 +909,45 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
   deleteCurrent: async () => {
     const { blunders, currentIndex } = get();
     const target = blunders[currentIndex];
-    if (!target) return;
+    if (!target) return { ok: false, error: 'No position selected.' };
 
-    // Drop the position from the in-session queue. Removing the current item
-    // shifts the next one into `currentIndex`, so the index stays put.
-    const q = [...blunders];
-    q.splice(currentIndex, 1);
-    set({ blunders: q, phase: 'loading' });
-
-    // Best-effort permanent delete; keep the session moving regardless.
+    // Delete the row first and only drop it from the session if it actually
+    // went away. A 0-row delete (e.g. blocked by a row-level policy) reports no
+    // error in Supabase, so the position used to vanish from the queue yet
+    // reappear next session — exactly the "delete doesn't work" symptom.
+    let deleted = 0;
     try {
-      await supabaseService.deleteBlunder(target.id);
+      deleted = await supabaseService.deleteBlunder(target.id);
     } catch (err) {
       console.error('Failed to delete blunder', err);
+      return { ok: false, error: err instanceof Error ? err.message : 'Delete failed.' };
     }
+    if (deleted === 0) {
+      return {
+        ok: false,
+        error: "That position couldn't be deleted — it may be a permissions issue. Nothing was removed.",
+      };
+    }
+
+    // Gone for good — refresh derived caches so dashboard/vault counts drop and
+    // a future training entry won't replay it.
+    queryClient.removeQueries({ queryKey: ['blunders', 'due'] });
+    void queryClient.invalidateQueries({ queryKey: ['blunders'], refetchType: 'all' });
+    void queryClient.invalidateQueries({ queryKey: ['blunderCounts'], refetchType: 'all' });
+
+    // Drop from the in-session queue. Removing the current item shifts the next
+    // one into `currentIndex`, so the index stays put.
+    const q = [...get().blunders];
+    const idx = get().currentIndex;
+    q.splice(idx, 1);
+    set({ blunders: q, phase: 'loading' });
 
     if (get().currentIndex >= get().blunders.length) {
       set({ phase: 'complete' });
-      return;
+      return { ok: true };
     }
     void get().loadCurrentBlunder();
+    return { ok: true };
   },
 
   toggleShowWhatYouPlayed: () => set((s) => {

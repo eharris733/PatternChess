@@ -6,7 +6,7 @@ import { useGames } from '../../hooks/useGames';
 import { useCompletedToday } from '../../hooks/useTrainingActivity';
 import { useSyncStore } from '../../state/syncStore';
 import { usePgnUploadStore } from '../../state/pgnUploadStore';
-import { DueByStage } from './DueByStage';
+import { CheckIcon } from '../icons/CheckIcon';
 import { Skeleton } from '../Skeleton';
 
 export function DailyHomeworkCard() {
@@ -36,17 +36,11 @@ export function DailyHomeworkCard() {
     return (
       <section className="card flex flex-col gap-4">
         <header className="flex items-baseline justify-between">
-          <span className="label">Today's homework</span>
+          <span className="label">Today's goals</span>
         </header>
         <div className="flex items-end gap-3">
           <Skeleton className="h-14 w-24" />
           <Skeleton className="h-4 w-28 mb-2" />
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          <Skeleton className="h-5 w-16" />
-          <Skeleton className="h-5 w-20" />
-          <Skeleton className="h-5 w-20" />
-          <Skeleton className="h-5 w-20" />
         </div>
         <div className="flex gap-3">
           <Skeleton className="h-10 w-32" />
@@ -59,10 +53,11 @@ export function DailyHomeworkCard() {
     return (
       <section className="card flex flex-col gap-4">
         <header className="flex items-baseline justify-between">
-          <span className="label">Today's homework</span>
+          <span className="label">Today's goals</span>
           {completedToday && (
-            <span className="text-correct text-xs uppercase tracking-wider">
-              ✓ Drilled today
+            <span className="text-correct text-xs uppercase tracking-wider inline-flex items-center gap-1.5">
+              <CheckIcon className="h-3.5 w-3.5" />
+              Drilled today
             </span>
           )}
         </header>
@@ -84,7 +79,6 @@ export function DailyHomeworkCard() {
             </div>
           )}
         </div>
-        <DueByStage data={dueQuery.data ?? []} />
         <div className="flex gap-3">
           <button className="btn-primary" onClick={() => navigate('/training')}>
             Start training
@@ -106,15 +100,18 @@ export function DailyHomeworkCard() {
   return (
     <section className="card flex flex-col gap-4">
       <header className="flex items-baseline justify-between">
-        <span className="label">Today's homework</span>
+        <span className="label">Today's goals</span>
         {completedToday && (
-          <span className="text-correct text-xs uppercase tracking-wider">
-            ✓ Drilled today
+          <span className="text-correct text-xs uppercase tracking-wider inline-flex items-center gap-1.5">
+            <CheckIcon className="h-3.5 w-3.5" />
+            Drilled today
           </span>
         )}
       </header>
       <div className="flex items-center gap-3">
-        <span className="text-4xl text-gold-dark" aria-hidden>✓</span>
+        <span className="text-gold-dark shrink-0">
+          <CheckIcon className="h-9 w-9" />
+        </span>
         <div>
           <p className="heading-md">All caught up</p>
           <p className="text-text-secondary text-sm">
