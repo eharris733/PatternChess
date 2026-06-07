@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
 import { authService } from '../services/authService';
@@ -17,7 +16,6 @@ import { useThemeStore, type BoardTheme } from '../state/themeStore';
 
 export function ProfileRoute() {
   const { profile, refreshProfile, user } = useAuth();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const activeTheme = useThemeStore((s) => s.theme);
   const setStoreTheme = useThemeStore((s) => s.setTheme);
@@ -107,8 +105,15 @@ export function ProfileRoute() {
   };
 
   const onSignOut = async () => {
-    await authService.signOut();
-    navigate('/login', { replace: true });
+    // Clear the session, then hard-replace to the public landing page ('/'). A
+    // SPA navigate would race the not-yet-cleared session and bounce through
+    // /dashboard → /login; the timeout guards a hung sign-out request from
+    // trapping the user on a protected screen.
+    await Promise.race([
+      authService.signOut().catch((e) => console.warn('[auth] signOut failed', e)),
+      new Promise((resolve) => setTimeout(resolve, 2000)),
+    ]);
+    window.location.replace('/');
   };
 
   return (

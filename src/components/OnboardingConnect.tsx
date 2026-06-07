@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../auth/useAuth';
 import { authService } from '../services/authService';
-import type { TimeControlCategory } from '../services/chessApiService';
+import { ALL_TIME_CONTROLS, type TimeControlCategory } from '../services/chessApiService';
 import { BrandLockup } from './BrandLogo';
 import { GameTypePreferences } from './GameTypePreferences';
 
@@ -17,9 +17,12 @@ export function OnboardingConnect() {
   const [chesscom, setChesscom] = useState(profile?.chesscomUsername ?? '');
   const [ratedOnly, setRatedOnly] = useState(profile?.preferredRatedOnly ?? false);
   const [timeControls, setTimeControls] = useState<TimeControlCategory[]>(
-    profile?.preferredTimeControls ?? [],
+    profile?.preferredTimeControls?.length
+      ? profile.preferredTimeControls
+      : [...ALL_TIME_CONTROLS],
   );
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const toggleTimeControl = (value: TimeControlCategory) => {
     setTimeControls((cur) =>
@@ -32,6 +35,7 @@ export function OnboardingConnect() {
   const onStart = async () => {
     if (!profile || !canStart || saving) return;
     setSaving(true);
+    setError(null);
     try {
       await authService.updateProfile({
         ...profile,
@@ -40,9 +44,18 @@ export function OnboardingConnect() {
         preferredRatedOnly: ratedOnly,
         preferredTimeControls: timeControls,
       });
-      if (lichess.trim()) await authService.claimAnonymousData(lichess.trim());
-      if (chesscom.trim()) await authService.claimAnonymousData(chesscom.trim());
+      // Claiming pre-existing anonymous games is best-effort — a failure here must
+      // not block advancing into the import step.
+      try {
+        if (lichess.trim()) await authService.claimAnonymousData(lichess.trim());
+        if (chesscom.trim()) await authService.claimAnonymousData(chesscom.trim());
+      } catch (e) {
+        console.warn('[onboarding] claimAnonymousData failed (non-fatal)', e);
+      }
       await refreshProfile();
+    } catch (e) {
+      console.error('[onboarding] could not start import', e);
+      setError("We couldn't save your account. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -104,6 +117,15 @@ export function OnboardingConnect() {
       >
         {saving ? 'Starting…' : 'Start import'}
       </button>
+
+      {error && (
+        <div className="mt-4 w-full bg-incorrect/10 border-2 border-incorrect/50 text-incorrect rounded-none p-4 text-sm text-left">
+          <div className="font-mono uppercase text-xs tracking-tight mb-1">
+            Something went wrong
+          </div>
+          <div className="text-text-secondary">{error}</div>
+        </div>
+      )}
     </div>
   );
 }

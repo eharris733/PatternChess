@@ -2,6 +2,9 @@
 
 export type TimeControlCategory = 'bullet' | 'blitz' | 'rapid' | 'classical';
 
+/** Every trainable time-control category, in display order. New users default to all. */
+export const ALL_TIME_CONTROLS: TimeControlCategory[] = ['bullet', 'blitz', 'rapid', 'classical'];
+
 export interface ImportedGame {
   platform: 'chess.com' | 'lichess';
   username: string;
