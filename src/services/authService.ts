@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { getAnonId } from '../lib/anonId';
+import { ALL_TIME_CONTROLS } from './chessApiService';
 import {
   UserProfile,
   userProfileFromJson,
@@ -82,7 +83,7 @@ export const authService = {
       lichessUsername,
       chesscomUsername: null,
       preferredRatedOnly: false,
-      preferredTimeControls: [],
+      preferredTimeControls: [...ALL_TIME_CONTROLS],
       lastSyncedLichessAt: null,
       lastSyncedChesscomAt: null,
       createdAt: new Date(),
@@ -97,9 +98,10 @@ export const authService = {
     // anon_id lives only in the DB, not on the UserProfile model — it's
     // analytics metadata, never read back into the app.
     const anonId = getAnonId();
-    await supabase
+    const { error: insertError } = await supabase
       .from('profiles')
       .insert({ ...userProfileToInsert(profile), anon_id: anonId || null });
+    if (insertError) throw insertError;
     return profile;
   },
 

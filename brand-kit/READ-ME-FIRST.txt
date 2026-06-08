@@ -1,0 +1,85 @@
+PATTERNCHESS - SOCIAL MEDIA KIT
+===============================
+
+Hi! This folder has everything you need to make posts that look like
+PatternChess: our logo files and our brand colors. Nothing special to
+install. You can drag these images straight into Canva, Instagram,
+CapCut, or wherever you build posts.
+
+Two questions come up a lot: "what color is that?" and "which logo do I
+use?" The answers are below.
+
+
+WHAT'S IN THIS FOLDER
+---------------------
+
+  READ-ME-FIRST.txt    <- this file
+  colors.png           <- a picture of our colors with their codes
+  logos/               <- all the logo files (see "WHICH LOGO" below)
+
+
+OUR COLORS
+----------
+
+Open "colors.png" to see them. Most posts only need gold, charcoal, and
+off-white.
+
+  Brand gold    #C49B2A    Our main color. The logo and highlights.
+  Deep gold     #8B6914    A darker gold that pairs with the brand gold.
+  Charcoal      #1A1A1A    Our near-black. Dark backgrounds and text.
+  Off-white     #F4F4F0    Our soft white. Light backgrounds.
+  Light ink     #E8E8E8    For text or a logo sitting on a dark color.
+
+When a tool (like Canva) asks you to pick a color, type the code and
+keep the # sign. For example:  #C49B2A
+
+
+WHICH LOGO DO I USE?
+--------------------
+
+All the logos live in the "logos" folder. Pick the one that matches
+what is BEHIND the logo:
+
+  Light or white background   ->   logo-for-light-backgrounds.png
+  Dark or photo background    ->   logo-for-dark-backgrounds.png
+  Tiny space or a badge       ->   icon-only.png
+  Profile picture / avatar    ->   app-icon.png
+
+  social-card-example.png is a finished post you can copy the style from.
+
+These are PNG files, so they work everywhere and have a see-through
+(transparent) background. They sit cleanly on top of any design.
+
+Quick check: a light logo on a light background disappears. If you put
+the logo down and can't see it, you grabbed the wrong file. Switch to
+the other one.
+
+
+LOGO DO'S AND DON'TS
+--------------------
+
+DO:
+  - Give the logo room to breathe. Leave some space around it.
+  - Keep it gold. The gold is who we are.
+  - Keep the word "Chess" in italic. It is part of the look.
+  - Resize by dragging a CORNER handle, so the shape stays correct.
+
+PLEASE DON'T:
+  - Recolor it (no blue logo, no rainbow, no white-out).
+  - Stretch or squish it. Drag the corners, never the sides.
+  - Add drop shadows, outlines, or glows.
+  - Rotate or tilt it.
+  - Put the gold logo on a busy photo where you can't read it.
+  - Swap in any chess-knight symbol. Only use the files in here.
+
+
+FOR A DESIGNER (OPTIONAL)
+-------------------------
+
+The "logos/source-files" folder holds the original SVG versions. SVG
+files stay razor-sharp at any size, which designers like. If you work
+with one, hand them this folder. If an SVG won't open for you, skip that
+folder and use the PNGs above. They are all you need.
+
+
+Questions? Ask Elliot. Have fun with it.
