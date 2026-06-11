@@ -137,10 +137,10 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
       aria-label={`Sync: ${headline}`}
       title={collapsed ? headline : undefined}
       className={clsx(
-        'mx-2 mb-1 flex items-center gap-3 px-3 py-2 rounded-none font-mono uppercase text-xs tracking-tight transition-colors text-left',
+        'mx-2 mb-1 flex items-center gap-3 py-2 rounded-none font-mono uppercase text-xs tracking-tight transition-colors text-left',
+        collapsed ? 'justify-center px-0' : 'px-3',
         'text-text-secondary hover:bg-text-primary/5 hover:text-text-primary',
         'disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-text-secondary',
-        collapsed && 'justify-center',
       )}
     >
       <span className="shrink-0 w-4 flex items-center justify-center text-base">{glyph}</span>
