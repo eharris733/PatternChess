@@ -44,6 +44,10 @@ export function TimeManagementCard() {
           {totalPlies.toLocaleString()} plies sampled
         </span>
       </header>
+      <p className="text-text-secondary text-xs -mt-2">
+        How long you think per move across all moves in your non-bullet games, by phase — every
+        move counts here, blunder or otherwise.
+      </p>
       <div className="grid grid-cols-3 gap-3">
         <Tile
           label="Opening"

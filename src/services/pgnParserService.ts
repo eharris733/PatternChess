@@ -130,8 +130,15 @@ function parseElo(v: string | undefined): number | null {
 /**
  * Extract every metadata field needed for v1 insights from a stored PGN string.
  * Falls back gracefully (NULL fields) when the PGN omits headers or clocks.
+ * `colorFallback` is used when the username doesn't match the White/Black
+ * headers (e.g. an upload-time override, or a previously stored color during
+ * backfill) so a known color is never erased by a failed name match.
  */
-export function parsePgnMetadata(pgn: string, username: string | null): ParsedGameMetadata {
+export function parsePgnMetadata(
+  pgn: string,
+  username: string | null,
+  colorFallback: 'white' | 'black' | null = null,
+): ParsedGameMetadata {
   const headers = extractHeaders(pgn);
   const eco = headers.ECO?.trim() || null;
   const openingName = headers.Opening?.trim() || headers.Variation?.trim() || null;
@@ -142,6 +149,7 @@ export function parsePgnMetadata(pgn: string, username: string | null): ParsedGa
     if (headers.White?.toLowerCase() === lower) userColor = 'white';
     else if (headers.Black?.toLowerCase() === lower) userColor = 'black';
   }
+  if (!userColor) userColor = colorFallback;
 
   const whiteElo = parseElo(headers.WhiteElo);
   const blackElo = parseElo(headers.BlackElo);

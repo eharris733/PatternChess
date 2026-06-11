@@ -14,7 +14,11 @@ export interface PgnUploadResult {
   inserted: number;
   duplicates: number;
   blundersFound: number;
+  /** Games whose White/Black headers didn't match the entered name. */
+  unmatched: number;
 }
+
+export type PgnColorOverride = 'white' | 'black' | null;
 
 const SPLIT_RE = /\r?\n\r?\n(?=\[Event\s+")/g;
 
@@ -62,11 +66,25 @@ interface PreparedRow {
   row: Record<string, unknown>;
   externalId: string;
   hadHeaders: boolean;
+  /** Whether the entered name matched the White/Black headers. */
+  matched: boolean;
+}
+
+/** True when the entered name matches the PGN's White or Black header. */
+export function pgnNameMatches(pgn: string, userPgnName: string): boolean {
+  const headers = extractHeaders(pgn);
+  const lowerName = userPgnName.trim().toLowerCase();
+  if (!lowerName) return false;
+  return (
+    (headers.White ?? '').toLowerCase() === lowerName ||
+    (headers.Black ?? '').toLowerCase() === lowerName
+  );
 }
 
 async function preparePgn(
   pgn: string,
   userPgnName: string,
+  colorOverride: PgnColorOverride,
 ): Promise<PreparedRow> {
   const headers = extractHeaders(pgn);
   const externalId = await pgnHash(pgn);
@@ -75,8 +93,24 @@ async function preparePgn(
   const black = headers.Black ?? '';
   const isWhite = white.toLowerCase() === lowerName;
   const isBlack = black.toLowerCase() === lowerName;
+  const matched = isWhite || isBlack;
   const username = isWhite ? white : isBlack ? black : userPgnName.trim();
-  const opponent = isWhite ? black : isBlack ? white : (white || black || 'Unknown');
+  // With an override on an unmatched game, the opponent is the named player on
+  // the other side (if the headers carry one).
+  const opponent = isWhite
+    ? black
+    : isBlack
+      ? white
+      : colorOverride === 'white'
+        ? black || 'Unknown'
+        : colorOverride === 'black'
+          ? white || 'Unknown'
+          : white || black || 'Unknown';
+  const userColor: 'white' | 'black' | null = isWhite
+    ? 'white'
+    : isBlack
+      ? 'black'
+      : colorOverride;
   const playedAt = parsePgnDate(headers.UTCDate ?? headers.Date, headers.UTCTime ?? headers.StartTime);
 
   const row: Record<string, unknown> = {
@@ -89,6 +123,7 @@ async function preparePgn(
     result: deriveResult(headers),
     played_at: playedAt,
     external_game_id: externalId,
+    user_color: userColor,
   };
 
   return {
@@ -96,27 +131,31 @@ async function preparePgn(
     row,
     externalId,
     hadHeaders: Object.keys(headers).length > 0,
+    matched,
   };
 }
 
 export async function uploadPgns(args: {
   pgnText: string;
   userPgnName: string;
+  /** Side the user played in games whose headers don't name them. */
+  colorOverride?: PgnColorOverride;
   onProgress?: (p: PgnUploadProgress) => void;
 }): Promise<PgnUploadResult> {
-  const { pgnText, userPgnName, onProgress } = args;
+  const { pgnText, userPgnName, colorOverride = null, onProgress } = args;
   const pgns = splitMultiGamePgn(pgnText);
   if (pgns.length === 0) {
-    return { totalGames: 0, inserted: 0, duplicates: 0, blundersFound: 0 };
+    return { totalGames: 0, inserted: 0, duplicates: 0, blundersFound: 0, unmatched: 0 };
   }
 
   onProgress?.({ phase: 'parsing', current: 0, total: pgns.length, blundersFound: 0 });
 
   const prepared: PreparedRow[] = [];
   for (let i = 0; i < pgns.length; i++) {
-    prepared.push(await preparePgn(pgns[i], userPgnName));
+    prepared.push(await preparePgn(pgns[i], userPgnName, colorOverride));
     onProgress?.({ phase: 'parsing', current: i + 1, total: pgns.length, blundersFound: 0 });
   }
+  const unmatched = prepared.filter((p) => !p.matched).length;
 
   const existing = await supabaseService.getExistingExternalGameIds('pgn');
   const seenInBatch = new Set<string>();
@@ -190,5 +229,6 @@ export async function uploadPgns(args: {
     inserted: insertedIds.length,
     duplicates,
     blundersFound,
+    unmatched,
   };
 }

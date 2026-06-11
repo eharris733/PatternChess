@@ -8,6 +8,7 @@ import { LandingRoute } from './routes/LandingRoute';
 import { LoginRoute } from './routes/LoginRoute';
 import { TermsRoute } from './routes/TermsRoute';
 import { PrivacyRoute } from './routes/PrivacyRoute';
+import { PuzzleRoute } from './routes/PuzzleRoute';
 import { ProfileRoute } from './routes/ProfileRoute';
 import { AchievementsRoute } from './routes/AchievementsRoute';
 import { AnalyticsRoute } from './routes/AnalyticsRoute';
@@ -21,6 +22,7 @@ export default function App() {
       <Route path="/login" element={<LoginRoute />} />
       <Route path="/terms" element={<TermsRoute />} />
       <Route path="/privacy" element={<PrivacyRoute />} />
+      <Route path="/p" element={<PuzzleRoute />} />
       <Route
         element={
           <AppShell>

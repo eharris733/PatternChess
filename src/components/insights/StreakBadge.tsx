@@ -29,8 +29,8 @@ export function StreakBadge({ collapsed }: StreakBadgeProps) {
   return (
     <div
       className={clsx(
-        'flex items-center gap-3 px-3 py-2.5',
-        collapsed && 'justify-center',
+        'flex items-center py-2.5',
+        collapsed ? 'justify-center gap-1 px-0' : 'gap-3 px-3',
         stale && 'opacity-50',
       )}
       title={

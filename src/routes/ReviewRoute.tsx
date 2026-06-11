@@ -8,6 +8,7 @@ import { FeedbackBadge } from '../components/FeedbackBadge';
 import { MoveSequencePanel, type MovePair } from '../components/MoveSequencePanel';
 import { classifySwing, useReviewStore } from '../state/reviewStore';
 import { annotationKey } from '../models/gameAnnotation';
+import { orderedPlayers } from '../models/gameRecord';
 import {
   GAME_STATE_LABEL,
   classifyGameState,
@@ -140,7 +141,9 @@ export function ReviewRoute() {
       <div className="flex flex-col gap-3">
         <header>
           <h1 className="heading-md">
-            {r.game.username} <span className="text-text-secondary">vs</span> {r.game.opponent}
+            {orderedPlayers(r.game.username, r.game.opponent, r.game.userColor)[0]}{' '}
+            <span className="text-text-secondary">vs</span>{' '}
+            {orderedPlayers(r.game.username, r.game.opponent, r.game.userColor)[1]}
           </h1>
           <p className="text-text-secondary text-sm">
             {r.game.platform} · {r.game.timeControl ?? '—'} ·{' '}

@@ -56,7 +56,8 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
             end={item.to === '/dashboard'}
             className={({ isActive }) =>
               clsx(
-                'mx-2 flex items-center gap-3 px-3 py-2.5 rounded-none font-mono uppercase tracking-tight text-xs transition-colors',
+                'mx-2 flex items-center gap-3 py-2.5 rounded-none font-mono uppercase tracking-tight text-xs transition-colors',
+                collapsed ? 'justify-center px-0' : 'px-3',
                 isActive
                   ? 'bg-text-primary text-bg'
                   : 'text-text-primary hover:bg-text-primary/5',
@@ -86,11 +87,11 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
           to="/profile"
           className={({ isActive }) =>
             clsx(
-              'flex items-center gap-3 px-3 py-2.5 rounded-none font-mono uppercase tracking-tight text-xs transition-colors',
+              'flex items-center gap-3 py-2.5 rounded-none font-mono uppercase tracking-tight text-xs transition-colors',
+              collapsed ? 'justify-center px-0' : 'px-3',
               isActive
                 ? 'bg-text-primary text-bg'
                 : 'text-text-primary hover:bg-text-primary/10',
-              collapsed && 'justify-center',
             )
           }
         >

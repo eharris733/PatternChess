@@ -69,6 +69,12 @@ export function MoveSequencePanel({
   );
 }
 
+function tagTone(active: boolean): string {
+  return active
+    ? 'bg-transparent text-bg border-bg/50'
+    : 'bg-surface-3 text-text-secondary border-text-primary/40';
+}
+
 function Cell({
   move,
   active,
@@ -94,21 +100,23 @@ function Cell({
         <span
           className={clsx(
             'px-1 rounded-none text-[9px] font-bold uppercase border',
-            MOVE_GRADE_TW_BG[move.grade],
+            // Active cells invert to dark — the grade chip's own dark colors
+            // would vanish, so swap to an outline readable on the dark bg.
+            active ? 'bg-transparent text-bg border-bg/50' : MOVE_GRADE_TW_BG[move.grade],
           )}
         >
           {move.grade}
         </span>
       )}
       {move.tag && (
-        <span className="px-1 rounded-none text-[9px] font-bold uppercase bg-surface-3 text-text-secondary border border-text-primary/40">
+        <span className={clsx('px-1 rounded-none text-[9px] font-bold uppercase border', tagTone(active))}>
           {move.tag}
         </span>
       )}
       {move.contextTags?.map((t) => (
         <span
           key={t}
-          className="px-1 rounded-none text-[9px] font-bold uppercase bg-surface-3 text-text-secondary border border-text-primary/40"
+          className={clsx('px-1 rounded-none text-[9px] font-bold uppercase border', tagTone(active))}
         >
           {t}
         </span>

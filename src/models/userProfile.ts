@@ -17,6 +17,10 @@ export interface UserProfile {
   lastDrillLocalDate: string | null;
   timezone: string | null;
   boardTheme: BoardTheme;
+  /** Show raw engine evals next to win-chance percentages on the training screen. */
+  showEngineEvals: boolean;
+  /** Show the blunder review step (played move + refutation) before solving. */
+  revealBeforeSolve: boolean;
 }
 
 function parseBoardTheme(v: unknown): BoardTheme {
@@ -62,6 +66,9 @@ export function userProfileFromJson(json: any): UserProfile {
     lastDrillLocalDate: (json.last_drill_local_date as string | null) ?? null,
     timezone: (json.timezone as string | null) ?? null,
     boardTheme: parseBoardTheme(json.board_theme),
+    // Columns may be absent until the 20260610 migration is applied; default off.
+    showEngineEvals: Boolean(json.show_engine_evals ?? false),
+    revealBeforeSolve: Boolean(json.reveal_before_solve ?? false),
   };
 }
 

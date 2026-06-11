@@ -27,6 +27,35 @@ export function ProfileRoute() {
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [backfillRunning, setBackfillRunning] = useState(false);
   const [backfillProgress, setBackfillProgress] = useState<BackfillProgress | null>(null);
+  const [trainingPrefsError, setTrainingPrefsError] = useState<string | null>(null);
+  // Optimistic copy of the two training toggles: the checkbox flips instantly,
+  // the PATCH runs in the background, and a failure reverts the flip.
+  const [trainingPrefs, setTrainingPrefs] = useState({
+    showEngineEvals: false,
+    revealBeforeSolve: false,
+  });
+  useEffect(() => {
+    setTrainingPrefs({
+      showEngineEvals: profile?.showEngineEvals ?? false,
+      revealBeforeSolve: profile?.revealBeforeSolve ?? false,
+    });
+  }, [profile?.showEngineEvals, profile?.revealBeforeSolve]);
+
+  const onToggleTrainingPref = (pref: 'showEngineEvals' | 'revealBeforeSolve', value: boolean) => {
+    if (!profile) return;
+    setTrainingPrefsError(null);
+    setTrainingPrefs((cur) => ({ ...cur, [pref]: value }));
+    void authService
+      .updateTrainingPrefs(profile.id, { [pref]: value })
+      .then(() => refreshProfile())
+      .catch((err) => {
+        console.warn('[profile] persist training prefs failed', err);
+        setTrainingPrefs((cur) => ({ ...cur, [pref]: !value }));
+        setTrainingPrefsError(
+          'Could not save this preference. If this keeps happening, the latest profiles migration may not be applied yet.',
+        );
+      });
+  };
 
   const onPickTheme = (next: BoardTheme) => {
     setStoreTheme(next);
@@ -179,6 +208,43 @@ export function ProfileRoute() {
             <span className="text-correct text-sm">Saved.</span>
           )}
         </div>
+      </section>
+
+      <section className="card flex flex-col gap-4">
+        <h2 className="heading-md">Training</h2>
+        <p className="text-text-secondary text-sm -mt-2">
+          How much each position tells you before you solve it. Changes save instantly.
+        </p>
+        <label className="flex items-start gap-2 select-none">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={trainingPrefs.revealBeforeSolve}
+            onChange={(e) => onToggleTrainingPref('revealBeforeSolve', e.target.checked)}
+          />
+          <span>
+            Show the review step before solving
+            <span className="block text-text-secondary text-xs">
+              Reveals the move you played and the engine refutation up front. Off by default so
+              new positions are a blind test; everything is shown after your attempt either way.
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2 select-none">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={trainingPrefs.showEngineEvals}
+            onChange={(e) => onToggleTrainingPref('showEngineEvals', e.target.checked)}
+          />
+          <span>
+            Show raw engine evals
+            <span className="block text-text-secondary text-xs">
+              Adds the engine's evaluation (e.g. +1.2) next to the win-chance percentages.
+            </span>
+          </span>
+        </label>
+        {trainingPrefsError && <p className="text-incorrect text-sm">{trainingPrefsError}</p>}
       </section>
 
       <section className="card flex flex-col gap-4">

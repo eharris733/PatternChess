@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
 import { usePgnUploadStore } from '../state/pgnUploadStore';
 import {
+  PgnColorOverride,
   PgnUploadProgress,
   PgnUploadResult,
+  pgnNameMatches,
   splitMultiGamePgn,
   uploadPgns,
 } from '../services/pgnUploadService';
@@ -26,6 +28,7 @@ export function PgnUploadModal() {
   const defaultName =
     profile?.lichessUsername ?? profile?.chesscomUsername ?? profile?.displayName ?? '';
   const [userPgnName, setUserPgnName] = useState(defaultName);
+  const [colorOverride, setColorOverride] = useState<PgnColorOverride>(null);
   const [progress, setProgress] = useState<PgnUploadProgress | null>(null);
   const [result, setResult] = useState<PgnUploadResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -38,19 +41,25 @@ export function PgnUploadModal() {
     setPgnText('');
     setFileLabel(null);
     setUserPgnName(defaultName);
+    setColorOverride(null);
     setProgress(null);
     setResult(null);
     setErrorMsg(null);
   }, [open, defaultName]);
 
-  const parsedCount = (() => {
-    if (!pgnText.trim()) return 0;
+  const parsedGames = useMemo(() => {
+    if (!pgnText.trim()) return [];
     try {
-      return splitMultiGamePgn(pgnText).length;
+      return splitMultiGamePgn(pgnText);
     } catch {
-      return 0;
+      return [];
     }
-  })();
+  }, [pgnText]);
+  const parsedCount = parsedGames.length;
+  const unmatchedCount = useMemo(() => {
+    if (parsedGames.length === 0 || !userPgnName.trim()) return 0;
+    return parsedGames.filter((g) => !pgnNameMatches(g, userPgnName)).length;
+  }, [parsedGames, userPgnName]);
 
   const onFilePick = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -84,6 +93,7 @@ export function PgnUploadModal() {
       const res = await uploadPgns({
         pgnText,
         userPgnName,
+        colorOverride,
         onProgress: setProgress,
       });
       setResult(res);
@@ -206,6 +216,38 @@ export function PgnUploadModal() {
               </p>
             </div>
 
+            {unmatchedCount > 0 && (
+              <div className="flex flex-col gap-2 rounded-none border-2 border-mistake/50 bg-mistake/10 p-3">
+                <p className="text-text-primary text-sm">
+                  {unmatchedCount} game{unmatchedCount === 1 ? " doesn't" : "s don't"} list{' '}
+                  <span className="font-mono">{userPgnName.trim()}</span> as White or Black
+                  (common with Lichess study exports). Which side did you play in those?
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  {(
+                    [
+                      { value: null, label: 'Not sure (analyze both sides)' },
+                      { value: 'white', label: 'White' },
+                      { value: 'black', label: 'Black' },
+                    ] as { value: PgnColorOverride; label: string }[]
+                  ).map((opt) => (
+                    <label
+                      key={opt.label}
+                      className="flex items-center gap-2 select-none px-3 py-1.5 rounded-none bg-surface border-2 border-text-primary hover:bg-text-primary/5 cursor-pointer text-sm"
+                    >
+                      <input
+                        type="radio"
+                        name="pgn-color-override"
+                        checked={colorOverride === opt.value}
+                        onChange={() => setColorOverride(opt.value)}
+                      />
+                      <span>{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-end gap-3 mt-2">
               <button type="button" className="btn-outline" onClick={onClose}>
                 Cancel
@@ -262,6 +304,11 @@ export function PgnUploadModal() {
                   {result.blundersFound} blunder{result.blundersFound === 1 ? '' : 's'} found
                   {result.duplicates > 0
                     ? ` · ${result.duplicates} duplicate${result.duplicates === 1 ? '' : 's'} skipped`
+                    : ''}
+                  {result.unmatched > 0
+                    ? colorOverride
+                      ? ` · ${result.unmatched} imported as ${colorOverride === 'white' ? 'White' : 'Black'}`
+                      : ` · ${result.unmatched} game${result.unmatched === 1 ? '' : 's'} couldn't be matched to your name`
                     : ''}
                 </p>
               </div>

@@ -9,7 +9,7 @@ import { usePgnUploadStore } from '../state/pgnUploadStore';
 import { supabaseService } from '../services/supabaseService';
 import { platformGameUrl } from '../services/externalAnalysisUrlService';
 import { extractHeaders } from '../services/pgnParserService';
-import { resolveOutcome, type GameOutcome } from '../models/gameRecord';
+import { orderedPlayers, resolveOutcome, type GameOutcome } from '../models/gameRecord';
 import type { GameRecord } from '../models/gameRecord';
 import { TrashIcon } from '../components/icons/TrashIcon';
 
@@ -175,7 +175,9 @@ export function VaultRoute() {
             <li key={g.id} className="px-5 py-3 flex items-center justify-between gap-4">
               <div className="flex flex-col min-w-0">
                 <span className="text-sm font-medium truncate">
-                  {g.username} <span className="text-text-secondary">vs</span> {g.opponent}
+                  {orderedPlayers(g.username, g.opponent, g.userColor)[0]}{' '}
+                  <span className="text-text-secondary">vs</span>{' '}
+                  {orderedPlayers(g.username, g.opponent, g.userColor)[1]}
                 </span>
                 <span className="text-xs text-text-secondary mt-0.5">
                   {g.platform} · {g.timeControl ?? '—'} ·{' '}
@@ -254,7 +256,11 @@ export function VaultRoute() {
             <p className="text-text-secondary text-sm">
               This permanently removes{' '}
               <span className="text-text-primary font-medium">
-                {deleteTarget.username} vs {deleteTarget.opponent}
+                {orderedPlayers(
+                  deleteTarget.username,
+                  deleteTarget.opponent,
+                  deleteTarget.userColor,
+                ).join(' vs ')}
               </span>{' '}
               and any blunders found in it. The positions won't appear in
               training again. This can't be undone.

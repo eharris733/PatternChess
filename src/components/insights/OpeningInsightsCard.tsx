@@ -30,7 +30,12 @@ export function OpeningInsightsCard() {
       <ul className="flex flex-col divide-y divide-text-primary/15">
         {rows.map((row) => {
           const colorLabel = row.userColor === 'white' ? '♔' : row.userColor === 'black' ? '♚' : '·';
-          const openingName = formatOpeningDisplay(resolveOpeningFamilyName(row.ecoFamily));
+          // Show the most-played full ECO code (e.g. "B33") rather than the
+          // family wildcard ("B3*") the rows are grouped by.
+          const openingName = formatOpeningDisplay({
+            name: resolveOpeningFamilyName(row.ecoFamily).name,
+            eco: row.dominantEco ?? row.ecoFamily,
+          });
           return (
             <li key={`${row.ecoFamily}-${row.userColor ?? 'unknown'}`}>
               <button
