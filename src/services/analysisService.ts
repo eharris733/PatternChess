@@ -41,6 +41,12 @@ export async function analyzePgn(
   opts: {
     onProgress?: (current: number, total: number) => void;
     maxPlies?: number;
+    /**
+     * Side to analyze when the username doesn't match the White/Black headers
+     * (e.g. an upload-time color override). Without it, unmatched games get
+     * both sides' blunders.
+     */
+    playerSideFallback?: 'white' | 'black' | null;
   } = {},
 ): Promise<PgnAnalysisResult> {
   const headers = extractHeaders(pgn);
@@ -51,11 +57,11 @@ export async function analyzePgn(
       : allPositions;
   const lower = username?.toLowerCase();
   const playerSide: 'white' | 'black' | null =
-    lower && headers.White?.toLowerCase() === lower
+    (lower && headers.White?.toLowerCase() === lower
       ? 'white'
       : lower && headers.Black?.toLowerCase() === lower
         ? 'black'
-        : null;
+        : null) ?? opts.playerSideFallback ?? null;
   const blunders = await sf.analyzeGame(positions, {
     depth: 12,
     playerSide,
@@ -78,6 +84,9 @@ export async function analyzeGames(
     const username = game.username || fallbackUsername || null;
 
     const { blunders } = await analyzePgn(sf, game.pgn, username, {
+      // The stored color is authoritative when name matching fails — it carries
+      // the upload-time override (and a header match set it at insert anyway).
+      playerSideFallback: game.userColor,
       onProgress: (cur, total) =>
         onProgress?.({
           gameIndex: i,
@@ -108,7 +117,7 @@ export async function analyzeGames(
 
     // Stamp PGN-derived metadata if we haven't already (cheap, runs once per game).
     if (!game.parsedMetadataAt) {
-      const meta = parsePgnMetadata(game.pgn, game.username || fallbackUsername);
+      const meta = parsePgnMetadata(game.pgn, game.username || fallbackUsername, game.userColor);
       try {
         await supabaseService.updateGameMetadata(game.id, meta);
       } catch {

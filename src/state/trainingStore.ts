@@ -130,7 +130,16 @@ export interface TrainingStateShape {
   /** Blunders the user has made at least one move on this session — used to gate `pendingTryAgain` across retries. */
   interactedBlunderIds: Set<string>;
   playedMovesFromBlunder: string[];
+  /**
+   * Profile preference (mirrored in by TrainingRoute): show the review step
+   * (played move + refutation) before solving. When false — the default — new
+   * and retry positions go straight to solving, and the review content is
+   * revealed only after the attempt via ensureBlunderRefutation().
+   */
+  revealBeforeSolve: boolean;
 
+  setRevealBeforeSolve: (value: boolean) => void;
+  ensureBlunderRefutation: () => Promise<void>;
   setBlunders: (blunders: Blunder[]) => void;
   setContextFilter: (filter: ContextFilter | null) => void;
   beginSession: (profile: UserProfile) => Promise<void>;
@@ -150,6 +159,8 @@ export interface TrainingStateShape {
 }
 
 type InitialShape = Omit<TrainingStateShape,
+  | 'setRevealBeforeSolve'
+  | 'ensureBlunderRefutation'
   | 'setBlunders'
   | 'setContextFilter'
   | 'beginSession'
@@ -205,6 +216,7 @@ function makeInitial(): InitialShape {
     interactedBlunderIds: new Set<string>(),
     playedMovesFromBlunder: [],
     incorrectRequeue: false,
+    revealBeforeSolve: false,
   };
 }
 
@@ -361,6 +373,56 @@ function buildRefutationPairs(opts: {
   return { pairs, movesPlusFirst: moves };
 }
 
+/**
+ * Replay the original blunder and ask the engine why it fails. Shared by the
+ * pre-solve review step and the post-attempt reveal (hidden mode). Returns
+ * null when the stored move can't be replayed or the engine is unavailable.
+ */
+async function computeOriginalRefutation(
+  blunder: Blunder,
+  blunderSan: string,
+  currentContext: BlunderContext | null,
+): Promise<{ pairs: MovePair[]; movesPlusFirst: ReviewMove[] } | null> {
+  let afterFen: string;
+  try {
+    const chess = new Chess(blunder.fen);
+    const stdUci = CASTLING_NORMALIZE[blunder.playedMove] ?? blunder.playedMove;
+    const stdM = parseUciMove(stdUci);
+    const result = chess.move({ from: stdM.from, to: stdM.to, promotion: stdM.promotion });
+    if (!result) return null;
+    afterFen = chess.fen();
+  } catch {
+    return null;
+  }
+
+  try {
+    const sf = await getStockfish();
+    const ev = await sf.evaluatePositionFull(afterFen, 18);
+    const pvMoves = buildLineMoves(afterFen, ev.principalVariation);
+    // The move row carries a single tag notating the move. Prefer the
+    // game-state context (it's the more specific signal); for a roughly
+    // equal position fall back to the blunder classification so the row is
+    // never left untagged.
+    const moveTag =
+      currentContext?.gameState === 'missedWin'
+        ? 'Missed win'
+        : currentContext?.gameState === 'alreadyLosing'
+          ? 'Already losing'
+          : classifyShortLabel(blunder).toUpperCase();
+    return buildRefutationPairs({
+      fen: blunder.fen,
+      moveNumber: blunder.moveNumber,
+      sideToMove: blunder.sideToMove,
+      firstSan: blunderSan,
+      firstUci: blunder.playedMove,
+      contextTags: [moveTag],
+      pvMoves,
+    });
+  } catch {
+    return null;
+  }
+}
+
 function buildPostCorrectPairs(
   preCorrectFen: string,
   correctSan: string,
@@ -411,7 +473,8 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
   reset: () => {
     endActiveSession(get());
     void flushDrillWritesAndRefreshDue();
-    set(makeInitial());
+    // revealBeforeSolve is a user preference, not session state — survive resets.
+    set({ ...makeInitial(), revealBeforeSolve: get().revealBeforeSolve });
   },
 
   beginSession: async (profile) => {
@@ -435,7 +498,12 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
 
   setBlunders: (blunders) => {
     if (blunders.length === 0) {
-      set({ ...makeInitial(), phase: 'empty', contextFilter: get().contextFilter });
+      set({
+        ...makeInitial(),
+        phase: 'empty',
+        contextFilter: get().contextFilter,
+        revealBeforeSolve: get().revealBeforeSolve,
+      });
       return;
     }
     set({
@@ -451,6 +519,41 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
 
   setContextFilter: (filter) => {
     set({ contextFilter: filter });
+  },
+
+  setRevealBeforeSolve: (value) => {
+    set({ revealBeforeSolve: value });
+  },
+
+  /**
+   * Lazily fetch the original-blunder refutation for the post-attempt reveal.
+   * No-op when it's already loaded (e.g. the review step ran). Leaves the
+   * board (fen/shapes) and activeRefutationIndex untouched so the user stays
+   * on the post-attempt position until they click into the line.
+   */
+  ensureBlunderRefutation: async () => {
+    const state = get();
+    if (state.refutationPairs.length > 0) return;
+    const blunder = state.blunders[state.currentIndex];
+    if (!blunder) return;
+    const blunderId = blunder.id;
+
+    const refutation = await computeOriginalRefutation(
+      blunder,
+      state.blunderSan,
+      state.currentContext,
+    );
+    if (!refutation) return;
+
+    // The user may have advanced or retried while the engine was thinking.
+    const cur = get();
+    const curBlunder = cur.blunders[cur.currentIndex];
+    if (!curBlunder || curBlunder.id !== blunderId) return;
+    if (cur.phase !== 'correct' && cur.phase !== 'incorrect') return;
+    set({
+      refutationMoves: refutation.movesPlusFirst,
+      refutationPairs: refutation.pairs,
+    });
   },
 
   loadCurrentBlunder: async () => {
@@ -491,8 +594,10 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     // Try to pre-play the blunder so we can show the position after the bad move.
     // If the FEN or move can't be parsed (corrupt data, exotic encoding), skip the
     // reviewing step entirely and fall through to solving — never leave phase='loading'.
+    // The review step is opt-in (revealBeforeSolve); by default every position is
+    // a blind test and the review content is revealed after the attempt.
     let preplay: { afterFen: string; lastMove: [string, string]; from: string; to: string } | null = null;
-    if (isNewBlunder || isRetry) {
+    if ((isNewBlunder || isRetry) && get().revealBeforeSolve) {
       try {
         const chess = new Chess(blunder.fen);
         const rawM = parseUciMove(blunder.playedMove);
@@ -542,36 +647,13 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         hintLevel: 0,
       });
 
-      try {
-        const sf = await getStockfish();
-        const result = await sf.evaluatePositionFull(preplay.afterFen, 18);
-        const pvMoves = buildLineMoves(preplay.afterFen, result.principalVariation);
-        // The move row carries a single tag notating the move. Prefer the
-        // game-state context (it's the more specific signal); for a roughly
-        // equal position fall back to the blunder classification so the row is
-        // never left untagged.
-        const moveTag =
-          currentContext.gameState === 'missedWin'
-            ? 'Missed win'
-            : currentContext.gameState === 'alreadyLosing'
-              ? 'Already losing'
-              : classifyShortLabel(blunder).toUpperCase();
-        const { pairs, movesPlusFirst } = buildRefutationPairs({
-          fen: blunder.fen,
-          moveNumber: blunder.moveNumber,
-          sideToMove: blunder.sideToMove,
-          firstSan: blunderSan,
-          firstUci: blunder.playedMove,
-          contextTags: [moveTag],
-          pvMoves,
-        });
+      const refutation = await computeOriginalRefutation(blunder, blunderSan, currentContext);
+      if (refutation) {
         set({
-          refutationMoves: movesPlusFirst,
-          refutationPairs: pairs,
+          refutationMoves: refutation.movesPlusFirst,
+          refutationPairs: refutation.pairs,
           activeRefutationIndex: 0,
         });
-      } catch {
-        /* engine optional during review */
       }
     } else {
       set({
@@ -754,8 +836,9 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           shapes: [{ orig: move.from as any, dest: move.to as any, brush: 'green' }],
           incorrectFeedback: null,
           playedMovesFromBlunder: [uci],
-          refutationMoves: [],
-          refutationPairs: [],
+          // Keep refutationMoves/refutationPairs: the correct phase now shows
+          // the original blunder's refutation (already loaded in reveal mode,
+          // fetched below otherwise). Reset to the post-attempt board view.
           activeRefutationIndex: null,
           postCorrectMoves: [],
           postCorrectPairs: [],
@@ -798,6 +881,11 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       } catch {
         /* leave empty */
       }
+
+      // Post-attempt reveal: load the original blunder's refutation (no-op if
+      // the review step already fetched it). Sequenced after the continuation
+      // eval so the panel the user sees first isn't delayed.
+      void get().ensureBlunderRefutation();
     } else {
       blunder.timesAttempted++;
       blunder.lastDrilledAt = new Date();
@@ -871,6 +959,10 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           playedMovesFromBlunder: [uci],
         };
       });
+
+      // Post-attempt reveal of the original blunder's refutation (no-op when
+      // the review step already fetched it).
+      void get().ensureBlunderRefutation();
     }
   },
 
@@ -1019,6 +1111,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       lastMove: [m.from, m.to],
       shapes: [{ orig: m.from as any, dest: m.to as any, brush: 'red' }],
       activeRefutationIndex: idx,
+      activePlayedRefutationIndex: null,
       activePostCorrectIndex: null,
       playedMovesFromBlunder: refutationMoves.slice(0, idx + 1).map((rm) => rm.uci),
     });
@@ -1045,6 +1138,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       lastMove: [m.from, m.to],
       shapes: [{ orig: m.from as any, dest: m.to as any, brush: 'red' }],
       activePlayedRefutationIndex: idx,
+      activeRefutationIndex: null,
       playedMovesFromBlunder: playedRefutationMoves.slice(0, idx + 1).map((rm) => rm.uci),
     });
   },

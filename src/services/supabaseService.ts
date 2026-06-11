@@ -195,6 +195,8 @@ export async function getBlunderPhaseCounts(): Promise<PhaseCounts> {
 
 export interface OpeningGroupRow {
   ecoFamily: string;
+  /** Most frequent full ECO code within the family (e.g. "B33" for "B3*"). */
+  dominantEco: string | null;
   openingName: string | null;
   userColor: 'white' | 'black' | null;
   games: number;
@@ -236,6 +238,9 @@ export async function getOpeningPerformance(opts?: {
 
   const gameIdToEcoFamily = new Map<string, string>();
   const groups = new Map<string, OpeningGroupRow>();
+  // Per group, count full ECO codes so we can surface the dominant one
+  // (e.g. "B33") instead of the bare family wildcard ("B3*").
+  const ecoCounts = new Map<string, Map<string, number>>();
 
   for (const g of games) {
     const eco = g.eco;
@@ -248,6 +253,7 @@ export async function getOpeningPerformance(opts?: {
     if (!group) {
       group = {
         ecoFamily: family,
+        dominantEco: null,
         openingName: g.opening_name,
         userColor: color,
         games: 0,
@@ -260,6 +266,13 @@ export async function getOpeningPerformance(opts?: {
       groups.set(key, group);
     }
     group.games++;
+    const fullEco = eco.trim().toUpperCase();
+    let counts = ecoCounts.get(key);
+    if (!counts) {
+      counts = new Map();
+      ecoCounts.set(key, counts);
+    }
+    counts.set(fullEco, (counts.get(fullEco) ?? 0) + 1);
     // Result format varies by platform (chess.com per-player codes vs PGN);
     // resolveOutcome normalizes both relative to the user's side.
     const outcome = resolveOutcome(g.platform, g.result, color);
@@ -283,6 +296,20 @@ export async function getOpeningPerformance(opts?: {
       group.blunders++;
       if (row.phase === 'opening') group.openingBlunders++;
     }
+  }
+
+  for (const [key, group] of groups) {
+    const counts = ecoCounts.get(key);
+    if (!counts) continue;
+    let best: string | null = null;
+    let bestCount = 0;
+    for (const [eco, count] of counts) {
+      if (count > bestCount || (count === bestCount && best !== null && eco < best)) {
+        best = eco;
+        bestCount = count;
+      }
+    }
+    group.dominantEco = best;
   }
 
   const list = Array.from(groups.values()).sort((a, b) => b.games - a.games);

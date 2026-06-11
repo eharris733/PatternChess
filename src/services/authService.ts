@@ -92,6 +92,8 @@ export const authService = {
       lastDrillLocalDate: null,
       timezone: null,
       boardTheme: 'default',
+      showEngineEvals: false,
+      revealBeforeSolve: false,
     };
     // Stamp the landing-page visitor id (if this browser ever hit the landing
     // page) so the funnel can link anonymous view/demo events to this account.
@@ -110,6 +112,23 @@ export const authService = {
       .from('profiles')
       .update(userProfileToUpdate(profile))
       .eq('id', profile.id);
+    if (error) throw error;
+  },
+
+  /**
+   * Writes only the training-preference columns. Kept out of
+   * userProfileToUpdate so every other profile save keeps working until the
+   * 20260610 profiles migration is applied.
+   */
+  async updateTrainingPrefs(
+    userId: string,
+    prefs: { showEngineEvals?: boolean; revealBeforeSolve?: boolean },
+  ): Promise<void> {
+    const patch: Record<string, unknown> = {};
+    if (prefs.showEngineEvals !== undefined) patch.show_engine_evals = prefs.showEngineEvals;
+    if (prefs.revealBeforeSolve !== undefined) patch.reveal_before_solve = prefs.revealBeforeSolve;
+    if (Object.keys(patch).length === 0) return;
+    const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
     if (error) throw error;
   },
 

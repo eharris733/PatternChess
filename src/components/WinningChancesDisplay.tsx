@@ -1,46 +1,51 @@
 import clsx from 'clsx';
 import { winPercent } from '../chess/winningChances';
+import { InfoTip } from './InfoTip';
+
+/** Raw engine eval in pawns, from the player's perspective. ±10000-ish = mate. */
+function formatEval(cp: number): string {
+  if (cp > 9000) return '#';
+  if (cp < -9000) return '-#';
+  const pawns = cp / 100;
+  return `${pawns > 0 ? '+' : ''}${pawns.toFixed(1)}`;
+}
 
 export function WinningChancesDisplay({
   evalBefore,
   evalAfter,
+  showEngineEvals = false,
   className,
 }: {
   evalBefore: number;
   evalAfter: number;
+  showEngineEvals?: boolean;
   className?: string;
 }) {
   const before = winPercent(evalBefore);
+  // evalAfter is stored from the opponent's perspective — negate for the player.
   const after = winPercent(-evalAfter);
   const lost = before - after;
 
   return (
-    <div className={clsx('flex flex-col gap-1', className)}>
-      <div className="flex justify-between text-xs text-text-secondary">
-        <span>Before</span>
-        <span className="font-mono">{before.toFixed(1)}%</span>
-      </div>
-      <div className="w-full h-2 rounded-none bg-text-primary/10 overflow-hidden border border-text-primary/20">
-        <div className="h-full bg-correct/70" style={{ width: `${before}%` }} />
-      </div>
-      <div className="flex justify-between text-xs text-text-secondary mt-2">
-        <span>After</span>
-        <span className="font-mono">{after.toFixed(1)}%</span>
-      </div>
-      <div className="w-full h-2 rounded-none bg-text-primary/10 overflow-hidden border border-text-primary/20">
-        <div className="h-full bg-incorrect/70" style={{ width: `${after}%` }} />
-      </div>
-      <div className="flex justify-between text-xs mt-2">
-        <span className="text-text-secondary">Chances lost</span>
+    <div className={clsx('flex items-center justify-between gap-2 text-xs', className)}>
+      <span className="text-text-secondary shrink-0">Win chance</span>
+      <span className="font-mono tabular-nums text-text-primary text-right">
+        {before.toFixed(1)}%{showEngineEvals && ` (${formatEval(evalBefore)})`}
+        <span className="text-text-secondary"> {'→'} </span>
+        {after.toFixed(1)}%{showEngineEvals && ` (${formatEval(-evalAfter)})`}{' '}
         <span
           className={clsx(
-            'font-mono font-semibold',
+            'font-semibold',
             lost >= 25 ? 'text-incorrect' : lost >= 15 ? 'text-mistake' : lost >= 10 ? 'text-inaccuracy' : 'text-correct',
           )}
         >
-          {lost.toFixed(1)}%
+          ({lost > 0 ? '−' : '+'}{Math.abs(lost).toFixed(1)}%)
         </span>
-      </div>
+      </span>
+      <InfoTip label="What do these percentages mean?">
+        Your odds of winning before and after the move, from the engine's evaluation (Lichess
+        winning-chances model). Moves that lose 15% or more become training positions.
+      </InfoTip>
     </div>
   );
 }

@@ -26,6 +26,18 @@ function parseColor(v: unknown): 'white' | 'black' | null {
   return v === 'white' || v === 'black' ? v : null;
 }
 
+/**
+ * Player names ordered by chess convention: White on the left. Falls back to
+ * user-first when the user's color is unknown (e.g. unmatched PGN uploads).
+ */
+export function orderedPlayers(
+  username: string,
+  opponent: string,
+  userColor: 'white' | 'black' | null,
+): [string, string] {
+  return userColor === 'black' ? [opponent, username] : [username, opponent];
+}
+
 function parseClockPerPly(v: unknown): number[] | null {
   if (!Array.isArray(v)) return null;
   const out: number[] = [];

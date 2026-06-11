@@ -29,6 +29,7 @@ export interface BlunderContext {
   preMoveWinPercent: number;
   gameState: GameStateBucket;
   timeRemainingPercent: number | null;
+  timeRemainingSeconds: number | null;
   inTimeTrouble: boolean;
   moveTimeSpentSeconds: number | null;
   isLongThink: boolean;
@@ -42,15 +43,15 @@ export function classifyGameState(evalBeforeCp: number): GameStateBucket {
 }
 
 /**
- * Time the player had on their clock at the moment they made the blunder, as a
- * percent of their starting time. Uses the previous post-move clock for that
- * color (i.e. the clock they saw when starting their turn). Returns null when
- * clock data is missing or the time control isn't parseable.
+ * Clock state at the moment the player made the blunder. The clock at the
+ * moment of decision = clock after this player's *previous* move; for the
+ * player's first move (plyIndex < 2) they saw the starting clock. Returns null
+ * when clock data is missing or the time control isn't parseable.
  */
-export function computeTimeRemainingPercent(
+function clockBeforeMoveCs(
   blunder: Pick<Blunder, 'moveNumber' | 'sideToMove'>,
   game: GameRecord | null,
-): number | null {
+): { beforeCs: number; startCs: number; incCs: number; plyIndex: number; clocks: number[] } | null {
   if (!game) return null;
   const clocks = game.clockPerPly;
   if (!clocks || clocks.length === 0) return null;
@@ -60,17 +61,29 @@ export function computeTimeRemainingPercent(
   const playerParity = blunder.sideToMove === 'white' ? 0 : 1;
   const plyIndex = (blunder.moveNumber - 1) * 2 + playerParity;
 
-  // Clock at the moment of decision = clock after this player's *previous* move.
-  // For the player's first move (plyIndex < 2), they saw the starting clock.
-  let beforeCs: number | undefined;
+  let beforeCs: number;
   if (plyIndex < 2) {
     beforeCs = tc.startCs;
   } else {
-    beforeCs = clocks[plyIndex - 2];
-    if (typeof beforeCs !== 'number') return null;
+    const prev = clocks[plyIndex - 2];
+    if (typeof prev !== 'number') return null;
+    beforeCs = prev;
   }
 
-  return (beforeCs / tc.startCs) * 100;
+  return { beforeCs, startCs: tc.startCs, incCs: tc.incCs, plyIndex, clocks };
+}
+
+/**
+ * Time the player had on their clock at the moment they made the blunder, as a
+ * percent of their starting time.
+ */
+export function computeTimeRemainingPercent(
+  blunder: Pick<Blunder, 'moveNumber' | 'sideToMove'>,
+  game: GameRecord | null,
+): number | null {
+  const clock = clockBeforeMoveCs(blunder, game);
+  if (!clock) return null;
+  return (clock.beforeCs / clock.startCs) * 100;
 }
 
 /**
@@ -82,27 +95,12 @@ export function computeMoveTimeSpentSeconds(
   blunder: Pick<Blunder, 'moveNumber' | 'sideToMove'>,
   game: GameRecord | null,
 ): number | null {
-  if (!game) return null;
-  const clocks = game.clockPerPly;
-  if (!clocks || clocks.length === 0) return null;
-  const tc = parseStartIncrement(game.timeControl);
-  if (!tc || tc.startCs <= 0) return null;
-
-  const playerParity = blunder.sideToMove === 'white' ? 0 : 1;
-  const plyIndex = (blunder.moveNumber - 1) * 2 + playerParity;
-  const afterCs = clocks[plyIndex];
+  const clock = clockBeforeMoveCs(blunder, game);
+  if (!clock) return null;
+  const afterCs = clock.clocks[clock.plyIndex];
   if (typeof afterCs !== 'number') return null;
 
-  let beforeCs: number;
-  if (plyIndex < 2) {
-    beforeCs = tc.startCs;
-  } else {
-    const prev = clocks[plyIndex - 2];
-    if (typeof prev !== 'number') return null;
-    beforeCs = prev;
-  }
-
-  const spentCs = beforeCs - afterCs + tc.incCs;
+  const spentCs = clock.beforeCs - afterCs + clock.incCs;
   return spentCs > 0 ? spentCs / 100 : 0;
 }
 
@@ -110,7 +108,9 @@ export function computeBlunderContext(
   blunder: Blunder,
   game: GameRecord | null,
 ): BlunderContext {
-  const timeRemainingPercent = computeTimeRemainingPercent(blunder, game);
+  const clock = clockBeforeMoveCs(blunder, game);
+  const timeRemainingPercent = clock ? (clock.beforeCs / clock.startCs) * 100 : null;
+  const timeRemainingSeconds = clock ? clock.beforeCs / 100 : null;
   const moveTimeSpentSeconds = computeMoveTimeSpentSeconds(blunder, game);
   const tc = parseStartIncrement(game?.timeControl ?? null);
   const isLongThink =
@@ -121,6 +121,7 @@ export function computeBlunderContext(
     preMoveWinPercent: winPercent(blunder.evalBefore),
     gameState: classifyGameState(blunder.evalBefore),
     timeRemainingPercent,
+    timeRemainingSeconds,
     inTimeTrouble:
       timeRemainingPercent !== null && timeRemainingPercent < TIME_TROUBLE_THRESHOLD_PERCENT,
     moveTimeSpentSeconds,

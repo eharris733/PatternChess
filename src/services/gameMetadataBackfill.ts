@@ -32,7 +32,9 @@ export async function runGameMetadataBackfill(opts?: {
     const processedBefore = processed;
     for (const game of batch) {
       try {
-        const meta = parsePgnMetadata(game.pgn, game.username);
+        // Pass the stored color as fallback so a failed name match (e.g. an
+        // upload-time color override) never nulls out user_color.
+        const meta = parsePgnMetadata(game.pgn, game.username, game.userColor);
         await supabaseService.updateGameMetadata(game.id, meta);
         processed++;
       } catch {

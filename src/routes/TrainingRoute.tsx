@@ -14,6 +14,7 @@ import { FeedbackBadge } from '../components/FeedbackBadge';
 import { WinningChancesDisplay } from '../components/WinningChancesDisplay';
 import { TrophyIcon } from '../components/icons/TrophyIcon';
 import { TrashIcon } from '../components/icons/TrashIcon';
+import { ShareIcon } from '../components/icons/ShareIcon';
 import { Skeleton } from '../components/Skeleton';
 import { PositionSrState } from '../components/training/PositionSrState';
 import { BlunderContextBadges } from '../components/training/BlunderContextBadges';
@@ -25,11 +26,13 @@ import {
 import { Blunder, BlunderPhase } from '../models/blunder';
 import { GameRecord } from '../models/gameRecord';
 import { supabase } from '../lib/supabase';
-import { gameRecordFromJson, ecoFamily } from '../models/gameRecord';
+import { gameRecordFromJson, ecoFamily, orderedPlayers } from '../models/gameRecord';
 import {
   externalAnalysisUrl,
   resolvePlatform,
 } from '../services/externalAnalysisUrlService';
+import { encodeSharedPuzzle } from '../services/puzzleShareService';
+import { formatOpeningDisplay, resolveOpeningName } from '../chess/openingNames';
 
 interface LocationState {
   gameIds?: string[];
@@ -48,6 +51,38 @@ function filterLabel(filter: ContextFilter): string {
 
 function phaseLabel(phase: BlunderPhase): string {
   return phase === 'opening' ? 'Opening' : phase === 'endgame' ? 'Endgame' : 'Middlegame';
+}
+
+type LineTab = 'continuation' | 'refutation' | 'playedRefutation';
+
+function LineTabs({
+  tabs,
+  active,
+  onSelect,
+}: {
+  tabs: { key: LineTab; label: string }[];
+  active: LineTab;
+  onSelect: (key: LineTab) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {tabs.map((t) => (
+        <button
+          key={t.key}
+          type="button"
+          onClick={() => onSelect(t.key)}
+          className={clsx(
+            'font-mono uppercase text-[10px] tracking-tight px-2 py-1 rounded-none border-2 border-text-primary transition-colors',
+            active === t.key
+              ? 'bg-text-primary text-bg'
+              : 'text-text-secondary hover:bg-text-primary/5',
+          )}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 async function fetchGamesByIds(ids: string[]): Promise<Map<string, GameRecord>> {
@@ -84,6 +119,14 @@ export function TrainingRoute() {
   const setBlunders = useTrainingStore((s) => s.setBlunders);
   const setContextFilter = useTrainingStore((s) => s.setContextFilter);
   const beginSession = useTrainingStore((s) => s.beginSession);
+  const setRevealBeforeSolve = useTrainingStore((s) => s.setRevealBeforeSolve);
+
+  // Mirror the profile preference into the store. Declared before the
+  // setBlunders effect below so the first loadCurrentBlunder sees it.
+  const revealBeforeSolve = profile?.revealBeforeSolve ?? false;
+  useEffect(() => {
+    setRevealBeforeSolve(revealBeforeSolve);
+  }, [revealBeforeSolve, setRevealBeforeSolve]);
 
   const contextFilter = location.state?.contextFilter ?? null;
   const phaseFilter = location.state?.phaseFilter ?? null;
@@ -157,10 +200,21 @@ export function TrainingRoute() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   useEffect(() => {
     setConfirmDelete(false);
     setDeleteError(null);
+    setShareOpen(false);
+    setShareCopied(false);
   }, [state.currentIndex]);
+
+  // Which move line the post-attempt tabs show — and therefore which line the
+  // arrow keys step through. Local to the route on purpose (no store churn).
+  const [activeTab, setActiveTab] = useState<LineTab>('continuation');
+  useEffect(() => {
+    setActiveTab(state.phase === 'incorrect' ? 'playedRefutation' : 'continuation');
+  }, [state.currentIndex, state.phase]);
 
   useEffect(() => {
     if (!filteredBlunders) return;
@@ -169,6 +223,7 @@ export function TrainingRoute() {
     // Don't interrupt an active session (reviewing/solving/correct/incorrect/complete).
     const { phase } = useTrainingStore.getState();
     if (phase === 'loading' || phase === 'empty') {
+      useTrainingStore.getState().setRevealBeforeSolve(profile?.revealBeforeSolve ?? false);
       setBlunders(filteredBlunders);
       if (filteredBlunders.length > 0 && profile) {
         void beginSession(profile);
@@ -207,27 +262,27 @@ export function TrainingRoute() {
         else if (state.phase === 'correct') state.advance();
         else if (state.phase === 'incorrect')
           state.incorrectRequeue ? state.requeueAndAdvance() : state.retry();
-      } else if (e.code === 'ArrowRight') {
-        if (state.phase === 'correct' && state.postCorrectMoves.length > 0) {
-          state.selectPostCorrectIndex((state.activePostCorrectIndex ?? -1) + 1);
-        } else if (state.phase === 'reviewing' && state.refutationMoves.length > 0) {
-          state.selectRefutationIndex((state.activeRefutationIndex ?? -1) + 1);
-        } else if (state.phase === 'incorrect' && state.playedRefutationMoves.length > 0) {
-          state.selectPlayedRefutationIndex((state.activePlayedRefutationIndex ?? -1) + 1);
-        }
-      } else if (e.code === 'ArrowLeft') {
-        if (state.phase === 'correct' && state.postCorrectMoves.length > 0) {
-          state.selectPostCorrectIndex((state.activePostCorrectIndex ?? 0) - 1);
-        } else if (state.phase === 'reviewing' && state.refutationMoves.length > 0) {
-          state.selectRefutationIndex((state.activeRefutationIndex ?? 0) - 1);
-        } else if (state.phase === 'incorrect' && state.playedRefutationMoves.length > 0) {
-          state.selectPlayedRefutationIndex((state.activePlayedRefutationIndex ?? 0) - 1);
+      } else if (e.code === 'ArrowRight' || e.code === 'ArrowLeft') {
+        // Arrows step through the line the user is looking at: the visible
+        // tab in the post-attempt phases, the refutation while reviewing.
+        const step = e.code === 'ArrowRight' ? 1 : -1;
+        const base = e.code === 'ArrowRight' ? -1 : 0;
+        if (state.phase === 'reviewing' && state.refutationMoves.length > 0) {
+          state.selectRefutationIndex((state.activeRefutationIndex ?? base) + step);
+        } else if (state.phase === 'correct' || state.phase === 'incorrect') {
+          if (activeTab === 'refutation' && state.refutationMoves.length > 0) {
+            state.selectRefutationIndex((state.activeRefutationIndex ?? base) + step);
+          } else if (state.phase === 'correct' && state.postCorrectMoves.length > 0) {
+            state.selectPostCorrectIndex((state.activePostCorrectIndex ?? base) + step);
+          } else if (state.phase === 'incorrect' && state.playedRefutationMoves.length > 0) {
+            state.selectPlayedRefutationIndex((state.activePlayedRefutationIndex ?? base) + step);
+          }
         }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [state]);
+  }, [state, activeTab]);
 
   if (
     dueBlunders.isLoading ||
@@ -316,6 +371,49 @@ export function TrainingRoute() {
 
   const blunder = state.blunders[state.currentIndex];
 
+  // "Why it loses" misstates missed wins — there the engine line shows the
+  // win that was still available, not a losing sequence.
+  const refutationLabel =
+    state.currentContext?.gameState === 'missedWin' ? 'Engine line' : 'Why it loses';
+  const triedSan = state.playedRefutationMoves[0]?.san ?? null;
+
+  const sharePlayersLabel =
+    state.game && blunder
+      ? orderedPlayers(
+          state.game.username,
+          state.game.opponent,
+          blunder.sideToMove === 'white' ? 'white' : 'black',
+        ).join(' vs ')
+      : null;
+  const shareOpeningLabel = state.game
+    ? formatOpeningDisplay(resolveOpeningName(state.game.eco, state.game.openingName))
+    : null;
+  // Plain computation (no useMemo): this sits below the loading early-returns,
+  // and encoding a few hundred bytes per render is negligible.
+  const shareUrl = blunder
+    ? `${window.location.origin}/p?d=${encodeSharedPuzzle({
+        fen: blunder.fen,
+        pm: blunder.playedMove,
+        cm: blunder.correctMoves.map((c) => ({ m: c.move, e: c.eval })),
+        eb: blunder.evalBefore,
+        ea: blunder.evalAfter,
+        stm: blunder.sideToMove === 'white' ? 'white' : 'black',
+        lbl: sharePlayersLabel ?? undefined,
+        op: shareOpeningLabel ?? undefined,
+      })}`
+    : null;
+
+  const onCopyShareLink = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareCopied(true);
+      window.setTimeout(() => setShareCopied(false), 3000);
+    } catch (err) {
+      console.warn('[training] share copy failed', err);
+    }
+  };
+
   const externalPlatform = resolvePlatform(state.game?.platform, 'lichess');
   const externalAnalysis =
     externalPlatform && state.fen
@@ -375,7 +473,17 @@ export function TrainingRoute() {
 
       <aside className="card flex flex-col gap-4 sticky top-6 self-start max-h-[calc(100vh-3rem)] overflow-y-auto">
         <header className="flex items-center justify-between">
-          <span className="label">{state.game ? `${state.game.username} vs ${state.game.opponent}` : 'Training'}</span>
+          <span className="label">
+            {state.game && blunder
+              ? orderedPlayers(
+                  state.game.username,
+                  state.game.opponent,
+                  blunder.sideToMove === 'white' ? 'white' : 'black',
+                ).join(' vs ')
+              : state.game
+                ? `${state.game.username} vs ${state.game.opponent}`
+                : 'Training'}
+          </span>
           <span className="font-mono text-xs tabular-nums text-gold-dark">
             {`${state.currentIndex + 1}/${state.blunders.length}`}
           </span>
@@ -400,8 +508,12 @@ export function TrainingRoute() {
 
         {state.currentContext && <BlunderContextBadges context={state.currentContext} />}
 
-        {blunder && (
-          <WinningChancesDisplay evalBefore={blunder.evalBefore} evalAfter={blunder.evalAfter} />
+        {blunder && (revealBeforeSolve || state.phase !== 'solving') && (
+          <WinningChancesDisplay
+            evalBefore={blunder.evalBefore}
+            evalAfter={blunder.evalAfter}
+            showEngineEvals={profile?.showEngineEvals ?? false}
+          />
         )}
 
         {state.phase === 'reviewing' && blunder && (
@@ -476,34 +588,65 @@ export function TrainingRoute() {
         {state.phase === 'correct' && (
           <>
             <FeedbackBadge tone="success">Solution correct</FeedbackBadge>
-            {state.postCorrectPairs.length > 0 ? (
-              <div>
-                <p className="label mb-2">Game may have continued</p>
-                <button
-                  type="button"
-                  onClick={() => state.selectPostCorrectIndex(-1)}
-                  className={clsx(
-                    'w-full text-left font-mono text-[13px] rounded-none px-2 py-1.5 transition-colors hover:bg-text-primary/5 text-text-secondary',
-                    state.activePostCorrectIndex === -1 && 'bg-text-primary text-bg',
-                  )}
-                >
-                  Puzzle start
-                </button>
-                <MoveSequencePanel
-                  pairs={state.postCorrectPairs}
-                  activeKey={
-                    state.activePostCorrectIndex !== null && state.activePostCorrectIndex >= 0
-                      ? `p${state.activePostCorrectIndex}`
-                      : null
-                  }
-                  onSelect={(key) => {
-                    const i = Number.parseInt(key.slice(1), 10);
-                    if (!Number.isNaN(i)) state.selectPostCorrectIndex(i);
-                  }}
-                />
-              </div>
+            <LineTabs
+              tabs={[
+                { key: 'continuation', label: 'Continuation' },
+                { key: 'refutation', label: `Your game: ${state.blunderSan}` },
+              ]}
+              active={activeTab === 'refutation' ? 'refutation' : 'continuation'}
+              onSelect={setActiveTab}
+            />
+            {activeTab !== 'refutation' ? (
+              state.postCorrectPairs.length > 0 ? (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => state.selectPostCorrectIndex(-1)}
+                    className={clsx(
+                      'w-full text-left font-mono text-[13px] rounded-none px-2 py-1.5 transition-colors hover:bg-text-primary/5',
+                      state.activePostCorrectIndex === -1
+                        ? 'bg-text-primary text-bg'
+                        : 'text-text-secondary',
+                    )}
+                  >
+                    Puzzle start
+                  </button>
+                  <MoveSequencePanel
+                    pairs={state.postCorrectPairs}
+                    activeKey={
+                      state.activePostCorrectIndex !== null && state.activePostCorrectIndex >= 0
+                        ? `p${state.activePostCorrectIndex}`
+                        : null
+                    }
+                    onSelect={(key) => {
+                      const i = Number.parseInt(key.slice(1), 10);
+                      if (!Number.isNaN(i)) state.selectPostCorrectIndex(i);
+                    }}
+                  />
+                </div>
+              ) : (
+                <p className="text-text-secondary text-sm">Calculating continuation…</p>
+              )
             ) : (
-              <p className="text-text-secondary text-sm">Calculating continuation…</p>
+              <div>
+                <p className="label mb-2">{refutationLabel}</p>
+                {state.refutationPairs.length > 0 ? (
+                  <MoveSequencePanel
+                    pairs={state.refutationPairs}
+                    activeKey={
+                      state.activeRefutationIndex !== null
+                        ? `r${state.activeRefutationIndex}`
+                        : null
+                    }
+                    onSelect={(key) => {
+                      const i = Number.parseInt(key.slice(1), 10);
+                      if (!Number.isNaN(i)) state.selectRefutationIndex(i);
+                    }}
+                  />
+                ) : (
+                  <p className="text-text-secondary text-sm">Calculating…</p>
+                )}
+              </div>
             )}
             <button className="btn-primary mt-auto" onClick={() => state.advance()}>
               Next (Space)
@@ -516,23 +659,59 @@ export function TrainingRoute() {
             <FeedbackBadge tone={state.incorrectFeedback.tone}>
               {state.incorrectFeedback.message}
             </FeedbackBadge>
-            {state.playedRefutationPairs.length > 0 && (
-              <div>
-                <p className="label mb-2">Engine refutation</p>
-                <MoveSequencePanel
-                  pairs={state.playedRefutationPairs}
-                  activeKey={
-                    state.activePlayedRefutationIndex !== null
-                      ? `r${state.activePlayedRefutationIndex}`
-                      : null
-                  }
-                  onSelect={(key) => {
-                    const i = Number.parseInt(key.slice(1), 10);
-                    if (!Number.isNaN(i)) state.selectPlayedRefutationIndex(i);
-                  }}
+            {state.incorrectRequeue ? (
+              <>
+                <LineTabs
+                  tabs={[
+                    {
+                      key: 'playedRefutation',
+                      label: triedSan ? `Your try: ${triedSan}` : 'Your try',
+                    },
+                    { key: 'refutation', label: `Your game: ${state.blunderSan}` },
+                  ]}
+                  active={activeTab === 'refutation' ? 'refutation' : 'playedRefutation'}
+                  onSelect={setActiveTab}
                 />
-              </div>
-            )}
+                {activeTab !== 'refutation' ? (
+                  state.playedRefutationPairs.length > 0 ? (
+                    <MoveSequencePanel
+                      pairs={state.playedRefutationPairs}
+                      activeKey={
+                        state.activePlayedRefutationIndex !== null
+                          ? `r${state.activePlayedRefutationIndex}`
+                          : null
+                      }
+                      onSelect={(key) => {
+                        const i = Number.parseInt(key.slice(1), 10);
+                        if (!Number.isNaN(i)) state.selectPlayedRefutationIndex(i);
+                      }}
+                    />
+                  ) : (
+                    <p className="text-text-secondary text-sm">No engine line for this move.</p>
+                  )
+                ) : (
+                  <div>
+                    <p className="label mb-2">{refutationLabel}</p>
+                    {state.refutationPairs.length > 0 ? (
+                      <MoveSequencePanel
+                        pairs={state.refutationPairs}
+                        activeKey={
+                          state.activeRefutationIndex !== null
+                            ? `r${state.activeRefutationIndex}`
+                            : null
+                        }
+                        onSelect={(key) => {
+                          const i = Number.parseInt(key.slice(1), 10);
+                          if (!Number.isNaN(i)) state.selectRefutationIndex(i);
+                        }}
+                      />
+                    ) : (
+                      <p className="text-text-secondary text-sm">Calculating…</p>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : null}
             <button
               className="btn-primary mt-auto"
               onClick={() =>
@@ -558,19 +737,33 @@ export function TrainingRoute() {
             label="Recall rate"
           />
           {blunder && (
-            <button
-              type="button"
-              className="btn-ghost text-xs inline-flex items-center justify-center gap-1.5 text-text-secondary hover:text-incorrect self-end"
-              onClick={() => {
-                setDeleteError(null);
-                setConfirmDelete(true);
-              }}
-              disabled={state.evaluating || paused || deleting}
-              title="Delete this position from your training"
-            >
-              <TrashIcon className="h-3.5 w-3.5" />
-              Delete position
-            </button>
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                className="btn-ghost text-xs inline-flex items-center justify-center gap-1.5 text-text-secondary hover:text-text-primary"
+                onClick={() => {
+                  setShareCopied(false);
+                  setShareOpen(true);
+                }}
+                title="Share a public link to this puzzle"
+              >
+                <ShareIcon className="h-3.5 w-3.5" />
+                Share puzzle
+              </button>
+              <button
+                type="button"
+                className="btn-ghost text-xs inline-flex items-center justify-center gap-1.5 text-text-secondary hover:text-incorrect"
+                onClick={() => {
+                  setDeleteError(null);
+                  setConfirmDelete(true);
+                }}
+                disabled={state.evaluating || paused || deleting}
+                title="Delete this position from your training"
+              >
+                <TrashIcon className="h-3.5 w-3.5" />
+                Delete position
+              </button>
+            </div>
           )}
         </div>
       </aside>
@@ -629,6 +822,69 @@ export function TrainingRoute() {
               >
                 <TrashIcon className="h-4 w-4" />
                 {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {shareOpen && blunder && shareUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 backdrop-blur-sm p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Share this puzzle"
+          onClick={() => setShareOpen(false)}
+        >
+          <div
+            className="card max-w-md w-full flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="flex items-baseline justify-between">
+              <h2 className="heading-lg">Share this puzzle</h2>
+              <button
+                type="button"
+                className="btn-ghost text-xs text-text-secondary hover:text-text-primary"
+                onClick={() => setShareOpen(false)}
+              >
+                Close
+              </button>
+            </header>
+            <div className="max-w-[280px] w-full mx-auto">
+              <BoardPanel
+                fen={blunder.fen}
+                orientation={blunder.sideToMove === 'white' ? 'white' : 'black'}
+                movableFor={null}
+                viewOnly
+              />
+            </div>
+            <div className="text-center">
+              {sharePlayersLabel && (
+                <p className="text-sm font-medium text-text-primary">{sharePlayersLabel}</p>
+              )}
+              <p className="text-text-secondary text-xs">
+                {shareOpeningLabel ? `${shareOpeningLabel} · ` : ''}
+                {blunder.sideToMove === 'white' ? 'White' : 'Black'} to play
+              </p>
+            </div>
+            <p className="text-text-secondary text-xs">
+              Anyone with this link can try the position — no account needed. This is exactly
+              what they'll see.
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                className="input flex-1 font-mono text-xs"
+                readOnly
+                value={shareUrl}
+                onFocus={(e) => e.currentTarget.select()}
+                aria-label="Share link"
+              />
+              <button
+                type="button"
+                className="btn-primary shrink-0"
+                onClick={() => void onCopyShareLink()}
+              >
+                {shareCopied ? 'Copied' : 'Copy'}
               </button>
             </div>
           </div>
