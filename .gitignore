@@ -19,6 +19,9 @@ build/
 # Vite
 .vite/
 
+# Wrangler local state (pages dev)
+.wrangler/
+
 # Playwright
 test-results/
 playwright-report/
