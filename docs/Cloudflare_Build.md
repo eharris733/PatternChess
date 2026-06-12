@@ -57,11 +57,18 @@ Vite's `publicDir` copy.
 
 `functions/p.ts` is a Cloudflare Pages Function that intercepts `GET /p` and
 rewrites the Open Graph / Twitter meta tags per shared puzzle (title,
-description, and an `og:image` pointing at Lichess's public FEN→GIF export,
-`https://lichess.org/export/fen.gif`). Link unfurlers don't run JS, so this is
-the only way shared links get position-specific previews. The SPA behavior is
-unchanged — the function streams the body through untouched and `PuzzleRoute`
-still decodes the payload client-side.
+description, `og:image`). Link unfurlers don't run JS, so this is the only way
+shared links get position-specific previews. The SPA behavior is unchanged —
+the function streams the body through untouched and `PuzzleRoute` still
+decodes the payload client-side.
+
+`functions/og/p.ts` serves the preview image itself: it proxies Lichess's
+public FEN→GIF export (`https://lichess.org/export/fen.gif`) and byte-patches
+the GIF's global color table so the squares use the app's exact board palette
+(`#f0d9b5` / `#c0ad90` — Lichess's named themes can't be color-customized).
+Responses are immutable-cached at the edge, which also keeps repeat unfurls
+off Lichess's rate limit. If the app's default board palette in
+`src/styles/themes.css` ever changes, update the `SWAPS` table to match.
 
 Notes:
 

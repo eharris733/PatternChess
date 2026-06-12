@@ -47,15 +47,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const description = puzzle.op
     ? `${puzzle.op}. Can you find the best move?`
     : 'Can you find the best move? Train on real blunders with PatternChess.';
-  // `theme=brown` matches the app's board palette; `color` orients the board
-  // with the solver's side at the bottom. No lastMove highlight — the FEN is
-  // the position *before* the blunder, so there is nothing to reveal.
-  const image = `https://lichess.org/export/fen.gif?${new URLSearchParams({
-    fen: puzzle.fen,
-    color: puzzle.stm,
-    theme: 'brown',
-    piece: 'cburnett',
-  })}`;
+  // /og/p proxies Lichess's FEN→GIF export and re-colors the squares to the
+  // app's exact board palette (see functions/og/p.ts).
+  const image = `${url.origin}/og/p?d=${encodeURIComponent(d)}`;
   const shareUrl = `${url.origin}/p?d=${encodeURIComponent(d)}`;
 
   // setAttribute / setInnerContent escape their input, and we only ever modify
