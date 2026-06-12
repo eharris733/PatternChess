@@ -69,11 +69,7 @@ export function MoveSequencePanel({
   );
 }
 
-function tagTone(active: boolean): string {
-  return active
-    ? 'bg-transparent text-bg border-bg/50'
-    : 'bg-surface-3 text-text-secondary border-text-primary/40';
-}
+const TAG_TONE = 'bg-surface-3 text-text-secondary border-text-primary/40';
 
 function Cell({
   move,
@@ -91,8 +87,8 @@ function Cell({
       data-key={move.key}
       onClick={() => onSelect?.(move.key)}
       className={clsx(
-        'flex items-center gap-1.5 rounded-none px-1.5 py-0.5 text-left transition-colors hover:bg-text-primary/5 flex-wrap',
-        active && 'bg-text-primary text-bg',
+        'flex items-center gap-1.5 rounded-none px-1.5 py-0.5 text-left transition-colors hover:bg-accent/10 flex-wrap',
+        active && 'bg-accent/15 ring-1 ring-inset ring-accent',
       )}
     >
       <span>{move.san}</span>
@@ -100,23 +96,21 @@ function Cell({
         <span
           className={clsx(
             'px-1 rounded-none text-[9px] font-bold uppercase border',
-            // Active cells invert to dark — the grade chip's own dark colors
-            // would vanish, so swap to an outline readable on the dark bg.
-            active ? 'bg-transparent text-bg border-bg/50' : MOVE_GRADE_TW_BG[move.grade],
+            MOVE_GRADE_TW_BG[move.grade],
           )}
         >
           {move.grade}
         </span>
       )}
       {move.tag && (
-        <span className={clsx('px-1 rounded-none text-[9px] font-bold uppercase border', tagTone(active))}>
+        <span className={clsx('px-1 rounded-none text-[9px] font-bold uppercase border', TAG_TONE)}>
           {move.tag}
         </span>
       )}
       {move.contextTags?.map((t) => (
         <span
           key={t}
-          className={clsx('px-1 rounded-none text-[9px] font-bold uppercase border', tagTone(active))}
+          className={clsx('px-1 rounded-none text-[9px] font-bold uppercase border', TAG_TONE)}
         >
           {t}
         </span>

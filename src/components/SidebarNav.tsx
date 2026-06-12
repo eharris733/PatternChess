@@ -59,8 +59,8 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
                 'mx-2 flex items-center gap-3 py-2.5 rounded-none font-mono uppercase tracking-tight text-xs transition-colors',
                 collapsed ? 'justify-center px-0' : 'px-3',
                 isActive
-                  ? 'bg-text-primary text-bg'
-                  : 'text-text-primary hover:bg-text-primary/5',
+                  ? 'bg-accent/15 text-text-primary shadow-[inset_3px_0_0_rgb(var(--accent))]'
+                  : 'text-text-primary hover:bg-accent/10',
               )
             }
           >
@@ -90,8 +90,8 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
               'flex items-center gap-3 py-2.5 rounded-none font-mono uppercase tracking-tight text-xs transition-colors',
               collapsed ? 'justify-center px-0' : 'px-3',
               isActive
-                ? 'bg-text-primary text-bg'
-                : 'text-text-primary hover:bg-text-primary/10',
+                ? 'bg-accent/15 text-text-primary shadow-[inset_3px_0_0_rgb(var(--accent))]'
+                : 'text-text-primary hover:bg-accent/10',
             )
           }
         >

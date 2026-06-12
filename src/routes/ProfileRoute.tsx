@@ -219,14 +219,16 @@ export function ProfileRoute() {
           <input
             type="checkbox"
             className="mt-1"
-            checked={trainingPrefs.revealBeforeSolve}
-            onChange={(e) => onToggleTrainingPref('revealBeforeSolve', e.target.checked)}
+            checked={!trainingPrefs.revealBeforeSolve}
+            onChange={(e) => onToggleTrainingPref('revealBeforeSolve', !e.target.checked)}
           />
           <span>
-            Show the review step before solving
+            Hide extra info when solving
             <span className="block text-text-secondary text-xs">
-              Reveals the move you played and the engine refutation up front. Off by default so
-              new positions are a blind test; everything is shown after your attempt either way.
+              Hides the review step (the move you played and its refutation), the win-chance
+              numbers, and the &ldquo;See what you played&rdquo; button until you&rsquo;ve made your
+              attempt — so each position feels like a real game. Everything is shown after your
+              attempt either way.
             </span>
           </span>
         </label>

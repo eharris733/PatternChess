@@ -96,7 +96,7 @@ export function BoardPanel({
             {PROMO_PIECES.map((p) => (
               <button
                 key={p.role}
-                className="w-12 h-12 text-3xl rounded-none border-2 border-transparent hover:border-text-primary hover:bg-text-primary hover:text-bg text-text-primary transition-colors"
+                className="w-12 h-12 text-3xl rounded-none border-2 border-transparent hover:border-accent hover:bg-accent/15 text-text-primary transition-colors"
                 onClick={() => {
                   if (!pendingPromo || !onMove) return;
                   onMove({ from: pendingPromo.from, to: pendingPromo.to, promotion: p.role });

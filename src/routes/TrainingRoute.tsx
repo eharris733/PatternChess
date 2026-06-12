@@ -73,10 +73,10 @@ function LineTabs({
           type="button"
           onClick={() => onSelect(t.key)}
           className={clsx(
-            'font-mono uppercase text-[10px] tracking-tight px-2 py-1 rounded-none border-2 border-text-primary transition-colors',
+            'font-mono uppercase text-[10px] tracking-tight px-2 py-1 rounded-none border-2 transition-colors',
             active === t.key
-              ? 'bg-text-primary text-bg'
-              : 'text-text-secondary hover:bg-text-primary/5',
+              ? 'bg-accent/15 border-accent text-text-primary'
+              : 'border-text-primary text-text-secondary hover:bg-accent/10',
           )}
         >
           {t.label}
@@ -563,18 +563,20 @@ export function TrainingRoute() {
               </span>
             </div>
 
-            <button
-              className="text-left bg-surface-3 rounded-none border-2 border-text-primary p-3 text-sm hover:bg-text-primary/5 transition-colors"
-              onClick={() => state.toggleShowWhatYouPlayed()}
-              type="button"
-            >
-              <span className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
-                {state.showWhatYouPlayed ? 'Hide' : 'See'} what you played
-              </span>
-              {state.showWhatYouPlayed && (
-                <p className="font-mono font-bold text-incorrect mt-1">{state.blunderSan}</p>
-              )}
-            </button>
+            {revealBeforeSolve && (
+              <button
+                className="text-left bg-surface-3 rounded-none border-2 border-text-primary p-3 text-sm hover:bg-text-primary/5 transition-colors"
+                onClick={() => state.toggleShowWhatYouPlayed()}
+                type="button"
+              >
+                <span className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
+                  {state.showWhatYouPlayed ? 'Hide' : 'See'} what you played
+                </span>
+                {state.showWhatYouPlayed && (
+                  <p className="font-mono font-bold text-incorrect mt-1">{state.blunderSan}</p>
+                )}
+              </button>
+            )}
 
             {state.hintLevel > 0 && (
               <p className="text-text-secondary text-xs">Hint shown — counts as a fail for recall.</p>
@@ -604,9 +606,9 @@ export function TrainingRoute() {
                     type="button"
                     onClick={() => state.selectPostCorrectIndex(-1)}
                     className={clsx(
-                      'w-full text-left font-mono text-[13px] rounded-none px-2 py-1.5 transition-colors hover:bg-text-primary/5',
+                      'w-full text-left font-mono text-[13px] rounded-none px-2 py-1.5 transition-colors hover:bg-accent/10',
                       state.activePostCorrectIndex === -1
-                        ? 'bg-text-primary text-bg'
+                        ? 'bg-accent/15 ring-1 ring-inset ring-accent text-text-primary'
                         : 'text-text-secondary',
                     )}
                   >

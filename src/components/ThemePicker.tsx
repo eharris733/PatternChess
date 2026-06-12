@@ -24,8 +24,8 @@ const SWATCHES: Record<BoardTheme, ThemeSwatchPalette> = {
     surface: '#262624',
     textPrimary: '#F4F4F0',
     accent: '#E4B842',
-    boardLight: '#5A544A',
-    boardDark: '#2C2820',
+    boardLight: '#8A8275',
+    boardDark: '#5A544A',
   },
   frozen: {
     bg: '#EAF1F8',

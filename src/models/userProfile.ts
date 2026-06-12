@@ -19,7 +19,11 @@ export interface UserProfile {
   boardTheme: BoardTheme;
   /** Show raw engine evals next to win-chance percentages on the training screen. */
   showEngineEvals: boolean;
-  /** Show the blunder review step (played move + refutation) before solving. */
+  /**
+   * Show extra info before/while solving: the review step (played move +
+   * refutation), pre-solve win chances, and the "See what you played" button.
+   * The profile UI exposes this inverted as "Hide extra info when solving".
+   */
   revealBeforeSolve: boolean;
 }
 

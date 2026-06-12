@@ -26,7 +26,7 @@
     @apply inline-flex items-center justify-center h-11 px-5 rounded-none border-2 border-text-primary bg-gold-dark text-bg font-mono uppercase text-sm tracking-tight shadow-card transition-all hover:shadow-card-hover hover:translate-x-[2px] hover:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-outline {
-    @apply inline-flex items-center justify-center h-11 px-5 rounded-none border-2 border-text-primary bg-transparent text-text-primary font-mono uppercase text-sm tracking-tight transition-colors hover:bg-text-primary hover:text-bg disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center h-11 px-5 rounded-none border-2 border-text-primary bg-transparent text-text-primary font-mono uppercase text-sm tracking-tight transition-colors hover:bg-accent/10 disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-ghost {
     @apply inline-flex items-center justify-center h-10 px-3 rounded-none font-mono uppercase text-xs tracking-tight text-text-primary transition-colors hover:bg-text-primary/5;
@@ -35,7 +35,7 @@
     @apply inline-flex items-center justify-center h-9 px-3 rounded-none border-2 border-text-primary bg-transparent font-mono uppercase text-xs tracking-tight text-text-primary transition-colors hover:bg-text-primary/5;
   }
   .pill[aria-pressed='true'] {
-    @apply bg-text-primary text-bg;
+    @apply bg-accent/15 border-accent text-text-primary;
   }
   .card {
     @apply bg-surface rounded-none p-6 border-2 border-text-primary shadow-card;

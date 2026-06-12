@@ -1,11 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 
 // The training screen's pre-solve information policy:
-//  - reveal_before_solve = false (the default): a new position goes straight
-//    to solving with no "You played", no refutation, and no win-chance numbers;
+//  - reveal_before_solve = false (the default, "Hide extra info when solving"):
+//    a new position goes straight to solving with no "You played", no
+//    refutation, no win-chance numbers, and no "See what you played" button;
 //    everything is revealed after the attempt.
 //  - reveal_before_solve = true: the classic review step ("I'm ready") shows
-//    the played move and refutation up front.
+//    the played move and refutation up front, and the "See what you played"
+//    button is available while solving.
 
 const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
 
@@ -189,8 +191,8 @@ test('hidden mode (default): new position goes straight to solving with no spoil
   await expect(page.getByRole('button', { name: /I'm ready/i })).toHaveCount(0);
   await expect(page.getByText(/You played/)).toHaveCount(0);
   await expect(page.getByText('Win chance')).toHaveCount(0);
-  // The opt-in toggle is still there.
-  await expect(page.getByText(/See what you played/i)).toBeVisible();
+  // The peek button is part of the hidden extra info too.
+  await expect(page.getByText(/See what you played/i)).toHaveCount(0);
   // Clock context is informational, not a hint — visible while solving.
   await expect(page.getByText('10:00 left · spent 50s')).toBeVisible();
 });
@@ -223,7 +225,7 @@ test('hidden mode: arrow keys step through the tab in focus', async ({ page }) =
 
   // Arrows must drive the visible (refutation) line, not the continuation.
   await page.keyboard.press('ArrowRight');
-  await expect(page.locator('[data-key="r0"]')).toHaveClass(/bg-text-primary/);
+  await expect(page.locator('[data-key="r0"]')).toHaveClass(/bg-accent/);
 });
 
 test('hidden mode: the share button opens a preview modal that copies a /p link', async ({ page }) => {
@@ -283,4 +285,10 @@ test('reveal mode: the review step shows the played move before solving', async 
   await expect(page.getByRole('button', { name: /I'm ready/i })).toBeVisible();
   await expect(page.getByText(/You played/)).toBeVisible();
   await expect(page.getByText('Win chance')).toBeVisible();
+
+  // Proceeding to solving keeps the win chances and offers the peek button.
+  await page.getByRole('button', { name: /I'm ready/i }).click();
+  await expect(page.getByText('White to play')).toBeVisible();
+  await expect(page.getByText('Win chance')).toBeVisible();
+  await expect(page.getByText(/See what you played/i)).toBeVisible();
 });

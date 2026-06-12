@@ -46,13 +46,15 @@
   --accent-light: 228 184 66;
   --gold-dark: 196 155 42;
   --gold-light: 228 184 66;
-  --board-light: #5a544a;
-  --board-dark: #2c2820;
-  --board-light-rgb: 90 84 74;
-  --board-dark-rgb: 44 40 32;
+  /* Mid-tone squares: both sit between the piece colors so black pieces stay
+   * readable, and the board separates from the near-black page bg. */
+  --board-light: #8a8275;
+  --board-dark: #5a544a;
+  --board-light-rgb: 138 130 117;
+  --board-dark-rgb: 90 84 74;
   --board-last-move: rgba(228, 184, 66, 0.5);
   --board-selected: rgba(228, 184, 66, 0.6);
-  --board-move-dest: rgba(244, 244, 240, 0.35);
+  --board-move-dest: rgba(26, 26, 26, 0.4);
   --board-premove-dest: rgba(228, 184, 66, 0.55);
   --piece-filter: none;
 }

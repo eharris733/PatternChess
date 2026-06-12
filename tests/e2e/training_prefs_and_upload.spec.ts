@@ -100,13 +100,15 @@ async function stubAuth(
   );
 }
 
-test('profile training card saves the two new preferences on toggle', async ({ page }) => {
+test('profile training card saves the two preferences on toggle', async ({ page }) => {
   await stubAuth(page);
   await page.goto('/profile');
 
   await expect(page.getByRole('heading', { name: 'Training' })).toBeVisible();
 
-  await page.getByText('Show the review step before solving').click();
+  // "Hide extra info" starts checked (reveal_before_solve: false); unchecking
+  // it persists reveal_before_solve = true.
+  await page.getByText('Hide extra info when solving').click();
   await expect
     .poll(async () => page.evaluate(() => (window as any).__patches as string[]))
     .toContainEqual(expect.stringContaining('"reveal_before_solve":true'));
@@ -123,12 +125,13 @@ test('training toggles flip optimistically while the PATCH is in flight', async 
   await expect(page.getByRole('heading', { name: 'Training' })).toBeVisible();
 
   const checkbox = page
-    .locator('label', { hasText: 'Show the review step before solving' })
+    .locator('label', { hasText: 'Hide extra info when solving' })
     .locator('input[type="checkbox"]');
+  await expect(checkbox).toBeChecked();
   await checkbox.click();
-  // The PATCH takes 2s in this stub; the checkbox must be checked well before
-  // that — assert within 500ms.
-  await expect(checkbox).toBeChecked({ timeout: 500 });
+  // The PATCH takes 2s in this stub; the checkbox must be unchecked well
+  // before that — assert within 500ms.
+  await expect(checkbox).not.toBeChecked({ timeout: 500 });
 });
 
 test('training toggles revert when the PATCH fails', async ({ page }) => {
@@ -137,11 +140,12 @@ test('training toggles revert when the PATCH fails', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Training' })).toBeVisible();
 
   const checkbox = page
-    .locator('label', { hasText: 'Show the review step before solving' })
+    .locator('label', { hasText: 'Hide extra info when solving' })
     .locator('input[type="checkbox"]');
+  await expect(checkbox).toBeChecked();
   await checkbox.click();
   await expect(page.getByText(/Could not save this preference/)).toBeVisible();
-  await expect(checkbox).not.toBeChecked();
+  await expect(checkbox).toBeChecked();
 });
 
 const UNMATCHED_PGN = `[Event "Club Championship"]
