@@ -15,6 +15,7 @@ import { WinningChancesDisplay } from '../components/WinningChancesDisplay';
 import { TrophyIcon } from '../components/icons/TrophyIcon';
 import { TrashIcon } from '../components/icons/TrashIcon';
 import { ShareIcon } from '../components/icons/ShareIcon';
+import { CloseIcon } from '../components/icons/CloseIcon';
 import { Skeleton } from '../components/Skeleton';
 import { PositionSrState } from '../components/training/PositionSrState';
 import { BlunderContextBadges } from '../components/training/BlunderContextBadges';
@@ -840,14 +841,15 @@ export function TrainingRoute() {
             className="card max-w-md w-full flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <header className="flex items-baseline justify-between">
+            <header className="flex items-center justify-between">
               <h2 className="heading-lg">Share this puzzle</h2>
               <button
                 type="button"
-                className="btn-ghost text-xs text-text-secondary hover:text-text-primary"
+                aria-label="Close"
+                className="btn-ghost p-1 text-text-secondary hover:text-text-primary"
                 onClick={() => setShareOpen(false)}
               >
-                Close
+                <CloseIcon className="h-5 w-5" />
               </button>
             </header>
             <div className="max-w-[280px] w-full mx-auto">
