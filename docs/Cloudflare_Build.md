@@ -67,10 +67,12 @@ Notes:
 
 - The root `functions/` directory is picked up automatically by both
   `wrangler pages deploy dist` and git builds — no build-config change needed.
-- `wrangler.toml` (repo root) pins `pages_build_output_dir` and
-  `compatibility_date`. Once it lands, Cloudflare treats it as the source of
-  truth for the Pages project config; the values match the current dashboard
-  settings, but watch the first deploy after any change to it.
+- Do **not** add a `wrangler.toml` with `pages_build_output_dir` to this repo.
+  When one exists, Cloudflare treats it as the source of truth for the Pages
+  project config and ignores the dashboard environment variables — the build
+  then runs without `VITE_SUPABASE_URL`, and the deployed app crashes at boot
+  with `supabaseUrl is required` (this happened with PR #8). Project config
+  lives in the dashboard; functions need no config file.
 - `public/_headers` applies only to statically-served assets, **not** to
   Function responses — `functions/p.ts` re-emits the three COEP/COOP/CORP
   headers itself. If you ever edit `_headers`, mirror the change there.
