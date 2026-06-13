@@ -67,6 +67,25 @@ export function lichessAnalysisPgnUrl(pgn: string): string {
   return `https://lichess.org/analysis/pgn/${encodeURIComponent(pgn)}`;
 }
 
+/**
+ * Strip study headers, comments, variations, and NAGs down to the bare
+ * mainline so the PGN fits inside Lichess's ~2 KB analysis-URL limit. Annotated
+ * study PGNs (Lichess study exports) otherwise encode past that limit and the
+ * /analysis/pgn route returns HTTP 400. Returns null if the PGN can't be parsed.
+ */
+export function cleanPgnForAnalysisUrl(pgn: string): string | null {
+  try {
+    const src = new Chess();
+    src.loadPgn(pgn); // tolerant of comments/variations/NAGs
+    const startFen = extractHeaders(pgn).FEN; // preserve non-standard chapter starts
+    const dst = startFen ? new Chess(startFen) : new Chess();
+    for (const san of src.history()) dst.move(san);
+    return dst.pgn(); // includes [SetUp]/[FEN] when the start is non-standard
+  } catch {
+    return null;
+  }
+}
+
 export function chesscomAnalysisPgnUrl(pgn: string): string {
   return `https://www.chess.com/analysis?tab=analysis&pgn=${encodeURIComponent(pgn)}`;
 }
@@ -123,6 +142,9 @@ export function platformGameUrl(game: GameRecord): string | null {
   }
   // PGN uploads (or anything else without a platform-native link) fall back
   // to opening the full PGN in Lichess's analysis board.
-  if (game.pgn) return lichessAnalysisPgnUrl(game.pgn);
+  if (game.pgn) {
+    const clean = cleanPgnForAnalysisUrl(game.pgn);
+    return lichessAnalysisPgnUrl(clean ?? game.pgn);
+  }
   return null;
 }
