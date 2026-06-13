@@ -30,6 +30,16 @@ test('a shared puzzle link renders a solvable board without auth', async ({ page
   await expect(page.getByText('Alice vs Bob')).toBeVisible();
 });
 
+test('an anonymous link (no lbl) shows the generic label, not player names', async ({ page }) => {
+  const { lbl: _lbl, ...anon } = PUZZLE;
+  const encoded = Buffer.from(JSON.stringify(anon)).toString('base64url');
+  await page.goto(`/p?d=${encoded}`);
+
+  await expect(page.locator('cg-board')).toBeVisible();
+  await expect(page.getByText('Shared puzzle')).toBeVisible();
+  await expect(page.getByText('Alice vs Bob')).toHaveCount(0);
+});
+
 test('reveal buttons show the best move and the played move', async ({ page }) => {
   await page.goto(`/p?d=${ENCODED}`);
 

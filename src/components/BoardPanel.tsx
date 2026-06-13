@@ -23,6 +23,8 @@ export interface BoardPanelProps {
   onMove?: (move: BoardMove) => void;
   /** Disable chessground entirely (view-only). */
   viewOnly?: boolean;
+  /** Show rank/file coordinates (default true). */
+  coordinates?: boolean;
   className?: string;
 }
 
@@ -41,6 +43,7 @@ export function BoardPanel({
   shapes,
   onMove,
   viewOnly,
+  coordinates = true,
   className,
 }: BoardPanelProps) {
   const [pendingPromo, setPendingPromo] = useState<{ from: string; to: string } | null>(null);
@@ -58,7 +61,7 @@ export function BoardPanel({
       turnColor: turn,
       check: inCheck ? turn : false,
       lastMove: (lastMove ?? undefined) as any,
-      coordinates: true,
+      coordinates,
       viewOnly: !!viewOnly,
       animation: { enabled: true, duration: 200 },
       highlight: { lastMove: true, check: true },
@@ -85,7 +88,7 @@ export function BoardPanel({
         shapes: shapes ?? [],
       },
     };
-  }, [fen, orientation, turn, inCheck, lastMove, movableFor, onMove, shapes, dests, viewOnly]);
+  }, [fen, orientation, turn, inCheck, lastMove, movableFor, onMove, shapes, dests, viewOnly, coordinates]);
 
   return (
     <div className={clsx('relative aspect-square w-full max-w-[min(640px,calc(100vh-5rem))] mx-auto', className)}>

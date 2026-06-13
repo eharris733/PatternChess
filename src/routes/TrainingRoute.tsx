@@ -203,6 +203,13 @@ export function TrainingRoute() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  // Hide player names in the shared link. Remembered across sessions.
+  const [shareAnonymous, setShareAnonymous] = useState(
+    () => localStorage.getItem('pc:share-anonymous') === '1',
+  );
+  useEffect(() => {
+    localStorage.setItem('pc:share-anonymous', shareAnonymous ? '1' : '0');
+  }, [shareAnonymous]);
   useEffect(() => {
     setConfirmDelete(false);
     setDeleteError(null);
@@ -399,7 +406,7 @@ export function TrainingRoute() {
         eb: blunder.evalBefore,
         ea: blunder.evalAfter,
         stm: blunder.sideToMove === 'white' ? 'white' : 'black',
-        lbl: sharePlayersLabel ?? undefined,
+        lbl: shareAnonymous ? undefined : (sharePlayersLabel ?? undefined),
         op: shareOpeningLabel ?? undefined,
       })}`
     : null;
@@ -840,41 +847,47 @@ export function TrainingRoute() {
           onClick={() => setShareOpen(false)}
         >
           <div
-            className="card max-w-md w-full flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
+            className="card relative max-w-md w-full flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <header className="flex items-center justify-between">
-              <h2 className="heading-lg">Share this puzzle</h2>
-              <button
-                type="button"
-                aria-label="Close"
-                className="btn-ghost p-1 text-text-secondary hover:text-text-primary"
-                onClick={() => setShareOpen(false)}
-              >
-                <CloseIcon className="h-5 w-5" />
-              </button>
-            </header>
+            <button
+              type="button"
+              aria-label="Close"
+              className="btn-ghost absolute top-3 right-3 p-1 text-text-secondary hover:text-text-primary"
+              onClick={() => setShareOpen(false)}
+            >
+              <CloseIcon className="h-5 w-5" />
+            </button>
+            <h2 className="heading-lg text-center">Share this puzzle</h2>
             <div className="max-w-[280px] w-full mx-auto">
               <BoardPanel
                 fen={blunder.fen}
                 orientation={blunder.sideToMove === 'white' ? 'white' : 'black'}
                 movableFor={null}
+                coordinates={false}
                 viewOnly
               />
             </div>
-            <div className="text-center">
-              {sharePlayersLabel && (
+            <div className="flex flex-col items-center gap-1 text-center">
+              {sharePlayersLabel && !shareAnonymous && (
                 <p className="text-sm font-medium text-text-primary">{sharePlayersLabel}</p>
+              )}
+              {sharePlayersLabel && (
+                <label className="flex items-center justify-center gap-2 text-text-secondary text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-accent"
+                    checked={shareAnonymous}
+                    onChange={(e) => setShareAnonymous(e.currentTarget.checked)}
+                  />
+                  Hide player names
+                </label>
               )}
               <p className="text-text-secondary text-xs">
                 {shareOpeningLabel ? `${shareOpeningLabel} · ` : ''}
                 {blunder.sideToMove === 'white' ? 'White' : 'Black'} to play
               </p>
             </div>
-            <p className="text-text-secondary text-xs">
-              Anyone with this link can try the position — no account needed. This is exactly
-              what they'll see.
-            </p>
             <div className="flex items-center gap-2">
               <input
                 className="input flex-1 font-mono text-xs"

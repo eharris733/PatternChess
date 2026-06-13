@@ -190,6 +190,7 @@ function SharedPuzzlePlayer({ puzzle }: { puzzle: SharedPuzzle }) {
         movableFor={phase === 'solving' ? puzzle.stm : null}
         lastMove={lastMove}
         shapes={shapes}
+        coordinates={false}
         onMove={(m) => void onMove(m)}
       />
 
