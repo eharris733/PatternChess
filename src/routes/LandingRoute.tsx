@@ -5,6 +5,7 @@ import { LandingHero } from '../components/landing/LandingHero';
 import { LandingFooter } from '../components/landing/LandingFooter';
 import { UsernameInput } from '../components/landing/UsernameInput';
 import { DemoResult } from '../components/landing/DemoResult';
+import { SocialProofBadge } from '../components/landing/SocialProofBadge';
 import { WhyYouAreStuck } from '../components/landing/WhyYouAreStuck';
 import { HowItWorks } from '../components/landing/HowItWorks';
 import { AboutCreator } from '../components/landing/AboutCreator';
@@ -41,8 +42,9 @@ export function LandingRoute() {
             <DemoResult demo={demo} />
           </div>
         </LandingHero>
-        <WhyYouAreStuck />
+        <SocialProofBadge />
         <HowItWorks />
+        <WhyYouAreStuck />
         <AboutCreator />
       </main>
       <LandingFooter />

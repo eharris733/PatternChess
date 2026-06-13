@@ -1,0 +1,177 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "PatternChess home" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - img [ref=e7]
+        - generic [ref=e16]: PatternChess
+      - navigation [ref=e17]:
+        - link "Log in" [ref=e18] [cursor=pointer]:
+          - /url: /login
+        - link "Sign up" [ref=e19] [cursor=pointer]:
+          - /url: /login
+  - main [ref=e20]:
+    - generic [ref=e22]:
+      - heading "Learn from your Blunders" [level=1] [ref=e23]
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - generic [ref=e28]: Platform
+          - button "Lichess" [pressed] [ref=e29] [cursor=pointer]:
+            - img [ref=e31]
+            - generic [ref=e33]: Lichess
+          - button "Chess.com" [ref=e34] [cursor=pointer]:
+            - img [ref=e36]
+            - generic [ref=e38]: Chess.com
+        - generic [ref=e39]:
+          - generic [ref=e40]:
+            - generic [ref=e41]: lichess.org/@
+            - textbox "ENTER USERNAME" [ref=e42]
+          - button "Analyze Blunders →" [disabled] [ref=e43]
+        - paragraph [ref=e44]: We only look at your chess games. Promise.
+    - generic [ref=e219]:
+      - generic [ref=e222]: Across every PatternChess account
+      - generic [ref=e223]:
+        - generic [ref=e224]:
+          - generic [ref=e225]: 1,570
+          - generic [ref=e226]: Positions reviewed
+        - generic [ref=e227]:
+          - generic [ref=e228]: "+444"
+          - generic [ref=e229]: ELO gained by players
+    - generic [ref=e46]:
+      - heading "How it works" [level=2] [ref=e48]
+      - generic [ref=e49]:
+        - generic [ref=e50]:
+          - generic [ref=e51]: "01"
+          - heading "Stockfish finds ALL your blunders" [level=3] [ref=e52]
+          - paragraph [ref=e53]: Yes, even the ones you played on the toilet.
+        - generic [ref=e54]:
+          - generic [ref=e55]: "02"
+          - heading "Drill them across days" [level=3] [ref=e56]
+          - paragraph [ref=e57]: A seven-stage ladder over 56 days, so you truly internalize your mistakes and learn from them.
+        - generic [ref=e58]:
+          - generic [ref=e59]: "03"
+          - heading "Repeat until the answer is automatic" [level=3] [ref=e60]
+          - paragraph [ref=e61]: Most blunders happen from time trouble and blind spots. The answer has to be automatic if you’re going to catch it in a real game under real pressure.
+      - generic [ref=e62]:
+        - generic [ref=e63]:
+          - generic [ref=e64]: The seven-stage ladder
+          - generic [ref=e65]: One pattern · same position · drilled until it's yours
+        - generic [ref=e66]:
+          - generic [ref=e67]:
+            - generic [ref=e68]:
+              - generic [ref=e69]: Rep 1 · Day 1
+              - generic [ref=e70]: Pawn
+            - generic [ref=e74]:
+              - img
+              - img
+            - generic [ref=e76]:
+              - generic [ref=e77]: You blunder
+              - paragraph [ref=e78]: First encounter. Stockfish shows the move you missed — it stings, you log it, you move on.
+          - generic [ref=e79]:
+            - generic [ref=e80]:
+              - generic [ref=e81]: Rep 4 · Day 7
+              - generic [ref=e82]: Rook
+            - generic [ref=e86]:
+              - img
+              - img
+            - generic [ref=e88]:
+              - generic [ref=e89]: You're seeing it
+              - paragraph [ref=e90]: A week of reviews in. The shape is familiar; the right move starts to surface before you finish reading the position.
+          - generic [ref=e91]:
+            - generic [ref=e92]:
+              - generic [ref=e93]: Rep 7 · Day 56
+              - generic [ref=e94]: Transcendent
+            - generic [ref=e98]:
+              - img
+              - img
+            - generic [ref=e100]:
+              - generic [ref=e101]: Locked in
+              - paragraph [ref=e102]: Eight weeks later, the pattern is automatic — and you spot it across the board, in your own games, without thinking.
+        - generic [ref=e103]:
+          - generic [ref=e104]: Every blunder climbs the same ladder — Pawn to Transcendent.
+          - generic [ref=e105]:
+            - generic [ref=e106]:
+              - generic [ref=e110]: Pawn
+              - generic [ref=e111]: Day 1
+            - generic [ref=e112]:
+              - generic [ref=e117]: Knight
+              - generic [ref=e118]: Day 2
+            - generic [ref=e119]:
+              - generic [ref=e124]: Bishop
+              - generic [ref=e125]: Day 4
+            - generic [ref=e126]:
+              - generic [ref=e131]: Rook
+              - generic [ref=e132]: Day 7
+            - generic [ref=e133]:
+              - generic [ref=e138]: Queen
+              - generic [ref=e139]: Day 14
+            - generic [ref=e140]:
+              - generic [ref=e145]: Master
+              - generic [ref=e146]: Day 28
+            - generic [ref=e147]:
+              - generic [ref=e151]: Transcendent
+              - generic [ref=e152]: Day 56
+          - generic [ref=e153]: Each drill survived advances you one rung.
+    - generic [ref=e155]:
+      - heading "Why you're stuck" [level=2] [ref=e157]
+      - generic [ref=e158]:
+        - generic [ref=e159]:
+          - generic [ref=e160]: "01"
+          - generic [ref=e161]:
+            - heading "Learning needs friction" [level=3] [ref=e162]
+            - paragraph [ref=e163]:
+              - text: To improve, your brain has to struggle with the same idea — many times over. Most chess training skips this. Blitz while half-watching TV trains nothing. Puzzles slip away the moment you solve them.
+              - superscript [ref=e164]:
+                - link "[1]" [ref=e165] [cursor=pointer]:
+                  - /url: "#fn-1"
+              - text: Patterns stick when you face the same position on different days until the answer is automatic.
+              - superscript [ref=e166]:
+                - link "[2]" [ref=e167] [cursor=pointer]:
+                  - /url: "#fn-2"
+              - superscript [ref=e168]:
+                - link "[3]" [ref=e169] [cursor=pointer]:
+                  - /url: "#fn-3"
+        - generic [ref=e170]:
+          - generic [ref=e171]: "02"
+          - generic [ref=e172]:
+            - heading "Blunders decide your games" [level=3] [ref=e173]
+            - paragraph [ref=e174]: Most games below 2000 elo are decided by one player handing the other a winning position. I've coached adult improvers for years and climbed to 2100 chess.com myself — that's the pattern, every time. Not a set of strategic innacuracies; One missed move. That's what you need to drill.
+        - generic [ref=e175]:
+          - generic [ref=e176]: "03"
+          - generic [ref=e177]:
+            - heading "Drill the games you actually played" [level=3] [ref=e178]
+            - paragraph [ref=e179]:
+              - text: The patterns that keep beating you are sitting in your own losses. PatternChess pulls your games from Chess.com or Lichess, runs Stockfish over them, and collects the moves where you actually lost ground into one structured set. Same shrinking-interval drill that took Tikkanen to three GM norms in seven weeks.
+              - superscript [ref=e180]:
+                - link "[4]" [ref=e181] [cursor=pointer]:
+                  - /url: "#fn-4"
+      - group [ref=e182]:
+        - generic "Footnotes" [ref=e183] [cursor=pointer]:
+          - generic [ref=e184]: Footnotes
+          - img [ref=e185]
+    - generic [ref=e188]:
+      - heading "Why I built this" [level=2] [ref=e190]
+      - generic [ref=e191]:
+        - img "PatternChess mascot" [ref=e193]
+        - generic [ref=e194]:
+          - paragraph [ref=e195]: I built PatternChess because I wanted to test an insight I had from my own training. I started studying chess seriously as an adult, and the only method that got me results was spaced repetition. I'd print out a set of puzzles and review them every night until I could solve a set of 200-300 puzzles in one sitting.
+          - paragraph [ref=e196]: The issue was, these positions taught me how to win. They didn't teach me how to stop losing. Without an expensive coach, no one could tell me exactly where my blindspots were, and I had no way of training the exact positions I was losing in. As a professional software engineer, I thought I might finally be able to come up with a solution. So I built one.
+          - generic [ref=e197]:
+            - link "Chess.com" [ref=e198] [cursor=pointer]:
+              - /url: https://www.chess.com/member/eharris733
+            - link "Lichess" [ref=e199] [cursor=pointer]:
+              - /url: https://lichess.org/@/bewaretheschnook
+            - link "GitHub" [ref=e200] [cursor=pointer]:
+              - /url: https://github.com/eharris733
+  - contentinfo [ref=e201]:
+    - generic [ref=e202]:
+      - generic [ref=e203]:
+        - generic [ref=e204]:
+          - img "PatternChess" [ref=e205]
+          - generic [ref=e212]: PatternChess
+        - navigation [ref=e213]:
+          - link "Privacy" [ref=e214] [cursor=pointer]:
+            - /url: /privacy
+          - link "Terms" [ref=e215] [cursor=pointer]:
+            - /url: /terms
+      - generic [ref=e216]: © 2026 EH Solutions LLC. All rights reserved.

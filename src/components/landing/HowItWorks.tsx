@@ -3,18 +3,18 @@ import { SevenStageLadder } from './SevenStageLadder';
 const STEPS = [
   {
     num: '01',
-    title: 'Repeat until it’s automatic',
-    body: 'The same positions, on shrinking intervals, until you can’t miss them. Same idea Magnus uses, applied to your own mistakes.',
+    title: 'Stockfish finds ALL your blunders',
+    body: 'Yes, even the ones you played on the toilet.',
   },
   {
     num: '02',
-    title: 'Drills spread across days',
-    body: 'A seven-stage ladder spaces your drills across days. The pattern locks into long-term memory instead of disappearing after the session.',
+    title: 'Drill them across days',
+    body: 'A seven-stage ladder over 56 days, so you truly internalize your mistakes and learn from them.',
   },
   {
     num: '03',
-    title: 'Stockfish finds them in your games',
-    body: 'We pull your last games, run Stockfish over every move, and turn each one where you actually lost ground into a drill in your queue.',
+    title: 'Repeat until the answer is automatic',
+    body: 'Most blunders happen from time trouble and blind spots. The answer has to be automatic if you’re going to catch it in a real game under real pressure.',
   },
 ];
 

@@ -231,6 +231,41 @@ export async function fetchLichessGames(
   return out;
 }
 
+/**
+ * Resolve a Lichess study id from a full study/chapter URL or a bare id.
+ * Study and chapter ids are 8 alphanumeric chars; chapter URLs append a second
+ * one (`/study/{studyId}/{chapterId}`) — we always take the study id (the first).
+ * Returns null when the input isn't recognizable as a study reference.
+ */
+export function parseLichessStudyId(input: string): string | null {
+  const trimmed = input.trim();
+  if (/^[A-Za-z0-9]{8}$/.test(trimmed)) return trimmed;
+  const m = /lichess\.org\/study\/([A-Za-z0-9]{8})/.exec(trimmed);
+  return m ? m[1] : null;
+}
+
+/**
+ * Fetch a public Lichess study as a single multi-game PGN (one game per chapter).
+ * No auth — only public studies are exportable this way. Throws friendly errors
+ * for an unparseable URL or a private/missing study so callers can surface them.
+ */
+export async function fetchLichessStudyPgn(input: string): Promise<string> {
+  const id = parseLichessStudyId(input);
+  if (!id) {
+    throw new Error("That doesn't look like a Lichess study URL.");
+  }
+  const res = await fetchWithRetry(
+    `https://lichess.org/api/study/${id}.pgn?clocks=true&comments=true`,
+    { headers: { Accept: 'application/x-chess-pgn' } },
+    'Lichess',
+  );
+  if (res.status === 404) {
+    throw new Error("Study not found, or it's private (only public studies can be imported).");
+  }
+  if (!res.ok) throw new Error(`Failed to fetch Lichess study ${id}.`);
+  return res.text();
+}
+
 function extractLichessGameId(site: string | undefined): string | null {
   if (!site) return null;
   const m = /^https?:\/\/lichess\.org\/([A-Za-z0-9]{8})(?:\/|$|[^A-Za-z0-9])/.exec(site);

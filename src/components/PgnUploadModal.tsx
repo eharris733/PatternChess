@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
 import { usePgnUploadStore } from '../state/pgnUploadStore';
+import { fetchLichessStudyPgn, parseLichessStudyId } from '../services/chessApiService';
 import {
   PgnColorOverride,
   PgnUploadProgress,
@@ -29,6 +30,9 @@ export function PgnUploadModal() {
     profile?.lichessUsername ?? profile?.chesscomUsername ?? profile?.displayName ?? '';
   const [userPgnName, setUserPgnName] = useState(defaultName);
   const [colorOverride, setColorOverride] = useState<PgnColorOverride>(null);
+  const [studyUrl, setStudyUrl] = useState('');
+  const [studyLoading, setStudyLoading] = useState(false);
+  const [studyError, setStudyError] = useState<string | null>(null);
   const [progress, setProgress] = useState<PgnUploadProgress | null>(null);
   const [result, setResult] = useState<PgnUploadResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -42,6 +46,9 @@ export function PgnUploadModal() {
     setFileLabel(null);
     setUserPgnName(defaultName);
     setColorOverride(null);
+    setStudyUrl('');
+    setStudyLoading(false);
+    setStudyError(null);
     setProgress(null);
     setResult(null);
     setErrorMsg(null);
@@ -78,6 +85,29 @@ export function PgnUploadModal() {
         : `${files.length} files (${Math.round(totalSize / 1024)} KB)`,
     );
   }, []);
+
+  const onFetchStudy = useCallback(async () => {
+    const id = parseLichessStudyId(studyUrl);
+    if (!id) {
+      setStudyError("That doesn't look like a Lichess study URL.");
+      return;
+    }
+    setStudyLoading(true);
+    setStudyError(null);
+    try {
+      const text = await fetchLichessStudyPgn(studyUrl);
+      if (!text.trim()) {
+        setStudyError('That study has no chapters to import.');
+        return;
+      }
+      setPgnText((cur) => (cur.trim() ? `${cur.trim()}\n\n${text}` : text));
+      setFileLabel(`Lichess study ${id}`);
+    } catch (e) {
+      setStudyError(e instanceof Error ? e.message : 'Failed to fetch study.');
+    } finally {
+      setStudyLoading(false);
+    }
+  }, [studyUrl]);
 
   const canStart =
     stage === 'pick' &&
@@ -172,6 +202,36 @@ export function PgnUploadModal() {
               Paste PGN text or upload one or more <code>.pgn</code> files. Multi-game
               PGN exports from Chess.com and Lichess are supported.
             </p>
+
+            <div className="flex flex-col gap-2">
+              <label className="label">Import from Lichess study URL</label>
+              <div className="flex gap-2">
+                <input
+                  className="input flex-1"
+                  placeholder="https://lichess.org/study/XXXXXXXX"
+                  value={studyUrl}
+                  onChange={(e) => setStudyUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void onFetchStudy();
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn-outline whitespace-nowrap"
+                  onClick={() => void onFetchStudy()}
+                  disabled={studyLoading || studyUrl.trim().length === 0}
+                >
+                  {studyLoading ? 'Fetching…' : 'Fetch'}
+                </button>
+              </div>
+              {studyError ? (
+                <p className="text-incorrect text-xs">{studyError}</p>
+              ) : (
+                <p className="text-text-secondary text-xs">
+                  Loads all chapters of a public study as games below.
+                </p>
+              )}
+            </div>
 
             <div className="flex flex-col gap-2">
               <label className="label">Your name in these games</label>

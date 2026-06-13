@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ChevronIcon } from '../icons/ChevronIcon';
 
 function Cite({ n }: { n: string }) {
   return (
@@ -144,11 +145,12 @@ export function WhyYouAreStuck() {
           ))}
         </div>
 
-        <div className="mt-12 border-2 border-text-primary bg-surface p-6">
-          <div className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60 mb-4">
-            Footnotes
-          </div>
-          <ol className="flex flex-col gap-3 text-xs sm:text-sm text-text-primary/75 leading-relaxed">
+        <details className="group mt-12 border-2 border-text-primary bg-surface">
+          <summary className="flex cursor-pointer select-none items-center justify-between gap-3 p-6 font-mono uppercase text-[10px] tracking-tight text-text-primary/60 list-none [&::-webkit-details-marker]:hidden">
+            <span>Footnotes</span>
+            <ChevronIcon className="h-4 w-4 transition-transform duration-200 group-open:rotate-90" />
+          </summary>
+          <ol className="flex flex-col gap-3 px-6 pb-6 text-xs sm:text-sm text-text-primary/75 leading-relaxed">
             {FOOTNOTES.map((f) => (
               <li
                 key={f.num}
@@ -170,7 +172,7 @@ export function WhyYouAreStuck() {
               </li>
             ))}
           </ol>
-        </div>
+        </details>
       </div>
     </section>
   );

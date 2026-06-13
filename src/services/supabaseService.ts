@@ -588,6 +588,32 @@ export async function getBlunderStats(): Promise<BlunderStats> {
   return { reviewed, mastered, totalBlunders };
 }
 
+// --- Landing page social proof (global, cross-user) ---
+
+export interface LandingStats {
+  positionsReviewed: number;
+  eloGained: number;
+  computedAt: string;
+}
+
+/**
+ * Global cross-user stats for the landing social-proof badge, via the
+ * `landing_stats` RPC (security definer; server-side 6h cache so anonymous
+ * landing traffic never triggers the heavy aggregate). Returns null on any
+ * failure — the badge degrades to rendering nothing.
+ */
+export async function getLandingStats(): Promise<LandingStats | null> {
+  const { data, error } = await supabase.rpc('landing_stats');
+  if (error || !data) return null;
+  const d = data as Partial<LandingStats>;
+  if (typeof d.positionsReviewed !== 'number' || typeof d.eloGained !== 'number') return null;
+  return {
+    positionsReviewed: d.positionsReviewed,
+    eloGained: d.eloGained,
+    computedAt: String(d.computedAt ?? ''),
+  };
+}
+
 // --- Cycle distribution (woodpecker-ladder timeline) ---
 
 export interface CycleDistribution {
@@ -1028,6 +1054,7 @@ export const supabaseService = {
   updateGameMetadata,
   getBenchmarks,
   getBlunderStats,
+  getLandingStats,
   getCycleDistribution,
   getBlunderPhaseCounts,
   getOpeningPerformance,

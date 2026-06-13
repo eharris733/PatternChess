@@ -1,8 +1,13 @@
 # Supabase migrations
 
-This project does not use the Supabase CLI for migrations. Each `*.sql` file
-here must be applied **manually** via the Supabase dashboard SQL editor for the
-project (`ydfwppthwnlgxnntzrvg`).
+Migrations apply via `supabase db push` (CLI logged in + linked to project
+`ydfwppthwnlgxnntzrvg`). Push only applies files not yet in the remote
+migration history.
 
-Apply files in lexical order. The schema is shared across environments — run
-once per project.
+History note: files up to `20260610120000` were originally applied manually via
+the dashboard SQL editor; on 2026-06-12 the remote history table was repaired
+(`supabase migration repair`) to match this directory, so push works going
+forward. The dashboard SQL editor remains a fallback — if you use it, also mark
+the file applied with `supabase migration repair --status applied <version>`.
+
+The schema is one shared project across environments — run once.

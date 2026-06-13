@@ -26,7 +26,7 @@ const STAGES: Stage[] = [
   {
     rep: 1,
     day: 1,
-    rank: RANKS[0].name, // Apprentice
+    rank: RANKS[0].name, // Pawn
     headline: 'You blunder',
     body: "First encounter. Stockfish shows the move you missed — it stings, you log it, you move on.",
     shapes: 'blunder',
@@ -35,7 +35,7 @@ const STAGES: Stage[] = [
   {
     rep: 4,
     day: 7,
-    rank: RANKS[3].name, // Bishop
+    rank: RANKS[3].name, // Rook
     headline: "You're seeing it",
     body: 'A week of reviews in. The shape is familiar; the right move starts to surface before you finish reading the position.',
     shapes: 'both',
@@ -44,7 +44,7 @@ const STAGES: Stage[] = [
   {
     rep: 7,
     day: 56,
-    rank: RANKS[6].name, // Master
+    rank: RANKS[6].name, // Transcendent
     headline: 'Locked in',
     body: 'Eight weeks later, the pattern is automatic — and you spot it across the board, in your own games, without thinking.',
     shapes: 'correct',
@@ -132,7 +132,7 @@ export function SevenStageLadder() {
 
       <div className="border-t-2 border-text-primary px-6 py-6 bg-bg">
         <div className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60 mb-4">
-          Every blunder climbs the same ladder — Apprentice to Master.
+          Every blunder climbs the same ladder — Pawn to Transcendent.
         </div>
         <div className="grid grid-cols-7 gap-1 sm:gap-3">
           {RANKS.map((rank, i) => {

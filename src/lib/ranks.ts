@@ -5,13 +5,13 @@ export interface Rank {
 
 /** Tiers indexed by mastered-blunder count. Threshold is the minimum to enter the tier. */
 export const RANKS: readonly Rank[] = [
-  { name: 'Apprentice', threshold: 0 },
-  { name: 'Squire', threshold: 10 },
-  { name: 'Knight', threshold: 50 },
-  { name: 'Bishop', threshold: 150 },
-  { name: 'Rook', threshold: 400 },
-  { name: 'Queen', threshold: 1000 },
-  { name: 'Master', threshold: 2500 },
+  { name: 'Pawn', threshold: 0 },
+  { name: 'Knight', threshold: 10 },
+  { name: 'Bishop', threshold: 50 },
+  { name: 'Rook', threshold: 150 },
+  { name: 'Queen', threshold: 400 },
+  { name: 'Master', threshold: 1000 },
+  { name: 'Transcendent', threshold: 2500 },
 ] as const;
 
 export interface RankProgress {
