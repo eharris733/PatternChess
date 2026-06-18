@@ -103,3 +103,50 @@ cg-board piece {
   border: 2px solid rgb(var(--text-primary));
   box-shadow: 3px 3px 0 rgb(var(--text-primary));
 }
+
+/* Prose styling for build-time-rendered blog HTML (markdown-it output, which
+   carries no classes). Scoped so it never affects the rest of the app. */
+@layer components {
+  .blog-content {
+    @apply text-text-primary/90;
+  }
+  .blog-content > :first-child {
+    @apply mt-0;
+  }
+  .blog-content h2 {
+    @apply font-mono uppercase tracking-tight text-xl sm:text-2xl text-text-primary mt-10 mb-3;
+  }
+  .blog-content h3 {
+    @apply font-mono uppercase tracking-tight text-lg text-text-primary mt-8 mb-2;
+  }
+  .blog-content p {
+    @apply text-base sm:text-lg leading-relaxed mt-5;
+  }
+  .blog-content ul {
+    @apply list-disc pl-6 space-y-2 mt-5;
+  }
+  .blog-content ol {
+    @apply list-decimal pl-6 space-y-2 mt-5;
+  }
+  .blog-content li {
+    @apply text-base sm:text-lg leading-relaxed;
+  }
+  .blog-content a {
+    @apply text-gold-dark underline underline-offset-2 hover:text-text-primary transition-colors;
+  }
+  .blog-content strong {
+    @apply font-semibold text-text-primary;
+  }
+  .blog-content em {
+    @apply italic;
+  }
+  .blog-content blockquote {
+    @apply border-l-2 border-gold-dark pl-4 italic text-text-primary/80 mt-5;
+  }
+  .blog-content code {
+    @apply font-mono text-sm bg-surface px-1 py-0.5;
+  }
+  .blog-content hr {
+    @apply border-text-primary/15 my-8;
+  }
+}

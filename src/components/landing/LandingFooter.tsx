@@ -2,6 +2,9 @@ import { Link } from 'react-router-dom';
 import { BrandMark } from '../BrandLogo';
 
 const LINKS = [
+  { label: 'About', to: '/about' },
+  { label: 'FAQ', to: '/faq' },
+  { label: 'Blog', to: '/blog' },
   { label: 'Privacy', to: '/privacy' },
   { label: 'Terms', to: '/terms' },
 ];

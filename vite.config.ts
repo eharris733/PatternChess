@@ -34,4 +34,5 @@ export default defineConfig({
   worker: { format: 'es' },
   assetsInclude: ['**/*.wasm'],
   optimizeDeps: { exclude: ['chessground'] },
+  build: { target: 'es2022' },
 });

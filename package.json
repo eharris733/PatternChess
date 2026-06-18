@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "blog:gen": "node scripts/build-blog.mjs",
+    "build": "node scripts/build-blog.mjs && tsc -b && vite build && node scripts/gen-seo.mjs && node scripts/prerender.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "typecheck:functions": "tsc -p functions --noEmit",
@@ -31,10 +32,13 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260612.1",
     "@playwright/test": "^1.48.0",
+    "@types/markdown-it": "^14.1.2",
     "@types/react": "^18.3.10",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.4.20",
+    "gray-matter": "^4.0.3",
+    "markdown-it": "^14.2.0",
     "postcss": "^8.4.47",
     "stockfish": "18.0.5",
     "tailwindcss": "^3.4.13",

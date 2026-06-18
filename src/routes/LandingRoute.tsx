@@ -13,11 +13,20 @@ import { useDemoAnalysis } from '../hooks/useDemoAnalysis';
 import { useLandingView } from '../hooks/useLandingView';
 import { trackDemoSubmit } from '../services/funnelService';
 import { useForceDefaultTheme } from '../state/themeStore';
+import { useHead } from '../seo/useHead';
+import { SITE_DESCRIPTION } from '../seo/siteMeta';
+import { organizationJsonLd, websiteJsonLd, softwareApplicationJsonLd } from '../seo/jsonLd';
 
 export function LandingRoute() {
   const { session, loading } = useAuth();
   const demo = useDemoAnalysis();
   useForceDefaultTheme();
+  useHead({
+    title: 'PatternChess — Train the blunders from your own chess games',
+    description: SITE_DESCRIPTION,
+    canonical: '/',
+    jsonLd: [organizationJsonLd(), websiteJsonLd(), softwareApplicationJsonLd()],
+  });
   // Records a single (human-gated) landing_view per session. Safe to call before
   // the auth/session early-returns below — the effect no-ops for signed-in users
   // since they're redirected away, and it only fires once per browser session.

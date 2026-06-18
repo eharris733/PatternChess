@@ -1,10 +1,16 @@
 import { Link } from 'react-router-dom';
 import { LegalPage, LegalSection } from '../components/legal/LegalPage';
+import { useHead } from '../seo/useHead';
 
 const EFFECTIVE_DATE = 'May 27, 2026';
 const CONTACT_EMAIL = 'elliot@patternchess.com';
 
 export function TermsRoute() {
+  useHead({
+    title: 'Terms of Service',
+    description: 'The terms governing your use of PatternChess, the chess blunder-training app.',
+    canonical: '/terms',
+  });
   return (
     <LegalPage title="Terms of Service" effectiveDate={EFFECTIVE_DATE}>
       <p>
