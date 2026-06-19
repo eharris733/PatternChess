@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "blog:gen": "node scripts/build-blog.mjs",
-    "build": "node scripts/build-blog.mjs && tsc -b && vite build && node scripts/gen-seo.mjs && node scripts/prerender.mjs",
+    "build": "node scripts/build-blog.mjs && tsc -b && vite build && node scripts/gen-seo.mjs && playwright install chromium-headless-shell && node scripts/prerender.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "typecheck:functions": "tsc -p functions --noEmit",
