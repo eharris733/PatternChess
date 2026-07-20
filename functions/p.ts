@@ -29,6 +29,11 @@ function withResponseHeaders(res: Response): Response {
   }
   // The HTML varies per `d` payload.
   out.headers.set('Cache-Control', 'no-store');
+  // Shared-puzzle links are thin, near-duplicate, and effectively infinite (one
+  // per payload). Keep them out of search indexes — the rich OG unfurl still
+  // works (it reads og:* tags, which X-Robots-Tag does not affect). Pairs with
+  // the `Disallow: /p` rule in robots.txt.
+  out.headers.set('X-Robots-Tag', 'noindex, follow');
   return out;
 }
 

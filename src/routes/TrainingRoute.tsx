@@ -25,6 +25,7 @@ import {
   computeBlunderContext,
 } from '../chess/blunderContext';
 import { Blunder, BlunderPhase } from '../models/blunder';
+import { MOTIF_LABEL, type Motif } from '../chess/motifs';
 import { GameRecord } from '../models/gameRecord';
 import { supabase } from '../lib/supabase';
 import { gameRecordFromJson, ecoFamily, orderedPlayers } from '../models/gameRecord';
@@ -39,6 +40,7 @@ interface LocationState {
   gameIds?: string[];
   contextFilter?: ContextFilter;
   phaseFilter?: BlunderPhase;
+  motifFilter?: Motif;
   openingFilter?: string;
   openingColor?: 'white' | 'black' | null;
   openingLabel?: string;
@@ -131,6 +133,7 @@ export function TrainingRoute() {
 
   const contextFilter = location.state?.contextFilter ?? null;
   const phaseFilter = location.state?.phaseFilter ?? null;
+  const motifFilter = location.state?.motifFilter ?? null;
   const openingFilter = location.state?.openingFilter ?? null;
   const openingColor = location.state?.openingColor ?? null;
   const openingLabel = location.state?.openingLabel ?? null;
@@ -156,6 +159,7 @@ export function TrainingRoute() {
   const filteredBlunders = useMemo(() => {
     if (!dueData) return null;
     let list = phaseFilter ? dueData.filter((b) => b.phase === phaseFilter) : dueData;
+    if (motifFilter) list = list.filter((b) => b.motifs.includes(motifFilter));
     if (needsGames) {
       if (!filterGamesQuery.data) return null; // wait for game data
       const games = filterGamesQuery.data;
@@ -176,6 +180,7 @@ export function TrainingRoute() {
     openingFilter,
     openingColor,
     phaseFilter,
+    motifFilter,
     filterGamesQuery.data,
   ]);
 
@@ -187,7 +192,9 @@ export function TrainingRoute() {
       ? openingLabel ?? openingFilter
       : phaseFilter
         ? phaseLabel(phaseFilter)
-        : null;
+        : motifFilter
+          ? MOTIF_LABEL[motifFilter]
+          : null;
 
   useEffect(() => {
     setContextFilter(contextFilter);
@@ -568,7 +575,16 @@ export function TrainingRoute() {
               <span className="font-medium">
                 {blunder.sideToMove === 'white' ? 'White' : 'Black'} to play
               </span>
+              {state.userMovesRequired > 1 && (
+                <span className="ml-auto font-mono uppercase text-[10px] tracking-tight text-text-secondary">
+                  Move {Math.floor(state.drillPly / 2) + 1} of {state.userMovesRequired}
+                </span>
+              )}
             </div>
+
+            {state.stepFeedback && (
+              <FeedbackBadge tone="success">{state.stepFeedback}</FeedbackBadge>
+            )}
 
             {revealBeforeSolve && (
               <button

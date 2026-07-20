@@ -20,6 +20,10 @@ export interface BlunderCandidate {
   evalAfter: number;
   evalSwing: number;
   correctMoves: Array<{ move: string; eval: number }>;
+  /** Best-move PV from `fen` (solutionPv[0] === correctMoves[0].move). */
+  solutionPv: string[];
+  /** Refutation PV from the position after the played move. */
+  playedRefutationPv: string[];
 }
 
 interface PendingRequest {
@@ -156,14 +160,14 @@ export class StockfishWorkerClient {
     return next;
   }
 
-  async evaluatePositionFull(fen: string, depth = 12): Promise<PositionEval> {
+  async evaluatePositionFull(fen: string, depth = 12, pvMoves = 5): Promise<PositionEval> {
     const out = await this.send([`position fen ${fen}`, `go depth ${depth}`], (line) =>
       line.startsWith('bestmove'),
     );
     return {
       scoreCp: parseEvalCp(out),
       bestMove: parseBestMove(out),
-      principalVariation: parsePrincipalVariation(out),
+      principalVariation: parsePrincipalVariation(out, pvMoves),
     };
   }
 
@@ -197,7 +201,9 @@ export class StockfishWorkerClient {
     const positionEvals: PositionEval[] = [];
     for (let i = 0; i < positions.length; i++) {
       onProgress?.(i, positions.length);
-      const ev = await this.evaluatePositionFull(positions[i].fen, depth);
+      // 10 PV plies (vs the display default of 5) so the stored solution line
+      // has headroom for multi-move drills and motif detection.
+      const ev = await this.evaluatePositionFull(positions[i].fen, depth, 10);
       positionEvals.push(ev);
     }
 
@@ -225,6 +231,8 @@ export class StockfishWorkerClient {
         correctMoves: [
           { move: positionEvals[i].bestMove, eval: positionEvals[i].scoreCp },
         ],
+        solutionPv: positionEvals[i].principalVariation,
+        playedRefutationPv: positionEvals[i + 1].principalVariation,
       });
     }
     return out;

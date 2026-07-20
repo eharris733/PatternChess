@@ -22,7 +22,8 @@ import {
   ContextFilter,
   computeBlunderContext,
 } from '../chess/blunderContext';
-import { moveToUci, parseUciMove } from '../chess/moveUtils';
+import { CASTLING_NORMALIZE, moveToUci, parseUciMove } from '../chess/moveUtils';
+import { computeDrillLine } from '../chess/solutionLine';
 import type { MovePair } from '../components/MoveSequencePanel';
 import { computeNextStreak, detectTimezone, localDate } from '../services/streakService';
 import { queryClient } from '../lib/queryClient';
@@ -131,6 +132,23 @@ export interface TrainingStateShape {
   interactedBlunderIds: Set<string>;
   playedMovesFromBlunder: string[];
   /**
+   * The current drill's solution sequence (see computeDrillLine): even indices
+   * are the user's moves, odd indices auto-played opponent replies. A single
+   * entry (or the legacy no-line fallback) makes the drill single-move.
+   */
+  drillPlies: string[];
+  /** Index into drillPlies of the user ply being solved (0, 2, 4 …). */
+  drillPly: number;
+  userMovesRequired: number;
+  /** Transient mid-sequence feedback ("Correct — keep going") shown while solving. */
+  stepFeedback: string | null;
+  /**
+   * Monotonic token guarding the delayed opponent auto-reply: bumped on every
+   * load/reset so a pending setTimeout from a stale drill can never mutate the
+   * board of the one that replaced it.
+   */
+  sequenceToken: number;
+  /**
    * Profile preference (mirrored in by TrainingRoute): show the review step
    * (played move + refutation) before solving. When false — the default — new
    * and retry positions go straight to solving, and the review content is
@@ -215,9 +233,38 @@ function makeInitial(): InitialShape {
     pendingTryAgain: false,
     interactedBlunderIds: new Set<string>(),
     playedMovesFromBlunder: [],
+    drillPlies: [],
+    drillPly: 0,
+    userMovesRequired: 1,
+    stepFeedback: null,
+    sequenceToken: 0,
     incorrectRequeue: false,
     revealBeforeSolve: false,
   };
+}
+
+// Monotonic source for sequenceToken — module-level so a reset (which zeroes
+// the state token) can never recycle a value a pending timeout still holds.
+let nextSequenceToken = 0;
+
+/** Replay a UCI prefix from a base FEN; null if any ply fails to apply. */
+function replayFen(baseFen: string, plies: string[]): string | null {
+  let chess: Chess;
+  try {
+    chess = new Chess(baseFen);
+  } catch {
+    return null;
+  }
+  for (const uci of plies) {
+    const std = CASTLING_NORMALIZE[uci] ?? uci;
+    const m = parseUciMove(std);
+    try {
+      if (!chess.move({ from: m.from, to: m.to, promotion: m.promotion })) return null;
+    } catch {
+      return null;
+    }
+  }
+  return chess.fen();
 }
 
 function endActiveSession(state: TrainingStateShape): void {
@@ -253,16 +300,6 @@ async function applyStreakUpdate(snapshot: StreakSnapshot): Promise<void> {
 }
 
 const gameCache = new Map<string, GameRecord>();
-
-// Some PGN/UCI sources encode castling as "king-to-rook-square" (e.g. e8a8 / e1h1)
-// instead of standard "king-to-destination" (e8c8 / e1g1). chess.js v1 throws on
-// the rook-square form, so map known cases before parsing.
-const CASTLING_NORMALIZE: Record<string, string> = {
-  e1a1: 'e1c1',
-  e1h1: 'e1g1',
-  e8a8: 'e8c8',
-  e8h8: 'e8g8',
-};
 
 function tryMoveSan(fen: string, uci: string): string | null {
   try {
@@ -587,6 +624,18 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     const blunderSan = sanFromUci(blunder.fen, blunder.playedMove);
     const playerSide: 'white' | 'black' = blunder.sideToMove === 'white' ? 'white' : 'black';
     const currentContext = computeBlunderContext(blunder, game);
+
+    // Multi-move sequence from the stored solution line; legacy rows (no line)
+    // fall back to the single stored best move — exactly the one-move drill.
+    const drill = computeDrillLine(blunder.fen, blunder.solutionLine, blunder.evalBefore);
+    const drillPlies =
+      drill.plies.length > 0
+        ? drill.plies
+        : blunder.correctMoves[0]
+          ? [blunder.correctMoves[0].move]
+          : [];
+    const userMovesRequired = drill.plies.length > 0 ? drill.userMoveCount : 1;
+    const sequenceToken = ++nextSequenceToken;
     const isNewBlunder = blunder.cycleNumber === 0 && blunder.timesAttempted === 0;
     const isRetry = blunder.lastDrillFailed;
     const pendingTryAgain = isRetry && !get().interactedBlunderIds.has(blunder.id);
@@ -635,6 +684,11 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         game,
         currentContext,
         pendingTryAgain,
+        drillPlies,
+        drillPly: 0,
+        userMovesRequired,
+        stepFeedback: null,
+        sequenceToken,
         playedMovesFromBlunder: [blunder.playedMove],
         refutationMoves: [],
         refutationPairs: [],
@@ -667,6 +721,11 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         game,
         currentContext,
         pendingTryAgain,
+        drillPlies,
+        drillPly: 0,
+        userMovesRequired,
+        stepFeedback: null,
+        sequenceToken,
         playedMovesFromBlunder: [],
         refutationMoves: [],
         refutationPairs: [],
@@ -693,6 +752,8 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       movableFor: playerSide,
       lastMove: null,
       shapes: [],
+      drillPly: 0,
+      stepFeedback: null,
       playedMovesFromBlunder: [],
       refutationMoves: [],
       refutationPairs: [],
@@ -712,21 +773,35 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     const blunder = state.blunders[state.currentIndex];
     if (!blunder) return;
 
+    const { drillPlies, drillPly, sequenceToken } = state;
+    const isStep0 = drillPly === 0;
+    // Position being solved: the blunder FEN with the sequence so far applied.
+    const stepFen = isStep0 ? blunder.fen : replayFen(blunder.fen, drillPlies.slice(0, drillPly));
+    if (!stepFen) return;
+    const isLastStep = drillPly >= drillPlies.length - 1;
+    const playerSide: 'white' | 'black' = blunder.sideToMove === 'white' ? 'white' : 'black';
+
     const uci = moveToUci(move);
-    const isRepeatedBlunder = uci === blunder.playedMove;
-    let isCorrect = isCorrectMove(blunder, uci);
+    const isRepeatedBlunder = isStep0 && uci === blunder.playedMove;
+    const expectedRaw = drillPlies[drillPly] ?? null;
+    const expected = expectedRaw ? (CASTLING_NORMALIZE[expectedRaw] ?? expectedRaw) : null;
+    const matchesExpected =
+      expected !== null && (uci === expected || (CASTLING_NORMALIZE[uci] ?? uci) === expected);
+    // Step 0 also accepts every stored alternative first move; later steps
+    // demand the line's move (or an engine-approved deviation, below).
+    let isCorrect = matchesExpected || (isStep0 && isCorrectMove(blunder, uci));
 
     // Apply move locally to compute next FEN. chess.js v1 throws on illegal
     // moves; treat any throw as "no-op" and snap the board back to the
     // current FEN (chessground may briefly display the bad piece position
     // after a drag, e.g. from a stale dests/animation race).
-    const chess = new Chess(blunder.fen);
+    const chess = new Chess(stepFen);
     let result;
     try {
       result = chess.move({ from: move.from, to: move.to, promotion: move.promotion });
     } catch (err) {
       console.warn('[training] processMove rejected illegal move', {
-        fen: blunder.fen,
+        fen: stepFen,
         move,
         err,
       });
@@ -745,8 +820,13 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
 
     let chancesLost: number | null = null;
     let playedPv: string[] | null = null;
+    // An engine-approved deviation from the stored line completes the drill
+    // early — its continuation is unknown, so there is nothing left to solve.
+    let acceptedDeviation = false;
 
-    // On-the-fly engine verification for non-stored moves
+    // On-the-fly engine verification for non-stored moves. The reference eval
+    // works at any step: a PV nominally preserves the root eval, so
+    // correctMoves[0].eval is the bar the user's position must stay within.
     if (!isCorrect && blunder.correctMoves.length > 0) {
       set({ evaluating: true });
       try {
@@ -759,13 +839,17 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         chancesLost = bestWinPct - moveWinPct;
         if (Math.abs(chancesLost) <= 5) {
           isCorrect = true;
-          const newCorrect: CorrectMove = { move: uci, eval: -ev.scoreCp };
-          const updated = [...blunder.correctMoves];
-          if (!updated.some((cm) => cm.move === uci)) updated.push(newCorrect);
-          blunder.correctMoves = updated;
-          void supabaseService
-            .appendCorrectMove(blunder.id, updated)
-            .catch((err) => console.warn('[training] appendCorrectMove failed', err));
+          acceptedDeviation = true;
+          // correctMoves are alternative *first* moves — only step-0 finds persist.
+          if (isStep0) {
+            const newCorrect: CorrectMove = { move: uci, eval: -ev.scoreCp };
+            const updated = [...blunder.correctMoves];
+            if (!updated.some((cm) => cm.move === uci)) updated.push(newCorrect);
+            blunder.correctMoves = updated;
+            void supabaseService
+              .appendCorrectMove(blunder.id, updated)
+              .catch((err) => console.warn('[training] appendCorrectMove failed', err));
+          }
         }
       } catch {
         /* engine optional */
@@ -784,6 +868,22 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       chancesLost !== null &&
       chancesLost < inaccuracyThresholdPercent
     ) {
+      if (!isStep0) {
+        // Mid-sequence: snap the board back to the step position and keep
+        // solving — the incorrect-phase retry flow would restart the sequence.
+        const prevReply = parseUciMove(
+          CASTLING_NORMALIZE[drillPlies[drillPly - 1]] ?? drillPlies[drillPly - 1],
+        );
+        set((s) => ({
+          fen: stepFen,
+          lastMove: [prevReply.from, prevReply.to],
+          movableFor: playerSide,
+          shapes: [],
+          interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
+          stepFeedback: 'Good move, but keep looking for the best one',
+        }));
+        return;
+      }
       set((s) => ({
         phase: 'incorrect',
         pendingTryAgain: false,
@@ -799,6 +899,40 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         },
         playedMovesFromBlunder: [uci],
       }));
+      return;
+    }
+
+    // Correct on an intermediate step: no SR/session writes — auto-play the
+    // opponent's reply after a beat and prompt for the next move. An accepted
+    // deviation skips this (the stored line no longer applies) and finishes
+    // the drill below instead.
+    if (isCorrect && !isLastStep && !acceptedDeviation) {
+      const playedSoFar = [...drillPlies.slice(0, drillPly), uci];
+      set((s) => ({
+        shapes: [{ orig: move.from as any, dest: move.to as any, brush: 'green' }],
+        interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
+        pendingTryAgain: false,
+        stepFeedback: 'Correct — keep going',
+        playedMovesFromBlunder: playedSoFar,
+      }));
+      setTimeout(() => {
+        const cur = get();
+        if (cur.sequenceToken !== sequenceToken || cur.phase !== 'solving') return;
+        const replyRaw = drillPlies[drillPly + 1];
+        const replyFen = replayFen(blunder.fen, drillPlies.slice(0, drillPly + 2));
+        if (!replyFen) return;
+        const reply = parseUciMove(CASTLING_NORMALIZE[replyRaw] ?? replyRaw);
+        set({
+          fen: replyFen,
+          lastMove: [reply.from, reply.to],
+          movableFor: playerSide,
+          shapes: [],
+          drillPly: drillPly + 2,
+          stepFeedback: null,
+          hintLevel: 0,
+          playedMovesFromBlunder: drillPlies.slice(0, drillPly + 2),
+        });
+      }, 450);
       return;
     }
 
@@ -822,6 +956,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           .catch((err) => console.warn('[training] updateBlunderAfterDrill (correct) failed', err)),
       );
 
+      const playedSequence = [...drillPlies.slice(0, drillPly), uci];
       set((s) => {
         const nextAttempted = isFirstAttempt
           ? new Set(s.attemptedBlunderIds).add(blunder.id)
@@ -835,7 +970,8 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           attemptedBlunderIds: nextAttempted,
           shapes: [{ orig: move.from as any, dest: move.to as any, brush: 'green' }],
           incorrectFeedback: null,
-          playedMovesFromBlunder: [uci],
+          stepFeedback: null,
+          playedMovesFromBlunder: playedSequence,
           // Keep refutationMoves/refutationPairs: the correct phase now shows
           // the original blunder's refutation (already loaded in reveal mode,
           // fetched below otherwise). Reset to the post-attempt board view.
@@ -860,16 +996,23 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         void applyStreakUpdate(afterCorrect.streakSnapshot);
       }
 
-      // Engine continuation from the post-correct position
-      const correctSan = result.san;
+      // Engine continuation from the post-correct position. The panel's line
+      // starts with the sequence the user actually played (one move in the
+      // single-move drill) and continues with the engine's PV from its end.
       try {
         const sf = await getStockfish();
         const ev = await sf.evaluatePositionFull(newFen, 18);
-        const pvMoves = buildLineMoves(newFen, ev.principalVariation);
+        const firstUci = playedSequence[0];
+        const firstSan = playedSequence.length === 1 ? result.san : sanFromUci(blunder.fen, firstUci);
+        const fenAfterFirst = replayFen(blunder.fen, [firstUci]) ?? newFen;
+        const pvMoves = buildLineMoves(fenAfterFirst, [
+          ...playedSequence.slice(1),
+          ...ev.principalVariation,
+        ]);
         const { pairs, movesPlusCorrect, startsWithWhite } = buildPostCorrectPairs(
           blunder.fen,
-          correctSan,
-          uci,
+          firstSan,
+          firstUci,
           pvMoves,
         );
         set({
@@ -915,12 +1058,16 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       }
 
       // Engine refutation of the move the user just played — the PV from the
-      // position after their move is exactly why it fails.
+      // position after their move is exactly why it fails. Anchored at the
+      // step position, so a mid-sequence fail shows the right move number.
+      const stepMoveNumber = isStep0
+        ? blunder.moveNumber
+        : Number.parseInt(stepFen.split(' ')[5] ?? '1', 10);
       const playedRefutation =
         playedPv && playedPv.length > 0
           ? buildRefutationPairs({
-              fen: blunder.fen,
-              moveNumber: blunder.moveNumber,
+              fen: stepFen,
+              moveNumber: stepMoveNumber,
               sideToMove: blunder.sideToMove,
               firstSan: result.san,
               firstUci: uci,
@@ -953,10 +1100,11 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           shapes: [],
           incorrectRequeue: true,
           incorrectFeedback: feedback,
+          stepFeedback: null,
           playedRefutationMoves: playedRefutation ? playedRefutation.movesPlusFirst : [],
           playedRefutationPairs: playedRefutation ? playedRefutation.pairs : [],
           activePlayedRefutationIndex: playedRefutation ? 0 : null,
-          playedMovesFromBlunder: [uci],
+          playedMovesFromBlunder: [...drillPlies.slice(0, drillPly), uci],
         };
       });
 
@@ -1063,8 +1211,11 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     const state = get();
     if (state.phase !== 'solving') return;
     const b = state.blunders[state.currentIndex];
-    if (!b || b.correctMoves.length === 0) return;
-    const uci = b.correctMoves[0].move;
+    if (!b) return;
+    // Hint the current step's expected move (falls back to the stored best
+    // move for legacy single-move rows).
+    const uci = state.drillPlies[state.drillPly] ?? b.correctMoves[0]?.move;
+    if (!uci) return;
     const from = uci.slice(0, 2);
     const to = uci.slice(2, 4);
 

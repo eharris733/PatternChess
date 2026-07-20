@@ -1,3 +1,4 @@
+import { detectMotifs } from '../chess/motifs';
 import { getAnalysisStockfish } from '../hooks/useStockfish';
 import { derivePhase } from '../models/blunder';
 import type {
@@ -110,6 +111,15 @@ export async function analyzeGames(
           eval_swing: b.evalSwing,
           side_to_move: b.sideToMove,
           phase: derivePhase(b.moveNumber, b.fen),
+          solution_line: { pv: b.solutionPv, playedPv: b.playedRefutationPv, v: 1 },
+          motifs: detectMotifs({
+            fen: b.fen,
+            playedMove: b.playedMove,
+            solutionPv: b.solutionPv,
+            playedRefutationPv: b.playedRefutationPv,
+            evalBefore: b.evalBefore,
+            evalAfter: b.evalAfter,
+          }),
         })),
       );
       blundersFound += blunders.length;

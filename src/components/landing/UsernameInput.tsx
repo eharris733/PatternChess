@@ -2,6 +2,10 @@ import { useState, type FormEvent } from 'react';
 import { getStockfish } from '../../hooks/useStockfish';
 import { PlatformPill } from './PlatformPill';
 
+// Engine warm-up is deferred to submit (below). Eagerly fetching the ~7 MB
+// Stockfish WASM on field focus made every landing visitor who merely clicked
+// the input pay for it; now only visitors who actually run a demo do.
+
 export type DemoPlatform = 'lichess' | 'chesscom';
 
 interface Props {
@@ -17,11 +21,9 @@ export function UsernameInput({ onSubmit, loading = false }: Props) {
     e.preventDefault();
     const trimmed = username.trim();
     if (!trimmed) return;
-    onSubmit(platform, trimmed);
-  };
-
-  const handleFocus = () => {
+    // Warm the engine in parallel with the analysis kickoff, not on focus.
     void getStockfish().catch(() => {});
+    onSubmit(platform, trimmed);
   };
 
   return (
@@ -50,7 +52,6 @@ export function UsernameInput({ onSubmit, loading = false }: Props) {
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            onFocus={handleFocus}
             placeholder="ENTER USERNAME"
             autoComplete="off"
             autoCapitalize="off"

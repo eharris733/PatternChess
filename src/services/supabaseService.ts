@@ -193,6 +193,73 @@ export async function getBlunderPhaseCounts(): Promise<PhaseCounts> {
   return counts;
 }
 
+export interface MotifCounts {
+  counts: Record<string, number>;
+  /** Rows that have been enriched (solution_line present) and could be tagged. */
+  tagged: number;
+  /** Rows still awaiting the enrichment backfill. */
+  untagged: number;
+  total: number;
+}
+
+export async function getBlunderMotifCounts(): Promise<MotifCounts> {
+  const userId = await currentUserId();
+  if (!userId) return { counts: {}, tagged: 0, untagged: 0, total: 0 };
+  const { data, error } = await supabase
+    .from('blunders')
+    .select('motifs, solution_line')
+    .eq('user_id', userId);
+  if (error) throw error;
+  const out: MotifCounts = { counts: {}, tagged: 0, untagged: 0, total: 0 };
+  for (const row of (data ?? []) as Array<{ motifs: string[] | null; solution_line: unknown }>) {
+    out.total++;
+    if (row.solution_line == null) {
+      out.untagged++;
+      continue;
+    }
+    out.tagged++;
+    for (const m of row.motifs ?? []) {
+      out.counts[m] = (out.counts[m] ?? 0) + 1;
+    }
+  }
+  return out;
+}
+
+/** Persist backfilled enrichment (engine line + motif tags) on a blunder row. */
+export async function updateBlunderEnrichment(
+  id: string,
+  enrichment: { solution_line: Record<string, unknown>; motifs: string[] },
+): Promise<void> {
+  const { error } = await supabase.from('blunders').update(enrichment).eq('id', id);
+  if (error) throw error;
+}
+
+export async function countUnenrichedBlunders(): Promise<number> {
+  const userId = await currentUserId();
+  if (!userId) return 0;
+  const { count, error } = await supabase
+    .from('blunders')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .is('solution_line', null);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function getUnenrichedBlunders(opts: { limit: number }): Promise<Blunder[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from('blunders')
+    .select()
+    .eq('user_id', userId)
+    .is('solution_line', null)
+    .order('created_at', { ascending: false })
+    .limit(opts.limit);
+  if (error) throw error;
+  return ((data ?? []) as any[]).map(blunderFromJson);
+}
+
 export interface OpeningGroupRow {
   ecoFamily: string;
   /** Most frequent full ECO code within the family (e.g. "B33" for "B3*"). */
@@ -1057,6 +1124,10 @@ export const supabaseService = {
   getLandingStats,
   getCycleDistribution,
   getBlunderPhaseCounts,
+  getBlunderMotifCounts,
+  updateBlunderEnrichment,
+  countUnenrichedBlunders,
+  getUnenrichedBlunders,
   getOpeningPerformance,
   getUserTimeManagement,
   getBlunderGameStateStats,

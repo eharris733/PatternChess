@@ -5,20 +5,22 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "blog:gen": "node scripts/build-blog.mjs",
+    "build": "node scripts/build-blog.mjs && tsc -b && vite build && node scripts/gen-seo.mjs && playwright install chromium-headless-shell && node scripts/prerender.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "typecheck:functions": "tsc -p functions --noEmit",
     "pages:dev": "npm run build && wrangler pages dev dist",
     "lint": "eslint src --ext .ts,.tsx",
     "format": "prettier --write src",
+    "test": "vitest run",
     "e2e": "playwright test",
     "smoke": "playwright test tests/e2e/shell.spec.ts tests/e2e/engine.spec.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
     "@tanstack/react-query": "^5.59.0",
-    "chess.js": "^1.0.0-beta.8",
+    "chess.js": "^1.4.0",
     "chessground": "^9.1.1",
     "clsx": "^2.1.1",
     "react": "^18.3.1",
@@ -31,15 +33,19 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260612.1",
     "@playwright/test": "^1.48.0",
+    "@types/markdown-it": "^14.1.2",
     "@types/react": "^18.3.10",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.4.20",
+    "gray-matter": "^4.0.3",
+    "markdown-it": "^14.2.0",
     "postcss": "^8.4.47",
     "stockfish": "18.0.5",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.6.2",
     "vite": "^8.0.0",
+    "vitest": "^4.1.10",
     "wrangler": "^4.100.0"
   }
 }
