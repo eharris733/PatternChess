@@ -104,6 +104,61 @@ cg-board piece {
   box-shadow: 3px 3px 0 rgb(var(--text-primary));
 }
 
+/* Coordinate labels. Chessground's stock rules position coords in an external
+   gutter (files at bottom: -4px / left: 24px, ranks at top: -20px) that our
+   borderless overflow-hidden .cg-wrap clips and offsets. Render them inside
+   the board instead: files in the bottom-right corner of the first rank's
+   squares, ranks in the top-left corner of the first file's squares. Each
+   label is colored with the opposite square's theme variable so it stays
+   legible on every board theme and both orientations. */
+.cg-wrap coords {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 1;
+}
+.cg-wrap coords.files {
+  bottom: 0;
+  left: 0;
+  height: auto;
+  text-transform: none;
+}
+.cg-wrap coords.files coord {
+  text-align: right;
+  padding: 0 3px 2px 0;
+}
+.cg-wrap coords.ranks,
+.cg-wrap coords.ranks.left {
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: auto;
+  align-items: flex-start;
+}
+.cg-wrap coords.ranks coord {
+  transform: none;
+  padding: 1px 0 0 3px;
+}
+/* Odd labels sit on dark squares in white orientation (a1, ranks 1/3/…);
+   parity flips with orientation. Translucent white-on-dark / black-on-light
+   keeps contrast on every theme, including ones where the two square colors
+   are close in tone. */
+.cg-wrap coords.ranks coord:nth-child(odd),
+.cg-wrap coords.files coord:nth-child(odd) {
+  color: rgba(255, 255, 255, 0.8);
+}
+.cg-wrap coords.ranks coord:nth-child(even),
+.cg-wrap coords.files coord:nth-child(even) {
+  color: rgba(0, 0, 0, 0.55);
+}
+.cg-wrap coords.ranks.black coord:nth-child(odd),
+.cg-wrap coords.files.black coord:nth-child(odd) {
+  color: rgba(0, 0, 0, 0.55);
+}
+.cg-wrap coords.ranks.black coord:nth-child(even),
+.cg-wrap coords.files.black coord:nth-child(even) {
+  color: rgba(255, 255, 255, 0.8);
+}
+
 /* Prose styling for build-time-rendered blog HTML (markdown-it output, which
    carries no classes). Scoped so it never affects the rest of the app. */
 @layer components {

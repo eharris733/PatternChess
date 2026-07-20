@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { useGames } from '../hooks/useGames';
+import { startBlunderEnrichment } from '../services/blunderEnrichmentBackfill';
 import { DailyHabitCard } from '../components/insights/DailyHabitCard';
 import { CycleTimelineCard } from '../components/insights/CycleTimelineCard';
 import { HowTrainingWorksCard } from '../components/insights/HowTrainingWorksCard';
@@ -8,6 +10,7 @@ import { GetStartedHero } from '../components/insights/GetStartedHero';
 import { RankBadge } from '../components/insights/RankBadge';
 import { OpeningInsightsCard } from '../components/insights/OpeningInsightsCard';
 import { PhaseBlunderCard } from '../components/insights/PhaseBlunderCard';
+import { MotifWeaknessCard } from '../components/insights/MotifWeaknessCard';
 import { TimeManagementCard } from '../components/insights/TimeManagementCard';
 import { TimeTroubleCard } from '../components/insights/TimeTroubleCard';
 import { GameStateCard } from '../components/insights/GameStateCard';
@@ -18,6 +21,10 @@ export function DashboardRoute() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const gamesQuery = useGames();
+
+  // Quietly enrich legacy blunders (engine line + motif tags) while the user
+  // is here; stops on unmount so training/review get the engine to themselves.
+  useEffect(() => startBlunderEnrichment(), []);
 
   const gamesLoading = gamesQuery.isPending;
   const gamesCount = gamesQuery.data?.length ?? 0;
@@ -73,6 +80,7 @@ export function DashboardRoute() {
         </button>
       )}
 
+      <MotifWeaknessCard />
       <OpeningInsightsCard />
       <PhaseBlunderCard />
       <TimeManagementCard />

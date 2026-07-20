@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   MIN_TOTAL_GAMES_FOR_OPENING,
@@ -10,14 +11,18 @@ function formatPct(v: number): string {
   return `${Math.round(v * 100)}%`;
 }
 
+const TOP_N = 3;
+
 export function OpeningInsightsCard() {
   const navigate = useNavigate();
   const insight = useOpeningInsight();
+  const [showAll, setShowAll] = useState(false);
   if (insight.isPending) return <InsightCardSkeleton rows={3} />;
   if (!insight.data) return null;
   const { rows, totalGames } = insight.data;
   if (totalGames < MIN_TOTAL_GAMES_FOR_OPENING) return null;
   if (rows.length === 0) return null;
+  const visible = showAll ? rows : rows.slice(0, TOP_N);
 
   return (
     <section className="card flex flex-col gap-3">
@@ -28,7 +33,7 @@ export function OpeningInsightsCard() {
         </span>
       </header>
       <ul className="flex flex-col divide-y divide-text-primary/15">
-        {rows.map((row) => {
+        {visible.map((row) => {
           const colorLabel = row.userColor === 'white' ? '♔' : row.userColor === 'black' ? '♚' : '·';
           // Show the most-played full ECO code (e.g. "B33") rather than the
           // family wildcard ("B3*") the rows are grouped by.
@@ -70,6 +75,15 @@ export function OpeningInsightsCard() {
           );
         })}
       </ul>
+      {rows.length > TOP_N && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="text-left font-mono uppercase text-[10px] tracking-tight text-text-secondary hover:text-text-primary transition-colors"
+        >
+          {showAll ? 'Show fewer' : `Show all ${rows.length}`}
+        </button>
+      )}
       <p className="font-mono uppercase text-[10px] tracking-tight text-gold-dark">
         Select an opening to drill its blunders →
       </p>

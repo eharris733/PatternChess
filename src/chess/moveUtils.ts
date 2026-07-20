@@ -1,5 +1,15 @@
 import { Chess } from 'chess.js';
 
+// Some PGN/UCI sources encode castling as "king-to-rook-square" (e.g. e8a8 / e1h1)
+// instead of standard "king-to-destination" (e8c8 / e1g1). chess.js v1 throws on
+// the rook-square form, so map known cases before parsing.
+export const CASTLING_NORMALIZE: Record<string, string> = {
+  e1a1: 'e1c1',
+  e1h1: 'e1g1',
+  e8a8: 'e8c8',
+  e8h8: 'e8g8',
+};
+
 export interface UciMove {
   from: string;
   to: string;

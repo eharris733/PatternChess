@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
 import {
   PhaseCounts,
+  MotifCounts,
   OpeningGroupRow,
   TimeManagementSample,
   GameStateStats,
@@ -76,6 +77,15 @@ export function usePhaseBlunderInsight() {
   });
 }
 
+export function useMotifInsight() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['insights', 'motifs', user?.id],
+    enabled: !!user,
+    queryFn: async (): Promise<MotifCounts> => supabaseService.getBlunderMotifCounts(),
+  });
+}
+
 export interface OpeningInsightRow extends OpeningGroupRow {
   winRate: number;
   blunderRate: number;
@@ -100,8 +110,8 @@ export function useOpeningInsight() {
       const groups = await supabaseService.getOpeningPerformance();
       const band = ratingBand(ratingMean.data?.meanRating ?? null);
       const totalGames = groups.reduce((acc, g) => acc + g.games, 0);
-      const top = groups.slice(0, 3);
-      const rows: OpeningInsightRow[] = top.map((g) => ({
+      // All rows — the card decides how many to show (top 3 + "show all").
+      const rows: OpeningInsightRow[] = groups.map((g) => ({
         ...g,
         winRate: g.games > 0 ? (g.wins + 0.5 * g.draws) / g.games : 0,
         blunderRate: g.games > 0 ? g.blunders / g.games : 0,

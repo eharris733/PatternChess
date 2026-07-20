@@ -1,6 +1,21 @@
+import { parseMotifs, type Motif } from '../chess/motifs';
+
 export interface CorrectMove {
   move: string;
   eval: number;
+}
+
+/**
+ * Engine lines captured at analysis time (blunders.solution_line jsonb).
+ * `pv` runs from the position before the blunder (pv[0] === correctMoves[0].move)
+ * and drives multi-move drills; `playedPv` is the refutation line from the
+ * position after the played move, kept so motifs can be recomputed without
+ * re-running the engine. NULL on rows analyzed before this column existed.
+ */
+export interface SolutionLine {
+  pv: string[];
+  playedPv: string[];
+  v: 1;
 }
 
 export type BlunderPhase = 'opening' | 'middlegame' | 'endgame';
@@ -25,6 +40,8 @@ export interface Blunder {
   lastDrillFailed: boolean;
   createdAt: Date;
   phase: BlunderPhase;
+  solutionLine: SolutionLine | null;
+  motifs: Motif[];
 }
 
 /** Derive phase from move number + remaining piece count on the position. */
@@ -44,6 +61,17 @@ export function derivePhase(moveNumber: number, fen: string | null): BlunderPhas
 
 function parsePhase(v: unknown): BlunderPhase {
   return v === 'opening' || v === 'endgame' ? v : 'middlegame';
+}
+
+function isUciList(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((m) => typeof m === 'string' && m.length >= 4);
+}
+
+function parseSolutionLine(v: unknown): SolutionLine | null {
+  if (!v || typeof v !== 'object') return null;
+  const { pv, playedPv } = v as Record<string, unknown>;
+  if (!isUciList(pv) || pv.length === 0 || !isUciList(playedPv)) return null;
+  return { pv, playedPv, v: 1 };
 }
 
 export const SPACED_REPETITION_DAYS = [1, 2, 4, 7, 14, 28, 56] as const;
@@ -98,6 +126,8 @@ export function blunderFromJson(json: any): Blunder {
     lastDrillFailed: (json.last_drill_failed as boolean | null) ?? false,
     createdAt: new Date(json.created_at as string),
     phase: parsePhase(json.phase),
+    solutionLine: parseSolutionLine(json.solution_line),
+    motifs: parseMotifs(json.motifs),
   };
 }
 
