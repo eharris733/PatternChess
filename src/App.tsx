@@ -30,6 +30,9 @@ const ProfileRoute = lazy(() =>
 const AchievementsRoute = lazy(() =>
   import('./routes/AchievementsRoute').then((m) => ({ default: m.AchievementsRoute })),
 );
+const EndgamesRoute = lazy(() =>
+  import('./routes/EndgamesRoute').then((m) => ({ default: m.EndgamesRoute })),
+);
 const AnalyticsRoute = lazy(() =>
   import('./routes/AnalyticsRoute').then((m) => ({ default: m.AnalyticsRoute })),
 );
@@ -72,6 +75,7 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardRoute />} />
         <Route path="/training" element={<TrainingRoute />} />
         <Route path="/vault" element={<VaultRoute />} />
+        <Route path="/endgames" element={<EndgamesRoute />} />
         <Route path="/profile" element={<ProfileRoute />} />
         <Route path="/achievements" element={<AchievementsRoute />} />
         <Route path="/analytics" element={<AnalyticsRoute />} />

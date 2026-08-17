@@ -160,6 +160,18 @@ export interface TrainingStateShape {
   loadCurrentBlunder: () => Promise<void>;
   proceedFromReview: () => void;
   processMove: (move: { from: string; to: string; promotion?: 'q' | 'r' | 'b' | 'n' }) => Promise<void>;
+  /**
+   * Record the outcome of a drill whose board interaction ran OUTSIDE this
+   * store (e.g. the endgame play-out panel). Applies the same SR advancement,
+   * session totals, and streak handling as processMove, then enters the
+   * correct/incorrect phase so the standard Next/Continue flow applies.
+   */
+  completeExternalDrill: (opts: { success: boolean; feedback?: IncorrectFeedback | null }) => void;
+  /**
+   * Forfeit the clean first attempt on the current item from an external drill
+   * (e.g. taking a hint in the endgame play-out) — mirrors showHint's counting.
+   */
+  markExternalAttempt: () => void;
   advance: () => void;
   retry: () => void;
   requeueAndAdvance: () => void;
@@ -181,6 +193,8 @@ type InitialShape = Omit<TrainingStateShape,
   | 'loadCurrentBlunder'
   | 'proceedFromReview'
   | 'processMove'
+  | 'completeExternalDrill'
+  | 'markExternalAttempt'
   | 'advance'
   | 'retry'
   | 'requeueAndAdvance'
@@ -1086,6 +1100,65 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       // the review step already fetched it).
       void get().ensureBlunderRefutation();
     }
+  },
+
+  completeExternalDrill: (opts) => {
+    const state = get();
+    if (state.phase !== 'solving') return;
+    const blunder = state.blunders[state.currentIndex];
+    if (!blunder) return;
+
+    const isFirstAttempt = !state.attemptedBlunderIds.has(blunder.id);
+    applyDrillResult(
+      blunder,
+      { success: opts.success, isFirstAttempt },
+      { trackWrite: trackDrillWrite },
+    );
+
+    set((s) => {
+      const nextAttempted = isFirstAttempt
+        ? new Set(s.attemptedBlunderIds).add(blunder.id)
+        : s.attemptedBlunderIds;
+      return {
+        phase: opts.success ? 'correct' : 'incorrect',
+        pendingTryAgain: false,
+        interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
+        totalCorrect: isFirstAttempt && opts.success ? s.totalCorrect + 1 : s.totalCorrect,
+        totalAttempted: isFirstAttempt ? s.totalAttempted + 1 : s.totalAttempted,
+        attemptedBlunderIds: nextAttempted,
+        shapes: [],
+        incorrectRequeue: true,
+        incorrectFeedback: opts.success
+          ? null
+          : (opts.feedback ?? { message: 'Incorrect', tone: 'danger' }),
+        stepFeedback: null,
+      };
+    });
+
+    const after = get();
+    if (after.sessionId) {
+      void supabaseService
+        .updateTrainingSession(after.sessionId, {
+          blundersAttempted: after.totalAttempted,
+          blundersCorrect: after.totalCorrect,
+        })
+        .catch((err) => console.warn('[training] updateTrainingSession (external) failed', err));
+    }
+    if (!after.streakApplied && after.streakSnapshot) {
+      set({ streakApplied: true });
+      void applyStreakUpdate(after.streakSnapshot);
+    }
+  },
+
+  markExternalAttempt: () => {
+    const state = get();
+    if (state.phase !== 'solving') return;
+    const blunder = state.blunders[state.currentIndex];
+    if (!blunder || state.attemptedBlunderIds.has(blunder.id)) return;
+    set((s) => ({
+      totalAttempted: s.totalAttempted + 1,
+      attemptedBlunderIds: new Set(s.attemptedBlunderIds).add(blunder.id),
+    }));
   },
 
   advance: () => {

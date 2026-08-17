@@ -104,6 +104,15 @@ const ROUTES: Array<{ path: string; name: string; expect: (p: import('@playwrigh
     },
   },
   {
+    path: '/endgames',
+    name: 'endgames',
+    expect: async (p) => {
+      // Empty games list -> connect CTA.
+      await expect(p.getByText(/No games yet/i)).toBeVisible();
+      await expect(p.getByRole('link', { name: /Connect an account/i })).toBeVisible();
+    },
+  },
+  {
     path: '/achievements',
     name: 'achievements',
     expect: async (p) => {

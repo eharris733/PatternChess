@@ -15,6 +15,7 @@ import {
   moveAnnotationToJson,
 } from '../models/gameAnnotation';
 import { TrainingSession, trainingSessionFromJson } from '../models/trainingSession';
+import { EndgameScenario, endgameScenarioFromJson, ScenarioStatus } from '../models/endgameScenario';
 import {
   classifyGameState,
   computeTimeRemainingPercent,
@@ -172,6 +173,66 @@ export async function updateBlunderAfterDrill(blunder: Blunder): Promise<void> {
       last_drill_failed: blunder.lastDrillFailed,
     })
     .eq('id', blunder.id);
+  if (error) throw error;
+}
+
+// --- Endgame scenarios ---
+
+/** Candidate pool for the endgame scan: the user's endgame-phase analysis blunders. */
+export async function getEndgameCandidateBlunders(): Promise<Blunder[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from('blunders')
+    .select()
+    .eq('user_id', userId)
+    .eq('kind', 'tactic')
+    .eq('phase', 'endgame')
+    .order('move_number');
+  if (error) throw error;
+  return (data ?? []).map(blunderFromJson);
+}
+
+export async function getEndgameScenarios(): Promise<EndgameScenario[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from('endgame_scenarios')
+    .select()
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(endgameScenarioFromJson);
+}
+
+/**
+ * Idempotent scan write: one scenario per game, first write wins so
+ * status/attempts survive re-scans.
+ */
+export async function upsertEndgameScenarios(
+  rows: Array<Record<string, unknown>>,
+): Promise<void> {
+  if (rows.length === 0) return;
+  const userId = await currentUserId();
+  const enriched = userId ? rows.map((r) => ({ ...r, user_id: userId })) : rows;
+  const { error } = await supabase
+    .from('endgame_scenarios')
+    .upsert(enriched, { onConflict: 'user_id,game_id', ignoreDuplicates: true });
+  if (error) throw error;
+}
+
+export async function updateEndgameScenarioResult(
+  id: string,
+  update: { status: ScenarioStatus; attempts: number },
+): Promise<void> {
+  const { error } = await supabase
+    .from('endgame_scenarios')
+    .update({
+      status: update.status,
+      attempts: update.attempts,
+      last_played_at: new Date().toISOString(),
+    })
+    .eq('id', id);
   if (error) throw error;
 }
 
@@ -1148,4 +1209,8 @@ export const supabaseService = {
   getUserTimeManagement,
   getBlunderGameStateStats,
   getTimeTroubleStats,
+  getEndgameCandidateBlunders,
+  getEndgameScenarios,
+  upsertEndgameScenarios,
+  updateEndgameScenarioResult,
 };
