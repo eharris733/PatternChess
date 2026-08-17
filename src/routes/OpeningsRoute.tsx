@@ -14,17 +14,20 @@ import {
   weightedExplorerMove,
 } from '../services/repertoireBuilderService';
 import { fetchExplorer } from '../services/openingExplorerService';
+import { bandFromGames } from '../services/opponentMoveSampler';
 import { getStockfish } from '../hooks/useStockfish';
-import { moveToUci, parseUciMove, toEpd, uciToSan } from '../chess/moveUtils';
+import { epdToFen, moveToUci, parseUciMove, toEpd, uciToSan } from '../chess/moveUtils';
 import { BoardPanel } from '../components/BoardPanel';
 import { FeedbackBadge } from '../components/FeedbackBadge';
 import { Skeleton } from '../components/Skeleton';
+import { OpeningPracticePanel } from '../components/openings/OpeningPracticePanel';
 
 interface LocationState {
   color?: RepertoireColor;
   /** Deep link from a trainer's "extend your repertoire from here" prompt. */
   startEpd?: string;
   line?: string[];
+  mode?: 'build' | 'practice';
 }
 
 interface DecisionNode {
@@ -111,6 +114,7 @@ export function OpeningsRoute() {
   const games = gamesQuery.data;
 
   const [color, setColor] = useState<RepertoireColor>(location.state?.color ?? 'white');
+  const [mode, setMode] = useState<'build' | 'practice'>(location.state?.mode ?? 'build');
   const [pendingStartEpd, setPendingStartEpd] = useState<string | null>(
     location.state?.startEpd ?? null,
   );
@@ -143,14 +147,27 @@ export function OpeningsRoute() {
     return buildGuidedQueue({ color, repertoire, stats });
   }, [color, repertoire, stats, repertoireQuery.data]);
 
-  // Deep-linked start position takes priority when it's still uncovered.
+  // Deep-linked start position takes priority when it's still uncovered — even
+  // when it isn't reachable via the frequency index (e.g. reached through a
+  // tolerated deviation in practice mode).
   const gamesNode: DecisionNode | null = useMemo(() => {
     if (!queue) return null;
     let item: BuilderQueueItem | undefined;
-    if (pendingStartEpd) item = queue.find((q) => q.epd === pendingStartEpd);
+    if (pendingStartEpd) {
+      item = queue.find((q) => q.epd === pendingStartEpd);
+      if (!item && !repertoire.has(pendingStartEpd)) {
+        return {
+          epd: pendingStartEpd,
+          fen: epdToFen(pendingStartEpd),
+          line: [],
+          total: stats.get(pendingStartEpd)?.total ?? 0,
+          source: 'games',
+        };
+      }
+    }
     item = item ?? queue[0];
     return item ? { ...item, source: 'games' } : null;
-  }, [queue, pendingStartEpd]);
+  }, [queue, pendingStartEpd, repertoire, stats]);
 
   const mastersWalkQuery = useQuery({
     queryKey: ['mastersWalk', user?.id, color, repertoire.size, walkNonce],
@@ -218,6 +235,7 @@ export function OpeningsRoute() {
   const covered = repertoire.size;
   const sans = node ? lineToSans(node.line) : [];
   const orientation = color;
+  const band = useMemo(() => bandFromGames(games ?? []), [games]);
 
   if (gamesQuery.isLoading || repertoireQuery.isLoading || (games && indexQuery.isLoading)) {
     return (
@@ -239,28 +257,69 @@ export function OpeningsRoute() {
             you.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {(['white', 'black'] as const).map((c) => (
-            <button
-              key={c}
-              className={clsx(
-                'px-3 py-1.5 rounded-none font-mono text-xs uppercase tracking-tight border-2 transition-colors',
-                color === c
-                  ? 'bg-accent/15 border-text-primary text-text-primary'
-                  : 'border-text-primary/40 text-text-secondary hover:text-text-primary',
-              )}
-              onClick={() => {
-                setColor(c);
-                setPendingStartEpd(null);
-              }}
-            >
-              As {c}
-            </button>
-          ))}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            {(['build', 'practice'] as const).map((m) => (
+              <button
+                key={m}
+                className={clsx(
+                  'px-3 py-1.5 rounded-none font-mono text-xs uppercase tracking-tight border-2 transition-colors',
+                  mode === m
+                    ? 'bg-accent/15 border-text-primary text-text-primary'
+                    : 'border-text-primary/40 text-text-secondary hover:text-text-primary',
+                )}
+                onClick={() => setMode(m)}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            {(['white', 'black'] as const).map((c) => (
+              <button
+                key={c}
+                className={clsx(
+                  'px-3 py-1.5 rounded-none font-mono text-xs uppercase tracking-tight border-2 transition-colors',
+                  color === c
+                    ? 'bg-accent/15 border-text-primary text-text-primary'
+                    : 'border-text-primary/40 text-text-secondary hover:text-text-primary',
+                )}
+                onClick={() => {
+                  setColor(c);
+                  setPendingStartEpd(null);
+                }}
+              >
+                As {c}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
-      {!node ? (
+      {mode === 'practice' ? (
+        repertoire.size === 0 ? (
+          <div className="card max-w-xl flex flex-col gap-2">
+            <p className="text-text-secondary">
+              Nothing to practice yet — build a few repertoire moves first.
+            </p>
+            <button className="btn-primary self-start" onClick={() => setMode('build')}>
+              Start building
+            </button>
+          </div>
+        ) : (
+          <OpeningPracticePanel
+            color={color}
+            repertoire={repertoire}
+            stats={indexQuery.data ? stats : null}
+            band={band}
+            userRating={band.userRating}
+            onExtend={(epd) => {
+              setPendingStartEpd(epd);
+              setMode('build');
+            }}
+          />
+        )
+      ) : !node ? (
         <div className="card max-w-xl flex flex-col gap-2">
           {mastersWalkQuery.isLoading ? (
             <p className="text-text-secondary">Finding the next position…</p>
