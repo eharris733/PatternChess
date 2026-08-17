@@ -142,8 +142,18 @@ export class StockfishWorkerClient {
     };
   }
 
-  /** Send one or more commands and wait for `terminator` to fire. Serializes with prior commands. */
-  send(commands: string | string[], terminator: (line: string) => boolean): Promise<string> {
+  /**
+   * Send one or more commands and wait for `terminator` to fire. Serializes with
+   * prior commands. When `timeoutMs` is set and the terminator never fires, the
+   * whole client is destroyed (a hung search's late output could satisfy the
+   * *next* request's terminator) and the promise rejects — callers obtain a
+   * fresh client through the singleton getters, which re-init on `!isReady`.
+   */
+  send(
+    commands: string | string[],
+    terminator: (line: string) => boolean,
+    timeoutMs?: number,
+  ): Promise<string> {
     const cmds = Array.isArray(commands) ? commands : [commands];
     const next = this.commandQueue.then(
       () =>
@@ -152,12 +162,72 @@ export class StockfishWorkerClient {
             reject(new Error('Worker not initialized'));
             return;
           }
-          this.pending = { terminator, buffer: [], resolve, reject };
+          let timer: ReturnType<typeof setTimeout> | null = null;
+          const clear = () => {
+            if (timer !== null) clearTimeout(timer);
+            timer = null;
+          };
+          const req: PendingRequest = {
+            terminator,
+            buffer: [],
+            resolve: (out) => {
+              clear();
+              resolve(out);
+            },
+            reject: (err) => {
+              clear();
+              reject(err);
+            },
+          };
+          this.pending = req;
+          if (timeoutMs && timeoutMs > 0) {
+            timer = setTimeout(() => {
+              if (this.pending !== req) return;
+              this.destroy();
+              req.reject(new Error(`Engine command timed out after ${timeoutMs}ms`));
+            }, timeoutMs);
+          }
           for (const c of cmds) this.worker.postMessage(c);
         }),
     );
     this.commandQueue = next.catch(() => {});
     return next;
+  }
+
+  /**
+   * Apply UCI options (e.g. Skill Level, UCI_LimitStrength/UCI_Elo). Only ever
+   * call this on a dedicated opponent client — option state on the shared UI or
+   * analysis singletons would corrupt their evaluations.
+   */
+  async setOptions(opts: Record<string, string | number | boolean>): Promise<void> {
+    const cmds = Object.entries(opts).map(
+      ([name, value]) => `setoption name ${name} value ${value}`,
+    );
+    await this.send([...cmds, 'isready'], (line) => line.includes('readyok'), 5_000);
+  }
+
+  /** Reset engine state (hash, killers) between unrelated games/drills. */
+  async newGame(): Promise<void> {
+    await this.send(['ucinewgame', 'isready'], (line) => line.includes('readyok'), 5_000);
+  }
+
+  /**
+   * Movetime-bounded best move for playing *against* the user. `bestMove` is ''
+   * at terminal positions (`bestmove (none)`) — callers must treat that as
+   * game-over, and should verify with chess.js first since `scoreCp` is a
+   * meaningless 0 there.
+   */
+  async bestMoveTimed(fen: string, movetimeMs: number): Promise<PositionEval> {
+    const out = await this.send(
+      [`position fen ${fen}`, `go movetime ${movetimeMs}`],
+      (line) => line.startsWith('bestmove'),
+      movetimeMs + 3_000,
+    );
+    return {
+      scoreCp: parseEvalCp(out),
+      bestMove: parseBestMove(out),
+      principalVariation: parsePrincipalVariation(out),
+    };
   }
 
   async evaluatePositionFull(fen: string, depth = 12, pvMoves = 5): Promise<PositionEval> {

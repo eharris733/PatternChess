@@ -34,3 +34,16 @@ export function classify(chancesLost: number): MoveClassification {
 export function isTrainable(chancesLost: number): boolean {
   return chancesLost >= mistakeThresholdPercent;
 }
+
+/**
+ * Convert a raw engine score (always side-to-move perspective) to a fixed
+ * color's perspective — e.g. for classifying an endgame as won/drawn/lost for
+ * the user regardless of whose turn it is.
+ */
+export function cpForColor(
+  cpSideToMove: number,
+  sideToMove: 'white' | 'black',
+  color: 'white' | 'black',
+): number {
+  return sideToMove === color ? cpSideToMove : -cpSideToMove;
+}

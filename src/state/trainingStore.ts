@@ -1,12 +1,8 @@
 import { create } from 'zustand';
 import { Chess } from 'chess.js';
 import type { DrawShape } from 'chessground/draw';
-import {
-  Blunder,
-  CorrectMove,
-  SPACED_REPETITION_DAYS,
-  isCorrectMove,
-} from '../models/blunder';
+import { Blunder, CorrectMove, isCorrectMove } from '../models/blunder';
+import { applyDrillResult } from './drills/applyDrillResult';
 import { GameRecord } from '../models/gameRecord';
 import { UserProfile } from '../models/userProfile';
 import { supabaseService } from '../services/supabaseService';
@@ -602,17 +598,19 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     }
 
     // Prefetch the next blunder's game so advancing to it is instant (the
-    // network fetch is the visible gap in the 'loading' phase).
+    // network fetch is the visible gap in the 'loading' phase). Opening-kind
+    // items have no source game (gameId is null).
     const upcoming = blunders[currentIndex + 1];
-    if (upcoming && !gameCache.has(upcoming.gameId)) {
+    const upcomingGameId = upcoming?.gameId ?? null;
+    if (upcomingGameId && !gameCache.has(upcomingGameId)) {
       void supabaseService
-        .getGame(upcoming.gameId)
-        .then((g) => gameCache.set(upcoming.gameId, g))
+        .getGame(upcomingGameId)
+        .then((g) => gameCache.set(upcomingGameId, g))
         .catch(() => {});
     }
 
-    let game: GameRecord | null = gameCache.get(blunder.gameId) ?? null;
-    if (!game) {
+    let game: GameRecord | null = blunder.gameId ? (gameCache.get(blunder.gameId) ?? null) : null;
+    if (!game && blunder.gameId) {
       try {
         game = await supabaseService.getGame(blunder.gameId);
         gameCache.set(blunder.gameId, game);
@@ -940,21 +938,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     const isFirstAttempt = !state.attemptedBlunderIds.has(blunder.id);
 
     if (isCorrect) {
-      blunder.timesCorrect++;
-      blunder.timesAttempted++;
-      blunder.lastDrilledAt = new Date();
-      if (isFirstAttempt) {
-        blunder.cycleNumber = Math.min(
-          blunder.cycleNumber + 1,
-          SPACED_REPETITION_DAYS.length,
-        );
-        blunder.lastDrillFailed = false;
-      }
-      trackDrillWrite(
-        supabaseService
-          .updateBlunderAfterDrill(blunder)
-          .catch((err) => console.warn('[training] updateBlunderAfterDrill (correct) failed', err)),
-      );
+      applyDrillResult(blunder, { success: true, isFirstAttempt }, { trackWrite: trackDrillWrite });
 
       const playedSequence = [...drillPlies.slice(0, drillPly), uci];
       set((s) => {
@@ -1030,17 +1014,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       // eval so the panel the user sees first isn't delayed.
       void get().ensureBlunderRefutation();
     } else {
-      blunder.timesAttempted++;
-      blunder.lastDrilledAt = new Date();
-      if (isFirstAttempt) {
-        blunder.cycleNumber = 0;
-        blunder.lastDrillFailed = true;
-      }
-      trackDrillWrite(
-        supabaseService
-          .updateBlunderAfterDrill(blunder)
-          .catch((err) => console.warn('[training] updateBlunderAfterDrill (incorrect) failed', err)),
-      );
+      applyDrillResult(blunder, { success: false, isFirstAttempt }, { trackWrite: trackDrillWrite });
 
       let feedback: IncorrectFeedback;
       if (isRepeatedBlunder) {

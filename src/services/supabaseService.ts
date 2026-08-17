@@ -72,30 +72,39 @@ export async function markGameAnalyzed(gameId: string): Promise<void> {
 export async function insertBlunders(blunders: Array<Record<string, unknown>>): Promise<void> {
   if (blunders.length === 0) return;
   const userId = await currentUserId();
-  const enriched = userId ? blunders.map((b) => ({ ...b, user_id: userId })) : blunders;
+  // Analysis callers predate `kind` and omit it — they are always tactics.
+  const enriched = blunders.map((b) => ({
+    kind: 'tactic',
+    ...b,
+    ...(userId ? { user_id: userId } : {}),
+  }));
   // Drop intra-batch duplicates (e.g. threefold repetition) — Postgres rejects
   // an upsert payload that conflicts with itself on the onConflict target.
   const seen = new Set<string>();
   const deduped: Array<Record<string, unknown>> = [];
   for (const row of enriched) {
     const r = row as Record<string, unknown>;
-    const key = `${r.user_id ?? ''}|${r.fen ?? ''}`;
+    const key = `${r.user_id ?? ''}|${r.fen ?? ''}|${r.kind ?? ''}`;
     if (seen.has(key)) continue;
     seen.add(key);
     deduped.push(row);
   }
   const { error } = await supabase
     .from('blunders')
-    .upsert(deduped, { onConflict: 'user_id,fen', ignoreDuplicates: true });
+    .upsert(deduped, { onConflict: 'user_id,fen,kind', ignoreDuplicates: true });
   if (error) throw error;
 }
 
+// Game-analysis views (Vault, Review) show blunders *found in the game* —
+// endgame play-out slips also carry a game_id but aren't part of the game's
+// analysis, so these stay tactic-only.
 export async function getBlundersForGames(gameIds: string[]): Promise<Blunder[]> {
   if (gameIds.length === 0) return [];
   const { data, error } = await supabase
     .from('blunders')
     .select()
     .in('game_id', gameIds)
+    .eq('kind', 'tactic')
     .order('move_number');
   if (error) throw error;
   return (data ?? []).map(blunderFromJson);
@@ -104,7 +113,7 @@ export async function getBlundersForGames(gameIds: string[]): Promise<Blunder[]>
 export async function getBlunderCountsByGame(opts?: {
   userId?: string;
 }): Promise<Record<string, number>> {
-  let q = supabase.from('blunders').select('game_id');
+  let q = supabase.from('blunders').select('game_id').eq('kind', 'tactic');
   if (opts?.userId) q = q.eq('user_id', opts.userId);
   const { data, error } = await q;
   if (error) throw error;
@@ -181,7 +190,8 @@ export async function getBlunderPhaseCounts(): Promise<PhaseCounts> {
   const { data, error } = await supabase
     .from('blunders')
     .select('phase')
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .eq('kind', 'tactic');
   if (error) throw error;
   const counts: PhaseCounts = { opening: 0, middlegame: 0, endgame: 0, total: 0 };
   for (const row of (data ?? []) as Array<{ phase: string | null }>) {
@@ -208,7 +218,8 @@ export async function getBlunderMotifCounts(): Promise<MotifCounts> {
   const { data, error } = await supabase
     .from('blunders')
     .select('motifs, solution_line')
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .eq('kind', 'tactic');
   if (error) throw error;
   const out: MotifCounts = { counts: {}, tagged: 0, untagged: 0, total: 0 };
   for (const row of (data ?? []) as Array<{ motifs: string[] | null; solution_line: unknown }>) {
@@ -241,6 +252,7 @@ export async function countUnenrichedBlunders(): Promise<number> {
     .from('blunders')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
+    .eq('kind', 'tactic')
     .is('solution_line', null);
   if (error) throw error;
   return count ?? 0;
@@ -253,6 +265,7 @@ export async function getUnenrichedBlunders(opts: { limit: number }): Promise<Bl
     .from('blunders')
     .select()
     .eq('user_id', userId)
+    .eq('kind', 'tactic')
     .is('solution_line', null)
     .order('created_at', { ascending: false })
     .limit(opts.limit);
@@ -353,7 +366,8 @@ export async function getOpeningPerformance(opts?: {
     const { data: blunderData, error: blunderError } = await supabase
       .from('blunders')
       .select('game_id, phase')
-      .in('game_id', gameIds);
+      .in('game_id', gameIds)
+      .eq('kind', 'tactic');
     if (blunderError) throw blunderError;
     for (const row of (blunderData ?? []) as Array<{ game_id: string; phase: string | null }>) {
       const key = gameIdToEcoFamily.get(row.game_id);
@@ -506,7 +520,8 @@ export async function getBlunderGameStateStats(): Promise<GameStateStats> {
   const { data, error } = await supabase
     .from('blunders')
     .select('eval_before, phase')
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .eq('kind', 'tactic');
   if (error) throw error;
   for (const row of (data ?? []) as Array<{ eval_before: number | null; phase: string | null }>) {
     if (typeof row.eval_before !== 'number') continue;
@@ -543,7 +558,8 @@ export async function getTimeTroubleStats(): Promise<TimeTroubleStats> {
   const { data: blunderRows, error: bErr } = await supabase
     .from('blunders')
     .select('move_number, side_to_move, phase, game_id, eval_before')
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .eq('kind', 'tactic');
   if (bErr) throw bErr;
   const blunders = (blunderRows ?? []) as Array<{
     move_number: number;

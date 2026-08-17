@@ -22,12 +22,13 @@ export function parseEvalCp(output: string): number {
   return 0;
 }
 
+/** Best move UCI, or '' when absent — including `bestmove (none)` at terminal positions. */
 export function parseBestMove(output: string): string {
   const lines = output.split('\n').reverse();
   for (const line of lines) {
     if (line.startsWith('bestmove ')) {
       const parts = line.split(' ');
-      if (parts.length >= 2) return parts[1];
+      if (parts.length >= 2) return parts[1] === '(none)' ? '' : parts[1];
     }
   }
   return '';

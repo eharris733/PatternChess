@@ -106,7 +106,7 @@ function applyContextFilter(
   filter: ContextFilter,
 ): Blunder[] {
   return blunders.filter((b) => {
-    const ctx = computeBlunderContext(b, games.get(b.gameId) ?? null);
+    const ctx = computeBlunderContext(b, (b.gameId ? games.get(b.gameId) : null) ?? null);
     if (filter === 'timeTrouble') return ctx.inTimeTrouble;
     if (filter === 'longThink') return ctx.isLongThink;
     return ctx.gameState === filter;
@@ -146,7 +146,7 @@ export function TrainingRoute() {
   const gameIdsForFilter = useMemo(() => {
     if (!needsGames || !dueData) return null;
     const ids = new Set<string>();
-    for (const b of dueData) ids.add(b.gameId);
+    for (const b of dueData) if (b.gameId) ids.add(b.gameId);
     return Array.from(ids);
   }, [needsGames, dueData]);
 
@@ -165,7 +165,7 @@ export function TrainingRoute() {
       const games = filterGamesQuery.data;
       if (openingFilter) {
         list = list.filter((b) => {
-          const g = games.get(b.gameId);
+          const g = b.gameId ? games.get(b.gameId) : undefined;
           if (!g || ecoFamily(g.eco) !== openingFilter) return false;
           return openingColor ? g.userColor === openingColor : true;
         });

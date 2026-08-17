@@ -28,12 +28,18 @@ function formatRelative(d: Date, now: Date): string {
   return diffMs < 0 ? `${value} ago` : `in ${value}`;
 }
 
+/** The SR fields the widget reads — any trainable item shape qualifies, not just full Blunders. */
+export type PositionSrStateItem = Pick<
+  Blunder,
+  'cycleNumber' | 'timesAttempted' | 'timesCorrect' | 'lastDrillFailed' | 'lastDrilledAt'
+>;
+
 export function PositionSrState({
   blunder,
   showTryAgainLabel = false,
   showNextReview = false,
 }: {
-  blunder: Blunder;
+  blunder: PositionSrStateItem;
   /**
    * Whether to render the literal "Try again" label when the blunder is in the
    * tryAgain bucket. When false, render the bucket the blunder would otherwise
