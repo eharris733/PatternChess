@@ -16,6 +16,7 @@ import {
 } from '../models/gameAnnotation';
 import { TrainingSession, trainingSessionFromJson } from '../models/trainingSession';
 import { EndgameScenario, endgameScenarioFromJson, ScenarioStatus } from '../models/endgameScenario';
+import { RepertoireMove, repertoireMoveFromJson } from '../models/repertoire';
 import {
   classifyGameState,
   computeTimeRemainingPercent,
@@ -1148,18 +1149,74 @@ export async function getBenchmarks(kind?: string): Promise<BenchmarkRow[]> {
 
 // --- Opening Explorer Cache ---
 
-export async function getCachedExplorerResult(fen: string): Promise<any | null> {
+export async function getCachedExplorerResult(
+  fen: string,
+  db = 'masters',
+  variantKey = '',
+): Promise<any | null> {
   const { data, error } = await supabase
     .from('opening_explorer_cache')
     .select()
     .eq('fen', fen)
+    .eq('db', db)
+    .eq('variant_key', variantKey)
     .maybeSingle();
   if (error) return null;
   return (data?.result as any) ?? null;
 }
 
-export async function cacheExplorerResult(fen: string, result: any): Promise<void> {
-  await supabase.from('opening_explorer_cache').upsert({ fen, result });
+export async function cacheExplorerResult(
+  fen: string,
+  db: string,
+  variantKey: string,
+  result: any,
+): Promise<void> {
+  await supabase
+    .from('opening_explorer_cache')
+    .upsert({ fen, db, variant_key: variantKey, result }, { onConflict: 'fen,db,variant_key' });
+}
+
+// --- Repertoire ---
+
+export async function getRepertoireMoves(color: 'white' | 'black'): Promise<RepertoireMove[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from('repertoire_moves')
+    .select()
+    .eq('user_id', userId)
+    .eq('color', color);
+  if (error) throw error;
+  return (data ?? []).map(repertoireMoveFromJson);
+}
+
+export async function setRepertoireMove(
+  color: 'white' | 'black',
+  epd: string,
+  uci: string,
+  san: string,
+): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) throw new Error('Not signed in');
+  const { error } = await supabase
+    .from('repertoire_moves')
+    .upsert({ user_id: userId, color, epd, uci, san }, { onConflict: 'user_id,color,epd' });
+  if (error) throw error;
+}
+
+export async function deleteRepertoireMove(
+  color: 'white' | 'black',
+  epd: string,
+): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) return;
+  const { error } = await supabase
+    .from('repertoire_moves')
+    .delete()
+    .eq('user_id', userId)
+    .eq('color', color)
+    .eq('epd', epd);
+  if (error) throw error;
 }
 
 export const supabaseService = {
@@ -1213,4 +1270,7 @@ export const supabaseService = {
   getEndgameScenarios,
   upsertEndgameScenarios,
   updateEndgameScenarioResult,
+  getRepertoireMoves,
+  setRepertoireMove,
+  deleteRepertoireMove,
 };
