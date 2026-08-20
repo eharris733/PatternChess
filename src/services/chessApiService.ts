@@ -54,7 +54,7 @@ function parseRetryAfterMs(res: Response): number | null {
  * silently dropping games. Other statuses (incl. 404) return the response so
  * callers handle them as before.
  */
-async function fetchWithRetry(
+export async function fetchWithRetry(
   url: string,
   init: RequestInit | undefined,
   platform: string,
