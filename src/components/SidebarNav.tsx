@@ -10,6 +10,7 @@ import { VaultIcon } from './icons/VaultIcon';
 import { TrainIcon } from './icons/TrainIcon';
 import { AnalyticsIcon } from './icons/AnalyticsIcon';
 import { TrophyIcon } from './icons/TrophyIcon';
+import { CalendarIcon } from './icons/CalendarIcon';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
@@ -74,6 +75,22 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
             )}
           </NavLink>
         ))}
+
+        {/* External: OTB tournament listings on the events subdomain */}
+        <a
+          href="https://events.patternchess.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={clsx(
+            'mx-2 flex items-center gap-3 py-2.5 rounded-none font-mono uppercase tracking-tight text-xs transition-colors text-text-primary hover:bg-accent/10',
+            collapsed ? 'justify-center px-0' : 'px-3',
+          )}
+        >
+          <span className="shrink-0 text-text-primary">
+            <CalendarIcon className="h-5 w-5" />
+          </span>
+          {!collapsed && <span>Tournaments</span>}
+        </a>
       </nav>
 
       <div className="mt-auto" />
