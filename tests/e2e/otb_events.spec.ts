@@ -158,10 +158,13 @@ test('dashboard shows the three nearest OTB events with external links', async (
   await page.goto('/dashboard');
 
   await expect(page.getByText('Upcoming OTB events')).toBeVisible();
-  // Sorted by start date: Boylston (t+1) before MCC (t+3) before Newburyport (t+10).
+  // Sorted by next meeting day: Boylston (t+1) before MCC (t+3) before Newburyport (t+10).
   await expect(page.getByText('Boylston Saturday Open')).toBeVisible();
   await expect(page.getByText('MCC - Monthly Swiss')).toBeVisible();
   await expect(page.getByText('Newburyport Quads')).toBeVisible();
+  // MCC spans t+3..t+24 (weekly cadence): the card shows the next round's
+  // single day, not the month-long range.
+  await expect(page.getByText(/Rd 1 of 4/)).toBeVisible();
   // Only the 3 nearest render.
   await expect(page.getByText('Fourth Event Beyond The Cut')).toHaveCount(0);
 
