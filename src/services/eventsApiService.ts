@@ -7,6 +7,10 @@ import { fetchWithRetry } from './chessApiService';
 
 export const EVENTS_SITE_URL = 'https://events.patternchess.com';
 
+/** The events service now covers all US states; the dashboard card stays
+ * MA-scoped until a per-user state preference exists. */
+const EVENTS_STATE = 'MA';
+
 /** One meeting day of an event. Weekly multi-round Swisses expand to one
  * occurrence per round; a contiguous weekend block stays one occurrence
  * spanning date..endDate. */
@@ -89,7 +93,11 @@ function parseSections(json: string | null): string[] | null {
 }
 
 export async function fetchUpcomingEvents(): Promise<OtbEvent[]> {
-  const res = await fetchWithRetry(`${EVENTS_SITE_URL}/api/events`, undefined, 'PatternChess Events');
+  const res = await fetchWithRetry(
+    `${EVENTS_SITE_URL}/api/events?state=${EVENTS_STATE}`,
+    undefined,
+    'PatternChess Events',
+  );
   if (!res.ok) throw new Error(`events API ${res.status}`);
   const body = (await res.json()) as { data: ApiEventRow[] };
   return body.data.map((row) => ({
