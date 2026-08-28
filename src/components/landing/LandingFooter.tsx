@@ -5,6 +5,7 @@ const LINKS = [
   { label: 'About', to: '/about' },
   { label: 'FAQ', to: '/faq' },
   { label: 'Blog', to: '/blog' },
+  { label: 'Tournaments', to: '/events' },
   { label: 'Privacy', to: '/privacy' },
   { label: 'Terms', to: '/terms' },
 ];
