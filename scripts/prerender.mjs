@@ -33,6 +33,7 @@ const routes = [
   '/',
   '/about',
   '/faq',
+  '/events',
   '/blog',
   '/terms',
   '/privacy',
