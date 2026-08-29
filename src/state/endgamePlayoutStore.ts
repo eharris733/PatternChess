@@ -117,6 +117,7 @@ function logSlipBlunder(
         ),
         side_to_move: opts.userColor,
         phase: 'endgame',
+        analysis_depth: refEval.depth,
         solution_line: {
           pv: refEval.principalVariation,
           playedPv: postEval?.principalVariation ?? [],

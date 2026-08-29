@@ -55,6 +55,7 @@ function makeBlunder(overrides: Partial<Blunder>): Blunder {
     motifs: [],
     kind: 'tactic',
     drillData: null,
+    analysisDepth: null,
     ...overrides,
   };
 }

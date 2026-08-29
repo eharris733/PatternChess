@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { useGames } from '../hooks/useGames';
-import { startBlunderEnrichment } from '../services/blunderEnrichmentBackfill';
+import { startBlunderMaintenance } from '../services/blunderEnrichmentBackfill';
 import { DailyHabitCard } from '../components/insights/DailyHabitCard';
 import { CycleTimelineCard } from '../components/insights/CycleTimelineCard';
 import { HowTrainingWorksCard } from '../components/insights/HowTrainingWorksCard';
@@ -22,9 +22,10 @@ export function DashboardRoute() {
   const navigate = useNavigate();
   const gamesQuery = useGames();
 
-  // Quietly enrich legacy blunders (engine line + motif tags) while the user
-  // is here; stops on unmount so training/review get the engine to themselves.
-  useEffect(() => startBlunderEnrichment(), []);
+  // Quietly enrich legacy blunders and deepen shallow first-pass analyses
+  // (timed re-analysis of evals + solution PVs) while the user is here; stops
+  // on unmount so training/review get the engine to themselves.
+  useEffect(() => startBlunderMaintenance(), []);
 
   const gamesLoading = gamesQuery.isPending;
   const gamesCount = gamesQuery.data?.length ?? 0;

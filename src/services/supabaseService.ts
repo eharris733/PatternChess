@@ -127,7 +127,9 @@ export async function getBlunderCountsByGame(opts?: {
 
 export async function getDueBlunders(opts?: { userId?: string }): Promise<Blunder[]> {
   const now = new Date().toISOString();
-  let q = supabase.from('blunders').select().lte('next_drill_at', now);
+  // Retired rows (deepening showed the position wasn't really a blunder) are
+  // hidden from the queue but keep their SR history and stay in Vault/stats.
+  let q = supabase.from('blunders').select().lte('next_drill_at', now).is('retired_at', null);
   if (opts?.userId) q = q.eq('user_id', opts.userId);
   const { data, error } = await q.order('next_drill_at');
   if (error) throw error;
@@ -300,10 +302,70 @@ export async function getBlunderMotifCounts(): Promise<MotifCounts> {
 /** Persist backfilled enrichment (engine line + motif tags) on a blunder row. */
 export async function updateBlunderEnrichment(
   id: string,
-  enrichment: { solution_line: Record<string, unknown>; motifs: string[] },
+  enrichment: {
+    solution_line: Record<string, unknown>;
+    motifs: string[];
+    analysis_depth?: number | null;
+    deepened_at?: string;
+  },
 ): Promise<void> {
   const { error } = await supabase.from('blunders').update(enrichment).eq('id', id);
   if (error) throw error;
+}
+
+/**
+ * Persist a background deepening pass: rewritten evals/PV/motifs plus the
+ * deepening metadata. Always an UPDATE — `insertBlunders` upserts with
+ * ignoreDuplicates, so a re-insert of the same (user, fen, kind) is a no-op.
+ */
+export async function updateBlunderDeepening(
+  id: string,
+  patch: {
+    eval_before: number;
+    eval_after: number;
+    eval_swing: number;
+    correct_moves: CorrectMove[];
+    solution_line: Record<string, unknown>;
+    motifs: string[];
+    analysis_depth: number | null;
+    deepened_at: string;
+    retired_at: string | null;
+  },
+): Promise<void> {
+  const { error } = await supabase.from('blunders').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function countBlundersForDeepening(): Promise<number> {
+  const userId = await currentUserId();
+  if (!userId) return 0;
+  const { count, error } = await supabase
+    .from('blunders')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .in('kind', ['tactic', 'endgame'])
+    .not('solution_line', 'is', null)
+    .is('deepened_at', null);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/** Rows awaiting their timed background re-analysis, shallowest first. */
+export async function getBlundersForDeepening(opts: { limit: number }): Promise<Blunder[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from('blunders')
+    .select()
+    .eq('user_id', userId)
+    .in('kind', ['tactic', 'endgame'])
+    .not('solution_line', 'is', null)
+    .is('deepened_at', null)
+    .order('analysis_depth', { ascending: true, nullsFirst: true })
+    .order('created_at', { ascending: false })
+    .limit(opts.limit);
+  if (error) throw error;
+  return ((data ?? []) as any[]).map(blunderFromJson);
 }
 
 export async function countUnenrichedBlunders(): Promise<number> {
@@ -863,6 +925,19 @@ export async function getUnanalyzedGameIds(opts: {
   return (data ?? []).map((row) => (row as { id: string }).id);
 }
 
+/** User-wide unanalyzed-game count — the maintenance worker's sync guard. */
+export async function countUnanalyzedGames(): Promise<number> {
+  const userId = await currentUserId();
+  if (!userId) return 0;
+  const { count, error } = await supabase
+    .from('games')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .is('analyzed_at', null);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function deleteBlundersForGame(gameId: string): Promise<void> {
   const { error } = await supabase.from('blunders').delete().eq('game_id', gameId);
   if (error) throw error;
@@ -1182,6 +1257,7 @@ export const supabaseService = {
   getGameCount,
   getTotalGameCount,
   getUnanalyzedGameIds,
+  countUnanalyzedGames,
   deleteBlundersForGame,
   deleteBlunder,
   deleteGame,
@@ -1203,8 +1279,11 @@ export const supabaseService = {
   getBlunderPhaseCounts,
   getBlunderMotifCounts,
   updateBlunderEnrichment,
+  updateBlunderDeepening,
   countUnenrichedBlunders,
   getUnenrichedBlunders,
+  countBlundersForDeepening,
+  getBlundersForDeepening,
   getOpeningPerformance,
   getUserTimeManagement,
   getBlunderGameStateStats,

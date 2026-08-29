@@ -67,6 +67,7 @@ tests/e2e/       Playwright specs
 - **Endgame trainer** (`/endgames`): `endgameScenarioService` crosses existing endgame-phase blunders with `resolveOutcome` (dropped win: `missedWin` + loss/draw; dropped draw: `roughlyEqual` + loss), one scenario per game in `endgame_scenarios`. Play-outs run vs the opponent engine at full strength, adjudicated by `src/chess/adjudication.ts` (terminal states via chess.js FIRST — `parseEvalCp` returns an ambiguous 0 there; hold the deserved eval for `HOLD_MOVES = 10` user moves → success; giving up the target result → fail + slip logged as an endgame-kind item).
 - **Opponent engine**: `getOpponentStockfish()` is the ONLY client that may ever receive `setoption` (Skill/Elo). Endgame play-outs use it and re-pin `UCI_LimitStrength: 'false'` (`ucinewgame` does not clear option state). Never send `setoption` to `getStockfish()`/`getAnalysisStockfish()`.
 - **SR taxonomy** (4 buckets): `new` (never drilled) · `learning` (in the 7-cycle ladder) · `tryAgain` (last drill's first attempt failed) · `mastered` (cycle ≥ 7). Single source of truth: `srBucket()` + `SR_BUCKET_LABEL` in `src/models/blunder.ts`. **Never invent ad-hoc labels** in UI components — always import these. Note: `srBucket(...) === 'mastered'` is just cycle ≥ 7; `isMastered()` adds a recall ≥ 80% check and is used only for the global stats achievement count in `getBlunderStats()`.
+- **Background deepening**: initial sync analysis stays a fast depth-12 pass (onboarding critical path — never make it deeper/slower). `startBlunderMaintenance` (`src/services/blunderEnrichmentBackfill.ts`) runs only while the dashboard is mounted: it enriches legacy rows, then re-analyzes every row (`kind` tactic|endgame) with a 3s-per-position timed budget, rewriting evals/`correct_moves[0]`/`solution_line`/motifs and stamping `analysis_depth` (metadata) + `deepened_at` (the completion gate — time-based, NOT a target depth). Rows the deeper pass scores at <10% chances lost get `retired_at` and drop out of `getDueBlunders` (kept in Vault/stats). It never touches `games.analyzed_at`, and exits while unanalyzed games exist so sync analysis keeps the engine.
 - **Annotation save**: 2-second debounce in `reviewStore.ts`.
 - **Opening book**: prefetch first ~22 plies with 300 ms throttle (`useReviewStore.prefetchBook`).
 - **Dev-only routes**: `/__sandbox` (chess board sandbox), `/__engine-test` (Stockfish status). Useful for manual checks and Playwright specs.
@@ -129,6 +130,7 @@ If it can't be tested in a browser, say so explicitly rather than claiming succe
 
 1. `20260817120000_blunder_kinds.sql` — required first: `insertBlunders` now upserts on `(user_id, fen, kind)` and every aggregate filters on `kind`, so the app 400s against the old schema.
 2. `20260817130000_endgame_scenarios.sql`
+3. `20260829120000_blunder_depth.sql` — `analysis_depth`/`deepened_at`/`retired_at` for the background deepening worker; `getDueBlunders` filters on `retired_at`, so the app 400s without it.
 
 Delete this section once they're applied.
 

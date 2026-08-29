@@ -59,6 +59,12 @@ export interface Blunder {
   motifs: Motif[];
   kind: DrillKind;
   drillData: DrillData | null;
+  /**
+   * Deepest completed engine depth backing the stored evals/PV; null for
+   * legacy rows. Informational — the deepening pass is gated on `deepened_at`
+   * (time-based), not on reaching a target depth.
+   */
+  analysisDepth: number | null;
 }
 
 /** Derive phase from move number + remaining piece count on the position. */
@@ -168,6 +174,7 @@ export function blunderFromJson(json: any): Blunder {
     motifs: parseMotifs(json.motifs),
     kind,
     drillData: parseDrillData(kind, json.drill_data),
+    analysisDepth: (json.analysis_depth as number | null) ?? null,
   };
 }
 
