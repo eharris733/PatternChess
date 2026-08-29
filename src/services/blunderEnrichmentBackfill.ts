@@ -200,11 +200,15 @@ async function enrichOne(
   });
 }
 
-/** The shallower of the two searches, or null if neither reported a depth. */
+/**
+ * The shallower of the two searches, or null if neither reported a usable
+ * depth. Terminal positions (mate/stalemate on the board) report depth 0 —
+ * meaningless, so they don't drag the stored depth down.
+ */
 function achievedDepth(best: PositionEval, played: PositionEval): number | null {
-  if (best.depth == null) return played.depth;
-  if (played.depth == null) return best.depth;
-  return Math.min(best.depth, played.depth);
+  const depths = [best.depth, played.depth].filter((d): d is number => d != null && d > 0);
+  if (depths.length === 0) return null;
+  return Math.min(...depths);
 }
 
 async function deepenOne(
