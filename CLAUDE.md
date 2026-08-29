@@ -126,13 +126,9 @@ If it can't be tested in a browser, say so explicitly rather than claiming succe
   `/vault` (which explicitly resets `analyzed_at` and deletes existing blunders)
   can re-analyze a game.
 
-## Pending migrations (apply in the dashboard SQL editor, in order, BEFORE deploying the trainer work)
+## Migration history note (2026-08-29)
 
-1. `20260817120000_blunder_kinds.sql` — required first: `insertBlunders` now upserts on `(user_id, fen, kind)` and every aggregate filters on `kind`, so the app 400s against the old schema.
-2. `20260817130000_endgame_scenarios.sql`
-3. `20260829120000_blunder_depth.sql` — `analysis_depth`/`deepened_at`/`retired_at` for the background deepening worker; `getDueBlunders` filters on `retired_at`, so the app 400s without it.
-
-Delete this section once they're applied.
+The trainer-branch migrations (`20260817120000`, `20260817130000`, `20260829120000`) were applied by hand in the SQL editor and are NOT in the remote migration history — before the next `supabase db push`, run `supabase migration repair --status applied 20260817120000 20260817130000 20260829120000`.
 
 ## Production hosting
 
