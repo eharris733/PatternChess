@@ -23,17 +23,14 @@ src/
   lib/           supabase client, queryClient
   models/        Blunder, GameRecord, GameAnnotation, UserProfile, TrainingSession
   routes/        DashboardRoute, TrainingRoute, VaultRoute, ReviewRoute,
-                 OpeningsRoute (repertoire builder + practice),
                  EndgamesRoute (dropped-point play-outs),
                  LoginRoute, ProfileRoute, plus dev-only
                  SandboxRoute and EngineTestRoute
   services/      authService, supabaseService, chessApiService, pgnParserService,
                  syncService, analysisService, openingExplorerService,
-                 endgameScenarioService, positionFrequencyService,
-                 repertoireBuilderService, opponentMoveSampler
-  state/         trainingStore, reviewStore, endgamePlayoutStore,
-                 openingTrainerStore (all Zustand); shared SR advancement in
-                 state/drills/applyDrillResult.ts
+                 endgameScenarioService
+  state/         trainingStore, reviewStore, endgamePlayoutStore (all Zustand);
+                 shared SR advancement in state/drills/applyDrillResult.ts
   stockfish/     stockfishWorkerClient, uci.ts (parsers)
 
 public/
@@ -66,10 +63,9 @@ tests/e2e/       Playwright specs
 - **Engine signals**: `evaluatePositionFull(fen, depth=12)` for batch analysis, `evaluateMove(fen, uci, timeMs=500)` for the on-the-fly accept rule, and `analyzeGame(positions, …)` for game-wide blunder detection.
 - **Blunder detection** uses the Lichess winning-chances model in `src/chess/winningChances.ts`. Trainable threshold: ≥15% chances lost. On-the-fly accept rule for the training screen: |chancesLost| ≤ 5%.
 - **Spaced repetition**: `SPACED_REPETITION_DAYS = [1, 2, 4, 7, 14, 28, 56]` (`src/models/blunder.ts`). Each successful first-attempt drill advances `cycleNumber` by 1; a first-attempt fail resets it to 0 and sets `lastDrillFailed = true`. Retries within the same session don't move the SR state — only the first attempt counts. The canonical implementation is `applyDrillResult` in `src/state/drills/applyDrillResult.ts` — never reimplement the ladder inline.
-- **Trainable-item kinds**: `blunders.kind` ∈ `tactic | opening | endgame` (dedup key `(user_id, fen, kind)`; per-kind payload in `drill_data`; `game_id` nullable for opening items). The due queue (`getDueBlunders`) is deliberately **unfiltered** — all kinds interleave at `/training`, and the kind is concealed until the user's first move (that's the product: in a real game you don't know if a position is a book test or a tactic). Game-analysis aggregates (phase/motif/per-game counts, vault, insights) filter `.eq('kind','tactic')`; SR-ladder aggregates (cycle distribution, blunder stats, due counts) stay unified. In `/training`, tactic items use the stored-sequence drill in `trainingStore.processMove`; opening/endgame items render `OpeningDrillView`/`EndgameDrillView`, which drive their own play-out stores and report the outcome via `trainingStore.completeExternalDrill`.
+- **Trainable-item kinds**: `blunders.kind` ∈ `tactic | endgame` (dedup key `(user_id, fen, kind)`; per-kind payload in `drill_data`; `game_id` nullable). The due queue (`getDueBlunders`) is deliberately **unfiltered** — all kinds interleave at `/training`, and the kind is concealed until the user's first move (that's the product: in a real game you don't know what type of position you're in). Game-analysis aggregates (phase/motif/per-game counts, vault, insights) filter `.eq('kind','tactic')`; SR-ladder aggregates (cycle distribution, blunder stats, due counts) stay unified. In `/training`, tactic items use the stored-sequence drill in `trainingStore.processMove`; endgame items render `EndgameDrillView`, which drives its own play-out store and reports the outcome via `trainingStore.completeExternalDrill`.
 - **Endgame trainer** (`/endgames`): `endgameScenarioService` crosses existing endgame-phase blunders with `resolveOutcome` (dropped win: `missedWin` + loss/draw; dropped draw: `roughlyEqual` + loss), one scenario per game in `endgame_scenarios`. Play-outs run vs the opponent engine at full strength, adjudicated by `src/chess/adjudication.ts` (terminal states via chess.js FIRST — `parseEvalCp` returns an ambiguous 0 there; hold the deserved eval for `HOLD_MOVES = 10` user moves → success; giving up the target result → fail + slip logged as an endgame-kind item).
-- **Opening trainer** (`/openings`): repertoire = one move per position per color in `repertoire_moves`, keyed by **EPD** (`toEpd` — FEN minus counters; apply on both write and lookup so transpositions agree). Builder walks positions from the user's games (`positionFrequencyService`, first 30 plies, memory-only index) with masters-book fallback. Practice/queue drills sample opponent replies via `opponentMoveSampler`: own opponents' frequencies at ≥5 samples → Lichess rated-players book in the user's rating band → strength-limited engine. Off-book user moves get the same ≤5% accept rule as tactics; worse ends the line and logs an opening-kind item.
-- **Opponent engine**: `getOpponentStockfish()` is the ONLY client that ever receives `setoption` (Skill/Elo). It's shared between the sampler (weakened) and endgame play-outs (which must re-pin `UCI_LimitStrength: 'false'` — `ucinewgame` does not clear option state). Never send `setoption` to `getStockfish()`/`getAnalysisStockfish()`.
+- **Opponent engine**: `getOpponentStockfish()` is the ONLY client that may ever receive `setoption` (Skill/Elo). Endgame play-outs use it and re-pin `UCI_LimitStrength: 'false'` (`ucinewgame` does not clear option state). Never send `setoption` to `getStockfish()`/`getAnalysisStockfish()`.
 - **SR taxonomy** (4 buckets): `new` (never drilled) · `learning` (in the 7-cycle ladder) · `tryAgain` (last drill's first attempt failed) · `mastered` (cycle ≥ 7). Single source of truth: `srBucket()` + `SR_BUCKET_LABEL` in `src/models/blunder.ts`. **Never invent ad-hoc labels** in UI components — always import these. Note: `srBucket(...) === 'mastered'` is just cycle ≥ 7; `isMastered()` adds a recall ≥ 80% check and is used only for the global stats achievement count in `getBlunderStats()`.
 - **Annotation save**: 2-second debounce in `reviewStore.ts`.
 - **Opening book**: prefetch first ~22 plies with 300 ms throttle (`useReviewStore.prefetchBook`).
@@ -100,7 +96,7 @@ Playwright runs against the live dev server. Specs:
 - `engine.spec.ts` — Stockfish boots (MT or ST) and evaluates startpos
 - `visual.spec.ts` — every protected route renders inside the shell
 
-`stubAuth` in the specs writes a fake Supabase session into `localStorage` and shorts out outbound calls to `*.supabase.co`, so tests don't need a real user. Newer specs: `endgames.spec.ts` (adjudicated play-outs, real engine), `openings.spec.ts` (builder walk, explorer stubbed via `page.route`), `opening_trainer.spec.ts` (practice + queue drills). Gotchas learned the hard way: match `[?&]id=eq.` with a regex (`user_id=eq.` contains `id=eq.` as a substring), and `scrollIntoViewIfNeeded()` before board drags (bottom ranks can sit below the 720px viewport fold).
+`stubAuth` in the specs writes a fake Supabase session into `localStorage` and shorts out outbound calls to `*.supabase.co`, so tests don't need a real user. Newer specs: `endgames.spec.ts` (adjudicated play-outs, real engine). Gotchas learned the hard way: match `[?&]id=eq.` with a regex (`user_id=eq.` contains `id=eq.` as a substring), and `scrollIntoViewIfNeeded()` before board drags (bottom ranks can sit below the 720px viewport fold).
 
 ### Verifying UI changes
 
@@ -133,8 +129,6 @@ If it can't be tested in a browser, say so explicitly rather than claiming succe
 
 1. `20260817120000_blunder_kinds.sql` — required first: `insertBlunders` now upserts on `(user_id, fen, kind)` and every aggregate filters on `kind`, so the app 400s against the old schema.
 2. `20260817130000_endgame_scenarios.sql`
-3. `20260817140000_repertoire.sql`
-4. `20260817150000_explorer_cache_key.sql`
 
 Delete this section once they're applied.
 

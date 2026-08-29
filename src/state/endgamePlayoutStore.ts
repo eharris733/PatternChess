@@ -148,8 +148,8 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
     try {
       const sf = await getOpponentStockfish();
       await sf.newGame();
-      // The opponent singleton is shared with the opening trainer's weak-engine
-      // fallback; ucinewgame does NOT clear option state, so force full strength.
+      // The opponent singleton may be weakened by other users of setoption;
+      // ucinewgame does NOT clear option state, so force full strength.
       await sf.setOptions({ UCI_LimitStrength: 'false' });
       const refEval = await sf.evaluatePositionFull(fen, EVAL_DEPTH, 10);
       if (activeToken !== token) return;

@@ -20,7 +20,6 @@ import { Skeleton } from '../components/Skeleton';
 import { PositionSrState } from '../components/training/PositionSrState';
 import { BlunderContextBadges } from '../components/training/BlunderContextBadges';
 import { EndgameDrillView } from '../components/training/EndgameDrillView';
-import { OpeningDrillView } from '../components/training/OpeningDrillView';
 import {
   ContextFilter,
   GAME_STATE_LABEL,
@@ -403,23 +402,12 @@ export function TrainingRoute() {
     </div>
   ) : null;
 
-  // Endgame- and opening-kind items are played out (vs the engine / the
-  // weighted book opponent) rather than solved as a stored move sequence —
-  // dedicated views drive the board through their play-out stores and report
-  // the SR outcome back via completeExternalDrill.
+  // Endgame-kind items are played out vs the engine rather than solved as a
+  // stored move sequence — the dedicated view drives the board through its
+  // play-out store and reports the SR outcome back via completeExternalDrill.
   if (blunder?.kind === 'endgame' && blunder.drillData && 'deservedResult' in blunder.drillData) {
     return (
       <EndgameDrillView
-        key={blunder.id}
-        blunder={blunder}
-        drillData={blunder.drillData}
-        showFilterBanner={filterBanner}
-      />
-    );
-  }
-  if (blunder?.kind === 'opening' && blunder.drillData && 'repertoireMove' in blunder.drillData) {
-    return (
-      <OpeningDrillView
         key={blunder.id}
         blunder={blunder}
         drillData={blunder.drillData}

@@ -44,19 +44,3 @@ export function fenSideToMove(fen: string): 'white' | 'black' {
   const fields = fen.split(' ');
   return fields[1] === 'w' ? 'white' : 'black';
 }
-
-/**
- * Normalize a FEN to an EPD-style position key: the first four fields (board,
- * side to move, castling, en passant), dropping the move counters. Two move
- * orders reaching the same position produce the same key — this is how the
- * repertoire, position-frequency index, and opponent sampler handle
- * transpositions. Apply on BOTH write and lookup so keys always agree.
- */
-export function toEpd(fen: string): string {
-  return fen.split(' ').slice(0, 4).join(' ');
-}
-
-/** Rebuild a chess.js-parseable FEN from an EPD key (counters don't affect legality). */
-export function epdToFen(epd: string): string {
-  return `${epd} 0 1`;
-}

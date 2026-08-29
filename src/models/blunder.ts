@@ -23,18 +23,9 @@ export type BlunderPhase = 'opening' | 'middlegame' | 'endgame';
 /**
  * Discriminates how a trainable item is drilled in the unified queue:
  * - `tactic`  — game-analysis blunder; the stored 1–3 move sequence drill.
- * - `opening` — repertoire lapse; played out to end of book coverage against
- *   a weighted opponent.
  * - `endgame` — play-out slip; the full adjudicated endgame vs the engine.
  */
-export type DrillKind = 'tactic' | 'opening' | 'endgame';
-
-export interface OpeningDrillData {
-  color: 'white' | 'black';
-  /** UCI of the user's repertoire move at `fen` when the item was logged. */
-  repertoireMove: string;
-  v: 1;
-}
+export type DrillKind = 'tactic' | 'endgame';
 
 export interface EndgameDrillData {
   deservedResult: 'win' | 'draw';
@@ -42,11 +33,10 @@ export interface EndgameDrillData {
   v: 1;
 }
 
-export type DrillData = OpeningDrillData | EndgameDrillData;
+export type DrillData = EndgameDrillData;
 
 export interface Blunder {
   id: string;
-  /** Null only for kind='opening' — repertoire items have no source game. */
   gameId: string | null;
   fen: string;
   moveNumber: number;
@@ -91,22 +81,12 @@ function parsePhase(v: unknown): BlunderPhase {
 }
 
 function parseKind(v: unknown): DrillKind {
-  return v === 'opening' || v === 'endgame' ? v : 'tactic';
+  return v === 'endgame' ? v : 'tactic';
 }
 
 function parseDrillData(kind: DrillKind, v: unknown): DrillData | null {
   if (!v || typeof v !== 'object') return null;
   const d = v as Record<string, unknown>;
-  if (kind === 'opening') {
-    if (
-      (d.color === 'white' || d.color === 'black') &&
-      typeof d.repertoireMove === 'string' &&
-      d.repertoireMove.length >= 4
-    ) {
-      return { color: d.color, repertoireMove: d.repertoireMove, v: 1 };
-    }
-    return null;
-  }
   if (kind === 'endgame') {
     if (d.deservedResult === 'win' || d.deservedResult === 'draw') {
       return {

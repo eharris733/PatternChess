@@ -11,13 +11,11 @@ import { TrainIcon } from './icons/TrainIcon';
 import { AnalyticsIcon } from './icons/AnalyticsIcon';
 import { TrophyIcon } from './icons/TrophyIcon';
 import { EndgameIcon } from './icons/EndgameIcon';
-import { OpeningsIcon } from './icons/OpeningsIcon';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { to: '/vault', label: 'Vault', Icon: VaultIcon },
   { to: '/training', label: 'Train', Icon: TrainIcon },
-  { to: '/openings', label: 'Openings', Icon: OpeningsIcon },
   { to: '/endgames', label: 'Endgames', Icon: EndgameIcon },
   { to: '/achievements', label: 'Achievements', Icon: TrophyIcon },
 ];

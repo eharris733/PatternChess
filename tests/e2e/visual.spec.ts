@@ -104,15 +104,6 @@ const ROUTES: Array<{ path: string; name: string; expect: (p: import('@playwrigh
     },
   },
   {
-    path: '/openings',
-    name: 'openings',
-    expect: async (p) => {
-      // Empty games + empty repertoire -> the builder starts at the start position.
-      await expect(p.getByRole('heading', { name: 'Openings' })).toBeVisible();
-      await expect(p.getByText('Start position')).toBeVisible();
-    },
-  },
-  {
     path: '/endgames',
     name: 'endgames',
     expect: async (p) => {

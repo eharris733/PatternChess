@@ -612,8 +612,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     }
 
     // Prefetch the next blunder's game so advancing to it is instant (the
-    // network fetch is the visible gap in the 'loading' phase). Opening-kind
-    // items have no source game (gameId is null).
+    // network fetch is the visible gap in the 'loading' phase).
     const upcoming = blunders[currentIndex + 1];
     const upcomingGameId = upcoming?.gameId ?? null;
     if (upcomingGameId && !gameCache.has(upcomingGameId)) {

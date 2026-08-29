@@ -46,8 +46,8 @@ export function getAnalysisStockfish(): Promise<StockfishWorkerClient> {
   return analysisInitPromise;
 }
 
-// Dedicated worker for playing *against* the user (opening-trainer opponent,
-// endgame play-outs). It's the only client that ever receives `setoption`
+// Dedicated worker for playing *against* the user (endgame play-outs).
+// It's the only client that ever receives `setoption`
 // (Skill Level / UCI_Elo) — option state on the UI or analysis singletons would
 // corrupt the depth-18 accept rule and batch analysis. Single-threaded so it
 // doesn't fight the UI engine for pthread cores.
