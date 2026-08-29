@@ -1,6 +1,6 @@
 import { isTrainable, winningChancesLost } from '../chess/winningChances';
 import type { ParsedPosition } from '../services/pgnParserService';
-import { parseBestMove, parseEvalCp, parsePrincipalVariation } from './uci';
+import { parseBestMove, parseDepth, parseEvalCp, parsePrincipalVariation } from './uci';
 
 const ENGINE_MT = '/stockfish/stockfish-18-lite.js';
 const ENGINE_ST = '/stockfish/stockfish-18-lite-single.js';
@@ -9,6 +9,8 @@ export interface PositionEval {
   scoreCp: number;
   bestMove: string;
   principalVariation: string[];
+  /** Deepest completed search depth, or null if the engine reported none. */
+  depth: number | null;
 }
 
 export interface BlunderCandidate {
@@ -212,12 +214,13 @@ export class StockfishWorkerClient {
   }
 
   /**
-   * Movetime-bounded best move for playing *against* the user. `bestMove` is ''
-   * at terminal positions (`bestmove (none)`) — callers must treat that as
-   * game-over, and should verify with chess.js first since `scoreCp` is a
-   * meaningless 0 there.
+   * Movetime-bounded evaluation — fixed thinking time instead of fixed depth,
+   * which keeps evals honest in positions (deep endgames especially) where a
+   * fixed depth stops far short of the horizon. `bestMove` is '' at terminal
+   * positions (`bestmove (none)`) — callers must treat that as game-over, and
+   * should verify with chess.js first since `scoreCp` is a meaningless 0 there.
    */
-  async bestMoveTimed(fen: string, movetimeMs: number): Promise<PositionEval> {
+  async evaluatePositionTimed(fen: string, movetimeMs: number, pvMoves = 5): Promise<PositionEval> {
     const out = await this.send(
       [`position fen ${fen}`, `go movetime ${movetimeMs}`],
       (line) => line.startsWith('bestmove'),
@@ -226,30 +229,32 @@ export class StockfishWorkerClient {
     return {
       scoreCp: parseEvalCp(out),
       bestMove: parseBestMove(out),
-      principalVariation: parsePrincipalVariation(out),
+      principalVariation: parsePrincipalVariation(out, pvMoves),
+      depth: parseDepth(out),
     };
   }
 
-  async evaluatePositionFull(fen: string, depth = 12, pvMoves = 5): Promise<PositionEval> {
-    const out = await this.send([`position fen ${fen}`, `go depth ${depth}`], (line) =>
-      line.startsWith('bestmove'),
+  /** Movetime-bounded best move for playing *against* the user. */
+  async bestMoveTimed(fen: string, movetimeMs: number): Promise<PositionEval> {
+    return this.evaluatePositionTimed(fen, movetimeMs, 5);
+  }
+
+  async evaluatePositionFull(
+    fen: string,
+    depth = 12,
+    pvMoves = 5,
+    timeoutMs = 45_000,
+  ): Promise<PositionEval> {
+    const out = await this.send(
+      [`position fen ${fen}`, `go depth ${depth}`],
+      (line) => line.startsWith('bestmove'),
+      timeoutMs,
     );
     return {
       scoreCp: parseEvalCp(out),
       bestMove: parseBestMove(out),
       principalVariation: parsePrincipalVariation(out, pvMoves),
-    };
-  }
-
-  async evaluateMove(fen: string, uciMove: string, timeMs = 500): Promise<PositionEval> {
-    const out = await this.send(
-      [`position fen ${fen} moves ${uciMove}`, `go movetime ${timeMs}`],
-      (line) => line.startsWith('bestmove'),
-    );
-    return {
-      scoreCp: parseEvalCp(out),
-      bestMove: parseBestMove(out),
-      principalVariation: parsePrincipalVariation(out),
+      depth: parseDepth(out),
     };
   }
 

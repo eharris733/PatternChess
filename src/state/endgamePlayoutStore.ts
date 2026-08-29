@@ -61,7 +61,7 @@ interface EndgamePlayoutState {
   heldStreak: number;
   holdTarget: number;
   userMovesPlayed: number;
-  /** Depth-12 eval of the current user-to-move position (stm = user). */
+  /** Timed eval of the current user-to-move position (stm = user). */
   refEval: PositionEval | null;
   evaluating: boolean;
   slip: PlayoutSlip | null;
@@ -82,7 +82,13 @@ let activeToken = 0;
 let activeOpts: PlayoutStartOptions | null = null;
 
 const ENGINE_REPLY_MOVETIME_MS = 600;
-const EVAL_DEPTH = 12;
+// Fixed thinking time, not fixed depth: a hard depth (12) stops far short of
+// the horizon in deep endgames, and the jittery evals crossed the adjudication
+// bands and produced false slips. In low-branching endgame positions the ST
+// engine clears depth ~18-24 in this budget; per user move the perceived wait
+// stays close to the old depth-12 loop (postEval + reply, nextRef hidden
+// behind the reply animation).
+const EVAL_MOVETIME_MS = 800;
 
 function fullmoveFromFen(fen: string): number {
   return Number.parseInt(fen.split(' ')[5] ?? '1', 10) || 1;
@@ -151,7 +157,7 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
       // The opponent singleton may be weakened by other users of setoption;
       // ucinewgame does NOT clear option state, so force full strength.
       await sf.setOptions({ UCI_LimitStrength: 'false' });
-      const refEval = await sf.evaluatePositionFull(fen, EVAL_DEPTH, 10);
+      const refEval = await sf.evaluatePositionTimed(fen, EVAL_MOVETIME_MS, 10);
       if (activeToken !== token) return;
       set({ phase: 'solving', refEval });
     } catch (err) {
@@ -238,7 +244,7 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
         }
 
         const sf = await getOpponentStockfish();
-        const postEval = await sf.evaluatePositionFull(afterFen, EVAL_DEPTH, 10);
+        const postEval = await sf.evaluatePositionTimed(afterFen, EVAL_MOVETIME_MS, 10);
         if (activeToken !== token) return;
 
         // refEval position has the user to move; afterFen has the opponent.
@@ -311,7 +317,7 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
 
         // Pre-eval the next user position: it's the reference for judging the
         // user's next move AND the correct_moves source if they slip.
-        const nextRef = await sf.evaluatePositionFull(replyFen, EVAL_DEPTH, 10);
+        const nextRef = await sf.evaluatePositionTimed(replyFen, EVAL_MOVETIME_MS, 10);
         if (activeToken !== token) return;
         set({
           phase: 'solving',
