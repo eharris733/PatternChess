@@ -1,6 +1,6 @@
 import { isTrainable, winningChancesLost } from '../chess/winningChances';
 import type { ParsedPosition } from '../services/pgnParserService';
-import { parseBestMove, parseEvalCp, parsePrincipalVariation } from './uci';
+import { parseBestMove, parseDepth, parseEvalCp, parsePrincipalVariation } from './uci';
 
 const ENGINE_MT = '/stockfish/stockfish-18-lite.js';
 const ENGINE_ST = '/stockfish/stockfish-18-lite-single.js';
@@ -9,6 +9,8 @@ export interface PositionEval {
   scoreCp: number;
   bestMove: string;
   principalVariation: string[];
+  /** Deepest completed search depth, or null if the engine reported none. */
+  depth: number | null;
 }
 
 export interface BlunderCandidate {
@@ -142,8 +144,18 @@ export class StockfishWorkerClient {
     };
   }
 
-  /** Send one or more commands and wait for `terminator` to fire. Serializes with prior commands. */
-  send(commands: string | string[], terminator: (line: string) => boolean): Promise<string> {
+  /**
+   * Send one or more commands and wait for `terminator` to fire. Serializes with
+   * prior commands. When `timeoutMs` is set and the terminator never fires, the
+   * whole client is destroyed (a hung search's late output could satisfy the
+   * *next* request's terminator) and the promise rejects — callers obtain a
+   * fresh client through the singleton getters, which re-init on `!isReady`.
+   */
+  send(
+    commands: string | string[],
+    terminator: (line: string) => boolean,
+    timeoutMs?: number,
+  ): Promise<string> {
     const cmds = Array.isArray(commands) ? commands : [commands];
     const next = this.commandQueue.then(
       () =>
@@ -152,7 +164,31 @@ export class StockfishWorkerClient {
             reject(new Error('Worker not initialized'));
             return;
           }
-          this.pending = { terminator, buffer: [], resolve, reject };
+          let timer: ReturnType<typeof setTimeout> | null = null;
+          const clear = () => {
+            if (timer !== null) clearTimeout(timer);
+            timer = null;
+          };
+          const req: PendingRequest = {
+            terminator,
+            buffer: [],
+            resolve: (out) => {
+              clear();
+              resolve(out);
+            },
+            reject: (err) => {
+              clear();
+              reject(err);
+            },
+          };
+          this.pending = req;
+          if (timeoutMs && timeoutMs > 0) {
+            timer = setTimeout(() => {
+              if (this.pending !== req) return;
+              this.destroy();
+              req.reject(new Error(`Engine command timed out after ${timeoutMs}ms`));
+            }, timeoutMs);
+          }
           for (const c of cmds) this.worker.postMessage(c);
         }),
     );
@@ -160,26 +196,65 @@ export class StockfishWorkerClient {
     return next;
   }
 
-  async evaluatePositionFull(fen: string, depth = 12, pvMoves = 5): Promise<PositionEval> {
-    const out = await this.send([`position fen ${fen}`, `go depth ${depth}`], (line) =>
-      line.startsWith('bestmove'),
+  /**
+   * Apply UCI options (e.g. Skill Level, UCI_LimitStrength/UCI_Elo). Only ever
+   * call this on a dedicated opponent client — option state on the shared UI or
+   * analysis singletons would corrupt their evaluations.
+   */
+  async setOptions(opts: Record<string, string | number | boolean>): Promise<void> {
+    const cmds = Object.entries(opts).map(
+      ([name, value]) => `setoption name ${name} value ${value}`,
+    );
+    await this.send([...cmds, 'isready'], (line) => line.includes('readyok'), 5_000);
+  }
+
+  /** Reset engine state (hash, killers) between unrelated games/drills. */
+  async newGame(): Promise<void> {
+    await this.send(['ucinewgame', 'isready'], (line) => line.includes('readyok'), 5_000);
+  }
+
+  /**
+   * Movetime-bounded evaluation — fixed thinking time instead of fixed depth,
+   * which keeps evals honest in positions (deep endgames especially) where a
+   * fixed depth stops far short of the horizon. `bestMove` is '' at terminal
+   * positions (`bestmove (none)`) — callers must treat that as game-over, and
+   * should verify with chess.js first since `scoreCp` is a meaningless 0 there.
+   */
+  async evaluatePositionTimed(fen: string, movetimeMs: number, pvMoves = 5): Promise<PositionEval> {
+    const out = await this.send(
+      [`position fen ${fen}`, `go movetime ${movetimeMs}`],
+      (line) => line.startsWith('bestmove'),
+      movetimeMs + 3_000,
     );
     return {
       scoreCp: parseEvalCp(out),
       bestMove: parseBestMove(out),
       principalVariation: parsePrincipalVariation(out, pvMoves),
+      depth: parseDepth(out),
     };
   }
 
-  async evaluateMove(fen: string, uciMove: string, timeMs = 500): Promise<PositionEval> {
+  /** Movetime-bounded best move for playing *against* the user. */
+  async bestMoveTimed(fen: string, movetimeMs: number): Promise<PositionEval> {
+    return this.evaluatePositionTimed(fen, movetimeMs, 5);
+  }
+
+  async evaluatePositionFull(
+    fen: string,
+    depth = 12,
+    pvMoves = 5,
+    timeoutMs = 45_000,
+  ): Promise<PositionEval> {
     const out = await this.send(
-      [`position fen ${fen} moves ${uciMove}`, `go movetime ${timeMs}`],
+      [`position fen ${fen}`, `go depth ${depth}`],
       (line) => line.startsWith('bestmove'),
+      timeoutMs,
     );
     return {
       scoreCp: parseEvalCp(out),
       bestMove: parseBestMove(out),
-      principalVariation: parsePrincipalVariation(out),
+      principalVariation: parsePrincipalVariation(out, pvMoves),
+      depth: parseDepth(out),
     };
   }
 

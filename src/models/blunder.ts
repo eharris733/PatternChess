@@ -20,9 +20,24 @@ export interface SolutionLine {
 
 export type BlunderPhase = 'opening' | 'middlegame' | 'endgame';
 
+/**
+ * Discriminates how a trainable item is drilled in the unified queue:
+ * - `tactic`  — game-analysis blunder; the stored 1–3 move sequence drill.
+ * - `endgame` — play-out slip; the full adjudicated endgame vs the engine.
+ */
+export type DrillKind = 'tactic' | 'endgame';
+
+export interface EndgameDrillData {
+  deservedResult: 'win' | 'draw';
+  sourceGameId: string | null;
+  v: 1;
+}
+
+export type DrillData = EndgameDrillData;
+
 export interface Blunder {
   id: string;
-  gameId: string;
+  gameId: string | null;
   fen: string;
   moveNumber: number;
   playedMove: string;
@@ -42,6 +57,14 @@ export interface Blunder {
   phase: BlunderPhase;
   solutionLine: SolutionLine | null;
   motifs: Motif[];
+  kind: DrillKind;
+  drillData: DrillData | null;
+  /**
+   * Deepest completed engine depth backing the stored evals/PV; null for
+   * legacy rows. Informational — the deepening pass is gated on `deepened_at`
+   * (time-based), not on reaching a target depth.
+   */
+  analysisDepth: number | null;
 }
 
 /** Derive phase from move number + remaining piece count on the position. */
@@ -61,6 +84,26 @@ export function derivePhase(moveNumber: number, fen: string | null): BlunderPhas
 
 function parsePhase(v: unknown): BlunderPhase {
   return v === 'opening' || v === 'endgame' ? v : 'middlegame';
+}
+
+function parseKind(v: unknown): DrillKind {
+  return v === 'endgame' ? v : 'tactic';
+}
+
+function parseDrillData(kind: DrillKind, v: unknown): DrillData | null {
+  if (!v || typeof v !== 'object') return null;
+  const d = v as Record<string, unknown>;
+  if (kind === 'endgame') {
+    if (d.deservedResult === 'win' || d.deservedResult === 'draw') {
+      return {
+        deservedResult: d.deservedResult,
+        sourceGameId: typeof d.sourceGameId === 'string' ? d.sourceGameId : null,
+        v: 1,
+      };
+    }
+    return null;
+  }
+  return null;
 }
 
 function isUciList(v: unknown): v is string[] {
@@ -107,9 +150,10 @@ export function blunderFromJson(json: any): Blunder {
     move: e.move as string,
     eval: e.eval as number,
   }));
+  const kind = parseKind(json.kind);
   return {
     id: json.id as string,
-    gameId: json.game_id as string,
+    gameId: (json.game_id as string | null) ?? null,
     fen: json.fen as string,
     moveNumber: json.move_number as number,
     playedMove: json.played_move as string,
@@ -128,6 +172,9 @@ export function blunderFromJson(json: any): Blunder {
     phase: parsePhase(json.phase),
     solutionLine: parseSolutionLine(json.solution_line),
     motifs: parseMotifs(json.motifs),
+    kind,
+    drillData: parseDrillData(kind, json.drill_data),
+    analysisDepth: (json.analysis_depth as number | null) ?? null,
   };
 }
 

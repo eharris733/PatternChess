@@ -35,6 +35,7 @@ const DISALLOW = [
   '/dashboard',
   '/training',
   '/vault',
+  '/endgames',
   '/profile',
   '/achievements',
   '/analytics',

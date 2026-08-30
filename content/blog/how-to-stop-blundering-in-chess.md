@@ -9,7 +9,7 @@ author: "Elliot Harris"
 
 ## Blunders decide most games below master level
 
-If you are stuck at the same rating, the cause is rarely your opening knowledge or your endgame technique. It is the one move a game where you hang a piece, miss a one-move threat, or walk into a tactic. At club level, most games are decided by a single blunder — one player hands the other a winning position, and the rest is formality.
+If you are stuck at the same rating, the cause is rarely your opening knowledge. It is the one move a game where you hang a piece, miss a one-move threat, walk into a tactic, or [let a won endgame slip](/blog/train-your-own-endgames). At club level, most games are decided by a single blunder — one player hands the other a winning position, and the rest is formality.
 
 That is good news. It means you do not need to study everything. You need to stop making the handful of mistakes that actually cost you games.
 

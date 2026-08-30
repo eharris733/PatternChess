@@ -21,17 +21,24 @@ export function ChessgroundReact({ config, contained = true, className, onReady 
     apiRef.current = api;
     onReady?.(api);
 
+    // Chessground caches its pixel bounds at construction; when the wrapper is
+    // still settling into its final size (small list thumbnails especially),
+    // pieces get translated against stale bounds and render clipped.
+    const rafId = requestAnimationFrame(() => api.redrawAll());
+
     let trailingId: number | null = null;
     const observer = new ResizeObserver(() => {
       if (trailingId !== null) window.clearTimeout(trailingId);
       trailingId = window.setTimeout(() => {
         trailingId = null;
+        apiRef.current?.redrawAll();
         window.dispatchEvent(new Event('resize'));
       }, 250);
     });
     observer.observe(el);
 
     return () => {
+      cancelAnimationFrame(rafId);
       observer.disconnect();
       if (trailingId !== null) window.clearTimeout(trailingId);
       api.destroy();

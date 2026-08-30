@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { useGames } from '../hooks/useGames';
-import { startBlunderEnrichment } from '../services/blunderEnrichmentBackfill';
+import { startBlunderMaintenance } from '../services/blunderEnrichmentBackfill';
 import { DailyHabitCard } from '../components/insights/DailyHabitCard';
 import { CycleTimelineCard } from '../components/insights/CycleTimelineCard';
 import { HowTrainingWorksCard } from '../components/insights/HowTrainingWorksCard';
@@ -14,6 +14,7 @@ import { MotifWeaknessCard } from '../components/insights/MotifWeaknessCard';
 import { TimeManagementCard } from '../components/insights/TimeManagementCard';
 import { TimeTroubleCard } from '../components/insights/TimeTroubleCard';
 import { GameStateCard } from '../components/insights/GameStateCard';
+import { EndgameRescueCard } from '../components/insights/EndgameRescueCard';
 import { RatingProgressCard } from '../components/insights/RatingProgressCard';
 import { UpcomingEventsCard } from '../components/insights/UpcomingEventsCard';
 import { Skeleton } from '../components/Skeleton';
@@ -23,9 +24,10 @@ export function DashboardRoute() {
   const navigate = useNavigate();
   const gamesQuery = useGames();
 
-  // Quietly enrich legacy blunders (engine line + motif tags) while the user
-  // is here; stops on unmount so training/review get the engine to themselves.
-  useEffect(() => startBlunderEnrichment(), []);
+  // Quietly enrich legacy blunders and deepen shallow first-pass analyses
+  // (timed re-analysis of evals + solution PVs) while the user is here; stops
+  // on unmount so training/review get the engine to themselves.
+  useEffect(() => startBlunderMaintenance(), []);
 
   const gamesLoading = gamesQuery.isPending;
   const gamesCount = gamesQuery.data?.length ?? 0;
@@ -63,6 +65,8 @@ export function DashboardRoute() {
       {isFirstRun ? <GetStartedHero /> : <DailyHabitCard />}
 
       {!isFirstRun && <CycleTimelineCard />}
+
+      {!isFirstRun && <EndgameRescueCard />}
 
       {!isFirstRun && <RatingProgressCard />}
 

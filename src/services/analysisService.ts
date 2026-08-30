@@ -13,6 +13,14 @@ import {
 } from './pgnParserService';
 import { supabaseService } from './supabaseService';
 
+/**
+ * Depth of the fast first-pass sync analysis. Deliberately shallow — it sits
+ * on the onboarding critical path. The dashboard maintenance worker later
+ * re-analyzes every row with a fixed thinking-time budget, so this is only an
+ * initial estimate.
+ */
+export const INITIAL_ANALYSIS_DEPTH = 12;
+
 export interface AnalysisProgress {
   gameIndex: number;
   gamesTotal: number;
@@ -64,7 +72,7 @@ export async function analyzePgn(
         ? 'black'
         : null) ?? opts.playerSideFallback ?? null;
   const blunders = await sf.analyzeGame(positions, {
-    depth: 12,
+    depth: INITIAL_ANALYSIS_DEPTH,
     playerSide,
     onProgress: opts.onProgress,
   });
@@ -111,6 +119,7 @@ export async function analyzeGames(
           eval_swing: b.evalSwing,
           side_to_move: b.sideToMove,
           phase: derivePhase(b.moveNumber, b.fen),
+          analysis_depth: INITIAL_ANALYSIS_DEPTH,
           solution_line: { pv: b.solutionPv, playedPv: b.playedRefutationPv, v: 1 },
           motifs: detectMotifs({
             fen: b.fen,

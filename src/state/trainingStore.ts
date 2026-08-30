@@ -1,12 +1,8 @@
 import { create } from 'zustand';
 import { Chess } from 'chess.js';
 import type { DrawShape } from 'chessground/draw';
-import {
-  Blunder,
-  CorrectMove,
-  SPACED_REPETITION_DAYS,
-  isCorrectMove,
-} from '../models/blunder';
+import { Blunder, CorrectMove, isCorrectMove } from '../models/blunder';
+import { applyDrillResult } from './drills/applyDrillResult';
 import { GameRecord } from '../models/gameRecord';
 import { UserProfile } from '../models/userProfile';
 import { supabaseService } from '../services/supabaseService';
@@ -23,6 +19,11 @@ import {
   computeBlunderContext,
 } from '../chess/blunderContext';
 import { CASTLING_NORMALIZE, moveToUci, parseUciMove } from '../chess/moveUtils';
+import {
+  buildLineMoves,
+  buildRefutationPairs,
+  type ReviewMove,
+} from '../chess/refutationLines';
 import { computeDrillLine } from '../chess/solutionLine';
 import type { MovePair } from '../components/MoveSequencePanel';
 import { computeNextStreak, detectTimezone, localDate } from '../services/streakService';
@@ -57,12 +58,6 @@ export type TrainingPhase =
   | 'incorrect'
   | 'complete'
   | 'empty';
-
-interface ReviewMove {
-  fenBefore: string;
-  san: string;
-  uci: string;
-}
 
 export interface IncorrectFeedback {
   message: string;
@@ -164,6 +159,18 @@ export interface TrainingStateShape {
   loadCurrentBlunder: () => Promise<void>;
   proceedFromReview: () => void;
   processMove: (move: { from: string; to: string; promotion?: 'q' | 'r' | 'b' | 'n' }) => Promise<void>;
+  /**
+   * Record the outcome of a drill whose board interaction ran OUTSIDE this
+   * store (e.g. the endgame play-out panel). Applies the same SR advancement,
+   * session totals, and streak handling as processMove, then enters the
+   * correct/incorrect phase so the standard Next/Continue flow applies.
+   */
+  completeExternalDrill: (opts: { success: boolean; feedback?: IncorrectFeedback | null }) => void;
+  /**
+   * Forfeit the clean first attempt on the current item from an external drill
+   * (e.g. taking a hint in the endgame play-out) — mirrors showHint's counting.
+   */
+  markExternalAttempt: () => void;
   advance: () => void;
   retry: () => void;
   requeueAndAdvance: () => void;
@@ -185,6 +192,8 @@ type InitialShape = Omit<TrainingStateShape,
   | 'loadCurrentBlunder'
   | 'proceedFromReview'
   | 'processMove'
+  | 'completeExternalDrill'
+  | 'markExternalAttempt'
   | 'advance'
   | 'retry'
   | 'requeueAndAdvance'
@@ -329,85 +338,6 @@ function classifyShortLabel(b: Blunder): 'Blunder' | 'Mistake' | 'Inaccuracy' {
   if (c === 'blunder') return 'Blunder';
   if (c === 'inaccuracy') return 'Inaccuracy';
   return 'Mistake';
-}
-
-function buildLineMoves(initialFen: string, uciList: string[]): ReviewMove[] {
-  const out: ReviewMove[] = [];
-  let chess: Chess;
-  try {
-    chess = new Chess(initialFen);
-  } catch {
-    return out;
-  }
-  for (const uci of uciList) {
-    const m = parseUciMove(uci);
-    const fenBefore = chess.fen();
-    let result;
-    try {
-      result = chess.move({ from: m.from, to: m.to, promotion: m.promotion });
-    } catch {
-      break;
-    }
-    if (!result) break;
-    out.push({ fenBefore, san: result.san, uci });
-  }
-  return out;
-}
-
-/**
- * Build the move-pair table for a refutation line: a first move (the original
- * blunder, or the wrong move the user just played) tagged with its grade,
- * followed by the engine's principal variation. Shared by the reviewing-phase
- * refutation and the played-move refutation.
- */
-function buildRefutationPairs(opts: {
-  fen: string;
-  moveNumber: number;
-  sideToMove: string;
-  firstSan: string;
-  firstUci: string;
-  tag?: string;
-  contextTags?: string[];
-  pvMoves: ReviewMove[];
-}): { pairs: MovePair[]; movesPlusFirst: ReviewMove[] } {
-  const { fen, moveNumber, sideToMove, firstSan, firstUci, tag, contextTags, pvMoves } = opts;
-  const moves: ReviewMove[] = [
-    { fenBefore: fen, san: firstSan, uci: firstUci },
-    ...pvMoves,
-  ];
-  const startMoveNum = moveNumber;
-  const firstIsWhite = sideToMove === 'white';
-  const tagsForFirst = contextTags && contextTags.length > 0 ? contextTags : undefined;
-
-  const pairs: MovePair[] = [];
-  if (firstIsWhite) {
-    pairs.push({
-      moveNumber: startMoveNum,
-      white: { san: firstSan, key: 'r0', tag, contextTags: tagsForFirst },
-      black: moves[1] ? { san: moves[1].san, key: 'r1' } : undefined,
-    });
-    for (let i = 2; i < moves.length; i += 2) {
-      pairs.push({
-        moveNumber: startMoveNum + Math.floor(i / 2),
-        white: { san: moves[i].san, key: `r${i}` },
-        black: moves[i + 1] ? { san: moves[i + 1].san, key: `r${i + 1}` } : undefined,
-      });
-    }
-  } else {
-    pairs.push({
-      moveNumber: startMoveNum,
-      white: undefined,
-      black: { san: firstSan, key: 'r0', tag, contextTags: tagsForFirst },
-    });
-    for (let i = 1; i < moves.length; i += 2) {
-      pairs.push({
-        moveNumber: startMoveNum + Math.floor((i + 1) / 2),
-        white: { san: moves[i].san, key: `r${i}` },
-        black: moves[i + 1] ? { san: moves[i + 1].san, key: `r${i + 1}` } : undefined,
-      });
-    }
-  }
-  return { pairs, movesPlusFirst: moves };
 }
 
 /**
@@ -604,15 +534,16 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     // Prefetch the next blunder's game so advancing to it is instant (the
     // network fetch is the visible gap in the 'loading' phase).
     const upcoming = blunders[currentIndex + 1];
-    if (upcoming && !gameCache.has(upcoming.gameId)) {
+    const upcomingGameId = upcoming?.gameId ?? null;
+    if (upcomingGameId && !gameCache.has(upcomingGameId)) {
       void supabaseService
-        .getGame(upcoming.gameId)
-        .then((g) => gameCache.set(upcoming.gameId, g))
+        .getGame(upcomingGameId)
+        .then((g) => gameCache.set(upcomingGameId, g))
         .catch(() => {});
     }
 
-    let game: GameRecord | null = gameCache.get(blunder.gameId) ?? null;
-    if (!game) {
+    let game: GameRecord | null = blunder.gameId ? (gameCache.get(blunder.gameId) ?? null) : null;
+    if (!game && blunder.gameId) {
       try {
         game = await supabaseService.getGame(blunder.gameId);
         gameCache.set(blunder.gameId, game);
@@ -940,21 +871,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     const isFirstAttempt = !state.attemptedBlunderIds.has(blunder.id);
 
     if (isCorrect) {
-      blunder.timesCorrect++;
-      blunder.timesAttempted++;
-      blunder.lastDrilledAt = new Date();
-      if (isFirstAttempt) {
-        blunder.cycleNumber = Math.min(
-          blunder.cycleNumber + 1,
-          SPACED_REPETITION_DAYS.length,
-        );
-        blunder.lastDrillFailed = false;
-      }
-      trackDrillWrite(
-        supabaseService
-          .updateBlunderAfterDrill(blunder)
-          .catch((err) => console.warn('[training] updateBlunderAfterDrill (correct) failed', err)),
-      );
+      applyDrillResult(blunder, { success: true, isFirstAttempt }, { trackWrite: trackDrillWrite });
 
       const playedSequence = [...drillPlies.slice(0, drillPly), uci];
       set((s) => {
@@ -1030,17 +947,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       // eval so the panel the user sees first isn't delayed.
       void get().ensureBlunderRefutation();
     } else {
-      blunder.timesAttempted++;
-      blunder.lastDrilledAt = new Date();
-      if (isFirstAttempt) {
-        blunder.cycleNumber = 0;
-        blunder.lastDrillFailed = true;
-      }
-      trackDrillWrite(
-        supabaseService
-          .updateBlunderAfterDrill(blunder)
-          .catch((err) => console.warn('[training] updateBlunderAfterDrill (incorrect) failed', err)),
-      );
+      applyDrillResult(blunder, { success: false, isFirstAttempt }, { trackWrite: trackDrillWrite });
 
       let feedback: IncorrectFeedback;
       if (isRepeatedBlunder) {
@@ -1112,6 +1019,65 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       // the review step already fetched it).
       void get().ensureBlunderRefutation();
     }
+  },
+
+  completeExternalDrill: (opts) => {
+    const state = get();
+    if (state.phase !== 'solving') return;
+    const blunder = state.blunders[state.currentIndex];
+    if (!blunder) return;
+
+    const isFirstAttempt = !state.attemptedBlunderIds.has(blunder.id);
+    applyDrillResult(
+      blunder,
+      { success: opts.success, isFirstAttempt },
+      { trackWrite: trackDrillWrite },
+    );
+
+    set((s) => {
+      const nextAttempted = isFirstAttempt
+        ? new Set(s.attemptedBlunderIds).add(blunder.id)
+        : s.attemptedBlunderIds;
+      return {
+        phase: opts.success ? 'correct' : 'incorrect',
+        pendingTryAgain: false,
+        interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
+        totalCorrect: isFirstAttempt && opts.success ? s.totalCorrect + 1 : s.totalCorrect,
+        totalAttempted: isFirstAttempt ? s.totalAttempted + 1 : s.totalAttempted,
+        attemptedBlunderIds: nextAttempted,
+        shapes: [],
+        incorrectRequeue: true,
+        incorrectFeedback: opts.success
+          ? null
+          : (opts.feedback ?? { message: 'Incorrect', tone: 'danger' }),
+        stepFeedback: null,
+      };
+    });
+
+    const after = get();
+    if (after.sessionId) {
+      void supabaseService
+        .updateTrainingSession(after.sessionId, {
+          blundersAttempted: after.totalAttempted,
+          blundersCorrect: after.totalCorrect,
+        })
+        .catch((err) => console.warn('[training] updateTrainingSession (external) failed', err));
+    }
+    if (!after.streakApplied && after.streakSnapshot) {
+      set({ streakApplied: true });
+      void applyStreakUpdate(after.streakSnapshot);
+    }
+  },
+
+  markExternalAttempt: () => {
+    const state = get();
+    if (state.phase !== 'solving') return;
+    const blunder = state.blunders[state.currentIndex];
+    if (!blunder || state.attemptedBlunderIds.has(blunder.id)) return;
+    set((s) => ({
+      totalAttempted: s.totalAttempted + 1,
+      attemptedBlunderIds: new Set(s.attemptedBlunderIds).add(blunder.id),
+    }));
   },
 
   advance: () => {

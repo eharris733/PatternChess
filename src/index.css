@@ -100,7 +100,12 @@ cg-board piece {
 .cg-wrap {
   border-radius: 0;
   overflow: hidden;
-  border: 2px solid rgb(var(--text-primary));
+  /* Inset outline, not a border: chessground computes the piece grid from the
+     wrap's getBoundingClientRect(), which includes borders — a real border
+     makes the grid 4px wider than the playing surface and clips edge pieces
+     on small boards. An outline leaves the geometry alone. */
+  outline: 2px solid rgb(var(--text-primary));
+  outline-offset: -2px;
   box-shadow: 3px 3px 0 rgb(var(--text-primary));
 }
 

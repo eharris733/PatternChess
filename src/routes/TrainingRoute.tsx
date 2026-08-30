@@ -19,6 +19,7 @@ import { CloseIcon } from '../components/icons/CloseIcon';
 import { Skeleton } from '../components/Skeleton';
 import { PositionSrState } from '../components/training/PositionSrState';
 import { BlunderContextBadges } from '../components/training/BlunderContextBadges';
+import { EndgameDrillView } from '../components/training/EndgameDrillView';
 import {
   ContextFilter,
   GAME_STATE_LABEL,
@@ -106,7 +107,7 @@ function applyContextFilter(
   filter: ContextFilter,
 ): Blunder[] {
   return blunders.filter((b) => {
-    const ctx = computeBlunderContext(b, games.get(b.gameId) ?? null);
+    const ctx = computeBlunderContext(b, (b.gameId ? games.get(b.gameId) : null) ?? null);
     if (filter === 'timeTrouble') return ctx.inTimeTrouble;
     if (filter === 'longThink') return ctx.isLongThink;
     return ctx.gameState === filter;
@@ -146,7 +147,7 @@ export function TrainingRoute() {
   const gameIdsForFilter = useMemo(() => {
     if (!needsGames || !dueData) return null;
     const ids = new Set<string>();
-    for (const b of dueData) ids.add(b.gameId);
+    for (const b of dueData) if (b.gameId) ids.add(b.gameId);
     return Array.from(ids);
   }, [needsGames, dueData]);
 
@@ -165,7 +166,7 @@ export function TrainingRoute() {
       const games = filterGamesQuery.data;
       if (openingFilter) {
         list = list.filter((b) => {
-          const g = games.get(b.gameId);
+          const g = b.gameId ? games.get(b.gameId) : undefined;
           if (!g || ecoFamily(g.eco) !== openingFilter) return false;
           return openingColor ? g.userColor === openingColor : true;
         });
@@ -386,6 +387,35 @@ export function TrainingRoute() {
 
   const blunder = state.blunders[state.currentIndex];
 
+  const filterBanner = activeFilterLabel ? (
+    <div className="flex items-baseline justify-between rounded-none border-2 border-text-primary bg-surface-3 px-3 py-2">
+      <span className="font-mono text-xs uppercase tracking-tight text-gold-dark">
+        {activeFilterLabel} · {state.blunders.length} blunder
+        {state.blunders.length === 1 ? '' : 's'}
+      </span>
+      <button
+        className="font-mono text-xs uppercase tracking-tight text-text-secondary hover:text-text-primary"
+        onClick={() => navigate('/training', { replace: true })}
+      >
+        Clear filter
+      </button>
+    </div>
+  ) : null;
+
+  // Endgame-kind items are played out vs the engine rather than solved as a
+  // stored move sequence — the dedicated view drives the board through its
+  // play-out store and reports the SR outcome back via completeExternalDrill.
+  if (blunder?.kind === 'endgame' && blunder.drillData && 'deservedResult' in blunder.drillData) {
+    return (
+      <EndgameDrillView
+        key={blunder.id}
+        blunder={blunder}
+        drillData={blunder.drillData}
+        showFilterBanner={filterBanner}
+      />
+    );
+  }
+
   // "Why it loses" misstates missed wins — there the engine line shows the
   // win that was still available, not a losing sequence.
   const refutationLabel =
@@ -441,20 +471,7 @@ export function TrainingRoute() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
       <div className="flex flex-col gap-3">
-        {activeFilterLabel && (
-          <div className="flex items-baseline justify-between rounded-none border-2 border-text-primary bg-surface-3 px-3 py-2">
-            <span className="font-mono text-xs uppercase tracking-tight text-gold-dark">
-              {activeFilterLabel} · {state.blunders.length} blunder
-              {state.blunders.length === 1 ? '' : 's'}
-            </span>
-            <button
-              className="font-mono text-xs uppercase tracking-tight text-text-secondary hover:text-text-primary"
-              onClick={() => navigate('/training', { replace: true })}
-            >
-              Clear filter
-            </button>
-          </div>
-        )}
+        {filterBanner}
         <div
           className={clsx(
             'transition duration-200',
