@@ -230,12 +230,121 @@ test('the endgames tab lists dropped endgames and rescues one on mate', async ({
   await stubEndgameAuth(page, { blunders: [], scenarios: [SCENARIO] });
   await page.goto('/endgames');
 
-  await expect(page.getByText('Winning — lost')).toBeVisible({ timeout: 30_000 });
-  await page.getByRole('button', { name: /Play it out/ }).click();
+  // Grouped list with a static board preview on the card.
+  await expect(page.getByText('Missed wins')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Winning — lost')).toBeVisible();
+  await expect(page.locator('li cg-board').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
 
   await expect(page.getByText('Convert this win.')).toBeVisible();
   await waitForSolving(page);
 
+  await dragMove(page, { file: 6, rank: 5 }, { file: 6, rank: 7 });
+  await expect(page.getByText(/point rescued/)).toBeVisible({ timeout: 60_000 });
+
+  // The primary action returns to the list (Space does the same).
+  await page.getByRole('button', { name: 'Return to list (Space)' }).click();
+  await expect(page.getByText('Missed wins')).toBeVisible();
+});
+
+// White Rb1+Ke1 vs black Ra8+Ke8: dead draw, but Rb8+?? drops the rook to Rxb8.
+const RR_DRAW = 'r3k3/8/8/8/8/8/8/1R2K3 w - - 0 40';
+
+const DRAW_SCENARIO = {
+  ...SCENARIO,
+  id: 's2',
+  start_fen: RR_DRAW,
+  deserved_result: 'draw',
+  actual_result: 'loss',
+};
+
+test('an eval-judged slip shows hint first, then the engine refutation line', async ({ page }) => {
+  await stubEndgameAuth(page, { blunders: [], scenarios: [DRAW_SCENARIO] });
+  await page.goto('/endgames');
+
+  await expect(page.getByText('Missed draws')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Holdable — lost')).toBeVisible();
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+
+  await expect(page.getByText('Hold this draw.')).toBeVisible();
+
+  // The hint button is present for the whole play-out — including while the
+  // position is still loading or the opponent is thinking (it disables, it
+  // never disappears).
+  await expect(page.getByRole('button', { name: 'Hint' })).toBeVisible();
+  await waitForSolving(page);
+
+  // Two-level hint, like the tactics trainer.
+  await page.getByRole('button', { name: 'Hint' }).click();
+  await expect(page.getByRole('button', { name: 'Show move' })).toBeVisible();
+
+  // Rb8+?? — hangs the rook; the eval judge calls the slip.
+  await dragMove(page, { file: 1, rank: 1 }, { file: 1, rank: 8 });
+  await expect(page.getByText(/That move gives up the draw/)).toBeVisible({ timeout: 60_000 });
+
+  // The refutation viewer explains the fail, starting with the played move.
+  await expect(page.getByText('Why the draw is gone')).toBeVisible();
+  await expect(page.getByText(/engine holds with/)).toBeVisible();
+  const refutationMove = page.locator('[data-key="r1"]');
+  await expect(refutationMove).toBeVisible();
+  await refutationMove.click();
+  await expect(refutationMove).toHaveClass(/ring-accent/);
+  await expect(page.locator('cg-board')).toBeVisible();
+
+  // Arrow keys step the line, same as the training shell.
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('[data-key="r2"]')).toHaveClass(/ring-accent/);
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.locator('[data-key="r0"]')).toHaveClass(/ring-accent/);
+
+  await expect(page.getByRole('button', { name: 'Add to training queue' })).toBeVisible();
+});
+
+test('the dashboard summarizes dropped endgames and links to the trainer', async ({ page }) => {
+  await stubEndgameAuth(page, {
+    blunders: [],
+    scenarios: [SCENARIO, { ...DRAW_SCENARIO, status: 'passed' }],
+  });
+  await page.goto('/dashboard');
+
+  // Breakdown card: points at stake, per-group rescue progress, status counts.
+  await expect(page.getByText('Dropped endgames')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('point waiting to be rescued')).toBeVisible();
+  await expect(page.getByText('Missed wins')).toBeVisible();
+  await expect(page.getByText('Missed draws')).toBeVisible();
+  await expect(page.getByText('1 unplayed · 1 rescued')).toBeVisible();
+
+  // CTA lands on the trainer list.
+  await page.getByRole('button', { name: 'Play them out' }).click();
+  await expect(page).toHaveURL(/\/endgames$/);
+  await expect(page.getByText('Winning — lost')).toBeVisible({ timeout: 30_000 });
+});
+
+test('a slip in the endgames tab is logged only on request, then retried', async ({ page }) => {
+  await stubEndgameAuth(page, { blunders: [], scenarios: [SCENARIO] });
+  await page.goto('/endgames');
+
+  await expect(page.getByText('Missed wins')).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await waitForSolving(page);
+
+  // Qg6?? — stalemate, forfeits the win.
+  await dragMove(page, { file: 6, rank: 5 }, { file: 6, rank: 6 });
+  await expect(page.getByText(/Stalemate — the win slipped away/)).toBeVisible({
+    timeout: 60_000,
+  });
+
+  // Logging is opt-in: nothing was inserted automatically.
+  await expect(page.getByText(/joins your training queue/)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Add to training queue' }).click();
+  await expect(page.getByText(/joins your training queue/)).toBeVisible();
+
+  // Space retries from the mistake (even with the log button still focused),
+  // and the mate still passes.
+  await page.keyboard.press('Space');
+  await expect(page.getByText(/Stalemate — the win slipped away/)).toHaveCount(0);
+  await waitForSolving(page);
   await dragMove(page, { file: 6, rank: 5 }, { file: 6, rank: 7 });
   await expect(page.getByText(/point rescued/)).toBeVisible({ timeout: 60_000 });
 });

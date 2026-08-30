@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Blunder } from '../models/blunder';
 import type { GameRecord } from '../models/gameRecord';
+import type { EndgameScenario } from '../models/endgameScenario';
 
 vi.mock('./supabaseService', () => ({ supabaseService: {} }));
 
-import { deriveScenarioCandidates } from './endgameScenarioService';
+import { attachSeverity, deriveScenarioCandidates } from './endgameScenarioService';
 
 function makeGame(overrides: Partial<GameRecord>): GameRecord {
   return {
@@ -115,5 +116,43 @@ describe('deriveScenarioCandidates', () => {
   it('skips games with unknown user color', () => {
     const g = makeGame({ userColor: null });
     expect(deriveScenarioCandidates([g], [makeBlunder({})])).toHaveLength(0);
+  });
+});
+
+describe('attachSeverity', () => {
+  function makeScenario(overrides: Partial<EndgameScenario>): EndgameScenario {
+    return {
+      id: 's1',
+      gameId: 'g1',
+      blunderId: 'b1',
+      startFen: makeBlunder({}).fen,
+      userColor: 'white',
+      deservedResult: 'win',
+      actualResult: 'loss',
+      status: 'pending',
+      attempts: 0,
+      lastPlayedAt: null,
+      createdAt: new Date('2026-01-02'),
+      ...overrides,
+    };
+  }
+
+  it('joins the source blunder swing onto the scenario', () => {
+    const out = attachSeverity([makeScenario({})], [makeBlunder({ evalSwing: 38 })]);
+    expect(out[0].severity).toBe(38);
+  });
+
+  it('falls back to winning chances lost when the stored swing is zero', () => {
+    // +500 -> ~85% before, 0 -> 50% after: roughly 35% lost.
+    const out = attachSeverity(
+      [makeScenario({})],
+      [makeBlunder({ evalSwing: 0, evalBefore: 500, evalAfter: 0 })],
+    );
+    expect(out[0].severity).toBeGreaterThan(25);
+  });
+
+  it('yields null severity when the source blunder row is gone', () => {
+    expect(attachSeverity([makeScenario({ blunderId: null })], [makeBlunder({})])[0].severity).toBeNull();
+    expect(attachSeverity([makeScenario({ blunderId: 'missing' })], [makeBlunder({})])[0].severity).toBeNull();
   });
 });

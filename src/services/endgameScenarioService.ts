@@ -1,7 +1,8 @@
 import { Blunder } from '../models/blunder';
 import { GameRecord, resolveOutcome } from '../models/gameRecord';
-import { EndgameScenario } from '../models/endgameScenario';
+import { EndgameScenario, EndgameScenarioWithSeverity } from '../models/endgameScenario';
 import { classifyGameState } from '../chess/blunderContext';
+import { winningChancesLost } from '../chess/winningChances';
 import { supabaseService } from './supabaseService';
 
 export interface ScenarioCandidate {
@@ -67,12 +68,34 @@ export function deriveScenarioCandidates(
   return out;
 }
 
+/** Winning chances lost (percent) by a blunder, preferring the stored swing. */
+function blunderSeverity(b: Blunder): number {
+  return b.evalSwing || Math.round(winningChancesLost(b.evalBefore, b.evalAfter));
+}
+
+/**
+ * Attach the source blunder's chances-lost severity to each scenario so the
+ * list can sort by egregiousness — a client-side join, no schema change.
+ */
+export function attachSeverity(
+  scenarios: EndgameScenario[],
+  endgameBlunders: Blunder[],
+): EndgameScenarioWithSeverity[] {
+  const severityById = new Map(endgameBlunders.map((b) => [b.id, blunderSeverity(b)]));
+  return scenarios.map((s) => ({
+    ...s,
+    severity: s.blunderId ? severityById.get(s.blunderId) ?? null : null,
+  }));
+}
+
 /**
  * Run the scan against the given games (typically the useGames() cache),
  * persist any new scenarios (first write wins — statuses survive re-scans),
- * and return the fresh full list.
+ * and return the fresh full list with severity attached.
  */
-export async function scanForScenarios(games: GameRecord[]): Promise<EndgameScenario[]> {
+export async function scanForScenarios(
+  games: GameRecord[],
+): Promise<EndgameScenarioWithSeverity[]> {
   const endgameBlunders = await supabaseService.getEndgameCandidateBlunders();
   const candidates = deriveScenarioCandidates(games, endgameBlunders);
   await supabaseService.upsertEndgameScenarios(
@@ -85,5 +108,5 @@ export async function scanForScenarios(games: GameRecord[]): Promise<EndgameScen
       actual_result: c.actualResult,
     })),
   );
-  return supabaseService.getEndgameScenarios();
+  return attachSeverity(await supabaseService.getEndgameScenarios(), endgameBlunders);
 }

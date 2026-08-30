@@ -1,6 +1,13 @@
 export type DeservedResult = 'win' | 'draw';
 export type ScenarioStatus = 'pending' | 'passed' | 'failed';
 
+/** Single source for status copy — used by /endgames and the dashboard card. */
+export const SCENARIO_STATUS_LABEL: Record<ScenarioStatus, string> = {
+  pending: 'Unplayed',
+  passed: 'Rescued',
+  failed: 'Try again',
+};
+
 /**
  * An endgame the user dropped points in: they held a winning (or holdable)
  * position in the endgame phase and the game ended worse. The play-out starts
@@ -19,6 +26,15 @@ export interface EndgameScenario {
   attempts: number;
   lastPlayedAt: Date | null;
   createdAt: Date;
+}
+
+/**
+ * Scenario plus how egregious the drop was: winning chances lost (percent) by
+ * the source blunder, joined client-side from the blunders table at scan time.
+ * Null when the source blunder row no longer exists.
+ */
+export interface EndgameScenarioWithSeverity extends EndgameScenario {
+  severity: number | null;
 }
 
 export function endgameScenarioFromJson(json: any): EndgameScenario {

@@ -14,6 +14,7 @@ import { MotifWeaknessCard } from '../components/insights/MotifWeaknessCard';
 import { TimeManagementCard } from '../components/insights/TimeManagementCard';
 import { TimeTroubleCard } from '../components/insights/TimeTroubleCard';
 import { GameStateCard } from '../components/insights/GameStateCard';
+import { EndgameRescueCard } from '../components/insights/EndgameRescueCard';
 import { RatingProgressCard } from '../components/insights/RatingProgressCard';
 import { Skeleton } from '../components/Skeleton';
 
@@ -63,6 +64,8 @@ export function DashboardRoute() {
       {isFirstRun ? <GetStartedHero /> : <DailyHabitCard />}
 
       {!isFirstRun && <CycleTimelineCard />}
+
+      {!isFirstRun && <EndgameRescueCard />}
 
       {!isFirstRun && <RatingProgressCard />}
 

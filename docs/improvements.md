@@ -40,3 +40,9 @@ No copy about how new games will be added to the vault.
 onboarding flow makes you go to user profile, when you should have a separate clear flow. 
 You should also be able to initially select which types of games you count for training (existing settings in user info page)
 In smaller screens, the new moves shown moves the screen focus down, when we should be able to stay on the board. 
+
+
+
+new thought: we need to constantly be updating the pv for a blunder based on the engine searching deeper. The engine should never really be idle. 
+Endgames this is especially prevalent. 
+Suggested trainings based on the blunders (for instace, knight vs bishop endgames when you miss a point in that) Lucena position, phildor position, etc

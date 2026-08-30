@@ -4,6 +4,7 @@ import { BoardPanel } from '../BoardPanel';
 import { BoardActionBar } from '../BoardActionBar';
 import { FeedbackBadge } from '../FeedbackBadge';
 import { ProgressBar } from '../ProgressBar';
+import { HeldMeter, SlipReport, SlipPreview, usePlayoutHint } from '../endgame/PlayoutPanel';
 import { PositionSrState } from './PositionSrState';
 import { useTrainingStore } from '../../state/trainingStore';
 import {
@@ -16,7 +17,6 @@ import {
   externalAnalysisUrl,
   resolvePlatform,
 } from '../../services/externalAnalysisUrlService';
-import type { DrawShape } from 'chessground/draw';
 
 function resultFeedback(r: PlayoutResult, target: 'win' | 'draw') {
   if (r.success) {
@@ -55,7 +55,13 @@ export function EndgameDrillView({
   const training = useTrainingStore();
   const playout = useEndgamePlayoutStore();
   const [paused, setPaused] = useState(false);
-  const [hintLevel, setHintLevel] = useState<0 | 1 | 2>(0);
+  const [preview, setPreview] = useState<SlipPreview | null>(null);
+  const hint = usePlayoutHint({
+    bestMove: playout.refEval?.bestMove,
+    solving: playout.phase === 'solving',
+    // Taking a hint forfeits the clean first-attempt recall, same as tactics.
+    onFirstHint: () => useTrainingStore.getState().markExternalAttempt(),
+  });
   const startedForRef = useRef<string | null>(null);
 
   const userColor: 'white' | 'black' = blunder.sideToMove === 'white' ? 'white' : 'black';
@@ -79,13 +85,13 @@ export function EndgameDrillView({
       playout.phase === 'failed';
     if (!needsStart) return;
     startedForRef.current = blunder.id;
-    setHintLevel(0);
+    hint.reset();
+    setPreview(null);
     void playout.start({
       startFen: blunder.fen,
       userColor,
       target,
       sourceGameId: blunder.gameId,
-      logSlips: true,
       onFinish: (r) => {
         useTrainingStore.getState().completeExternalDrill({
           success: r.success,
@@ -98,30 +104,10 @@ export function EndgameDrillView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [training.phase, blunder.id]);
 
-  const onHint = () => {
-    const best = playout.refEval?.bestMove;
-    if (!best || hintLevel >= 2) return;
-    if (hintLevel === 0) {
-      // Taking a hint forfeits the clean first-attempt recall, same as tactics.
-      useTrainingStore.getState().markExternalAttempt();
-    }
-    setHintLevel((h) => (h === 0 ? 1 : 2));
-  };
-
-  const hintShapes: DrawShape[] = (() => {
-    const best = playout.refEval?.bestMove;
-    if (!best || hintLevel === 0 || playout.phase !== 'solving') return [];
-    const orig = best.slice(0, 2) as DrawShape['orig'];
-    if (hintLevel === 1) return [{ orig, brush: 'blue' }];
-    return [{ orig, dest: best.slice(2, 4) as DrawShape['orig'], brush: 'blue' }];
-  })();
-
   const playing = playout.phase === 'solving' || playout.phase === 'thinking' || playout.phase === 'loading';
   const externalPlatform = resolvePlatform(training.game?.platform, 'lichess');
   const externalAnalysis =
     externalPlatform && playout.fen ? externalAnalysisUrl(externalPlatform, playout.fen) : null;
-
-  const heldPct = Math.round((playout.heldStreak / playout.holdTarget) * 100);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
@@ -135,11 +121,11 @@ export function EndgameDrillView({
           aria-hidden={paused}
         >
           <BoardPanel
-            fen={playout.fen || blunder.fen}
+            fen={preview?.fen ?? (playout.fen || blunder.fen)}
             orientation={userColor}
             movableFor={playout.phase === 'solving' && !paused ? userColor : null}
-            lastMove={playout.lastMove}
-            shapes={hintShapes}
+            lastMove={preview ? preview.lastMove : playout.lastMove}
+            shapes={hint.shapes}
             onMove={(m) => void playout.processMove(m)}
           />
         </div>
@@ -149,10 +135,12 @@ export function EndgameDrillView({
           running={playout.phase === 'solving' && !paused}
           paused={paused}
           onTogglePaused={() => setPaused((p) => !p)}
-          showHint={playout.phase === 'solving'}
-          hintLevel={hintLevel}
-          hintDisabled={hintLevel >= 2 || !playout.refEval || paused}
-          onHint={onHint}
+          showHint={playing}
+          hintLevel={hint.level}
+          hintDisabled={
+            hint.level >= 2 || !playout.refEval || paused || playout.phase !== 'solving'
+          }
+          onHint={hint.show}
           externalUrl={externalAnalysis?.url ?? null}
           externalLabel={externalAnalysis?.label}
         />
@@ -208,17 +196,11 @@ export function EndgameDrillView({
                 ? 'Endgame play-out — convert this win'
                 : 'Endgame play-out — hold this draw'}
             </FeedbackBadge>
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center justify-between">
-                <span className="label">Held</span>
-                <span className="font-mono text-xs tabular-nums text-text-secondary">
-                  {playout.heldStreak}/{playout.holdTarget} moves
-                </span>
-              </div>
-              <div className="h-2 w-full border-2 border-text-primary bg-surface">
-                <div className="h-full bg-gold-dark" style={{ width: `${heldPct}%` }} />
-              </div>
-            </div>
+            <HeldMeter
+              heldStreak={playout.heldStreak}
+              holdTarget={playout.holdTarget}
+              depth={playout.refEval?.depth}
+            />
           </>
         )}
 
@@ -231,7 +213,7 @@ export function EndgameDrillView({
         {playout.engineError && (
           <FeedbackBadge tone="warning">Engine hiccup — keep playing</FeedbackBadge>
         )}
-        {hintLevel > 0 && playing && (
+        {hint.level > 0 && playing && (
           <p className="text-text-secondary text-xs">Hint shown — counts as a fail for recall.</p>
         )}
 
@@ -262,20 +244,14 @@ export function EndgameDrillView({
               </FeedbackBadge>
             )}
             {playout.slip && (
-              <div className="bg-surface-3 rounded-none border-2 border-text-primary p-3 text-sm flex flex-col gap-1">
-                <p>
-                  <span className="text-text-secondary">You played </span>
-                  <span className="font-mono font-bold text-incorrect">
-                    {playout.slip.playedSan ?? playout.slip.playedUci}
-                  </span>
-                </p>
-                {playout.slip.bestSan && (
-                  <p>
-                    <span className="text-text-secondary">Engine held with </span>
-                    <span className="font-mono font-bold text-correct">{playout.slip.bestSan}</span>
-                  </p>
-                )}
-              </div>
+              <SlipReport
+                slip={playout.slip}
+                target={target}
+                userColor={userColor}
+                logStatus={playout.slipLog}
+                onLog={() => void playout.logSlip()}
+                onPreview={setPreview}
+              />
             )}
             <button className="btn-primary mt-auto" onClick={() => training.requeueAndAdvance()}>
               Continue (Space)
