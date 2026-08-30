@@ -16,6 +16,7 @@ import { TimeTroubleCard } from '../components/insights/TimeTroubleCard';
 import { GameStateCard } from '../components/insights/GameStateCard';
 import { EndgameRescueCard } from '../components/insights/EndgameRescueCard';
 import { RatingProgressCard } from '../components/insights/RatingProgressCard';
+import { UpcomingEventsCard } from '../components/insights/UpcomingEventsCard';
 import { Skeleton } from '../components/Skeleton';
 
 export function DashboardRoute() {
@@ -83,6 +84,8 @@ export function DashboardRoute() {
           <p className="text-text-secondary text-sm mt-1">Browse and review your imports.</p>
         </button>
       )}
+
+      {!isFirstRun && <UpcomingEventsCard />}
 
       <MotifWeaknessCard />
       <OpeningInsightsCard />

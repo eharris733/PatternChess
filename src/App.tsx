@@ -10,6 +10,7 @@ import { TermsRoute } from './routes/TermsRoute';
 import { PrivacyRoute } from './routes/PrivacyRoute';
 import { AboutRoute } from './routes/AboutRoute';
 import { FaqRoute } from './routes/FaqRoute';
+import { EventsRoute } from './routes/EventsRoute';
 import { BlogIndex } from './routes/BlogIndex';
 import { BlogPost } from './routes/BlogPost';
 import { PuzzleRoute } from './routes/PuzzleRoute';
@@ -60,6 +61,7 @@ export default function App() {
       <Route path="/privacy" element={<PrivacyRoute />} />
       <Route path="/about" element={<AboutRoute />} />
       <Route path="/faq" element={<FaqRoute />} />
+      <Route path="/events" element={<EventsRoute />} />
       <Route path="/blog" element={<BlogIndex />} />
       <Route path="/blog/:slug" element={<BlogPost />} />
       <Route path="/p" element={<PuzzleRoute />} />
