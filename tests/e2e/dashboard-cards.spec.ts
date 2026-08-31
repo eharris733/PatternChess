@@ -122,7 +122,7 @@ test('dashboard renders the renamed + new cards for an established user', async 
   // Daily habit card surfaces the nearest achievement as a return nudge.
   await expect(page.getByText('Next achievement')).toBeVisible();
   // Rank badge (compact) headlines mastery, not reviews.
-  await expect(page.getByText('Apprentice')).toBeVisible();
+  await expect(page.getByText('Pawn', { exact: true })).toBeVisible();
   await expect(page.getByText(/0 mastered/i)).toBeVisible();
   // No "reviews" wording remains on the dashboard badge.
   await expect(page.getByText(/\breviews\b/i)).toHaveCount(0);

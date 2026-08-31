@@ -2,9 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { BoardPanel } from '../BoardPanel';
 import { BoardActionBar } from '../BoardActionBar';
+import { BoardStage } from '../BoardStage';
+import { BoardActionOverlay, useActionOverlay } from '../BoardActionOverlay';
 import { FeedbackBadge } from '../FeedbackBadge';
 import { ProgressBar } from '../ProgressBar';
-import { HeldMeter, SlipReport, SlipPreview, usePlayoutHint } from '../endgame/PlayoutPanel';
+import {
+  HeldMeter,
+  SlipReport,
+  SlipPreview,
+  usePlayoutHint,
+  useSlipLineViewer,
+} from '../endgame/PlayoutPanel';
 import { PositionSrState } from './PositionSrState';
 import { useTrainingStore } from '../../state/trainingStore';
 import {
@@ -68,6 +76,22 @@ export function EndgameDrillView({
   const target = drillData.deservedResult;
   const revealed = playout.userMovesPlayed > 0 || playout.phase === 'passed' || playout.phase === 'failed';
 
+  const slipViewer = useSlipLineViewer({
+    slip: playout.slip,
+    target,
+    userColor,
+    active: training.phase === 'incorrect',
+    onPreview: setPreview,
+  });
+  const overlay = useActionOverlay(`${training.currentIndex}:${training.phase}`);
+
+  const passedMessage =
+    playout.phase === 'passed' && playout.terminal === 'checkmate-by-user'
+      ? 'Checkmate — converted.'
+      : target === 'win'
+        ? 'Win secured — position held.'
+        : 'Draw held.';
+
   // Play-outs are always blind — skip the optional review step.
   useEffect(() => {
     if (training.phase === 'reviewing') training.proceedFromReview();
@@ -107,18 +131,38 @@ export function EndgameDrillView({
   const playing = playout.phase === 'solving' || playout.phase === 'thinking' || playout.phase === 'loading';
   const externalPlatform = resolvePlatform(training.game?.platform, 'lichess');
   const externalAnalysis =
-    externalPlatform && playout.fen ? externalAnalysisUrl(externalPlatform, playout.fen) : null;
+    externalPlatform && playout.fen
+      ? externalAnalysisUrl(externalPlatform, playout.fen, { orientation: userColor })
+      : null;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
       <div className="flex flex-col gap-3">
         {showFilterBanner}
-        <div
-          className={clsx(
-            'transition duration-200',
-            paused && 'blur-md pointer-events-none select-none',
-          )}
-          aria-hidden={paused}
+        <BoardStage
+          paused={paused}
+          overlay={
+            overlay.enabled &&
+            (training.phase === 'correct' || training.phase === 'incorrect') && (
+              <BoardActionOverlay
+                message={
+                  training.phase === 'correct'
+                    ? passedMessage
+                    : training.incorrectFeedback?.message ?? 'Play-out failed'
+                }
+                actionLabel={training.phase === 'correct' ? 'Next' : 'Continue'}
+                onAction={() =>
+                  training.phase === 'correct'
+                    ? training.advance()
+                    : training.requeueAndAdvance()
+                }
+                dismissLabel={
+                  training.phase === 'correct' ? 'View board' : 'Review the lines'
+                }
+                onDismiss={overlay.dismiss}
+              />
+            )
+          }
         >
           <BoardPanel
             fen={preview?.fen ?? (playout.fen || blunder.fen)}
@@ -128,7 +172,7 @@ export function EndgameDrillView({
             shapes={hint.shapes}
             onMove={(m) => void playout.processMove(m)}
           />
-        </div>
+        </BoardStage>
 
         <BoardActionBar
           resetKey={training.currentIndex}
@@ -143,6 +187,7 @@ export function EndgameDrillView({
           onHint={hint.show}
           externalUrl={externalAnalysis?.url ?? null}
           externalLabel={externalAnalysis?.label}
+          onStepLine={slipViewer.stepLine}
         />
       </div>
 
@@ -219,19 +264,13 @@ export function EndgameDrillView({
 
         {training.phase === 'correct' && (
           <>
-            <FeedbackBadge tone="success">
-              {playout.phase === 'passed' && playout.terminal === 'checkmate-by-user'
-                ? 'Checkmate — converted.'
-                : target === 'win'
-                  ? 'Win secured — position held.'
-                  : 'Draw held.'}
-            </FeedbackBadge>
+            <FeedbackBadge tone="success">{passedMessage}</FeedbackBadge>
             <p className="text-text-secondary text-sm">
               In the game this ended in a {drillData.deservedResult === 'win' ? 'draw or loss' : 'loss'}.
               This time you kept the {target === 'win' ? 'full point' : 'half point'}.
             </p>
             <button className="btn-primary mt-auto" onClick={() => training.advance()}>
-              Next (Space)
+              Next<span className="hidden lg:inline"> (Space)</span>
             </button>
           </>
         )}
@@ -247,14 +286,13 @@ export function EndgameDrillView({
               <SlipReport
                 slip={playout.slip}
                 target={target}
-                userColor={userColor}
                 logStatus={playout.slipLog}
                 onLog={() => void playout.logSlip()}
-                onPreview={setPreview}
+                viewer={slipViewer}
               />
             )}
             <button className="btn-primary mt-auto" onClick={() => training.requeueAndAdvance()}>
-              Continue (Space)
+              Continue<span className="hidden lg:inline"> (Space)</span>
             </button>
             <p className="text-text-secondary text-xs text-center -mt-1">
               Comes back later this session

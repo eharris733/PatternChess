@@ -48,7 +48,7 @@ export function TimeManagementCard() {
         How long you think per move across all moves in your non-bullet games, by phase — every
         move counts here, blunder or otherwise.
       </p>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Tile
           label="Opening"
           userSec={open?.averageSeconds ?? 0}

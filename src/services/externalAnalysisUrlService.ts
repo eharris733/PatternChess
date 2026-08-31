@@ -12,12 +12,19 @@ const CASTLING_NORMALIZE: Record<string, string> = {
 
 export type ExternalPlatform = 'lichess' | 'chess.com';
 
-export function lichessAnalysisUrl(fen: string): string {
-  return `https://lichess.org/analysis/standard/${fen.replace(/ /g, '_')}`;
+export type BoardOrientation = 'white' | 'black';
+
+// Lichess orients its analysis board to the side to move (FEN route) or white
+// (PGN route) unless ?color= overrides it, so always pass the user's color
+// when we know it. Chess.com defaults to white and honors flip=true.
+export function lichessAnalysisUrl(fen: string, orientation?: BoardOrientation | null): string {
+  const base = `https://lichess.org/analysis/standard/${fen.replace(/ /g, '_')}`;
+  return orientation ? `${base}?color=${orientation}` : base;
 }
 
-export function chesscomAnalysisUrl(fen: string): string {
-  return `https://www.chess.com/analysis?tab=analysis&fen=${encodeURIComponent(fen)}`;
+export function chesscomAnalysisUrl(fen: string, orientation?: BoardOrientation | null): string {
+  const base = `https://www.chess.com/analysis?tab=analysis&fen=${encodeURIComponent(fen)}`;
+  return orientation === 'black' ? `${base}&flip=true` : base;
 }
 
 /**
@@ -63,8 +70,9 @@ export function buildPgnFromUciMoves(startFen: string, uciMoves: string[]): stri
   return `[SetUp "1"]\n[FEN "${startFen}"]\n\n${tokens.join(' ')}`;
 }
 
-export function lichessAnalysisPgnUrl(pgn: string): string {
-  return `https://lichess.org/analysis/pgn/${encodeURIComponent(pgn)}`;
+export function lichessAnalysisPgnUrl(pgn: string, orientation?: BoardOrientation | null): string {
+  const base = `https://lichess.org/analysis/pgn/${encodeURIComponent(pgn)}`;
+  return orientation ? `${base}?color=${orientation}` : base;
 }
 
 /**
@@ -86,26 +94,38 @@ export function cleanPgnForAnalysisUrl(pgn: string): string | null {
   }
 }
 
-export function chesscomAnalysisPgnUrl(pgn: string): string {
-  return `https://www.chess.com/analysis?tab=analysis&pgn=${encodeURIComponent(pgn)}`;
+export function chesscomAnalysisPgnUrl(pgn: string, orientation?: BoardOrientation | null): string {
+  const base = `https://www.chess.com/analysis?tab=analysis&pgn=${encodeURIComponent(pgn)}`;
+  return orientation === 'black' ? `${base}&flip=true` : base;
 }
 
 export function externalAnalysisUrl(
   platform: ExternalPlatform,
   fen: string,
-  options?: { startFen?: string; movesFromStart?: string[] },
+  options?: {
+    startFen?: string;
+    movesFromStart?: string[];
+    orientation?: BoardOrientation | null;
+  },
 ): { url: string; label: string } {
   const label = platform === 'lichess' ? 'Open on lichess' : 'Open on chess.com';
   const moves = options?.movesFromStart ?? [];
   const startFen = options?.startFen;
+  const orientation = options?.orientation;
   if (startFen && moves.length > 0) {
     const pgn = buildPgnFromUciMoves(startFen, moves);
     if (pgn) {
-      const url = platform === 'lichess' ? lichessAnalysisPgnUrl(pgn) : chesscomAnalysisPgnUrl(pgn);
+      const url =
+        platform === 'lichess'
+          ? lichessAnalysisPgnUrl(pgn, orientation)
+          : chesscomAnalysisPgnUrl(pgn, orientation);
       return { url, label };
     }
   }
-  const url = platform === 'lichess' ? lichessAnalysisUrl(fen) : chesscomAnalysisUrl(fen);
+  const url =
+    platform === 'lichess'
+      ? lichessAnalysisUrl(fen, orientation)
+      : chesscomAnalysisUrl(fen, orientation);
   return { url, label };
 }
 
@@ -128,7 +148,13 @@ export function platformGameUrl(game: GameRecord): string | null {
   const headers = extractHeaders(game.pgn);
   if (game.platform === 'lichess') {
     const site = headers.Site;
-    if (site && /^https?:\/\/lichess\.org\//i.test(site)) return site;
+    if (site && /^https?:\/\/lichess\.org\//i.test(site)) {
+      // Bare game URLs accept a /black suffix to orient the board.
+      if (game.userColor === 'black' && /^https?:\/\/lichess\.org\/[A-Za-z0-9]+$/i.test(site)) {
+        return `${site}/black`;
+      }
+      return site;
+    }
     return null;
   }
   if (game.platform === 'chess.com') {
@@ -144,7 +170,7 @@ export function platformGameUrl(game: GameRecord): string | null {
   // to opening the full PGN in Lichess's analysis board.
   if (game.pgn) {
     const clean = cleanPgnForAnalysisUrl(game.pgn);
-    return lichessAnalysisPgnUrl(clean ?? game.pgn);
+    return lichessAnalysisPgnUrl(clean ?? game.pgn, game.userColor);
   }
   return null;
 }
