@@ -78,30 +78,40 @@ export function HeldMeter({
   );
 }
 
+export type SlipLineViewer = {
+  line: ReturnType<typeof buildRefutationPairs> | null;
+  activeKey: string;
+  selectMove: (key: string) => void;
+  /** Steps the active move (arrow keys / tap arrows); null when there is no line to step. */
+  stepLine: ((dir: 1 | -1) => void) | null;
+};
+
 /**
- * Post-slip report: what was played vs what held, a clickable engine
- * refutation line that walks the board (via onPreview), and the opt-in
- * "add to training queue" control.
+ * Browsing state for a slip's engine refutation line: which move is active,
+ * click/step selection that walks the board via onPreview, and the arrow-key
+ * handler. Lifted out of SlipReport so the host screen can surface the step
+ * controls near the board (mobile action bar) while SlipReport renders the
+ * line itself. `active` gates keyboard + stepping to the failed/incorrect
+ * phase so a stale slip can't hijack the board mid-solve.
  */
-export function SlipReport({
+export function useSlipLineViewer({
   slip,
   target,
   userColor,
-  logStatus,
-  onLog,
+  active,
   onPreview,
 }: {
-  slip: PlayoutSlip;
+  slip: PlayoutSlip | null;
   target: 'win' | 'draw';
   userColor: 'white' | 'black';
-  logStatus: SlipLogStatus;
-  onLog: () => void;
+  active: boolean;
   onPreview: (preview: SlipPreview | null) => void;
-}) {
+}): SlipLineViewer {
   // r0 = the slip itself, already on the board when the fail panel appears.
   const [activeKey, setActiveKey] = useState('r0');
 
   const line = useMemo(() => {
+    if (!slip) return null;
     let afterFen: string | null = null;
     try {
       const chess = new Chess(slip.fenBefore);
@@ -145,24 +155,55 @@ export function SlipReport({
     }
   };
 
+  const canStep = active && !!line && line.movesPlusFirst.length > 0;
+
+  // Tap equivalent of the arrow keys.
+  const stepLine = canStep
+    ? (dir: 1 | -1) => {
+        if (!line) return;
+        const cur = Number.parseInt(activeKey.slice(1), 10) || 0;
+        const next = Math.min(Math.max(cur + dir, 0), line.movesPlusFirst.length - 1);
+        if (next !== cur) selectMove(`r${next}`);
+      }
+    : null;
+
   // Arrow keys step through the refutation line, same as the training shell.
   useEffect(() => {
+    if (!canStep) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'ArrowRight' && e.code !== 'ArrowLeft') return;
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
-      if (!line || line.movesPlusFirst.length === 0) return;
       e.preventDefault();
-      const cur = Number.parseInt(activeKey.slice(1), 10) || 0;
-      const step = e.code === 'ArrowRight' ? 1 : -1;
-      const next = Math.min(Math.max(cur + step, 0), line.movesPlusFirst.length - 1);
-      if (next !== cur) selectMove(`r${next}`);
+      stepLine?.(e.code === 'ArrowRight' ? 1 : -1);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [line, activeKey]);
+  }, [canStep, line, activeKey]);
 
+  return { line, activeKey, selectMove, stepLine };
+}
+
+/**
+ * Post-slip report: what was played vs what held, a clickable engine
+ * refutation line that walks the board (via the viewer from
+ * useSlipLineViewer), and the opt-in "add to training queue" control.
+ */
+export function SlipReport({
+  slip,
+  target,
+  logStatus,
+  onLog,
+  viewer,
+}: {
+  slip: PlayoutSlip;
+  target: 'win' | 'draw';
+  logStatus: SlipLogStatus;
+  onLog: () => void;
+  viewer: SlipLineViewer;
+}) {
+  const { line, activeKey, selectMove, stepLine } = viewer;
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm">
@@ -185,6 +226,8 @@ export function SlipReport({
             pairs={line.pairs}
             activeKey={activeKey}
             onSelect={selectMove}
+            onStep={stepLine ?? undefined}
+            stepArrowsDesktopOnly
             className="border-2 border-text-primary/20"
           />
         </div>

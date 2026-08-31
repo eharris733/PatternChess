@@ -5,6 +5,8 @@ import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
 import { useTrainingStore } from '../state/trainingStore';
 import { useDueBlunders } from '../hooks/useDueBlunders';
+import { BoardStage } from '../components/BoardStage';
+import { BoardActionOverlay, useActionOverlay } from '../components/BoardActionOverlay';
 import { useSyncStore } from '../state/syncStore';
 import { BoardPanel } from '../components/BoardPanel';
 import { BoardActionBar } from '../components/BoardActionBar';
@@ -202,6 +204,7 @@ export function TrainingRoute() {
   }, [contextFilter, setContextFilter]);
 
   const [paused, setPaused] = useState(false);
+  const overlay = useActionOverlay(`${state.currentIndex}:${state.phase}`);
   useEffect(() => {
     setPaused(false);
   }, [state.currentIndex]);
@@ -465,19 +468,64 @@ export function TrainingRoute() {
       ? externalAnalysisUrl(externalPlatform, state.fen, {
           startFen: blunder?.fen,
           movesFromStart: state.playedMovesFromBlunder,
+          orientation: state.orientation,
         })
       : null;
 
+  // Tap equivalents of the ←/→ shortcuts: step the line the user is looking at.
+  const stepRefutation = (dir: 1 | -1) =>
+    state.selectRefutationIndex((state.activeRefutationIndex ?? (dir === 1 ? -1 : 0)) + dir);
+  const stepPostCorrect = (dir: 1 | -1) =>
+    state.selectPostCorrectIndex((state.activePostCorrectIndex ?? (dir === 1 ? -1 : 0)) + dir);
+  const stepPlayedRefutation = (dir: 1 | -1) =>
+    state.selectPlayedRefutationIndex(
+      (state.activePlayedRefutationIndex ?? (dir === 1 ? -1 : 0)) + dir,
+    );
+  // The line the user is currently looking at (mirrors the ←/→ keyboard handler);
+  // surfaced as arrows in the board action bar on mobile.
+  const activeLineStep: ((dir: 1 | -1) => void) | null = (() => {
+    if (state.phase === 'reviewing' && state.refutationMoves.length > 0) return stepRefutation;
+    if (state.phase === 'correct' || state.phase === 'incorrect') {
+      if (activeTab === 'refutation' && state.refutationMoves.length > 0) return stepRefutation;
+      if (state.phase === 'correct' && state.postCorrectMoves.length > 0) return stepPostCorrect;
+      if (state.phase === 'incorrect' && state.playedRefutationMoves.length > 0)
+        return stepPlayedRefutation;
+    }
+    return null;
+  })();
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2 lg:gap-3">
         {filterBanner}
-        <div
-          className={clsx(
-            'transition duration-200',
-            paused && 'blur-md pointer-events-none select-none',
-          )}
-          aria-hidden={paused}
+        <BoardStage
+          paused={paused}
+          overlay={
+            overlay.enabled &&
+            (state.phase === 'correct' || state.phase === 'incorrect') && (
+              <BoardActionOverlay
+                message={
+                  state.phase === 'correct'
+                    ? 'Solution correct'
+                    : state.incorrectFeedback?.message ?? 'Not the best move'
+                }
+                actionLabel={
+                  state.phase === 'correct'
+                    ? 'Next'
+                    : state.incorrectRequeue
+                      ? 'Continue'
+                      : 'Try again'
+                }
+                onAction={() => {
+                  if (state.phase === 'correct') state.advance();
+                  else if (state.incorrectRequeue) state.requeueAndAdvance();
+                  else state.retry();
+                }}
+                dismissLabel="Review the lines"
+                onDismiss={overlay.dismiss}
+              />
+            )
+          }
         >
           <BoardPanel
             fen={state.fen}
@@ -487,7 +535,7 @@ export function TrainingRoute() {
             shapes={state.shapes}
             onMove={(m) => state.processMove(m)}
           />
-        </div>
+        </BoardStage>
 
         <BoardActionBar
           resetKey={state.currentIndex}
@@ -500,6 +548,7 @@ export function TrainingRoute() {
           onHint={() => state.showHint()}
           externalUrl={externalAnalysis?.url ?? null}
           externalLabel={externalAnalysis?.label}
+          onStepLine={activeLineStep}
         />
       </div>
 
@@ -559,6 +608,8 @@ export function TrainingRoute() {
                 <p className="label mb-2">Engine refutation</p>
                 <MoveSequencePanel
                   pairs={state.refutationPairs}
+                  onStep={stepRefutation}
+                  stepArrowsDesktopOnly
                   activeKey={
                     state.activeRefutationIndex !== null
                       ? `r${state.activeRefutationIndex}`
@@ -575,7 +626,7 @@ export function TrainingRoute() {
               Find a better move for {blunder.sideToMove === 'white' ? 'White' : 'Black'}.
             </p>
             <button className="btn-primary" onClick={() => state.proceedFromReview()}>
-              I'm ready (Space)
+              I'm ready<span className="hidden lg:inline"> (Space)</span>
             </button>
           </>
         )}
@@ -656,6 +707,8 @@ export function TrainingRoute() {
                   </button>
                   <MoveSequencePanel
                     pairs={state.postCorrectPairs}
+                    onStep={stepPostCorrect}
+                    stepArrowsDesktopOnly
                     activeKey={
                       state.activePostCorrectIndex !== null && state.activePostCorrectIndex >= 0
                         ? `p${state.activePostCorrectIndex}`
@@ -676,6 +729,8 @@ export function TrainingRoute() {
                 {state.refutationPairs.length > 0 ? (
                   <MoveSequencePanel
                     pairs={state.refutationPairs}
+                    onStep={stepRefutation}
+                    stepArrowsDesktopOnly
                     activeKey={
                       state.activeRefutationIndex !== null
                         ? `r${state.activeRefutationIndex}`
@@ -692,7 +747,7 @@ export function TrainingRoute() {
               </div>
             )}
             <button className="btn-primary mt-auto" onClick={() => state.advance()}>
-              Next (Space)
+              Next<span className="hidden lg:inline"> (Space)</span>
             </button>
           </>
         )}
@@ -719,6 +774,8 @@ export function TrainingRoute() {
                   state.playedRefutationPairs.length > 0 ? (
                     <MoveSequencePanel
                       pairs={state.playedRefutationPairs}
+                      onStep={stepPlayedRefutation}
+                      stepArrowsDesktopOnly
                       activeKey={
                         state.activePlayedRefutationIndex !== null
                           ? `r${state.activePlayedRefutationIndex}`
@@ -738,6 +795,8 @@ export function TrainingRoute() {
                     {state.refutationPairs.length > 0 ? (
                       <MoveSequencePanel
                         pairs={state.refutationPairs}
+                        onStep={stepRefutation}
+                        stepArrowsDesktopOnly
                         activeKey={
                           state.activeRefutationIndex !== null
                             ? `r${state.activeRefutationIndex}`
@@ -761,7 +820,8 @@ export function TrainingRoute() {
                 state.incorrectRequeue ? state.requeueAndAdvance() : state.retry()
               }
             >
-              {state.incorrectRequeue ? 'Continue (Space)' : 'Try again (Space)'}
+              {state.incorrectRequeue ? 'Continue' : 'Try again'}
+              <span className="hidden lg:inline"> (Space)</span>
             </button>
             {state.incorrectRequeue && (
               <p className="text-text-secondary text-xs text-center -mt-1">
@@ -820,7 +880,7 @@ export function TrainingRoute() {
           onClick={() => !deleting && setConfirmDelete(false)}
         >
           <div
-            className="card max-w-md w-full flex flex-col gap-4"
+            className="card max-w-md w-full flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <header>

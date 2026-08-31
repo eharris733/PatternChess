@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { HintIcon } from './icons/HintIcon';
+import { ChevronIcon } from './icons/ChevronIcon';
 
 interface BoardActionBarProps {
   /** Resets the timer when this changes (e.g. blunder index advances). */
@@ -15,6 +16,8 @@ interface BoardActionBarProps {
   onHint: () => void;
   externalUrl?: string | null;
   externalLabel?: string;
+  /** Mobile-only prev/next arrows stepping the active line (panel arrows sit below the fold). */
+  onStepLine?: ((dir: 1 | -1) => void) | null;
 }
 
 function formatElapsed(ms: number): string {
@@ -35,6 +38,7 @@ export function BoardActionBar({
   onHint,
   externalUrl,
   externalLabel,
+  onStepLine,
 }: BoardActionBarProps) {
   const [elapsed, setElapsed] = useState(0);
   const startRef = useRef<number | null>(null);
@@ -70,7 +74,7 @@ export function BoardActionBar({
 
       <button
         type="button"
-        className="btn-ghost text-sm"
+        className="btn-ghost text-sm h-8 lg:h-10"
         onClick={onTogglePaused}
         aria-label={paused ? 'Resume' : 'Pause'}
         title={paused ? 'Resume' : 'Pause'}
@@ -80,10 +84,31 @@ export function BoardActionBar({
 
       <div className="flex-1" />
 
+      {onStepLine && (
+        <>
+          <button
+            type="button"
+            aria-label="Previous move"
+            onClick={() => onStepLine(-1)}
+            className="btn-ghost h-8 px-3 lg:hidden"
+          >
+            <ChevronIcon className="h-4 w-4 rotate-180" />
+          </button>
+          <button
+            type="button"
+            aria-label="Next move"
+            onClick={() => onStepLine(1)}
+            className="btn-ghost h-8 px-3 lg:hidden"
+          >
+            <ChevronIcon className="h-4 w-4" />
+          </button>
+        </>
+      )}
+
       {showHint && (
         <button
           type="button"
-          className="btn-ghost text-sm inline-flex items-center gap-1.5"
+          className="btn-ghost text-sm h-8 lg:h-10 inline-flex items-center gap-1.5"
           onClick={onHint}
           disabled={hintDisabled}
           title="Reveal a hint (counts as a fail)"
@@ -95,7 +120,7 @@ export function BoardActionBar({
 
       {externalUrl && (
         <a
-          className="btn-ghost text-sm"
+          className="btn-ghost text-sm h-8 lg:h-10"
           href={externalUrl}
           target="_blank"
           rel="noopener noreferrer"

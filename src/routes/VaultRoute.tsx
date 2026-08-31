@@ -314,7 +314,7 @@ export function VaultRoute() {
             </span>
             <button
               type="button"
-              className="btn-ghost text-xs h-7 px-2 inline-flex items-center gap-1"
+              className="btn-ghost text-xs h-10 px-3 lg:h-7 lg:px-2 inline-flex items-center gap-1"
               onClick={clearFilters}
             >
               <CloseIcon className="h-3 w-3" />
@@ -345,7 +345,7 @@ export function VaultRoute() {
             const expanded = expandedId === g.id;
             return (
               <li key={g.id}>
-                <div className="px-5 py-3 flex items-center justify-between gap-4">
+                <div className="px-5 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                   <div className="flex flex-col min-w-0">
                     <span className="text-sm font-medium truncate">
                       {orderedPlayers(g.username, g.opponent, g.userColor)[0]}{' '}
@@ -447,7 +447,7 @@ export function VaultRoute() {
           onClick={() => !deleting && setDeleteTarget(null)}
         >
           <div
-            className="card max-w-md w-full flex flex-col gap-4"
+            className="card max-w-md w-full flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <header>
@@ -581,7 +581,7 @@ function PositionPreviewModal({
       onClick={onClose}
     >
       <div
-        className="card max-w-sm w-full flex flex-col gap-4"
+        className="card max-w-sm w-full flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-start justify-between gap-3">

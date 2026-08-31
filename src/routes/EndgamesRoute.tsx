@@ -17,6 +17,8 @@ import {
 import { useEndgamePlayoutStore } from '../state/endgamePlayoutStore';
 import { BoardPanel } from '../components/BoardPanel';
 import { BoardActionBar } from '../components/BoardActionBar';
+import { BoardStage } from '../components/BoardStage';
+import { BoardActionOverlay, useActionOverlay } from '../components/BoardActionOverlay';
 import { FeedbackBadge } from '../components/FeedbackBadge';
 import { MiniBoard } from '../components/MiniBoard';
 import {
@@ -24,6 +26,7 @@ import {
   SlipReport,
   SlipPreview,
   usePlayoutHint,
+  useSlipLineViewer,
 } from '../components/endgame/PlayoutPanel';
 import { Skeleton } from '../components/Skeleton';
 import { GameRecord } from '../models/gameRecord';
@@ -82,6 +85,14 @@ export function EndgamesRoute() {
     bestMove: playout.refEval?.bestMove,
     solving: playout.phase === 'solving',
   });
+  const slipViewer = useSlipLineViewer({
+    slip: playout.slip,
+    target: selected?.deservedResult ?? 'win',
+    userColor: selected?.userColor ?? 'white',
+    active: playout.phase === 'failed',
+    onPreview: setPreview,
+  });
+  const overlay = useActionOverlay(`${selected?.id ?? 'none'}:${playout.phase}`);
   const attemptsRef = useRef(0);
 
   // Leaving the tab abandons any in-flight play-out.
@@ -158,17 +169,55 @@ export function EndgamesRoute() {
     const externalPlatform = resolvePlatform(game?.platform, 'lichess');
     const displayedFen = preview?.fen ?? (playout.fen || selected.startFen);
     const externalAnalysis =
-      externalPlatform && displayedFen ? externalAnalysisUrl(externalPlatform, displayedFen) : null;
+      externalPlatform && displayedFen
+        ? externalAnalysisUrl(externalPlatform, displayedFen, { orientation: selected.userColor })
+        : null;
+
+    const passedMessage =
+      playout.terminal === 'checkmate-by-user'
+        ? 'Checkmate — point rescued.'
+        : selected.deservedResult === 'win'
+          ? 'Win secured — point rescued.'
+          : 'Draw held — half point rescued.';
+    const failedMessage =
+      playout.terminal === 'checkmate-by-opponent'
+        ? 'Checkmated — the point slipped away again.'
+        : playout.terminal
+          ? 'Stalemate — the win slipped away.'
+          : selected.deservedResult === 'win'
+            ? 'That move gives up the win.'
+            : 'That move gives up the draw.';
 
     return (
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
         <div className="flex flex-col gap-3">
-          <div
-            className={clsx(
-              'transition duration-200',
-              paused && 'blur-md pointer-events-none select-none',
-            )}
-            aria-hidden={paused}
+          <BoardStage
+            paused={paused}
+            overlay={
+              overlay.enabled &&
+              (playout.phase === 'passed' || playout.phase === 'failed') && (
+                <BoardActionOverlay
+                  message={playout.phase === 'passed' ? passedMessage : failedMessage}
+                  actionLabel={
+                    playout.phase === 'passed'
+                      ? 'Return to list'
+                      : playout.slip
+                        ? 'Retry from the mistake'
+                        : 'Restart play-out'
+                  }
+                  onAction={() => {
+                    if (playout.phase === 'passed') backToList();
+                    else retry(playout.slip ? 'slip' : 'start');
+                  }}
+                  dismissLabel={
+                    playout.phase === 'failed' && playout.slip
+                      ? 'Review the lines'
+                      : 'View board'
+                  }
+                  onDismiss={overlay.dismiss}
+                />
+              )
+            }
           >
             <BoardPanel
               fen={displayedFen}
@@ -178,7 +227,7 @@ export function EndgamesRoute() {
               shapes={hint.shapes}
               onMove={(m) => void playout.processMove(m)}
             />
-          </div>
+          </BoardStage>
 
           <BoardActionBar
             resetKey={selected.id}
@@ -193,6 +242,7 @@ export function EndgamesRoute() {
             onHint={hint.show}
             externalUrl={externalAnalysis?.url ?? null}
             externalLabel={externalAnalysis?.label}
+            onStepLine={slipViewer.stepLine}
           />
         </div>
 
@@ -241,43 +291,28 @@ export function EndgamesRoute() {
 
           {playout.phase === 'passed' && (
             <>
-              <FeedbackBadge tone="success">
-                {playout.terminal === 'checkmate-by-user'
-                  ? 'Checkmate — point rescued.'
-                  : selected.deservedResult === 'win'
-                    ? 'Win secured — point rescued.'
-                    : 'Draw held — half point rescued.'}
-              </FeedbackBadge>
+              <FeedbackBadge tone="success">{passedMessage}</FeedbackBadge>
               <button className="btn-primary" onClick={backToList}>
-                Return to list (Space)
+                Return to list<span className="hidden lg:inline"> (Space)</span>
               </button>
             </>
           )}
 
           {playout.phase === 'failed' && (
             <>
-              <FeedbackBadge tone="danger">
-                {playout.terminal === 'checkmate-by-opponent'
-                  ? 'Checkmated — the point slipped away again.'
-                  : playout.terminal
-                    ? 'Stalemate — the win slipped away.'
-                    : selected.deservedResult === 'win'
-                      ? 'That move gives up the win.'
-                      : 'That move gives up the draw.'}
-              </FeedbackBadge>
+              <FeedbackBadge tone="danger">{failedMessage}</FeedbackBadge>
               {playout.slip && (
                 <SlipReport
                   slip={playout.slip}
                   target={selected.deservedResult}
-                  userColor={selected.userColor}
                   logStatus={playout.slipLog}
                   onLog={() => void playout.logSlip()}
-                  onPreview={setPreview}
+                  viewer={slipViewer}
                 />
               )}
               {playout.slip && (
                 <button className="btn-primary" onClick={() => retry('slip')}>
-                  Retry from the mistake (Space)
+                  Retry from the mistake<span className="hidden lg:inline"> (Space)</span>
                 </button>
               )}
               <button className="btn-ghost" onClick={() => retry('start')}>

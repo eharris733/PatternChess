@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import { useEffect, useRef } from 'react';
 import { MOVE_GRADE_TW_BG, type MoveGrade } from '../models/gameAnnotation';
+import { ChevronIcon } from './icons/ChevronIcon';
 
 export interface MoveCell {
   san: string;
@@ -21,11 +22,17 @@ export function MoveSequencePanel({
   pairs,
   activeKey,
   onSelect,
+  onStep,
+  stepArrowsDesktopOnly,
   className,
 }: {
   pairs: MovePair[];
   activeKey?: string | null;
   onSelect?: (key: string) => void;
+  /** Render prev/next arrows that step through the line (tap equivalent of ←/→). */
+  onStep?: (dir: 1 | -1) => void;
+  /** Hide the arrow footer below lg (for screens that surface arrows near the board instead). */
+  stepArrowsDesktopOnly?: boolean;
   className?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -48,23 +55,47 @@ export function MoveSequencePanel({
   }, [activeKey]);
 
   return (
-    <div
-      ref={containerRef}
-      className={clsx(
-        'font-mono text-[13px] divide-y divide-text-primary/15 max-h-[45vh] overflow-y-auto',
-        className,
-      )}
-    >
-      {pairs.map((p) => (
+    <div className={className}>
+      <div
+        ref={containerRef}
+        className="font-mono text-[13px] divide-y divide-text-primary/15 max-h-[45vh] overflow-y-auto"
+      >
+        {pairs.map((p) => (
+          <div
+            key={p.moveNumber}
+            className="grid grid-cols-[36px_1fr_1fr] gap-2 py-1.5 px-2 items-center"
+          >
+            <span className="text-text-secondary text-right pr-1 select-none">{p.moveNumber}.</span>
+            <Cell move={p.white} active={activeKey === p.white?.key} onSelect={onSelect} />
+            <Cell move={p.black} active={activeKey === p.black?.key} onSelect={onSelect} />
+          </div>
+        ))}
+      </div>
+      {onStep && (
         <div
-          key={p.moveNumber}
-          className="grid grid-cols-[36px_1fr_1fr] gap-2 py-1.5 px-2 items-center"
+          className={clsx(
+            'items-center justify-end gap-1 border-t border-text-primary/15 py-0.5 px-1',
+            stepArrowsDesktopOnly ? 'hidden lg:flex' : 'flex',
+          )}
         >
-          <span className="text-text-secondary text-right pr-1 select-none">{p.moveNumber}.</span>
-          <Cell move={p.white} active={activeKey === p.white?.key} onSelect={onSelect} />
-          <Cell move={p.black} active={activeKey === p.black?.key} onSelect={onSelect} />
+          <button
+            type="button"
+            aria-label="Previous move"
+            onClick={() => onStep(-1)}
+            className="h-8 w-10 flex items-center justify-center text-text-primary hover:bg-accent/10 transition-colors"
+          >
+            <ChevronIcon className="h-4 w-4 rotate-180" />
+          </button>
+          <button
+            type="button"
+            aria-label="Next move"
+            onClick={() => onStep(1)}
+            className="h-8 w-10 flex items-center justify-center text-text-primary hover:bg-accent/10 transition-colors"
+          >
+            <ChevronIcon className="h-4 w-4" />
+          </button>
         </div>
-      ))}
+      )}
     </div>
   );
 }

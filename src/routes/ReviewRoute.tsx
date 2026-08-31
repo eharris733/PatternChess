@@ -160,7 +160,10 @@ export function ReviewRoute() {
 
         {(() => {
           const platform = resolvePlatform(r.game.platform, null);
-          const ext = platform && displayFen ? externalAnalysisUrl(platform, displayFen) : null;
+          const ext =
+            platform && displayFen
+              ? externalAnalysisUrl(platform, displayFen, { orientation: r.orientation })
+              : null;
           return (
             <BoardControls
               canPrev={r.currentIndex > 0}
