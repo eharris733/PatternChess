@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import { BoardPanel } from '../BoardPanel';
 import { BoardActionBar } from '../BoardActionBar';
 import { BoardStage } from '../BoardStage';
+import { SideToPlay } from '../SideToPlay';
 import { BoardActionOverlay, useActionOverlay } from '../BoardActionOverlay';
 import { FeedbackBadge } from '../FeedbackBadge';
 import { ProgressBar } from '../ProgressBar';
@@ -220,19 +221,7 @@ export function EndgameDrillView({
           showNextReview={playing && !revealed}
         />
 
-        {playing && (
-          <div className="flex items-center gap-2 text-text-primary">
-            <span
-              className={clsx(
-                'w-3 h-3 rounded-full border-2 border-text-primary',
-                userColor === 'white' ? 'bg-surface' : 'bg-black',
-              )}
-            />
-            <span className="font-medium">
-              {userColor === 'white' ? 'White' : 'Black'} to play
-            </span>
-          </div>
-        )}
+        {playing && <SideToPlay color={userColor} />}
 
         {revealed && playing && (
           <>
@@ -270,7 +259,7 @@ export function EndgameDrillView({
               This time you kept the {target === 'win' ? 'full point' : 'half point'}.
             </p>
             <button className="btn-primary mt-auto" onClick={() => training.advance()}>
-              Next<span className="hidden lg:inline"> (Space)</span>
+              Next<span className="hidden lg:inline ml-1.5"> (Space)</span>
             </button>
           </>
         )}
@@ -292,7 +281,7 @@ export function EndgameDrillView({
               />
             )}
             <button className="btn-primary mt-auto" onClick={() => training.requeueAndAdvance()}>
-              Continue<span className="hidden lg:inline"> (Space)</span>
+              Continue<span className="hidden lg:inline ml-1.5"> (Space)</span>
             </button>
             <p className="text-text-secondary text-xs text-center -mt-1">
               Comes back later this session

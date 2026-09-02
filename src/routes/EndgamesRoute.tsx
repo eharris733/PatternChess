@@ -18,6 +18,7 @@ import { useEndgamePlayoutStore } from '../state/endgamePlayoutStore';
 import { BoardPanel } from '../components/BoardPanel';
 import { BoardActionBar } from '../components/BoardActionBar';
 import { BoardStage } from '../components/BoardStage';
+import { SideToPlay } from '../components/SideToPlay';
 import { BoardActionOverlay, useActionOverlay } from '../components/BoardActionOverlay';
 import { FeedbackBadge } from '../components/FeedbackBadge';
 import { MiniBoard } from '../components/MiniBoard';
@@ -182,8 +183,10 @@ export function EndgamesRoute() {
     const failedMessage =
       playout.terminal === 'checkmate-by-opponent'
         ? 'Checkmated — the point slipped away again.'
-        : playout.terminal
+        : playout.terminal === 'stalemate'
           ? 'Stalemate — the win slipped away.'
+          : playout.terminal === 'draw-rule'
+            ? 'Drawn by rule — the win slipped away.'
           : selected.deservedResult === 'win'
             ? 'That move gives up the win.'
             : 'That move gives up the draw.';
@@ -193,6 +196,7 @@ export function EndgamesRoute() {
         <div className="flex flex-col gap-3">
           <BoardStage
             paused={paused}
+            loading={playout.phase === 'loading'}
             overlay={
               overlay.enabled &&
               (playout.phase === 'passed' || playout.phase === 'failed') && (
@@ -269,6 +273,15 @@ export function EndgamesRoute() {
           </div>
 
           {playing && (
+            <SideToPlay
+              color={selected.userColor}
+              label={`You play ${selected.userColor === 'white' ? 'White' : 'Black'} — ${
+                playout.phase === 'thinking' ? 'opponent to move' : 'your move'
+              }`}
+            />
+          )}
+
+          {playing && (
             <HeldMeter
               heldStreak={playout.heldStreak}
               holdTarget={playout.holdTarget}
@@ -293,7 +306,7 @@ export function EndgamesRoute() {
             <>
               <FeedbackBadge tone="success">{passedMessage}</FeedbackBadge>
               <button className="btn-primary" onClick={backToList}>
-                Return to list<span className="hidden lg:inline"> (Space)</span>
+                Return to list<span className="hidden lg:inline ml-1.5"> (Space)</span>
               </button>
             </>
           )}
@@ -312,7 +325,7 @@ export function EndgamesRoute() {
               )}
               {playout.slip && (
                 <button className="btn-primary" onClick={() => retry('slip')}>
-                  Retry from the mistake<span className="hidden lg:inline"> (Space)</span>
+                  Retry from the mistake<span className="hidden lg:inline ml-1.5"> (Space)</span>
                 </button>
               )}
               <button className="btn-ghost" onClick={() => retry('start')}>
@@ -400,11 +413,6 @@ export function EndgamesRoute() {
                           {SCENARIO_STATUS_LABEL[s.status]}
                         </span>
                       </div>
-                      {s.severity != null && (
-                        <p className="font-mono text-xs text-mistake">
-                          −{s.severity}% winning chances
-                        </p>
-                      )}
                       <p className="text-text-secondary text-sm">
                         {game ? `vs ${game.opponent}` : 'Unknown game'}
                         {game?.playedAt ? ` · ${game.playedAt.toLocaleDateString()}` : ''}

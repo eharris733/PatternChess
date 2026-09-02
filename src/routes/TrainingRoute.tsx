@@ -626,7 +626,7 @@ export function TrainingRoute() {
               Find a better move for {blunder.sideToMove === 'white' ? 'White' : 'Black'}.
             </p>
             <button className="btn-primary" onClick={() => state.proceedFromReview()}>
-              I'm ready<span className="hidden lg:inline"> (Space)</span>
+              I'm ready<span className="hidden lg:inline ml-1.5"> (Space)</span>
             </button>
           </>
         )}
@@ -747,7 +747,7 @@ export function TrainingRoute() {
               </div>
             )}
             <button className="btn-primary mt-auto" onClick={() => state.advance()}>
-              Next<span className="hidden lg:inline"> (Space)</span>
+              Next<span className="hidden lg:inline ml-1.5"> (Space)</span>
             </button>
           </>
         )}
@@ -821,7 +821,7 @@ export function TrainingRoute() {
               }
             >
               {state.incorrectRequeue ? 'Continue' : 'Try again'}
-              <span className="hidden lg:inline"> (Space)</span>
+              <span className="hidden lg:inline ml-1.5"> (Space)</span>
             </button>
             {state.incorrectRequeue && (
               <p className="text-text-secondary text-xs text-center -mt-1">
