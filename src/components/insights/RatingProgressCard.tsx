@@ -54,7 +54,7 @@ export function RatingProgressChartList({
 }) {
   if (progress.length === 0) return null;
   return (
-    <section className="card flex flex-col gap-5">
+    <section id="rating-progress" className="card flex flex-col gap-5 scroll-mt-6">
       <header className="flex items-baseline justify-between">
         <span className="label">Rating progress</span>
         <span className="text-text-secondary text-xs">since you joined</span>

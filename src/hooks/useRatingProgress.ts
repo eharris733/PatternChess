@@ -111,6 +111,20 @@ export function ratingProgressFromGames(
   return out;
 }
 
+/**
+ * Rating gained since joining: the sum of positive (latest − first) deltas
+ * across every platform × time-control series. Series that slipped count as
+ * zero rather than subtracting, matching the landing-page `landing_stats`
+ * RPC so the personal number and the global one mean the same thing.
+ */
+export function totalEloGained(progress: CategoryRatingProgress[]): number {
+  let total = 0;
+  for (const cat of progress) {
+    for (const s of cat.series) total += Math.max(s.delta, 0);
+  }
+  return total;
+}
+
 export function useRatingProgress() {
   const games = useGames();
   const { profile } = useAuth();
