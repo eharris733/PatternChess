@@ -1,4 +1,4 @@
-import { SevenStageLadder } from './SevenStageLadder';
+import { TrainingLadder } from './TrainingLadder';
 
 export const HOW_IT_WORKS_STEPS = [
   {
@@ -9,7 +9,7 @@ export const HOW_IT_WORKS_STEPS = [
   {
     num: '02',
     title: 'Drill them across days',
-    body: 'A seven-stage ladder over 56 days, so you truly internalize your mistakes and learn from them.',
+    body: 'A four-rep ladder over about a month, so you truly internalize your mistakes and learn from them.',
   },
   {
     num: '03',
@@ -46,7 +46,7 @@ export function HowItWorks() {
           ))}
         </div>
 
-        <SevenStageLadder />
+        <TrainingLadder />
       </div>
     </section>
   );

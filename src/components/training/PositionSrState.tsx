@@ -50,7 +50,7 @@ export function PositionSrState({
   /** Show the "solve it → next review in N days" cadence hint (pre-solve only). */
   showNextReview?: boolean;
 }) {
-  const total = SPACED_REPETITION_DAYS.length; // 7
+  const total = SPACED_REPETITION_DAYS.length;
   const filled = Math.min(blunder.cycleNumber, total);
   const rawBucket = srBucket(blunder);
   const displayBucket: SrBucket =

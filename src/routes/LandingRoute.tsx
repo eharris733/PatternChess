@@ -36,7 +36,7 @@ export function LandingRoute() {
       softwareApplicationJsonLd(),
       howToJsonLd(
         'How PatternChess trains the blunders from your own games',
-        'Import your games, let Stockfish find the blunders, then drill them on a seven-stage spaced-repetition ladder until the right move is automatic.',
+        'Import your games, let Stockfish find the blunders, then drill them on a four-rep spaced-repetition ladder until the right move is automatic.',
         HOW_IT_WORKS_STEPS.map((s) => ({ name: s.title, text: s.body })),
       ),
     ],
