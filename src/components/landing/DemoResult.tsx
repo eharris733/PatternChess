@@ -15,7 +15,7 @@ export function DemoResult({ demo }: Props) {
     return (
       <div className="flex flex-col gap-3">
         <DemoProgressPanel label={demo.progressLabel || 'Starting…'} />
-        <p className="font-mono uppercase text-[10px] tracking-tight text-text-primary/50">
+        <p className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
           Running Stockfish in your browser. No data leaves your machine until you sign up.
         </p>
       </div>
@@ -54,7 +54,7 @@ export function DemoResult({ demo }: Props) {
           openingName={r.openingName}
         />
         <div className="border-2 border-text-primary bg-surface p-6">
-          <div className="font-mono uppercase text-xs tracking-tight text-text-primary/60 mb-2">
+          <div className="font-mono uppercase text-xs tracking-tight text-text-secondary mb-2">
             Clean games
           </div>
           <p className="text-text-primary mb-4">

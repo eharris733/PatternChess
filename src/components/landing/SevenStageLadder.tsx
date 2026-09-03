@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { Key } from 'chessground/types';
-import { ChessgroundReact } from '../../chess/chessgroundReact';
+import { LazyChessgroundReact } from '../../chess/LazyChessgroundReact';
 import { RANKS } from '../../lib/ranks';
 import { SPACED_REPETITION_DAYS } from '../../models/blunder';
 
@@ -74,7 +74,7 @@ function MiniBoard({ shapes }: { shapes: Stage['shapes'] }) {
 
   return (
     <div className="aspect-square w-full">
-      <ChessgroundReact config={config} />
+      <LazyChessgroundReact config={config} />
     </div>
   );
 }
@@ -86,7 +86,7 @@ export function SevenStageLadder() {
         <div className="font-mono uppercase tracking-tight text-sm text-text-primary">
           The seven-stage ladder
         </div>
-        <div className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60">
+        <div className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
           One pattern · same position · drilled until it's yours
         </div>
       </div>
@@ -101,13 +101,13 @@ export function SevenStageLadder() {
             }
           >
             <div className="flex items-baseline justify-between gap-3">
-              <span className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60 whitespace-nowrap">
+              <span className="font-mono uppercase text-[10px] tracking-tight text-text-secondary whitespace-nowrap">
                 Rep {stage.rep} · Day {stage.day}
               </span>
               <span
                 className={
                   'font-mono uppercase text-[11px] tracking-tight font-bold ' +
-                  (stage.highlight ? 'text-gold-dark' : 'text-text-primary')
+                  (stage.highlight ? 'text-text-primary underline decoration-gold-dark decoration-2 underline-offset-4' : 'text-text-primary')
                 }
               >
                 {stage.rank}
@@ -131,7 +131,7 @@ export function SevenStageLadder() {
       </div>
 
       <div className="border-t-2 border-text-primary px-6 py-6 bg-bg">
-        <div className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60 mb-4">
+        <div className="font-mono uppercase text-[10px] tracking-tight text-text-secondary mb-4">
           Every blunder climbs the same ladder — Pawn to Transcendent.
         </div>
         <div className="grid grid-cols-7 gap-1 sm:gap-3">
@@ -174,7 +174,7 @@ export function SevenStageLadder() {
             );
           })}
         </div>
-        <div className="mt-4 font-mono uppercase text-[10px] tracking-tight text-text-primary/60 text-right">
+        <div className="mt-4 font-mono uppercase text-[10px] tracking-tight text-text-secondary text-right">
           Each drill survived advances you one rung.
         </div>
       </div>

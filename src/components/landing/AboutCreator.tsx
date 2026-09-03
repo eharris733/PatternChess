@@ -1,3 +1,5 @@
+import { CREATOR_LINKS } from '../../seo/siteMeta';
+
 export function AboutCreator() {
   return (
     <section>
@@ -11,8 +13,12 @@ export function AboutCreator() {
         <div className="grid md:grid-cols-[200px_1fr] gap-8 lg:gap-12 items-start">
           <div className="border-2 border-text-primary bg-surface aspect-square w-full md:w-[200px] flex items-center justify-center shadow-card overflow-hidden">
             <img
-              src="/popchess-brenda.png"
+              src="/popchess-brenda.webp"
               alt="PatternChess mascot"
+              width={165}
+              height={155}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-contain p-2"
             />
           </div>
@@ -33,9 +39,9 @@ export function AboutCreator() {
               come up with a solution. So I built one.
             </p>
             <div className="mt-2 flex flex-wrap gap-3 pt-3 border-t-2 border-text-primary/10">
-              <CreatorLink label="Chess.com" href="https://www.chess.com/member/eharris733" />
-              <CreatorLink label="Lichess" href="https://lichess.org/@/bewaretheschnook" />
-              <CreatorLink label="GitHub" href="https://github.com/eharris733" />
+              {CREATOR_LINKS.map((l) => (
+                <CreatorLink key={l.label} label={l.label} href={l.href} />
+              ))}
             </div>
           </div>
         </div>

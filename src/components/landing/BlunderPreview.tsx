@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { Key } from 'chessground/types';
-import { ChessgroundReact } from '../../chess/chessgroundReact';
+import { LazyChessgroundReact } from '../../chess/LazyChessgroundReact';
 import { uciToSan } from '../../chess/moveUtils';
 import type { BlunderCandidate } from '../../stockfish/stockfishWorkerClient';
 
@@ -62,12 +62,12 @@ export function BlunderPreview({ blunder, moveLabel }: Props) {
       <div className="grid md:grid-cols-[280px_1fr]">
         <div className="border-b-2 md:border-b-0 md:border-r-2 border-text-primary p-4 bg-bg">
           <div className="aspect-square w-full">
-            <ChessgroundReact config={config} />
+            <LazyChessgroundReact config={config} />
           </div>
         </div>
         <div className="p-6 flex flex-col gap-4">
           {moveLabel && (
-            <div className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60">
+            <div className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
               {moveLabel}
             </div>
           )}
@@ -79,7 +79,7 @@ export function BlunderPreview({ blunder, moveLabel }: Props) {
             <span className="text-gold-dark font-bold">{blunder.evalSwing}%</span> stronger.
           </div>
           <div className="mt-auto pt-4 border-t-2 border-text-primary/10">
-            <div className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60">
+            <div className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
               This is one position. We find every blunder like it.
             </div>
           </div>

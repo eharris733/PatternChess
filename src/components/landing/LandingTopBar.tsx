@@ -4,6 +4,12 @@ import { LandingBrand } from './LandingBrand';
 export function LandingTopBar() {
   return (
     <header className="sticky top-0 z-10 bg-bg/95 backdrop-blur border-b-2 border-text-primary">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-20 focus:px-4 focus:py-2 focus:border-2 focus:border-text-primary focus:bg-surface focus:text-text-primary font-mono uppercase text-xs tracking-tight"
+      >
+        Skip to content
+      </a>
       <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
         <LandingBrand small />
         <nav className="flex items-center gap-3">

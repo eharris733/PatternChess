@@ -32,4 +32,7 @@ export default defineConfig({
     worker: { format: 'es' },
     assetsInclude: ['**/*.wasm'],
     optimizeDeps: { exclude: ['chessground'] },
+    // Hidden source maps: emitted for error tooling but no sourceMappingURL in
+    // the shipped JS, so browsers never fetch them.
+    build: { target: 'es2022', sourcemap: 'hidden' },
 });

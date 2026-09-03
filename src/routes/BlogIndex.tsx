@@ -3,7 +3,7 @@ import { LandingTopBar } from '../components/landing/LandingTopBar';
 import { LandingFooter } from '../components/landing/LandingFooter';
 import { getAllPosts, formatPostDate } from '../blog/posts';
 import { useHead } from '../seo/useHead';
-import { websiteJsonLd } from '../seo/jsonLd';
+import { websiteJsonLd, breadcrumbJsonLd } from '../seo/jsonLd';
 
 export function BlogIndex() {
   const posts = getAllPosts();
@@ -13,13 +13,19 @@ export function BlogIndex() {
     description:
       'Practical guides on cutting blunders, the Woodpecker Method, spaced repetition, and getting better at chess by training your own games.',
     canonical: '/blog',
-    jsonLd: websiteJsonLd(),
+    jsonLd: [
+      websiteJsonLd(),
+      breadcrumbJsonLd([
+        { name: 'Home', url: '/' },
+        { name: 'Blog', url: '/blog' },
+      ]),
+    ],
   });
 
   return (
     <div className="min-h-screen bg-bg text-text-primary font-sans flex flex-col">
       <LandingTopBar />
-      <main className="flex-1">
+      <main id="main" className="flex-1 scroll-mt-20">
         <div className="max-w-3xl mx-auto px-6 py-12">
           <h1 className="text-3xl font-bold tracking-tight">Chess Improvement Blog</h1>
           <p className="mt-3 text-lg text-text-primary/70">

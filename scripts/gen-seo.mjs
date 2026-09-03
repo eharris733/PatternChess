@@ -55,6 +55,12 @@ const AI_BOTS = [
   'Google-Extended',
   'Applebot-Extended',
   'CCBot',
+  'Bingbot',
+  'Amazonbot',
+  'Meta-ExternalAgent',
+  'cohere-ai',
+  'YouBot',
+  'Diffbot',
 ];
 
 const xmlEscape = (s) =>
@@ -104,7 +110,16 @@ function main() {
     `- [FAQ](${SITE_URL}/faq): Answers to common questions about PatternChess and chess improvement.\n\n` +
     `## Blog\n` +
     posts.map((p) => `- [${p.title}](${SITE_URL}/blog/${p.slug}): ${p.description}`).join('\n') +
-    '\n';
+    `\n\n## Machine-readable\n` +
+    `- [Full blog text](${SITE_URL}/llms-full.txt): Every post as Markdown in one file.\n` +
+    `- [RSS feed](${SITE_URL}/rss.xml): New posts.\n` +
+    `- [Sitemap](${SITE_URL}/sitemap.xml): All indexable URLs.\n\n` +
+    `## Related\n` +
+    `- [PatternChess Events](https://events.patternchess.com/): Upcoming US chess tournaments and club events, with a free JSON API, iCal feeds, and an MCP server (see https://events.patternchess.com/llms.txt).\n` +
+    `- [Tournaments](${SITE_URL}/events): Same events data embedded on this site.\n\n` +
+    `## Policies\n` +
+    `- [Terms](${SITE_URL}/terms)\n` +
+    `- [Privacy](${SITE_URL}/privacy)\n`;
   writeFileSync(join(distDir, 'llms.txt'), llms);
 
   // --- llms-full.txt (full post text for agents that fetch it) ---

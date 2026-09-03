@@ -27,6 +27,7 @@ export function BlogPost() {
               dateModified: post.updated,
               author: post.author,
               image: post.ogImage,
+              wordCount: post.wordCount,
             }),
             breadcrumbJsonLd([
               { name: 'Home', url: '/' },
@@ -47,7 +48,7 @@ export function BlogPost() {
     return (
       <div className="min-h-screen bg-bg text-text-primary font-sans flex flex-col">
         <LandingTopBar />
-        <main className="flex-1">
+        <main id="main" className="flex-1 scroll-mt-20">
           <div className="max-w-3xl mx-auto px-6 py-20 text-center">
             <h1 className="text-2xl font-bold tracking-tight">Post not found</h1>
             <p className="mt-3 text-text-primary/70">We couldn&apos;t find that post.</p>
@@ -67,7 +68,7 @@ export function BlogPost() {
   return (
     <div className="min-h-screen bg-bg text-text-primary font-sans flex flex-col">
       <LandingTopBar />
-      <main className="flex-1">
+      <main id="main" className="flex-1 scroll-mt-20">
         <article className="max-w-3xl mx-auto px-6 py-12">
           <Link
             to="/blog"

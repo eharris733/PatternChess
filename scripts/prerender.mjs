@@ -31,6 +31,7 @@ const distDir = join(root, 'dist');
 
 const routes = [
   '/',
+  '/login',
   '/about',
   '/faq',
   '/events',

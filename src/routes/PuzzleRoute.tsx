@@ -11,6 +11,7 @@ import { getStockfish } from '../hooks/useStockfish';
 import { moveToUci, parseUciMove, uciToSan } from '../chess/moveUtils';
 import { classify, winPercent } from '../chess/winningChances';
 import { useForceDefaultTheme } from '../state/themeStore';
+import { useHead } from '../seo/useHead';
 
 type Phase = 'solving' | 'correct' | 'incorrect';
 
@@ -20,6 +21,14 @@ type Phase = 'solving' | 'correct' | 'incorrect';
  */
 export function PuzzleRoute() {
   useForceDefaultTheme();
+  // Shared puzzle links are per-user; keep them out of search (robots.txt
+  // disallows /p too) and stop the SPA fallback's landing canonical leaking.
+  useHead({
+    title: 'Shared puzzle',
+    description: 'Solve a blunder shared from a PatternChess game.',
+    canonical: '/p',
+    robots: 'noindex,nofollow',
+  });
   const [params] = useSearchParams();
   const puzzle = useMemo(() => {
     const d = params.get('d');

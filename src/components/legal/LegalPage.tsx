@@ -13,7 +13,7 @@ export function LegalPage({ title, effectiveDate, children }: LegalPageProps) {
   return (
     <div className="min-h-screen bg-bg text-text-primary font-sans flex flex-col">
       <LandingTopBar />
-      <main className="flex-1">
+      <main id="main" className="flex-1 scroll-mt-20">
         <div className="max-w-3xl mx-auto px-6 py-12">
           <Link
             to="/"

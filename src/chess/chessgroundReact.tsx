@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Chessground } from 'chessground';
+import '../styles/chessground.css';
 import type { Api } from 'chessground/api';
 import type { Config } from 'chessground/config';
 

@@ -57,6 +57,7 @@ export function readPublishedPosts() {
       tags: Array.isArray(data.tags) ? data.tags.map(String) : [],
       author: data.author ? String(data.author) : 'Elliot Harris',
       ogImage: data.ogImage ? String(data.ogImage) : undefined,
+      wordCount,
       readingMinutes: Math.max(1, Math.round(wordCount / 200)),
       html: md.render(content),
       markdown: content.trim(),

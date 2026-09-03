@@ -18,3 +18,11 @@ export function absoluteUrl(pathOrUrl: string): string {
   const path = pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`;
   return `${SITE_URL}${path}`;
 }
+
+/** The creator's public profiles — rendered on the landing page and emitted as
+ * Organization.sameAs so knowledge graphs can tie the site to real accounts. */
+export const CREATOR_LINKS = [
+  { label: 'Chess.com', href: 'https://www.chess.com/member/eharris733' },
+  { label: 'Lichess', href: 'https://lichess.org/@/bewaretheschnook' },
+  { label: 'GitHub', href: 'https://github.com/eharris733' },
+] as const;

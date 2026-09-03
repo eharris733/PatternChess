@@ -1,6 +1,6 @@
 import { useCountUp } from '../../hooks/useCountUp';
 import { useInView } from '../../hooks/useInView';
-import { useLandingStats } from '../../hooks/useLandingStats';
+import { LANDING_STATS_SNAPSHOT, useLandingStats } from '../../hooks/useLandingStats';
 
 const numberFormat = new Intl.NumberFormat('en-US');
 
@@ -8,14 +8,18 @@ const numberFormat = new Intl.NumberFormat('en-US');
  * Social-proof stat card: global positions-reviewed and ELO-gained totals
  * across all accounts, framed in the same bordered-card language as the rest
  * of the landing page. The numbers count up once the card scrolls into view.
- * Renders nothing while loading, on failure, or when there is no data yet —
- * the page must never show a broken badge.
+ * Renders from the build-time snapshot on first paint (so it is part of the
+ * prerendered HTML and never pops into the layout), then updates in place when
+ * the live RPC resolves.
  */
 export function SocialProofBadge() {
-  const { data } = useLandingStats();
+  const { data: live } = useLandingStats();
   const { ref, inView } = useInView<HTMLElement>(0.3);
 
-  if (!data || (data.positionsReviewed <= 0 && data.eloGained <= 0)) return null;
+  // Fall back to the build-time snapshot rather than unmounting: once this
+  // card has been laid out, removing it would shift everything below it.
+  const data = live ?? LANDING_STATS_SNAPSHOT;
+  if (data.positionsReviewed <= 0 && data.eloGained <= 0) return null;
 
   return (
     <section ref={ref} className="border-b-2 border-text-primary">
@@ -23,7 +27,7 @@ export function SocialProofBadge() {
         <div className="border-2 border-text-primary bg-surface">
           <div className="flex items-center gap-2.5 border-b-2 border-text-primary px-5 py-3">
             <span className="h-2 w-2 rounded-full bg-gold-dark" aria-hidden />
-            <span className="font-mono uppercase text-[10px] tracking-[0.18em] text-text-primary/60">
+            <span className="font-mono uppercase text-[10px] tracking-[0.18em] text-text-secondary">
               Across every PatternChess account
             </span>
           </div>
@@ -68,7 +72,7 @@ function Stat({
         {prefix}
         {numberFormat.format(value)}
       </div>
-      <div className="font-mono uppercase text-[11px] tracking-[0.12em] text-text-primary/55">
+      <div className="font-mono uppercase text-[11px] tracking-[0.12em] text-text-secondary">
         {label}
       </div>
     </div>
