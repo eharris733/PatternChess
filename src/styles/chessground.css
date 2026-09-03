@@ -1,0 +1,125 @@
+/*
+ * Chessground stylesheet: vendor base + cburnett pieces, then our theme
+ * overrides. Imported by src/chess/chessgroundReact.tsx (the lazy board
+ * module), never from the global stylesheet — keeping order inside one file
+ * guarantees our rules beat the vendor ones regardless of chunk load order.
+ *
+ * chessground.brown.css is deliberately NOT imported: everything it styled
+ * (board background, move-dest / premove-dest / last-move / selected / check)
+ * is redefined below from the --board-* theme tokens in themes.css.
+ */
+@import 'chessground/assets/chessground.base.css';
+@import 'chessground/assets/chessground.cburnett.css';
+
+/*
+ * Chessground board theme — colors driven by --board-* CSS variables.
+ * Chessground paints squares via a base64 SVG background-image on cg-board;
+ * we replace that with a CSS conic-gradient checker pattern so the theme
+ * tokens actually drive board appearance.
+ */
+cg-board {
+  background-color: var(--board-light);
+  background-image: conic-gradient(
+    var(--board-dark) 25%,
+    var(--board-light) 0 50%,
+    var(--board-dark) 0 75%,
+    var(--board-light) 0
+  );
+  background-size: 25% 25%;
+  background-position: 0 0;
+}
+cg-board square.last-move {
+  background-color: var(--board-last-move);
+}
+cg-board square.selected {
+  background-color: var(--board-selected);
+}
+cg-board square.move-dest {
+  background: radial-gradient(var(--board-move-dest) 22%, transparent 24%);
+}
+cg-board square.premove-dest {
+  background: radial-gradient(var(--board-premove-dest) 22%, transparent 24%);
+}
+cg-board square.check {
+  background: radial-gradient(rgba(196, 40, 32, 0.85) 25%, rgba(196, 40, 32, 0.5) 60%, transparent 70%);
+}
+
+/* Capture targets (occupied destination squares): a ring instead of a dot,
+   mirroring chessground.brown.css but on the theme token. */
+cg-board square.oc.move-dest {
+  background: radial-gradient(transparent 0%, transparent 79%, var(--board-move-dest) 80%);
+}
+cg-board square.oc.premove-dest {
+  background: radial-gradient(transparent 0%, transparent 79%, var(--board-premove-dest) 80%);
+}
+
+cg-board piece {
+  filter: var(--piece-filter, none);
+}
+
+.cg-wrap {
+  border-radius: 0;
+  overflow: hidden;
+  /* Inset outline, not a border: chessground computes the piece grid from the
+     wrap's getBoundingClientRect(), which includes borders — a real border
+     makes the grid 4px wider than the playing surface and clips edge pieces
+     on small boards. An outline leaves the geometry alone. */
+  outline: 2px solid rgb(var(--text-primary));
+  outline-offset: -2px;
+  box-shadow: 3px 3px 0 rgb(var(--text-primary));
+}
+
+/* Coordinate labels. Chessground's stock rules position coords in an external
+   gutter (files at bottom: -4px / left: 24px, ranks at top: -20px) that our
+   borderless overflow-hidden .cg-wrap clips and offsets. Render them inside
+   the board instead: files in the bottom-right corner of the first rank's
+   squares, ranks in the top-left corner of the first file's squares. Each
+   label is colored with the opposite square's theme variable so it stays
+   legible on every board theme and both orientations. */
+.cg-wrap coords {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 1;
+}
+.cg-wrap coords.files {
+  bottom: 0;
+  left: 0;
+  height: auto;
+  text-transform: none;
+}
+.cg-wrap coords.files coord {
+  text-align: right;
+  padding: 0 3px 2px 0;
+}
+.cg-wrap coords.ranks,
+.cg-wrap coords.ranks.left {
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: auto;
+  align-items: flex-start;
+}
+.cg-wrap coords.ranks coord {
+  transform: none;
+  padding: 1px 0 0 3px;
+}
+/* Odd labels sit on dark squares in white orientation (a1, ranks 1/3/…);
+   parity flips with orientation. Translucent white-on-dark / black-on-light
+   keeps contrast on every theme, including ones where the two square colors
+   are close in tone. */
+.cg-wrap coords.ranks coord:nth-child(odd),
+.cg-wrap coords.files coord:nth-child(odd) {
+  color: rgba(255, 255, 255, 0.8);
+}
+.cg-wrap coords.ranks coord:nth-child(even),
+.cg-wrap coords.files coord:nth-child(even) {
+  color: rgba(0, 0, 0, 0.55);
+}
+.cg-wrap coords.ranks.black coord:nth-child(odd),
+.cg-wrap coords.files.black coord:nth-child(odd) {
+  color: rgba(0, 0, 0, 0.55);
+}
+.cg-wrap coords.ranks.black coord:nth-child(even),
+.cg-wrap coords.files.black coord:nth-child(even) {
+  color: rgba(255, 255, 255, 0.8);
+}

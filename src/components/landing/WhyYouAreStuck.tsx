@@ -146,7 +146,7 @@ export function WhyYouAreStuck() {
         </div>
 
         <details className="group mt-12 border-2 border-text-primary bg-surface">
-          <summary className="flex cursor-pointer select-none items-center justify-between gap-3 p-6 font-mono uppercase text-[10px] tracking-tight text-text-primary/60 list-none [&::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer select-none items-center justify-between gap-3 p-6 font-mono uppercase text-[10px] tracking-tight text-text-secondary list-none [&::-webkit-details-marker]:hidden">
             <span>Footnotes</span>
             <ChevronIcon className="h-4 w-4 transition-transform duration-200 group-open:rotate-90" />
           </summary>

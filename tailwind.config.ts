@@ -26,9 +26,9 @@ export default {
         inaccuracy: '#1A6BB8',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Inter', '"Inter Fallback"', 'system-ui', 'sans-serif'],
         serif: ['Georgia', '"Times New Roman"', 'serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        mono: ['"JetBrains Mono"', '"JetBrains Mono Fallback"', 'ui-monospace', 'monospace'],
       },
       boxShadow: {
         card: '3px 3px 0 rgb(var(--text-primary))',

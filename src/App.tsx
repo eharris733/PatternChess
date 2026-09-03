@@ -13,7 +13,12 @@ import { FaqRoute } from './routes/FaqRoute';
 import { EventsRoute } from './routes/EventsRoute';
 import { BlogIndex } from './routes/BlogIndex';
 import { BlogPost } from './routes/BlogPost';
-import { PuzzleRoute } from './routes/PuzzleRoute';
+import { NotFoundRoute } from './routes/NotFoundRoute';
+
+// /p (shared puzzles) is public but not prerendered, and it is the only eager
+// route that pulls in chessground; lazy-loading it keeps the board library
+// out of the landing-page bundle.
+const PuzzleRoute = lazy(() => import('./routes/PuzzleRoute').then((m) => ({ default: m.PuzzleRoute })));
 
 // Gated app routes are lazy: they sit behind auth (a brief fallback is fine) and
 // carry the heavy code — recharts (analytics), training-engine glue — that we
@@ -64,7 +69,14 @@ export default function App() {
       <Route path="/events" element={<EventsRoute />} />
       <Route path="/blog" element={<BlogIndex />} />
       <Route path="/blog/:slug" element={<BlogPost />} />
-      <Route path="/p" element={<PuzzleRoute />} />
+      <Route
+        path="/p"
+        element={
+          <Suspense fallback={<RouteFallback />}>
+            <PuzzleRoute />
+          </Suspense>
+        }
+      />
       <Route
         element={
           <AppShell>
@@ -83,8 +95,8 @@ export default function App() {
         <Route path="/analytics" element={<AnalyticsRoute />} />
         <Route path="/__sandbox" element={<SandboxRoute />} />
         <Route path="/__engine-test" element={<EngineTestRoute />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
+      <Route path="*" element={<NotFoundRoute />} />
     </Routes>
   );
 }

@@ -29,7 +29,7 @@ export function DemoStatsCard({
       </div>
       {opening && (
         <div className="border-t-2 border-text-primary px-4 py-3 flex items-center justify-between gap-4">
-          <span className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60">
+          <span className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
             Opening
           </span>
           <span className="font-mono uppercase text-xs tracking-tight text-text-primary truncate">
@@ -44,7 +44,7 @@ export function DemoStatsCard({
 function Stat({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="p-4 sm:p-6">
-      <div className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60 mb-2">
+      <div className="font-mono uppercase text-[10px] tracking-tight text-text-secondary mb-2">
         {label}
       </div>
       <div

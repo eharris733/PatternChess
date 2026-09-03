@@ -39,7 +39,7 @@ export const ACHIEVEMENT_CATEGORY_ORDER: readonly AchievementCategory[] = [
  */
 export interface AchievementMetrics {
   reviewed: number; // lifetime first-attempt correct recalls
-  mastered: number; // positions mastered (7 cycles, >=80% recall)
+  mastered: number; // positions mastered (all ladder cycles, >=80% recall)
   totalBlunders: number; // blunders catalogued from your games
   gamesAnalyzed: number; // games imported + analyzed
   currentStreakDays: number;

@@ -27,7 +27,7 @@ import {
   GAME_STATE_LABEL,
   computeBlunderContext,
 } from '../chess/blunderContext';
-import { Blunder, BlunderPhase } from '../models/blunder';
+import { Blunder, BlunderPhase, SPACED_REPETITION_DAYS } from '../models/blunder';
 import { MOTIF_LABEL, type Motif } from '../chess/motifs';
 import { GameRecord } from '../models/gameRecord';
 import { supabase } from '../lib/supabase';
@@ -322,7 +322,7 @@ export function TrainingRoute() {
           <Skeleton className="h-4 w-40" />
           <Skeleton className="h-3 w-24" />
           <div className="flex gap-1.5">
-            {Array.from({ length: 7 }).map((_, i) => (
+            {Array.from({ length: SPACED_REPETITION_DAYS.length }).map((_, i) => (
               <Skeleton key={i} className="h-3 w-3" />
             ))}
           </div>

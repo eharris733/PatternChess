@@ -33,7 +33,7 @@ export function LandingFooter() {
             ))}
           </nav>
         </div>
-        <div className="mt-6 text-center font-mono uppercase text-[10px] tracking-tight text-text-primary/50">
+        <div className="mt-6 text-center font-mono uppercase text-[10px] tracking-tight text-text-secondary">
           © 2026 EH Solutions LLC. All rights reserved.
         </div>
       </div>

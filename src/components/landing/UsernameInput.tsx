@@ -28,10 +28,10 @@ export function UsernameInput({ onSubmit, loading = false }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60 mr-1">
+      <fieldset className="flex flex-wrap items-center gap-2 border-0 p-0 m-0 min-w-0">
+        <legend className="float-left font-mono uppercase text-[10px] tracking-tight text-text-secondary mr-1">
           Platform
-        </span>
+        </legend>
         <PlatformPill
           platform="lichess"
           active={platform === 'lichess'}
@@ -42,13 +42,17 @@ export function UsernameInput({ onSubmit, loading = false }: Props) {
           active={platform === 'chesscom'}
           onClick={() => setPlatform('chesscom')}
         />
-      </div>
+      </fieldset>
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex-1 flex items-stretch border-2 border-text-primary bg-surface">
-          <span className="hidden sm:flex items-center px-3 font-mono uppercase text-xs text-text-primary/60 border-r-2 border-text-primary bg-bg">
+          <span className="hidden sm:flex items-center px-3 font-mono uppercase text-xs text-text-secondary border-r-2 border-text-primary bg-bg">
             {platform === 'lichess' ? 'lichess.org/@' : 'chess.com/member/'}
           </span>
+          <label htmlFor="demo-username" className="sr-only">
+            {platform === 'lichess' ? 'Lichess username' : 'Chess.com username'}
+          </label>
           <input
+            id="demo-username"
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -68,7 +72,7 @@ export function UsernameInput({ onSubmit, loading = false }: Props) {
           {loading ? 'Analyzing…' : 'Analyze Blunders →'}
         </button>
       </div>
-      <p className="font-mono uppercase text-[10px] tracking-tight text-text-primary/50">
+      <p className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
         We only look at your chess games. Promise. 
       </p>
     </form>

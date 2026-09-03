@@ -3,7 +3,7 @@ import { LandingTopBar } from '../components/landing/LandingTopBar';
 import { LandingFooter } from '../components/landing/LandingFooter';
 import { ChevronIcon } from '../components/icons/ChevronIcon';
 import { useHead } from '../seo/useHead';
-import { faqPageJsonLd, type FaqItem } from '../seo/jsonLd';
+import { faqPageJsonLd, breadcrumbJsonLd, type FaqItem } from '../seo/jsonLd';
 
 // IMPORTANT: the visible answer text below must stay identical to the `answer`
 // strings fed to faqPageJsonLd — Google drops FAQ rich results when the
@@ -47,13 +47,19 @@ export function FaqRoute() {
     description:
       'Answers to common questions about PatternChess, the Woodpecker Method, and training on the blunders from your own chess games.',
     canonical: '/faq',
-    jsonLd: faqPageJsonLd(FAQS),
+    jsonLd: [
+      faqPageJsonLd(FAQS),
+      breadcrumbJsonLd([
+        { name: 'Home', url: '/' },
+        { name: 'FAQ', url: '/faq' },
+      ]),
+    ],
   });
 
   return (
     <div className="min-h-screen bg-bg text-text-primary font-sans flex flex-col">
       <LandingTopBar />
-      <main className="flex-1">
+      <main id="main" className="flex-1 scroll-mt-20">
         <div className="max-w-3xl mx-auto px-6 py-12">
           <Link
             to="/"

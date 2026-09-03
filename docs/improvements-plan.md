@@ -5,8 +5,9 @@ sessions and parallel agents. Item numbers map 1:1 to `improvements.md`.
 
 ## Decisions locked (2026-05-27)
 
-- **#8 SR schedule** — keep the existing **expanding** ladder `[1,2,4,7,14,28,56]`
-  (`src/models/blunder.ts:49`). The "awkward" feeling is presentation, not the algorithm.
+- **#8 SR schedule** — keep the ladder **expanding**. (Originally `[1,2,4,7,14,28,56]`; shortened
+  on 2026-09-02 to `[1,3,7,21]` + a 56-day maintenance interval for mastered rows, per
+  Rawson & Dunlosky 2011 / Cepeda et al. 2008 — `SPACED_REPETITION_DAYS` in `src/models/blunder.ts`.) The "awkward" feeling is presentation, not the algorithm.
   Do **not** implement contracting intervals (they contradict the spacing effect). Work = UX/clarity.
 - **#7 batching** — ship batching **and** discard **for all users now**; defer the "Pro" gate
   until a billing/entitlement system exists.

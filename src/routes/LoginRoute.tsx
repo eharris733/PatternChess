@@ -4,6 +4,7 @@ import { authService } from '../services/authService';
 import { useAuth } from '../auth/useAuth';
 import { BrandLockup } from '../components/BrandLogo';
 import { useForceDefaultTheme } from '../state/themeStore';
+import { useHead } from '../seo/useHead';
 
 export function LoginRoute() {
   const { session, loading } = useAuth();
@@ -11,6 +12,15 @@ export function LoginRoute() {
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useForceDefaultTheme();
+  // Not prerendered with its own content before this hook existed, so /login
+  // used to inherit the landing page's canonical + JSON-LD from the SPA
+  // fallback. Keep it out of search: it is a pure sign-in surface.
+  useHead({
+    title: 'Log in',
+    description: 'Sign in to PatternChess with Google or Lichess to train the blunders from your own games.',
+    canonical: '/login',
+    robots: 'noindex,follow',
+  });
 
   if (loading) {
     return (
@@ -48,9 +58,10 @@ export function LoginRoute() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-bg p-6">
+    <main className="min-h-screen flex items-center justify-center bg-bg p-6">
       <div className="card w-full max-w-md flex flex-col gap-6 text-center">
         <div className="flex flex-col items-center gap-3">
+          <h1 className="sr-only">Log in to PatternChess</h1>
           <BrandLockup size="xl" />
           <p className="text-text-secondary text-sm">
             Don't play the same blunder twice.
@@ -64,7 +75,11 @@ export function LoginRoute() {
             {signingIn ? 'Redirecting…' : 'Continue with Lichess'}
           </button>
         </div>
-        {error && <p className="text-incorrect text-sm">{error}</p>}
+        {error && (
+          <p role="alert" className="text-incorrect text-sm">
+            {error}
+          </p>
+        )}
         <p className="text-text-secondary text-xs">
           We only store your chess.com / lichess username and game data — no personal info used or shared.
         </p>
@@ -80,6 +95,6 @@ export function LoginRoute() {
           .
         </p>
       </div>
-    </div>
+    </main>
   );
 }

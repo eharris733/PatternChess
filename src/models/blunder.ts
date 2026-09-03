@@ -117,13 +117,29 @@ function parseSolutionLine(v: unknown): SolutionLine | null {
   return { pv, playedPv, v: 1 };
 }
 
-export const SPACED_REPETITION_DAYS = [1, 2, 4, 7, 14, 28, 56] as const;
+/**
+ * Expanding spaced-repetition ladder, in days. Index 0 is the "new / just
+ * failed" interval; each first-attempt solve advances `cycleNumber` by one and
+ * the next review lands `SPACED_REPETITION_DAYS[cycleNumber]` days later. A
+ * position is mastered once `cycleNumber >= SPACED_REPETITION_DAYS.length`
+ * (four successful spaced retrievals, ~32 days). Shortened from a 7-rung /
+ * 112-day ladder on 2026-09-02 — see docs/improvements-plan.md.
+ */
+export const SPACED_REPETITION_DAYS = [1, 3, 7, 21] as const;
+
+/** Maintenance interval for mastered positions: they never leave the queue. */
+export const MASTERED_REVIEW_DAYS = 56;
+
+/** Days until the next review for a position currently at `cycleNumber`. */
+export function intervalDaysForCycle(cycleNumber: number): number {
+  if (cycleNumber >= SPACED_REPETITION_DAYS.length) return MASTERED_REVIEW_DAYS;
+  return SPACED_REPETITION_DAYS[Math.max(0, cycleNumber)];
+}
 
 export function nextDrillDate(b: Blunder): Date {
   const base = b.lastDrilledAt ?? b.createdAt;
-  const idx = Math.min(b.cycleNumber, SPACED_REPETITION_DAYS.length - 1);
   const result = new Date(base);
-  result.setDate(result.getDate() + SPACED_REPETITION_DAYS[idx]);
+  result.setDate(result.getDate() + intervalDaysForCycle(b.cycleNumber));
   return result;
 }
 
@@ -133,8 +149,7 @@ export function nextDrillDate(b: Blunder): Date {
  * Mirrors nextDrillDate + the cycle bump in the training store.
  */
 export function nextIntervalDaysIfSolved(b: Pick<Blunder, 'cycleNumber'>): number {
-  const idx = Math.min(b.cycleNumber + 1, SPACED_REPETITION_DAYS.length - 1);
-  return SPACED_REPETITION_DAYS[idx];
+  return intervalDaysForCycle(b.cycleNumber + 1);
 }
 
 export function recallRate(b: Blunder): number {
@@ -179,7 +194,7 @@ export function blunderFromJson(json: any): Blunder {
 }
 
 /**
- * A blunder is "mastered" when it has graduated all 7 spaced-rep cycles with ≥80% recall.
+ * A blunder is "mastered" when it has graduated every spaced-rep cycle with ≥80% recall.
  * Stricter than `srBucket(b) === 'mastered'`, which only checks the cycle threshold.
  * Used by `getBlunderStats()` for the global mastery achievement count.
  */
@@ -194,7 +209,7 @@ export function isMastered(b: Blunder): boolean {
  * MUST go through `srBucket()` and `SR_BUCKET_LABEL` — do not invent ad-hoc categories.
  *
  * - `new`       — never drilled.
- * - `learning`  — actively progressing through the 7-cycle ladder.
+ * - `learning`  — actively progressing through the ladder (cycle 1..N-1).
  * - `tryAgain`  — most recent drill's first attempt was a fail; awaiting retry.
  * - `mastered`  — graduated past the ladder.
  */

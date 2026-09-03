@@ -769,7 +769,7 @@ const RECENT_WINDOW_MS = 7 * 86_400_000;
 // Stricter than srBucket(b) === 'mastered' (which only checks the cycle threshold).
 // Used here for the global "mastered" achievement count, where we want a real
 // recall floor before claiming mastery.
-const MASTERY_CYCLE_THRESHOLD = 7;
+const MASTERY_CYCLE_THRESHOLD = SPACED_REPETITION_DAYS.length;
 const MASTERY_RECALL_THRESHOLD = 0.8;
 
 export async function getBlunderStats(): Promise<BlunderStats> {

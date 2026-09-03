@@ -8,6 +8,7 @@ import {
   SITE_DESCRIPTION,
   DEFAULT_OG_IMAGE,
   SITE_LOGO,
+  CREATOR_LINKS,
   absoluteUrl,
 } from './siteMeta';
 
@@ -22,6 +23,7 @@ export function organizationJsonLd(): JsonLd {
     url: SITE_URL,
     logo: SITE_LOGO,
     description: SITE_DESCRIPTION,
+    sameAs: CREATOR_LINKS.map((l) => l.href),
   };
 }
 
@@ -78,9 +80,11 @@ export interface ArticleJsonLdInput {
   dateModified?: string;
   author: string;
   image?: string;
+  wordCount?: number;
 }
 
 export function articleJsonLd(post: ArticleJsonLdInput): JsonLd {
+  const readingMinutes = post.wordCount ? Math.max(1, Math.round(post.wordCount / 200)) : undefined;
   const url = `${SITE_URL}/blog/${post.slug}`;
   return {
     '@context': 'https://schema.org',
@@ -98,6 +102,7 @@ export function articleJsonLd(post: ArticleJsonLdInput): JsonLd {
     image: post.image ? absoluteUrl(post.image) : DEFAULT_OG_IMAGE,
     mainEntityOfPage: { '@type': 'WebPage', '@id': url },
     url,
+    ...(post.wordCount ? { wordCount: post.wordCount, timeRequired: `PT${readingMinutes}M` } : {}),
   };
 }
 
@@ -110,6 +115,28 @@ export function breadcrumbJsonLd(trail: { name: string; url: string }[]): JsonLd
       position: i + 1,
       name: item.name,
       item: absoluteUrl(item.url),
+    })),
+  };
+}
+
+export interface HowToStep {
+  name: string;
+  text: string;
+}
+
+/** The landing page's "How it works" steps, so answer engines can quote the
+ * method as a numbered procedure rather than paraphrasing the hero copy. */
+export function howToJsonLd(name: string, description: string, steps: HowToStep[]): JsonLd {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    name,
+    description,
+    step: steps.map((s, i) => ({
+      '@type': 'HowToStep',
+      position: i + 1,
+      name: s.name,
+      text: s.text,
     })),
   };
 }

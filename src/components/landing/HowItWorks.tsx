@@ -1,6 +1,6 @@
-import { SevenStageLadder } from './SevenStageLadder';
+import { TrainingLadder } from './TrainingLadder';
 
-const STEPS = [
+export const HOW_IT_WORKS_STEPS = [
   {
     num: '01',
     title: 'Stockfish finds ALL your blunders',
@@ -9,7 +9,7 @@ const STEPS = [
   {
     num: '02',
     title: 'Drill them across days',
-    body: 'A seven-stage ladder over 56 days, so you truly internalize your mistakes and learn from them.',
+    body: 'A four-rep ladder over about a month, so you truly internalize your mistakes and learn from them.',
   },
   {
     num: '03',
@@ -29,12 +29,12 @@ export function HowItWorks() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-0 border-2 border-text-primary bg-surface">
-          {STEPS.map((s, i) => (
+          {HOW_IT_WORKS_STEPS.map((s, i) => (
             <div
               key={s.num}
               className={
                 'p-6 lg:p-8 flex flex-col gap-3 ' +
-                (i < STEPS.length - 1 ? 'md:border-r-2 border-b-2 md:border-b-0 border-text-primary' : '')
+                (i < HOW_IT_WORKS_STEPS.length - 1 ? 'md:border-r-2 border-b-2 md:border-b-0 border-text-primary' : '')
               }
             >
               <span className="font-mono text-3xl text-gold-dark">{s.num}</span>
@@ -46,7 +46,7 @@ export function HowItWorks() {
           ))}
         </div>
 
-        <SevenStageLadder />
+        <TrainingLadder />
       </div>
     </section>
   );

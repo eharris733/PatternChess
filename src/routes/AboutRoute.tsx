@@ -3,7 +3,7 @@ import { LandingTopBar } from '../components/landing/LandingTopBar';
 import { LandingFooter } from '../components/landing/LandingFooter';
 import { AboutCreator } from '../components/landing/AboutCreator';
 import { useHead } from '../seo/useHead';
-import { organizationJsonLd } from '../seo/jsonLd';
+import { organizationJsonLd, breadcrumbJsonLd } from '../seo/jsonLd';
 
 // Definitional content that maps directly to the queries people ask search and
 // AI answer engines ("what is the woodpecker method", "what is a blunder").
@@ -32,13 +32,19 @@ export function AboutRoute() {
     description:
       'What PatternChess is, the Woodpecker Method it is built on, and a glossary of the chess-training terms it uses.',
     canonical: '/about',
-    jsonLd: organizationJsonLd(),
+    jsonLd: [
+      organizationJsonLd(),
+      breadcrumbJsonLd([
+        { name: 'Home', url: '/' },
+        { name: 'About', url: '/about' },
+      ]),
+    ],
   });
 
   return (
     <div className="min-h-screen bg-bg text-text-primary font-sans flex flex-col">
       <LandingTopBar />
-      <main className="flex-1">
+      <main id="main" className="flex-1 scroll-mt-20">
         <div className="max-w-3xl mx-auto px-6 py-12">
           <Link
             to="/"

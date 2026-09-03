@@ -1,8 +1,11 @@
 import { useMemo } from 'react';
 import type { Key } from 'chessground/types';
-import { ChessgroundReact } from '../../chess/chessgroundReact';
-import { RANKS } from '../../lib/ranks';
-import { SPACED_REPETITION_DAYS } from '../../models/blunder';
+import { LazyChessgroundReact } from '../../chess/LazyChessgroundReact';
+import {
+  MASTERED_REVIEW_DAYS,
+  SPACED_REPETITION_DAYS,
+  SR_BUCKET_LABEL,
+} from '../../models/blunder';
 
 // Fried Liver Attack teaching position after 1.e4 e5 2.Nf3 Nc6 3.Bc4 Nf6 4.Ng5
 // d5 5.exd5. Black to move — Nxd5 looks natural but walks into 6.Nxf7!; Na5
@@ -12,10 +15,21 @@ const FEN = 'r1bqkb1r/ppp2ppp/2n2n2/3Pp1N1/2B5/8/PPPP1PPP/RNBQK2R b KQkq - 0 5';
 const BLUNDER: [Key, Key] = ['f6', 'd5'];
 const CORRECT: [Key, Key] = ['c6', 'a5'];
 
+/**
+ * Day (counted from the game) on which each rep of the ladder falls: rep 1 is
+ * the first drill, each later rep lands one interval after the previous one.
+ * Derived from the live ladder so the marketing copy can't drift from the app.
+ */
+const REP_DAYS: number[] = SPACED_REPETITION_DAYS.reduce<number[]>((acc, days) => {
+  acc.push((acc[acc.length - 1] ?? 0) + days);
+  return acc;
+}, []);
+const REPS = REP_DAYS.length;
+const dayOfRep = (rep: number) => REP_DAYS[rep - 1];
+
 type Stage = {
   rep: number;
-  day: number;
-  rank: string;
+  state: string;
   headline: string;
   body: string;
   shapes: 'blunder' | 'both' | 'correct';
@@ -25,28 +39,25 @@ type Stage = {
 const STAGES: Stage[] = [
   {
     rep: 1,
-    day: 1,
-    rank: RANKS[0].name, // Pawn
+    state: SR_BUCKET_LABEL.new,
     headline: 'You blunder',
     body: "First encounter. Stockfish shows the move you missed — it stings, you log it, you move on.",
     shapes: 'blunder',
     highlight: false,
   },
   {
-    rep: 4,
-    day: 7,
-    rank: RANKS[3].name, // Rook
+    rep: 2,
+    state: SR_BUCKET_LABEL.learning,
     headline: "You're seeing it",
-    body: 'A week of reviews in. The shape is familiar; the right move starts to surface before you finish reading the position.',
+    body: 'A few days in. The shape is familiar; the right move starts to surface before you finish reading the position.',
     shapes: 'both',
     highlight: false,
   },
   {
-    rep: 7,
-    day: 56,
-    rank: RANKS[6].name, // Transcendent
+    rep: REPS,
+    state: SR_BUCKET_LABEL.mastered,
     headline: 'Locked in',
-    body: 'Eight weeks later, the pattern is automatic — and you spot it across the board, in your own games, without thinking.',
+    body: 'A month later, the pattern is automatic — and you spot it across the board, in your own games, without thinking.',
     shapes: 'correct',
     highlight: true,
   },
@@ -74,19 +85,19 @@ function MiniBoard({ shapes }: { shapes: Stage['shapes'] }) {
 
   return (
     <div className="aspect-square w-full">
-      <ChessgroundReact config={config} />
+      <LazyChessgroundReact config={config} />
     </div>
   );
 }
 
-export function SevenStageLadder() {
+export function TrainingLadder() {
   return (
     <div className="mt-12 border-2 border-text-primary bg-surface shadow-card">
       <div className="border-b-2 border-text-primary bg-bg px-6 py-4 flex items-baseline justify-between gap-4 flex-wrap">
         <div className="font-mono uppercase tracking-tight text-sm text-text-primary">
-          The seven-stage ladder
+          The four-rep ladder
         </div>
-        <div className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60">
+        <div className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
           One pattern · same position · drilled until it's yours
         </div>
       </div>
@@ -101,16 +112,16 @@ export function SevenStageLadder() {
             }
           >
             <div className="flex items-baseline justify-between gap-3">
-              <span className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60 whitespace-nowrap">
-                Rep {stage.rep} · Day {stage.day}
+              <span className="font-mono uppercase text-[10px] tracking-tight text-text-secondary whitespace-nowrap">
+                Rep {stage.rep} · Day {dayOfRep(stage.rep)}
               </span>
               <span
                 className={
                   'font-mono uppercase text-[11px] tracking-tight font-bold ' +
-                  (stage.highlight ? 'text-gold-dark' : 'text-text-primary')
+                  (stage.highlight ? 'text-text-primary underline decoration-gold-dark decoration-2 underline-offset-4' : 'text-text-primary')
                 }
               >
-                {stage.rank}
+                {stage.state}
               </span>
             </div>
 
@@ -131,15 +142,19 @@ export function SevenStageLadder() {
       </div>
 
       <div className="border-t-2 border-text-primary px-6 py-6 bg-bg">
-        <div className="font-mono uppercase text-[10px] tracking-tight text-text-primary/60 mb-4">
-          Every blunder climbs the same ladder — Pawn to Transcendent.
+        <div className="font-mono uppercase text-[10px] tracking-tight text-text-secondary mb-4">
+          Every blunder climbs the same four-rung ladder — then returns every {MASTERED_REVIEW_DAYS} days to stay sharp.
         </div>
-        <div className="grid grid-cols-7 gap-1 sm:gap-3">
-          {RANKS.map((rank, i) => {
-            const day = SPACED_REPETITION_DAYS[i];
-            const featured = i === 0 || i === 3 || i === 6;
+        <div
+          className="grid gap-1 sm:gap-3"
+          style={{ gridTemplateColumns: `repeat(${REPS}, minmax(0, 1fr))` }}
+        >
+          {REP_DAYS.map((day, i) => {
+            const rep = i + 1;
+            const last = i === REPS - 1;
+            const featured = i === 0 || last;
             return (
-              <div key={rank.name} className="flex flex-col items-center gap-1.5 min-w-0">
+              <div key={rep} className="flex flex-col items-center gap-1.5 min-w-0">
                 <div className="flex items-center w-full">
                   <div
                     className={
@@ -153,10 +168,7 @@ export function SevenStageLadder() {
                     }
                   />
                   <div
-                    className={
-                      'flex-1 h-0.5 ' +
-                      (i === RANKS.length - 1 ? 'invisible' : 'bg-text-primary/40')
-                    }
+                    className={'flex-1 h-0.5 ' + (last ? 'invisible' : 'bg-text-primary/40')}
                   />
                 </div>
                 <div
@@ -165,7 +177,7 @@ export function SevenStageLadder() {
                     (featured ? 'text-text-primary font-bold' : 'text-text-primary/70')
                   }
                 >
-                  {rank.name}
+                  {last ? SR_BUCKET_LABEL.mastered : `Rep ${rep}`}
                 </div>
                 <div className="text-[9px] sm:text-[10px] font-mono text-gold-dark">
                   Day {day}
@@ -174,7 +186,7 @@ export function SevenStageLadder() {
             );
           })}
         </div>
-        <div className="mt-4 font-mono uppercase text-[10px] tracking-tight text-text-primary/60 text-right">
+        <div className="mt-4 font-mono uppercase text-[10px] tracking-tight text-text-secondary text-right">
           Each drill survived advances you one rung.
         </div>
       </div>

@@ -9,6 +9,7 @@ export interface BlogPostMeta {
   author: string;
   /** Optional per-post social image (path or absolute URL). */
   ogImage?: string;
+  wordCount: number;
   readingMinutes: number;
 }
 
