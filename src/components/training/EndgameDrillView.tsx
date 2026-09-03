@@ -69,8 +69,9 @@ export function EndgameDrillView({
   const hint = usePlayoutHint({
     bestMove: playout.refEval?.bestMove,
     solving: playout.phase === 'solving',
-    // Taking a hint forfeits the clean first-attempt recall, same as tactics.
-    onFirstHint: () => useTrainingStore.getState().markExternalAttempt(),
+    // Revealing the move forfeits the clean first-attempt recall, same as
+    // tactics; the level-1 piece highlight is free.
+    onRevealMove: () => useTrainingStore.getState().markExternalAttempt(),
   });
   const startedForRef = useRef<string | null>(null);
 
@@ -254,8 +255,11 @@ export function EndgameDrillView({
         {playout.engineError && (
           <FeedbackBadge tone="warning">Engine hiccup — keep playing</FeedbackBadge>
         )}
-        {hint.level > 0 && playing && (
-          <p className="text-text-secondary text-xs">Hint shown — counts as a fail for recall.</p>
+        {hint.level === 1 && playing && (
+          <p className="text-text-secondary text-xs">Piece highlighted — find the move for full credit.</p>
+        )}
+        {hint.level === 2 && playing && (
+          <p className="text-text-secondary text-xs">Move shown — no credit for this attempt.</p>
         )}
 
         {training.phase === 'correct' && (

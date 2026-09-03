@@ -70,3 +70,29 @@ export function useTrainingActivityWindow(days = 30) {
     enabled: !!user,
   });
 }
+
+/**
+ * This week's drilling (last 7 local days, today included): attempts and
+ * correct answers summed across sessions. Feeds the dashboard trend chips.
+ */
+export function useWeeklyActivity() {
+  const { user, profile } = useAuth();
+  const tz = profile?.timezone ?? detectTimezone();
+  const today = localDate(tz);
+  const since = addDays(today, -6);
+  return useQuery({
+    queryKey: ['training', 'weekly', user?.id, since, today],
+    queryFn: async () => {
+      const sessions = await supabaseService.getTrainingSessionsSince(since);
+      return sessions.reduce(
+        (acc, s) => ({
+          attempted: acc.attempted + s.blundersAttempted,
+          correct: acc.correct + s.blundersCorrect,
+        }),
+        { attempted: 0, correct: 0 },
+      );
+    },
+    enabled: !!user,
+    staleTime: 60_000,
+  });
+}

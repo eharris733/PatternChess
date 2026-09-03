@@ -6,19 +6,7 @@ import {
   ScenarioStatus,
 } from '../../models/endgameScenario';
 import { InsightCardSkeleton } from '../Skeleton';
-
-/** Chess-score formatting from half-points: 7 → "3½", 2 → "1", 1 → "½". */
-function formatHalfPoints(halfPoints: number): string {
-  const whole = Math.floor(halfPoints / 2);
-  const frac = halfPoints % 2 === 1 ? '½' : '';
-  return whole > 0 ? `${whole}${frac}` : frac || '0';
-}
-
-/** Half-points the game result fell short of the deserved result. */
-function droppedHalfPoints(s: EndgameScenario): number {
-  if (s.deservedResult === 'win') return s.actualResult === 'loss' ? 2 : 1;
-  return 1; // holdable position, lost
-}
+import { droppedHalfPoints, formatHalfPoints } from '../../lib/halfPoints';
 
 /**
  * Dashboard summary of the /endgames trainer: how many dropped-point endgames

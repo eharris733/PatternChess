@@ -50,7 +50,19 @@ const BLUNDERS = [
   { id: 'b3', game_id: 'g1', fen: STARTPOS, move_number: 30, played_move: 'f1c4', correct_moves: [{ move: 'd2d4', eval: 0 }], eval_before: 0, eval_after: -150, eval_swing: 150, side_to_move: 'white', cycle_number: 0, last_drilled_at: null, next_drill_at: PAST, times_correct: 0, times_attempted: 0, last_drill_failed: false, created_at: PAST, phase: 'endgame' },
 ];
 
-async function stubRichAuth(page: Page, opts: { drillsToday?: number } = {}) {
+// Same vault, but nothing drilled yet — the explainer only shows before the first drill.
+const UNDRILLED_BLUNDERS = BLUNDERS.map((b) => ({
+  ...b,
+  cycle_number: 0,
+  last_drilled_at: null,
+  times_correct: 0,
+  times_attempted: 0,
+}));
+
+async function stubRichAuth(
+  page: Page,
+  opts: { drillsToday?: number; blunders?: typeof BLUNDERS } = {},
+) {
   await page.addInitScript(
     ({ session, project, profile, blunders, drillsToday }) => {
       const origFetch = window.fetch.bind(window);
@@ -105,7 +117,7 @@ async function stubRichAuth(page: Page, opts: { drillsToday?: number } = {}) {
       session: FAKE_SESSION,
       project: SUPABASE_PROJECT,
       profile: PROFILE,
-      blunders: BLUNDERS,
+      blunders: opts.blunders ?? BLUNDERS,
       drillsToday: opts.drillsToday ?? 0,
     },
   );
@@ -114,9 +126,13 @@ async function stubRichAuth(page: Page, opts: { drillsToday?: number } = {}) {
 test('dashboard renders the renamed + new cards for an established user', async ({ page }) => {
   await stubRichAuth(page);
   await page.goto('/dashboard');
-  await expect(page.getByText('Daily habit')).toBeVisible();
+  await expect(page.getByText("Today's plan")).toBeVisible();
   await expect(page.getByText('Training timeline')).toBeVisible();
-  await expect(page.getByText('How training works')).toBeVisible();
+  // Stat strip leads for returning users; the explainer is gone once they've drilled.
+  await expect(page.getByText('Day streak')).toBeVisible();
+  await expect(page.getByText('Points rescued')).toBeVisible();
+  await expect(page.getByText('How training works')).toHaveCount(0);
+  await expect(page.getByText(/positions? due/)).toBeVisible();
   // Timeline now combines the per-stage graph with the total blunder count.
   await expect(page.getByText(/blunders in vault/i)).toBeVisible();
   // Daily habit card surfaces the nearest achievement as a return nudge.
@@ -152,14 +168,19 @@ test('picking a theme persists across a reload', async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('green');
 });
 
-test('how-it-works explainer dismisses for good', async ({ page }) => {
-  await stubRichAuth(page);
+test('how-it-works explainer collapses to a disclosure once dismissed', async ({ page }) => {
+  await stubRichAuth(page, { blunders: UNDRILLED_BLUNDERS });
   await page.goto('/dashboard');
   await expect(page.getByText('How training works')).toBeVisible();
   await page.getByRole('button', { name: /Got it/i }).click();
-  await expect(page.getByText('How training works')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Got it/i })).toHaveCount(0);
+  const disclosure = page.getByRole('button', { name: /Show the training explainer/i });
+  await expect(disclosure).toBeVisible();
   await page.reload();
-  await expect(page.getByText('How training works')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Got it/i })).toHaveCount(0);
+  await expect(disclosure).toBeVisible();
+  await disclosure.click();
+  await expect(page.getByRole('button', { name: /Got it/i })).toBeVisible();
 });
 
 test('keep-training stays visible after the daily goal is met', async ({ page }) => {

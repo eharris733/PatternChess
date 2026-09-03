@@ -669,8 +669,11 @@ export function TrainingRoute() {
               </button>
             )}
 
-            {state.hintLevel > 0 && (
-              <p className="text-text-secondary text-xs">Hint shown — counts as a fail for recall.</p>
+            {state.hintLevel === 1 && (
+              <p className="text-text-secondary text-xs">Piece highlighted — find the move for full credit.</p>
+            )}
+            {state.hintLevel === 2 && (
+              <p className="text-text-secondary text-xs">Move shown — no credit for this attempt.</p>
             )}
 
             {state.evaluating && (

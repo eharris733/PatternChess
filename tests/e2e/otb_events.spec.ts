@@ -181,7 +181,7 @@ test('dashboard shows the three nearest OTB events with external links', async (
 test('events card disappears quietly when the API is down or empty', async ({ page }) => {
   await stubAuthAndEvents(page, 'error');
   await page.goto('/dashboard');
-  await expect(page.getByText('Daily habit')).toBeVisible();
+  await expect(page.getByText("Today's plan")).toBeVisible();
   await expect(page.getByText('Upcoming OTB events')).toHaveCount(0);
 });
 

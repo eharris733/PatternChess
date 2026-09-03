@@ -2,23 +2,32 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/useAuth';
 import { useDrillsToday } from '../../hooks/useTrainingActivity';
 import { useAchievements } from '../../hooks/useAchievements';
+import { useDueBlunders } from '../../hooks/useDueBlunders';
+import { useEndgameScenarios } from '../../hooks/useEndgameScenarios';
 import { dailyGoalProgress } from '../../lib/dailyGoal';
 import { nearestAchievement } from '../../lib/achievements';
 import { addDays, detectTimezone, localDate } from '../../services/streakService';
 import { FlameIcon } from '../icons/FlameIcon';
 import { CheckIcon } from '../icons/CheckIcon';
 import { TrophyIcon } from '../icons/TrophyIcon';
+import { EndgameIcon } from '../icons/EndgameIcon';
+import { TrainIcon } from '../icons/TrainIcon';
 import { Skeleton } from '../Skeleton';
 
+/** How many endgame play-outs the plan suggests per day (the list may hold more). */
+const PLAYOUTS_PER_DAY = 2;
+
 /**
- * Daily-return hook: progress toward today's drill goal plus the current
- * streak. Named "Daily habit" to sit alongside the "Today's goals" (due-blunder)
- * card without a name clash — this one is about showing up every day.
+ * Today's plan: progress toward the daily goal, the streak, and the two things
+ * to do — due positions (the SR queue) and endgame play-outs waiting on the
+ * Endgames tab. Finished play-outs count toward the goal alongside drills.
  */
 export function DailyHabitCard() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const drillsQuery = useDrillsToday();
+  const dueQuery = useDueBlunders();
+  const scenariosQuery = useEndgameScenarios();
   const { achievements } = useAchievements();
 
   const tz = profile?.timezone ?? detectTimezone();
@@ -32,7 +41,7 @@ export function DailyHabitCard() {
     return (
       <section className="card flex flex-col gap-4" aria-busy="true">
         <header className="flex items-baseline justify-between">
-          <span className="label">Daily habit</span>
+          <span className="label">Today's plan</span>
           <Skeleton className="h-3 w-20" />
         </header>
         <Skeleton className="h-8 w-32" />
@@ -41,13 +50,20 @@ export function DailyHabitCard() {
     );
   }
 
-  const progress = dailyGoalProgress(drillsQuery.data ?? 0);
+  const scenarios = scenariosQuery.data ?? [];
+  const playoutsToday = scenarios.filter(
+    (s) => s.lastPlayedAt && localDate(tz, s.lastPlayedAt) === today,
+  ).length;
+  const playoutsWaiting = scenarios.filter((s) => s.status !== 'passed').length;
+  const dueCount = dueQuery.data?.length ?? 0;
+
+  const progress = dailyGoalProgress((drillsQuery.data ?? 0) + playoutsToday);
   const next = nearestAchievement(achievements);
 
   return (
     <section className="card flex flex-col gap-4">
       <header className="flex items-baseline justify-between">
-        <span className="label">Daily habit</span>
+        <span className="label">Today's plan</span>
         {streakDays > 0 && (
           <span
             className={streakStale ? 'flex items-center gap-1.5 opacity-50' : 'flex items-center gap-1.5'}
@@ -67,7 +83,7 @@ export function DailyHabitCard() {
       </header>
 
       <div className="flex items-end gap-3">
-        <span className="font-mono text-4xl tabular-nums tracking-tight text-gold-dark">
+        <span className="font-mono text-4xl tracking-tight text-gold-dark">
           {progress.done}
           <span className="text-text-secondary text-2xl">/{progress.goal}</span>
         </span>
@@ -78,7 +94,7 @@ export function DailyHabitCard() {
               Goal complete
             </span>
           ) : (
-            `${progress.remaining} drill${progress.remaining === 1 ? '' : 's'} to go`
+            `${progress.remaining} to go`
           )}
         </span>
       </div>
@@ -89,6 +105,51 @@ export function DailyHabitCard() {
           style={{ width: `${Math.round(progress.fraction * 100)}%` }}
         />
       </div>
+
+      <ul className="flex flex-col divide-y-2 divide-text-primary/10 border-y-2 border-text-primary/10">
+        <li>
+          <button
+            type="button"
+            className="w-full flex items-center gap-3 py-2.5 text-left hover:bg-text-primary/5 transition"
+            onClick={() => navigate('/training')}
+          >
+            <TrainIcon className="h-4 w-4 shrink-0 text-gold-dark" />
+            <span className="flex-1 text-sm text-text-primary">
+              {dueQuery.isPending ? (
+                <Skeleton className="h-4 w-32" />
+              ) : dueCount > 0 ? (
+                `${dueCount} position${dueCount === 1 ? '' : 's'} due`
+              ) : (
+                'No positions due — all caught up'
+              )}
+            </span>
+            <span className="font-mono text-xs uppercase tracking-tight text-text-secondary">
+              Train
+            </span>
+          </button>
+        </li>
+        {playoutsWaiting > 0 && (
+          <li>
+            <button
+              type="button"
+              className="w-full flex items-center gap-3 py-2.5 text-left hover:bg-text-primary/5 transition"
+              onClick={() => navigate('/endgames')}
+            >
+              <EndgameIcon className="h-4 w-4 shrink-0 text-gold-dark" />
+              <span className="flex-1 text-sm text-text-primary">
+                {playoutsWaiting} endgame play-out{playoutsWaiting === 1 ? '' : 's'} waiting
+                <span className="text-text-secondary">
+                  {' '}
+                  · play {Math.min(PLAYOUTS_PER_DAY, playoutsWaiting)} today
+                </span>
+              </span>
+              <span className="font-mono text-xs uppercase tracking-tight text-text-secondary">
+                Play
+              </span>
+            </button>
+          </li>
+        )}
+      </ul>
 
       <button className="btn-primary w-full" onClick={() => navigate('/training')}>
         {progress.done > 0 ? 'Keep training' : 'Start training'}
@@ -119,7 +180,6 @@ export function DailyHabitCard() {
           </div>
         </button>
       )}
-
     </section>
   );
 }

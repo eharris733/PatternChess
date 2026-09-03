@@ -16,26 +16,27 @@ export interface SlipPreview {
 
 /**
  * Two-level play-out hint, same escalation as the tactics trainer: level 1
- * highlights the origin square of the engine's move, level 2 draws the full
- * arrow. Shared by the /endgames play-out and the training-queue drill.
+ * highlights the origin square of the engine's move (free), level 2 draws the
+ * full arrow (forfeits the clean attempt where one is being measured). Shared
+ * by the /endgames play-out and the training-queue drill.
  */
 export function usePlayoutHint({
   bestMove,
   solving,
-  onFirstHint,
+  onRevealMove,
 }: {
   /** Engine best move (UCI) for the current position, when known. */
   bestMove: string | null | undefined;
   /** True while it is the user's turn — shapes render only then. */
   solving: boolean;
-  /** Fired on the first hint of a position (e.g. to forfeit the clean attempt). */
-  onFirstHint?: () => void;
+  /** Fired when the full move is revealed (level 2), e.g. to forfeit the clean attempt. */
+  onRevealMove?: () => void;
 }) {
   const [level, setLevel] = useState<0 | 1 | 2>(0);
 
   const show = () => {
     if (!bestMove || level >= 2) return;
-    if (level === 0) onFirstHint?.();
+    if (level === 1) onRevealMove?.();
     setLevel((l) => (l === 0 ? 1 : 2));
   };
 

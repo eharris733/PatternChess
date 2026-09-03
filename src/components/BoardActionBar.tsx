@@ -66,6 +66,13 @@ export function BoardActionBar({
   }, [running, resetKey]);
 
   const hintLabel = hintLevel === 0 ? 'Hint' : hintLevel === 1 ? 'Show move' : 'Hint shown';
+  // The cost is stated before the click: level 1 is free, level 2 forfeits credit.
+  const hintTitle =
+    hintLevel === 0
+      ? 'Highlight the piece to move (free)'
+      : hintLevel === 1
+        ? 'Show the full move (no credit for this attempt)'
+        : 'Hint shown';
 
   return (
     <div className="flex items-center gap-2 max-w-[min(640px,calc(100vh-5rem))] mx-auto w-full">
@@ -128,7 +135,7 @@ export function BoardActionBar({
           className="btn-ghost text-sm h-8 lg:h-10 inline-flex items-center gap-1.5"
           onClick={onHint}
           disabled={hintDisabled}
-          title="Reveal a hint (counts as a fail)"
+          title={hintTitle}
         >
           <HintIcon className="h-4 w-4" />
           {hintLabel}

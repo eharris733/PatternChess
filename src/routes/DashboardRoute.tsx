@@ -17,12 +17,15 @@ import { GameStateCard } from '../components/insights/GameStateCard';
 import { EndgameRescueCard } from '../components/insights/EndgameRescueCard';
 import { RatingProgressCard } from '../components/insights/RatingProgressCard';
 import { UpcomingEventsCard } from '../components/insights/UpcomingEventsCard';
+import { StatStrip } from '../components/insights/StatStrip';
+import { useBlunderStats } from '../hooks/useBlunderStats';
 import { Skeleton } from '../components/Skeleton';
 
 export function DashboardRoute() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const gamesQuery = useGames();
+  const statsQuery = useBlunderStats();
 
   // Quietly enrich legacy blunders and deepen shallow first-pass analyses
   // (timed re-analysis of evals + solution PVs) while the user is here; stops
@@ -36,6 +39,9 @@ export function DashboardRoute() {
   // count as games, so a PGN-only user falls out of this state once they
   // import).
   const isFirstRun = !gamesLoading && !hasAccount && gamesCount === 0;
+  // The explainer earns its place only until the first drill; after that it
+  // collapses to a one-line disclosure (the card handles the dismissed state).
+  const showExplainer = !isFirstRun && (statsQuery.data?.attempted ?? 1) === 0;
   const firstName =
     (profile?.displayName ??
       (user?.user_metadata?.full_name as string | undefined) ??
@@ -60,7 +66,9 @@ export function DashboardRoute() {
         )}
       </header>
 
-      {!isFirstRun && <HowTrainingWorksCard />}
+      {!isFirstRun && <StatStrip />}
+
+      {showExplainer && <HowTrainingWorksCard />}
 
       {isFirstRun ? <GetStartedHero /> : <DailyHabitCard />}
 
@@ -69,6 +77,8 @@ export function DashboardRoute() {
       {!isFirstRun && <EndgameRescueCard />}
 
       {!isFirstRun && <RatingProgressCard />}
+
+      {!isFirstRun && <UpcomingEventsCard />}
 
       {!isFirstRun && (
         <button
@@ -84,8 +94,6 @@ export function DashboardRoute() {
           <p className="text-text-secondary text-sm mt-1">Browse and review your imports.</p>
         </button>
       )}
-
-      {!isFirstRun && <UpcomingEventsCard />}
 
       <MotifWeaknessCard />
       <OpeningInsightsCard />
