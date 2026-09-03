@@ -321,8 +321,14 @@ test('the dashboard summarizes dropped endgames and links to the trainer', async
   await expect(page.getByText('Winning — lost')).toBeVisible({ timeout: 30_000 });
 });
 
+// Rook + pawn each: not textbook-drawn material, so the play-out keeps going.
+const RP_DRAW = 'r3k3/p7/8/8/8/8/P7/1R2K3 w - - 0 40';
+
 test('take-back rewinds the user move and the engine reply', async ({ page }) => {
-  await stubEndgameAuth(page, { blunders: [], scenarios: [DRAW_SCENARIO] });
+  await stubEndgameAuth(page, {
+    blunders: [],
+    scenarios: [{ ...DRAW_SCENARIO, id: 's3', start_fen: RP_DRAW }],
+  });
   await page.goto('/endgames');
 
   await expect(page.getByText('Rook endgames')).toBeVisible({ timeout: 30_000 });
