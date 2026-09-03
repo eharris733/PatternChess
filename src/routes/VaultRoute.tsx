@@ -93,6 +93,29 @@ function gameSortTime(g: GameRecord): number {
   return (g.playedAt ?? g.createdAt).getTime();
 }
 
+/**
+ * Native select styled like `.input`, with the platform chevron replaced by an
+ * inline icon so the arrow gets real right padding and sits centred, matching
+ * the search field beside it.
+ */
+function VaultSelect({
+  className,
+  children,
+  ...props
+}: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <div className="relative">
+      <select
+        {...props}
+        className={clsx('input h-9 w-auto appearance-none pr-9 cursor-pointer', className)}
+      >
+        {children}
+      </select>
+      <ChevronIcon className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-text-primary" />
+    </div>
+  );
+}
+
 export function VaultRoute() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -284,8 +307,7 @@ export function VaultRoute() {
             onChange={(e) => setSearch(e.target.value)}
             aria-label="Search games"
           />
-          <select
-            className="input h-9 w-auto"
+          <VaultSelect
             value={resultFilter}
             onChange={(e) => setResultFilter(e.target.value as ResultFilter)}
             aria-label="Filter by result"
@@ -294,9 +316,8 @@ export function VaultRoute() {
             <option value="win">Wins</option>
             <option value="loss">Losses</option>
             <option value="draw">Draws</option>
-          </select>
-          <select
-            className="input h-9 w-auto"
+          </VaultSelect>
+          <VaultSelect
             value={sort}
             onChange={(e) => setSort(e.target.value as SortOrder)}
             aria-label="Sort games"
@@ -304,7 +325,7 @@ export function VaultRoute() {
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
             <option value="blunders">Most blunders</option>
-          </select>
+          </VaultSelect>
         </div>
         {filtersActive && (
           <div className="flex items-center justify-between gap-3">
