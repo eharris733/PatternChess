@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { HintIcon } from './icons/HintIcon';
 import { ChevronIcon } from './icons/ChevronIcon';
+import { UndoIcon } from './icons/UndoIcon';
 
 interface BoardActionBarProps {
   /** Resets the timer when this changes (e.g. blunder index advances). */
@@ -120,11 +121,12 @@ export function BoardActionBar({
       {onTakeBack && (
         <button
           type="button"
-          className="btn-ghost text-sm h-8 lg:h-10"
+          className="btn-ghost text-sm h-8 lg:h-10 inline-flex items-center gap-1.5"
           onClick={onTakeBack}
           disabled={takeBackDisabled}
           title="Take back your last move and the engine's reply"
         >
+          <UndoIcon className="h-4 w-4" />
           Take back
         </button>
       )}
