@@ -27,6 +27,18 @@ const ROW_DELAY_MS = 1500;
  * recorded on the row as metadata.
  */
 const DEEPEN_MOVETIME_MS = 3000;
+/**
+ * Smart-depth budget for the deepening pass: the time cap above, a depth cap
+ * (nothing useful comes from searching a bare-kings ending to depth 60), and
+ * an early stop once a decided score (|cp| ≥ 800) is reported at depth 16+.
+ */
+const DEEPEN_OPTS = {
+  movetimeMs: DEEPEN_MOVETIME_MS,
+  maxDepth: 30,
+  decidedCp: 800,
+  decidedMinDepth: 16,
+  pvMoves: 10,
+};
 /** Longer pause after deepening rows — each one costs ~2×3s of engine time. */
 const DEEPEN_ROW_DELAY_MS = 4000;
 /**
@@ -176,8 +188,8 @@ async function enrichOne(
   sf: Awaited<ReturnType<typeof getAnalysisStockfish>>,
   blunder: Blunder,
 ): Promise<void> {
-  const best = await sf.evaluatePositionTimed(blunder.fen, DEEPEN_MOVETIME_MS, 10);
-  const played = await sf.evaluatePositionTimed(afterPlayedFen(blunder), DEEPEN_MOVETIME_MS, 10);
+  const best = await sf.evaluateSmart(blunder.fen, DEEPEN_OPTS);
+  const played = await sf.evaluateSmart(afterPlayedFen(blunder), DEEPEN_OPTS);
 
   const solution_line = {
     pv: best.principalVariation,
@@ -215,11 +227,11 @@ async function deepenOne(
   sf: Awaited<ReturnType<typeof getAnalysisStockfish>>,
   blunder: Blunder,
 ): Promise<void> {
-  const best = await sf.evaluatePositionTimed(blunder.fen, DEEPEN_MOVETIME_MS, 10);
+  const best = await sf.evaluateSmart(blunder.fen, DEEPEN_OPTS);
   // A blunder position always has a legal move, so an empty bestMove means the
   // engine hiccuped — skip the row rather than storing a bogus correct move.
   if (!best.bestMove) throw new Error('engine returned no bestmove');
-  const played = await sf.evaluatePositionTimed(afterPlayedFen(blunder), DEEPEN_MOVETIME_MS, 10);
+  const played = await sf.evaluateSmart(afterPlayedFen(blunder), DEEPEN_OPTS);
   const chancesLost = winningChancesLost(best.scoreCp, played.scoreCp);
 
   await supabaseService.updateBlunderDeepening(blunder.id, {

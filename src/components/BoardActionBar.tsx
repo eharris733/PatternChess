@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { HintIcon } from './icons/HintIcon';
 import { ChevronIcon } from './icons/ChevronIcon';
+import { UndoIcon } from './icons/UndoIcon';
 
 interface BoardActionBarProps {
   /** Resets the timer when this changes (e.g. blunder index advances). */
@@ -18,6 +19,9 @@ interface BoardActionBarProps {
   externalLabel?: string;
   /** Mobile-only prev/next arrows stepping the active line (panel arrows sit below the fold). */
   onStepLine?: ((dir: 1 | -1) => void) | null;
+  /** Rewind the last move pair (Endgames tab play-outs only). Hidden when absent. */
+  onTakeBack?: () => void;
+  takeBackDisabled?: boolean;
 }
 
 function formatElapsed(ms: number): string {
@@ -39,6 +43,8 @@ export function BoardActionBar({
   externalUrl,
   externalLabel,
   onStepLine,
+  onTakeBack,
+  takeBackDisabled = false,
 }: BoardActionBarProps) {
   const [elapsed, setElapsed] = useState(0);
   const startRef = useRef<number | null>(null);
@@ -61,6 +67,13 @@ export function BoardActionBar({
   }, [running, resetKey]);
 
   const hintLabel = hintLevel === 0 ? 'Hint' : hintLevel === 1 ? 'Show move' : 'Hint shown';
+  // The cost is stated before the click: level 1 is free, level 2 forfeits credit.
+  const hintTitle =
+    hintLevel === 0
+      ? 'Highlight the piece to move (free)'
+      : hintLevel === 1
+        ? 'Show the full move (no credit for this attempt)'
+        : 'Hint shown';
 
   return (
     <div className="flex items-center gap-2 max-w-[min(640px,calc(100vh-5rem))] mx-auto w-full">
@@ -105,13 +118,26 @@ export function BoardActionBar({
         </>
       )}
 
+      {onTakeBack && (
+        <button
+          type="button"
+          className="btn-ghost text-sm h-8 lg:h-10 inline-flex items-center gap-1.5"
+          onClick={onTakeBack}
+          disabled={takeBackDisabled}
+          title="Take back your last move and the engine's reply"
+        >
+          <UndoIcon className="h-4 w-4" />
+          Take back
+        </button>
+      )}
+
       {showHint && (
         <button
           type="button"
           className="btn-ghost text-sm h-8 lg:h-10 inline-flex items-center gap-1.5"
           onClick={onHint}
           disabled={hintDisabled}
-          title="Reveal a hint (counts as a fail)"
+          title={hintTitle}
         >
           <HintIcon className="h-4 w-4" />
           {hintLabel}

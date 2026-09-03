@@ -75,6 +75,15 @@ export function getOpponentStockfish(): Promise<StockfishWorkerClient> {
   return opponentInitPromise;
 }
 
+/**
+ * Abort the opponent engine's active search without initialising it. Used when
+ * a play-out is abandoned, restarted, or a move is taken back, so a dead
+ * background eval doesn't delay the next position.
+ */
+export function stopOpponentSearch(): void {
+  opponentSingleton?.stop();
+}
+
 export function useStockfish() {
   const [ready, setReady] = useState(singleton?.isReady ?? false);
   const [error, setError] = useState<string | null>(null);

@@ -4,6 +4,8 @@ import type { DrawShape } from 'chessground/draw';
 import { MoveSequencePanel } from '../MoveSequencePanel';
 import { buildLineMoves, buildRefutationPairs } from '../../chess/refutationLines';
 import { parseUciMove } from '../../chess/moveUtils';
+import { DRAW_ACCEPT_CP, DRAW_ACCEPT_QUIET_PLIES, RESIGN_CP } from '../../chess/adjudication';
+import { halfmoveClock } from '../../chess/material';
 import type { PlayoutSlip, SlipLogStatus } from '../../state/endgamePlayoutStore';
 
 /** Board override while the user steps through the refutation line. */
@@ -14,26 +16,27 @@ export interface SlipPreview {
 
 /**
  * Two-level play-out hint, same escalation as the tactics trainer: level 1
- * highlights the origin square of the engine's move, level 2 draws the full
- * arrow. Shared by the /endgames play-out and the training-queue drill.
+ * highlights the origin square of the engine's move (free), level 2 draws the
+ * full arrow (forfeits the clean attempt where one is being measured). Shared
+ * by the /endgames play-out and the training-queue drill.
  */
 export function usePlayoutHint({
   bestMove,
   solving,
-  onFirstHint,
+  onRevealMove,
 }: {
   /** Engine best move (UCI) for the current position, when known. */
   bestMove: string | null | undefined;
   /** True while it is the user's turn — shapes render only then. */
   solving: boolean;
-  /** Fired on the first hint of a position (e.g. to forfeit the clean attempt). */
-  onFirstHint?: () => void;
+  /** Fired when the full move is revealed (level 2), e.g. to forfeit the clean attempt. */
+  onRevealMove?: () => void;
 }) {
   const [level, setLevel] = useState<0 | 1 | 2>(0);
 
   const show = () => {
     if (!bestMove || level >= 2) return;
-    if (level === 0) onFirstHint?.();
+    if (level === 1) onRevealMove?.();
     setLevel((l) => (l === 0 ? 1 : 2));
   };
 
@@ -251,6 +254,68 @@ export function SlipReport({
               : 'Add to training queue'}
         </button>
       ) : null}
+    </div>
+  );
+}
+
+function formatPawns(cp: number): string {
+  if (Math.abs(cp) >= 9000) return cp > 0 ? 'Mate' : 'Mated';
+  const pawns = cp / 100;
+  return `${pawns > 0 ? '+' : ''}${pawns.toFixed(1)}`;
+}
+
+/**
+ * Play-to-the-finish progress line for the Endgames tab (no hold target):
+ * moves played, the user-perspective eval with the "engine would resign" cue
+ * on a win target, and quiet-move progress toward an accepted draw.
+ */
+export function PlayoutProgress({
+  target,
+  userMovesPlayed,
+  evalCp,
+  depth,
+  fen,
+  pending,
+}: {
+  target: 'win' | 'draw';
+  userMovesPlayed: number;
+  /** User-perspective centipawns for the current position, when known. */
+  evalCp: number | null;
+  depth?: number | null;
+  fen: string;
+  /** True while the engine is still forming its view of the position. */
+  pending: boolean;
+}) {
+  const quietMoves = Math.floor(halfmoveClock(fen) / 2);
+  const quietTarget = DRAW_ACCEPT_QUIET_PLIES / 2;
+  const level = evalCp != null && Math.abs(evalCp) <= DRAW_ACCEPT_CP;
+  const resignable = evalCp != null && evalCp >= RESIGN_CP;
+
+  let evalText: string;
+  if (evalCp == null) evalText = pending ? 'Engine thinking…' : 'No eval';
+  else if (target === 'win' && resignable) evalText = `${formatPawns(evalCp)} · engine would resign`;
+  else if (target === 'draw' && level) evalText = `${formatPawns(evalCp)} · level`;
+  else evalText = formatPawns(evalCp);
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between">
+        <span className="label">Progress</span>
+        <span className="font-mono text-xs tabular-nums text-text-secondary">
+          {userMovesPlayed} move{userMovesPlayed === 1 ? '' : 's'} played
+        </span>
+      </div>
+      <p className="font-mono text-sm tabular-nums text-text-primary">{evalText}</p>
+      <p className="text-text-secondary text-xs">
+        {target === 'win'
+          ? 'Deliver checkmate to rescue the point.'
+          : `${Math.min(quietMoves, quietTarget)}/${quietTarget} quiet moves toward an accepted draw.`}
+      </p>
+      {depth != null && (
+        <p className="font-mono text-[10px] uppercase tracking-tight text-text-secondary/70">
+          Engine depth {depth}
+        </p>
+      )}
     </div>
   );
 }

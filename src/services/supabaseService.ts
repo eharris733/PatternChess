@@ -756,9 +756,15 @@ export async function getTimeTroubleStats(): Promise<TimeTroubleStats> {
 
 export interface BlunderStats {
   reviewed: number;
+  /** Sum of first-attempt drills across all positions. */
+  attempted: number;
   mastered: number;
+  /** Mastered positions whose last drill was within the past 7 days — the "+N this week" cue. */
+  masteredRecently: number;
   totalBlunders: number;
 }
+
+const RECENT_WINDOW_MS = 7 * 86_400_000;
 
 // Stricter than srBucket(b) === 'mastered' (which only checks the cycle threshold).
 // Used here for the global "mastered" achievement count, where we want a real
@@ -768,30 +774,37 @@ const MASTERY_RECALL_THRESHOLD = 0.8;
 
 export async function getBlunderStats(): Promise<BlunderStats> {
   const userId = await currentUserId();
-  if (!userId) return { reviewed: 0, mastered: 0, totalBlunders: 0 };
+  if (!userId) return { reviewed: 0, attempted: 0, mastered: 0, masteredRecently: 0, totalBlunders: 0 };
   const { data, error } = await supabase
     .from('blunders')
-    .select('cycle_number, times_correct, times_attempted')
+    .select('cycle_number, times_correct, times_attempted, last_drilled_at')
     .eq('user_id', userId);
   if (error) throw error;
+  const recentSince = Date.now() - RECENT_WINDOW_MS;
   let reviewed = 0;
+  let attempted = 0;
   let mastered = 0;
+  let masteredRecently = 0;
   let totalBlunders = 0;
   for (const row of (data ?? []) as Array<{
     cycle_number: number | null;
     times_correct: number | null;
     times_attempted: number | null;
+    last_drilled_at: string | null;
   }>) {
     const c = row.times_correct ?? 0;
     const a = row.times_attempted ?? 0;
     const cycle = row.cycle_number ?? 0;
     reviewed += c;
+    attempted += a;
     totalBlunders++;
     if (cycle >= MASTERY_CYCLE_THRESHOLD && a > 0 && c / a >= MASTERY_RECALL_THRESHOLD) {
       mastered++;
+      const last = row.last_drilled_at ? Date.parse(row.last_drilled_at) : NaN;
+      if (Number.isFinite(last) && last >= recentSince) masteredRecently++;
     }
   }
-  return { reviewed, mastered, totalBlunders };
+  return { reviewed, attempted, mastered, masteredRecently, totalBlunders };
 }
 
 // --- Landing page social proof (global, cross-user) ---

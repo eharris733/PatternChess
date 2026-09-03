@@ -1,6 +1,8 @@
 import { useCycleDistribution } from '../../hooks/useCycleDistribution';
+import { useWeeklyActivity } from '../../hooks/useTrainingActivity';
 import { SR_BUCKET_LABEL } from '../../models/blunder';
 import { Skeleton } from '../Skeleton';
+import { TrendChip } from './TrendChip';
 
 /**
  * The woodpecker-ladder progress view: how many of your positions sit at each
@@ -10,6 +12,8 @@ import { Skeleton } from '../Skeleton';
  */
 export function CycleTimelineCard() {
   const { data, isPending } = useCycleDistribution();
+  const weekly = useWeeklyActivity();
+  const drilledThisWeek = weekly.data?.attempted ?? 0;
 
   if (isPending) {
     return (
@@ -41,6 +45,7 @@ export function CycleTimelineCard() {
     <section className="card flex flex-col gap-4">
       <header className="flex items-baseline justify-between">
         <span className="label">Training timeline</span>
+        {drilledThisWeek > 0 && <TrendChip>{`${drilledThisWeek} drilled this week`}</TrendChip>}
       </header>
       <div className="flex items-end gap-3">
         <span className="font-mono text-4xl tabular-nums tracking-tight text-gold-dark">

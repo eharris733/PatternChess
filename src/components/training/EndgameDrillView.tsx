@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import { BoardPanel } from '../BoardPanel';
 import { BoardActionBar } from '../BoardActionBar';
 import { BoardStage } from '../BoardStage';
+import { SideToPlay } from '../SideToPlay';
 import { BoardActionOverlay, useActionOverlay } from '../BoardActionOverlay';
 import { FeedbackBadge } from '../FeedbackBadge';
 import { ProgressBar } from '../ProgressBar';
@@ -15,6 +16,7 @@ import {
 } from '../endgame/PlayoutPanel';
 import { PositionSrState } from './PositionSrState';
 import { useTrainingStore } from '../../state/trainingStore';
+import { HOLD_MOVES, HOLD_RULES } from '../../chess/adjudication';
 import {
   PlayoutResult,
   useEndgamePlayoutStore,
@@ -67,8 +69,9 @@ export function EndgameDrillView({
   const hint = usePlayoutHint({
     bestMove: playout.refEval?.bestMove,
     solving: playout.phase === 'solving',
-    // Taking a hint forfeits the clean first-attempt recall, same as tactics.
-    onFirstHint: () => useTrainingStore.getState().markExternalAttempt(),
+    // Revealing the move forfeits the clean first-attempt recall, same as
+    // tactics; the level-1 piece highlight is free.
+    onRevealMove: () => useTrainingStore.getState().markExternalAttempt(),
   });
   const startedForRef = useRef<string | null>(null);
 
@@ -116,6 +119,8 @@ export function EndgameDrillView({
       userColor,
       target,
       sourceGameId: blunder.gameId,
+      // Queue drills stay short: hold the result for HOLD_MOVES and move on.
+      rules: HOLD_RULES,
       onFinish: (r) => {
         useTrainingStore.getState().completeExternalDrill({
           success: r.success,
@@ -128,7 +133,9 @@ export function EndgameDrillView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [training.phase, blunder.id]);
 
-  const playing = playout.phase === 'solving' || playout.phase === 'thinking' || playout.phase === 'loading';
+  const playing =
+    playout.phase === 'solving' || playout.phase === 'judging' || playout.phase === 'thinking';
+  const settingUp = playout.phase === 'solving' && playout.refPending && playout.lastMove === null;
   const externalPlatform = resolvePlatform(training.game?.platform, 'lichess');
   const externalAnalysis =
     externalPlatform && playout.fen
@@ -220,19 +227,7 @@ export function EndgameDrillView({
           showNextReview={playing && !revealed}
         />
 
-        {playing && (
-          <div className="flex items-center gap-2 text-text-primary">
-            <span
-              className={clsx(
-                'w-3 h-3 rounded-full border-2 border-text-primary',
-                userColor === 'white' ? 'bg-surface' : 'bg-black',
-              )}
-            />
-            <span className="font-medium">
-              {userColor === 'white' ? 'White' : 'Black'} to play
-            </span>
-          </div>
-        )}
+        {playing && <SideToPlay color={userColor} />}
 
         {revealed && playing && (
           <>
@@ -243,23 +238,27 @@ export function EndgameDrillView({
             </FeedbackBadge>
             <HeldMeter
               heldStreak={playout.heldStreak}
-              holdTarget={playout.holdTarget}
+              holdTarget={playout.holdTarget ?? HOLD_MOVES}
               depth={playout.refEval?.depth}
             />
           </>
         )}
 
+        {playout.phase === 'judging' && (
+          <FeedbackBadge tone="info">Judging your move…</FeedbackBadge>
+        )}
         {playout.phase === 'thinking' && (
           <FeedbackBadge tone="info">Opponent thinking…</FeedbackBadge>
         )}
-        {playout.phase === 'loading' && (
-          <FeedbackBadge tone="info">Loading position…</FeedbackBadge>
-        )}
+        {settingUp && <FeedbackBadge tone="info">Loading position…</FeedbackBadge>}
         {playout.engineError && (
           <FeedbackBadge tone="warning">Engine hiccup — keep playing</FeedbackBadge>
         )}
-        {hint.level > 0 && playing && (
-          <p className="text-text-secondary text-xs">Hint shown — counts as a fail for recall.</p>
+        {hint.level === 1 && playing && (
+          <p className="text-text-secondary text-xs">Piece highlighted — find the move for full credit.</p>
+        )}
+        {hint.level === 2 && playing && (
+          <p className="text-text-secondary text-xs">Move shown — no credit for this attempt.</p>
         )}
 
         {training.phase === 'correct' && (
@@ -270,7 +269,7 @@ export function EndgameDrillView({
               This time you kept the {target === 'win' ? 'full point' : 'half point'}.
             </p>
             <button className="btn-primary mt-auto" onClick={() => training.advance()}>
-              Next<span className="hidden lg:inline"> (Space)</span>
+              Next<span className="hidden lg:inline ml-1.5"> (Space)</span>
             </button>
           </>
         )}
@@ -292,7 +291,7 @@ export function EndgameDrillView({
               />
             )}
             <button className="btn-primary mt-auto" onClick={() => training.requeueAndAdvance()}>
-              Continue<span className="hidden lg:inline"> (Space)</span>
+              Continue<span className="hidden lg:inline ml-1.5"> (Space)</span>
             </button>
             <p className="text-text-secondary text-xs text-center -mt-1">
               Comes back later this session

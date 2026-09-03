@@ -7,7 +7,6 @@ import { DailyHabitCard } from '../components/insights/DailyHabitCard';
 import { CycleTimelineCard } from '../components/insights/CycleTimelineCard';
 import { HowTrainingWorksCard } from '../components/insights/HowTrainingWorksCard';
 import { GetStartedHero } from '../components/insights/GetStartedHero';
-import { RankBadge } from '../components/insights/RankBadge';
 import { OpeningInsightsCard } from '../components/insights/OpeningInsightsCard';
 import { PhaseBlunderCard } from '../components/insights/PhaseBlunderCard';
 import { MotifWeaknessCard } from '../components/insights/MotifWeaknessCard';
@@ -17,12 +16,15 @@ import { GameStateCard } from '../components/insights/GameStateCard';
 import { EndgameRescueCard } from '../components/insights/EndgameRescueCard';
 import { RatingProgressCard } from '../components/insights/RatingProgressCard';
 import { UpcomingEventsCard } from '../components/insights/UpcomingEventsCard';
+import { StatStrip } from '../components/insights/StatStrip';
+import { useBlunderStats } from '../hooks/useBlunderStats';
 import { Skeleton } from '../components/Skeleton';
 
 export function DashboardRoute() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const gamesQuery = useGames();
+  const statsQuery = useBlunderStats();
 
   // Quietly enrich legacy blunders and deepen shallow first-pass analyses
   // (timed re-analysis of evals + solution PVs) while the user is here; stops
@@ -36,6 +38,9 @@ export function DashboardRoute() {
   // count as games, so a PGN-only user falls out of this state once they
   // import).
   const isFirstRun = !gamesLoading && !hasAccount && gamesCount === 0;
+  // The explainer earns its place only until the first drill; after that it
+  // collapses to a one-line disclosure (the card handles the dismissed state).
+  const showExplainer = !isFirstRun && (statsQuery.data?.attempted ?? 1) === 0;
   const firstName =
     (profile?.displayName ??
       (user?.user_metadata?.full_name as string | undefined) ??
@@ -53,14 +58,13 @@ export function DashboardRoute() {
             <h1 className="heading-xl">{firstName}, let's get started.</h1>
           </>
         ) : (
-          <>
-            <h1 className="heading-xl">Hey {firstName}</h1>
-            <RankBadge variant="compact" />
-          </>
+          <h1 className="heading-xl">Hey {firstName}</h1>
         )}
       </header>
 
-      {!isFirstRun && <HowTrainingWorksCard />}
+      {!isFirstRun && <StatStrip />}
+
+      {showExplainer && <HowTrainingWorksCard />}
 
       {isFirstRun ? <GetStartedHero /> : <DailyHabitCard />}
 
@@ -69,6 +73,8 @@ export function DashboardRoute() {
       {!isFirstRun && <EndgameRescueCard />}
 
       {!isFirstRun && <RatingProgressCard />}
+
+      {!isFirstRun && <UpcomingEventsCard />}
 
       {!isFirstRun && (
         <button
@@ -84,8 +90,6 @@ export function DashboardRoute() {
           <p className="text-text-secondary text-sm mt-1">Browse and review your imports.</p>
         </button>
       )}
-
-      {!isFirstRun && <UpcomingEventsCard />}
 
       <MotifWeaknessCard />
       <OpeningInsightsCard />

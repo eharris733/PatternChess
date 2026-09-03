@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { SPACED_REPETITION_DAYS, SR_BUCKET_LABEL } from '../../models/blunder';
 import { CheckIcon } from '../icons/CheckIcon';
+import { ChevronIcon } from '../icons/ChevronIcon';
 
-// Shown once per device, then dismissed for good. localStorage (not a profile
-// flag) keeps it instant and device-local, the same pattern as the theme store.
+// Open by default until dismissed; after that it collapses to a one-line
+// disclosure instead of vanishing. localStorage (not a profile flag) keeps it
+// instant and device-local, the same pattern as the theme store.
 const SEEN_KEY = 'patternchess.seenTrainingIntro';
 
 function hasSeenIntro(): boolean {
@@ -42,8 +44,7 @@ const STEPS = [
  */
 export function HowTrainingWorksCard() {
   const [dismissed, setDismissed] = useState(hasSeenIntro);
-
-  if (dismissed) return null;
+  const [reopened, setReopened] = useState(false);
 
   const dismiss = () => {
     try {
@@ -52,7 +53,22 @@ export function HowTrainingWorksCard() {
       // ignore — worst case it shows again next session
     }
     setDismissed(true);
+    setReopened(false);
   };
+
+  if (dismissed && !reopened) {
+    return (
+      <button
+        type="button"
+        className="flex items-center gap-2 font-mono text-xs uppercase tracking-tight text-text-secondary hover:text-text-primary self-start"
+        onClick={() => setReopened(true)}
+        aria-expanded={false}
+      >
+        <ChevronIcon className="h-3 w-3" />
+        Show the training explainer
+      </button>
+    );
+  }
 
   return (
     <section className="card flex flex-col gap-4 border-gold-dark/60">

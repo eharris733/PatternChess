@@ -1188,10 +1188,18 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     const playedShapes = state.shapes.filter((sh) => sh.brush === 'red');
 
     if (state.hintLevel === 0) {
-      const isFirstAttempt = !state.attemptedBlunderIds.has(b.id);
-      set((s) => ({
+      // Level 1 (which piece) is free — finding the move still earns full credit.
+      set({
         hintLevel: 1,
         shapes: [{ orig: from as any, brush: 'blue' }, ...playedShapes],
+      });
+    } else if (state.hintLevel === 1) {
+      // Level 2 (the move itself) forfeits the first-attempt credit: the SR
+      // ladder stays put and the recall rate isn't credited. Never a fail.
+      const isFirstAttempt = !state.attemptedBlunderIds.has(b.id);
+      set((s) => ({
+        hintLevel: 2,
+        shapes: [{ orig: from as any, dest: to as any, brush: 'blue' }, ...playedShapes],
         ...(isFirstAttempt
           ? {
               totalAttempted: s.totalAttempted + 1,
@@ -1199,11 +1207,6 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
             }
           : {}),
       }));
-    } else if (state.hintLevel === 1) {
-      set({
-        hintLevel: 2,
-        shapes: [{ orig: from as any, dest: to as any, brush: 'blue' }, ...playedShapes],
-      });
     }
   },
 

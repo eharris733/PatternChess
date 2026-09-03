@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { Chess } from 'chess.js';
 import {
-  HOLD_MOVES,
+  AdjudicationRules,
+  engineAcceptsDraw,
   judgeTerminal,
   judgeUserMove,
   PlayoutTarget,
@@ -10,11 +11,17 @@ import {
 } from '../chess/adjudication';
 import { cpForColor, winPercent, winningChancesLost } from '../chess/winningChances';
 import { uciToSan } from '../chess/moveUtils';
-import { getOpponentStockfish } from '../hooks/useStockfish';
-import type { PositionEval } from '../stockfish/stockfishWorkerClient';
+import { getOpponentStockfish, stopOpponentSearch } from '../hooks/useStockfish';
+import type { PositionEval, SmartEvalOptions } from '../stockfish/stockfishWorkerClient';
 import { supabaseService } from '../services/supabaseService';
 
-export type PlayoutPhase = 'idle' | 'loading' | 'solving' | 'thinking' | 'passed' | 'failed';
+/**
+ * - `solving`: user to move. The board is live as soon as the FEN is set —
+ *   the reference eval for this position may still be in flight (`refPending`).
+ * - `judging`: the user's move is on the board and the engine is scoring it.
+ * - `thinking`: the move passed; the engine is choosing its reply.
+ */
+export type PlayoutPhase = 'idle' | 'solving' | 'judging' | 'thinking' | 'passed' | 'failed';
 
 export interface PlayoutSlip {
   fenBefore: string;
@@ -31,6 +38,10 @@ export interface PlayoutSlip {
   /** Hold progress at the moment of the slip, restored by retry('slip'). */
   heldStreakAtSlip: number;
   userMovesPlayedAtSlip: number;
+  /** Reference eval of `fenBefore`, so retry('slip') needs no fresh engine call. */
+  refEvalAtSlip: PositionEval | null;
+  /** History length at the slip, so retry('slip') keeps take-back working. */
+  historyLenAtSlip: number;
 }
 
 export type SlipLogStatus = 'idle' | 'unavailable' | 'saving' | 'saved' | 'error';
@@ -49,6 +60,10 @@ export interface PlayoutStartOptions {
   target: PlayoutTarget;
   /** Game the position traces back to; stamped onto logged slips. */
   sourceGameId: string | null;
+  /** Hold-N-moves (training queue) or play-to-the-finish (Endgames tab). */
+  rules: AdjudicationRules;
+  /** Offer take-back (Endgames tab only — it's a practice tool, not a measurement). */
+  allowTakeBack?: boolean;
   onFinish?: (result: PlayoutResult) => void;
 }
 
@@ -58,28 +73,48 @@ interface BoardMove {
   promotion?: 'q' | 'r' | 'b' | 'n';
 }
 
+/** Snapshot of a user-to-move position, pushed before each user move. */
+export interface PlayoutHistoryEntry {
+  fen: string;
+  /** Highlight shown at that position (the previous engine reply). */
+  lastMove: [string, string] | null;
+  /** Cached reference eval; patched in once a still-pending eval lands. */
+  refEval: PositionEval | null;
+  heldStreak: number;
+  userMovesPlayed: number;
+  /** Repetition-tracker truncation point. */
+  positionKeysLen: number;
+}
+
 interface EndgamePlayoutState {
   phase: PlayoutPhase;
   fen: string;
   startFen: string;
   userColor: 'white' | 'black';
   target: PlayoutTarget;
+  rules: AdjudicationRules;
   lastMove: [string, string] | null;
   heldStreak: number;
-  holdTarget: number;
+  /** Hold target in hold mode; null when playing to the finish. */
+  holdTarget: number | null;
   userMovesPlayed: number;
   /** Timed eval of the current user-to-move position (stm = user). */
   refEval: PositionEval | null;
-  evaluating: boolean;
+  /** True while the reference eval for the current position is still running. */
+  refPending: boolean;
   slip: PlayoutSlip | null;
   terminal: TerminalKind | null;
   engineError: string | null;
   /** Opt-in "add to training queue" state for the current slip. */
   slipLog: SlipLogStatus;
+  history: PlayoutHistoryEntry[];
+  allowTakeBack: boolean;
 
   start: (opts: PlayoutStartOptions) => Promise<void>;
   processMove: (move: BoardMove) => Promise<void>;
   retry: (from: 'start' | 'slip') => Promise<void>;
+  /** Rewind the last user move and the engine's reply (solving phase only). */
+  takeBack: () => void;
   /** Insert the current slip into the blunders table as an endgame-kind SR item. */
   logSlip: () => Promise<void>;
   reset: () => void;
@@ -92,17 +127,48 @@ let nextToken = 0;
 let activeToken = 0;
 let activeOpts: PlayoutStartOptions | null = null;
 
-const ENGINE_REPLY_MOVETIME_MS = 1000;
-// Fixed thinking time, not fixed depth: a hard depth (12) stops far short of
-// the horizon in deep endgames, and the jittery evals crossed the adjudication
-// bands and produced false slips. The judging budget is deliberately generous
-// (~5s perceived wait per user move: postEval + reply, nextRef hidden behind
-// the reply animation) — shallow adjudication produced unfair slips, and the
-// achieved depth is surfaced in the play-out panel.
-const EVAL_MOVETIME_MS = 2500;
+// Smart-depth budgets. Time-based caps rather than a fixed depth: a hard depth
+// (12) stops far short of the horizon in deep endgames and the jittery evals
+// crossed the adjudication bands and produced false slips. The depth cap lets
+// simple endings (which hit depth 28 in a fraction of a second) return early,
+// and the decided-score stop skips the rest of the think once the position is
+// clearly won or lost. `decidedCp` is deliberately high for judging: ref and
+// post evals must be comparable, and at ±10 pawns a deeper look would have to
+// fall to ~4 pawns before the 15% drop rule could trip.
+const REF_EVAL_OPTS: SmartEvalOptions = {
+  movetimeMs: 2500,
+  maxDepth: 28,
+  decidedCp: 1000,
+  decidedMinDepth: 18,
+  pvMoves: 10,
+};
+const JUDGE_EVAL_OPTS = REF_EVAL_OPTS;
+// No decided-score stop for the reply: we want the engine's best move, not
+// just a confirmation that it's winning.
+const REPLY_OPTS: SmartEvalOptions = { movetimeMs: 1000, maxDepth: 24, pvMoves: 5 };
 
 function fullmoveFromFen(fen: string): number {
   return Number.parseInt(fen.split(' ')[5] ?? '1', 10) || 1;
+}
+
+/** Board + side to move + castling + en passant — what threefold repetition compares. */
+function positionKey(fen: string): string {
+  return fen.split(' ').slice(0, 4).join(' ');
+}
+
+// Every position committed to the board (start, after each user move, after
+// each engine reply) — chess.js built from a bare FEN can't see repetition.
+let positionKeys: string[] = [];
+
+function repetitions(fen: string): number {
+  const key = positionKey(fen);
+  let n = 0;
+  for (const k of positionKeys) if (k === key) n += 1;
+  return n;
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 // Everything the opt-in "add to training queue" insert needs, captured at slip
@@ -165,6 +231,16 @@ async function insertSlipBlunder(payload: SlipLogPayload): Promise<void> {
   ]);
 }
 
+// The in-flight reference eval for the current user-to-move position. It runs
+// in the background so the board is live immediately; processMove awaits it
+// (usually already resolved) before judging.
+interface PendingRef {
+  token: number;
+  fen: string;
+  promise: Promise<PositionEval | null>;
+}
+let pendingRef: PendingRef | null = null;
+
 export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => {
   function finish(result: PlayoutResult): void {
     set({
@@ -175,35 +251,64 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
     activeOpts?.onFinish?.(result);
   }
 
-  async function beginFrom(fen: string, token: number): Promise<void> {
-    const opts = activeOpts;
-    if (!opts) return;
+  async function warmupEngine() {
+    const sf = await getOpponentStockfish();
+    await sf.newGame();
+    // The opponent singleton may be weakened by other users of setoption;
+    // ucinewgame does NOT clear option state, so force full strength.
+    await sf.setOptions({ UCI_LimitStrength: 'false' });
+    return sf;
+  }
+
+  function kickRefEval(fen: string, token: number, warmup: boolean): Promise<PositionEval | null> {
+    const promise: Promise<PositionEval | null> = (async () => {
+      const sf = warmup ? await warmupEngine() : await getOpponentStockfish();
+      return sf.evaluateSmart(fen, REF_EVAL_OPTS);
+    })().then(
+      (ev) => {
+        if (activeToken === token && pendingRef?.promise === promise) {
+          pendingRef = null;
+          set({ refEval: ev, refPending: false });
+        }
+        return ev;
+      },
+      (err: unknown) => {
+        if (activeToken === token && pendingRef?.promise === promise) {
+          pendingRef = null;
+          set({ refPending: false, engineError: errorMessage(err) });
+        }
+        return null;
+      },
+    );
+    pendingRef = { token, fen, promise };
+    return promise;
+  }
+
+  /**
+   * Put `fen` on the board and enter `solving` right away. The reference eval
+   * (needed only to judge the move, not to make it) runs in the background
+   * unless a cached one is supplied.
+   */
+  function beginFrom(fen: string, token: number, restoredRef: PositionEval | null): void {
+    if (!activeOpts) return;
     pendingSlipLog = null;
+    pendingRef = null;
     set({
-      phase: 'loading',
+      phase: 'solving',
       fen,
       lastMove: null,
       slip: null,
       terminal: null,
       engineError: null,
-      evaluating: false,
       slipLog: 'idle',
+      refEval: restoredRef,
+      refPending: restoredRef === null,
     });
-    try {
-      const sf = await getOpponentStockfish();
-      await sf.newGame();
-      // The opponent singleton may be weakened by other users of setoption;
-      // ucinewgame does NOT clear option state, so force full strength.
-      await sf.setOptions({ UCI_LimitStrength: 'false' });
-      const refEval = await sf.evaluatePositionTimed(fen, EVAL_MOVETIME_MS, 10);
-      if (activeToken !== token) return;
-      set({ phase: 'solving', refEval });
-    } catch (err) {
-      if (activeToken !== token) return;
-      set({
-        phase: 'solving',
-        refEval: null,
-        engineError: err instanceof Error ? err.message : String(err),
+    if (restoredRef === null) {
+      void kickRefEval(fen, token, true);
+    } else {
+      void warmupEngine().catch((err) => {
+        if (activeToken === token) set({ engineError: errorMessage(err) });
       });
     }
   }
@@ -214,37 +319,53 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
     startFen: '',
     userColor: 'white',
     target: 'win',
+    rules: { mode: 'finish' },
     lastMove: null,
     heldStreak: 0,
-    holdTarget: HOLD_MOVES,
+    holdTarget: null,
     userMovesPlayed: 0,
     refEval: null,
-    evaluating: false,
+    refPending: false,
     slip: null,
     terminal: null,
     engineError: null,
     slipLog: 'idle',
+    history: [],
+    allowTakeBack: false,
 
     start: async (opts) => {
       const token = ++nextToken;
       activeToken = token;
       activeOpts = opts;
+      stopOpponentSearch();
+      positionKeys = [positionKey(opts.startFen)];
       set({
         startFen: opts.startFen,
         userColor: opts.userColor,
         target: opts.target,
+        rules: opts.rules,
+        holdTarget: opts.rules.mode === 'hold' ? opts.rules.holdMoves : null,
+        allowTakeBack: opts.allowTakeBack ?? false,
         heldStreak: 0,
         userMovesPlayed: 0,
-        refEval: null,
+        history: [],
       });
-      await beginFrom(opts.startFen, token);
+      beginFrom(opts.startFen, token, null);
     },
 
     processMove: async (move) => {
       const state = get();
-      if (state.phase !== 'solving' || state.evaluating) return;
+      if (state.phase !== 'solving') return;
       const token = activeToken;
-      const { fen: preFen, userColor, target, refEval, heldStreak } = state;
+      const {
+        fen: preFen,
+        lastMove: preLastMove,
+        userColor,
+        target,
+        rules,
+        heldStreak,
+        userMovesPlayed,
+      } = state;
 
       const chess = new Chess(preFen);
       let result;
@@ -252,16 +373,41 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
         result = chess.move({ from: move.from, to: move.to, promotion: move.promotion });
       } catch {
         // Illegal (stale drag/animation race) — snap back.
-        set({ fen: preFen, lastMove: state.lastMove });
+        set({ fen: preFen, lastMove: preLastMove });
         return;
       }
       const uci = `${move.from}${move.to}${move.promotion ?? ''}`;
       const afterFen = chess.fen();
-      set({ fen: afterFen, lastMove: [move.from, move.to], evaluating: true });
+      const entry: PlayoutHistoryEntry = {
+        fen: preFen,
+        lastMove: preLastMove,
+        refEval: state.refEval,
+        heldStreak,
+        userMovesPlayed,
+        positionKeysLen: positionKeys.length,
+      };
+      const historyLen = state.history.length;
+      positionKeys.push(positionKey(afterFen));
+      set({
+        fen: afterFen,
+        lastMove: [move.from, move.to],
+        phase: 'judging',
+        history: [...state.history, entry],
+      });
 
       try {
+        // The reference eval normally landed while the user was thinking; if
+        // they moved first, wait for the remainder.
+        let refEval = state.refEval;
+        if (!refEval && pendingRef && pendingRef.token === token && pendingRef.fen === preFen) {
+          refEval = await pendingRef.promise;
+          if (activeToken !== token) return;
+        }
+        // Patch the snapshot so take-back restores a cached eval, not a wait.
+        entry.refEval = refEval;
+
         // Terminal before any engine call — parseEvalCp's 0 is ambiguous there.
-        const term = terminalState(afterFen, userColor);
+        const term = terminalState(afterFen, userColor, repetitions(afterFen));
         if (term) {
           const outcome = judgeTerminal(term, target);
           if (outcome === 'fail' && refEval) {
@@ -276,7 +422,9 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
               chancesLost: null,
               refutationPv: [],
               heldStreakAtSlip: heldStreak,
-              userMovesPlayedAtSlip: state.userMovesPlayed,
+              userMovesPlayedAtSlip: userMovesPlayed,
+              refEvalAtSlip: refEval,
+              historyLenAtSlip: historyLen,
             };
             set({ slipLog: stashSlipLog(slip, refEval, null) });
             finish({ success: false, slip, ending: 'terminal', terminal: term });
@@ -287,7 +435,7 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
         }
 
         const sf = await getOpponentStockfish();
-        const postEval = await sf.evaluatePositionTimed(afterFen, EVAL_MOVETIME_MS, 10);
+        const postEval = await sf.evaluateSmart(afterFen, JUDGE_EVAL_OPTS);
         if (activeToken !== token) return;
 
         // refEval position has the user to move; afterFen has the opponent.
@@ -295,7 +443,7 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
           ? winPercent(cpForColor(refEval.scoreCp, userColor, userColor))
           : winPercent(cpForColor(-postEval.scoreCp, userColor, userColor));
         const userWinPctAfter = winPercent(-postEval.scoreCp);
-        const judged = judgeUserMove({ target, userWinPctBefore, userWinPctAfter, heldStreak });
+        const judged = judgeUserMove({ target, userWinPctBefore, userWinPctAfter, heldStreak, rules });
 
         if (judged.verdict === 'fail') {
           const slip: PlayoutSlip = {
@@ -308,30 +456,41 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
             chancesLost: userWinPctBefore - userWinPctAfter,
             refutationPv: postEval.principalVariation,
             heldStreakAtSlip: heldStreak,
-            userMovesPlayedAtSlip: state.userMovesPlayed,
+            userMovesPlayedAtSlip: userMovesPlayed,
+            refEvalAtSlip: refEval,
+            historyLenAtSlip: historyLen,
           };
           set({ slipLog: stashSlipLog(slip, refEval, postEval) });
           finish({ success: false, slip, ending: 'slip', terminal: null });
           return;
         }
         if (judged.verdict === 'adjudicated-success') {
-          set({ heldStreak: judged.heldStreak, userMovesPlayed: state.userMovesPlayed + 1 });
+          set({ heldStreak: judged.heldStreak, userMovesPlayed: userMovesPlayed + 1 });
+          finish({ success: true, slip: null, ending: 'adjudicated', terminal: null });
+          return;
+        }
+        if (
+          rules.mode === 'finish' &&
+          target === 'draw' &&
+          engineAcceptsDraw({ fen: afterFen, scoreCp: postEval.scoreCp, depth: postEval.depth })
+        ) {
+          set({ heldStreak: judged.heldStreak, userMovesPlayed: userMovesPlayed + 1 });
           finish({ success: true, slip: null, ending: 'adjudicated', terminal: null });
           return;
         }
 
         set({
           heldStreak: judged.heldStreak,
-          userMovesPlayed: state.userMovesPlayed + 1,
+          userMovesPlayed: userMovesPlayed + 1,
           phase: 'thinking',
         });
 
         // Engine reply.
-        const reply = await sf.bestMoveTimed(afterFen, ENGINE_REPLY_MOVETIME_MS);
+        const reply = await sf.evaluateSmart(afterFen, REPLY_OPTS);
         if (activeToken !== token) return;
         if (!reply.bestMove) {
           // Defensive: engine sees no move — re-check terminal.
-          const t = terminalState(afterFen, userColor);
+          const t = terminalState(afterFen, userColor, repetitions(afterFen));
           if (t) finish({ success: judgeTerminal(t, target) === 'success', slip: null, ending: 'terminal', terminal: t });
           return;
         }
@@ -348,11 +507,12 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
           return;
         }
         const replyFen = replyChess.fen();
+        const replyMove: [string, string] = [replyUci.slice(0, 2), replyUci.slice(2, 4)];
+        positionKeys.push(positionKey(replyFen));
 
-        const replyTerm = terminalState(replyFen, userColor);
+        const replyTerm = terminalState(replyFen, userColor, repetitions(replyFen));
         if (replyTerm) {
-          if (activeToken !== token) return;
-          set({ fen: replyFen, lastMove: [replyUci.slice(0, 2), replyUci.slice(2, 4)] });
+          set({ fen: replyFen, lastMove: replyMove });
           finish({
             success: judgeTerminal(replyTerm, target) === 'success',
             slip: null,
@@ -362,26 +522,27 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
           return;
         }
 
-        // Pre-eval the next user position: it's the reference for judging the
-        // user's next move AND the correct_moves source if they slip.
-        const nextRef = await sf.evaluatePositionTimed(replyFen, EVAL_MOVETIME_MS, 10);
-        if (activeToken !== token) return;
+        // Show the reply now; the reference eval for the next user move (the
+        // judge's "before" and the correct_moves source if they slip) runs in
+        // the background while the user thinks.
         set({
           phase: 'solving',
           fen: replyFen,
-          lastMove: [replyUci.slice(0, 2), replyUci.slice(2, 4)],
-          refEval: nextRef,
+          lastMove: replyMove,
+          refEval: null,
+          refPending: true,
         });
+        void kickRefEval(replyFen, token, false);
       } catch (err) {
         if (activeToken !== token) return;
+        positionKeys.length = entry.positionKeysLen;
         set({
           phase: 'solving',
           fen: preFen,
-          lastMove: state.lastMove,
-          engineError: err instanceof Error ? err.message : String(err),
+          lastMove: preLastMove,
+          engineError: errorMessage(err),
+          history: get().history.filter((e) => e !== entry),
         });
-      } finally {
-        if (activeToken === token) set({ evaluating: false });
       }
     },
 
@@ -390,17 +551,55 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
       if (!opts) return;
       const state = get();
       const slip = from === 'slip' ? state.slip : null;
-      const fen = slip ? slip.fenBefore : opts.startFen;
       const token = ++nextToken;
       activeToken = token;
-      // Retrying from the mistake keeps the hold progress earned before it;
-      // restarting the play-out starts the count over.
+      stopOpponentSearch();
+      if (slip) {
+        // Retrying from the mistake keeps the hold progress earned before it
+        // and the cached reference eval, so there's no wait.
+        const slipEntry = state.history[slip.historyLenAtSlip];
+        positionKeys.length = slipEntry?.positionKeysLen ?? positionKeys.length;
+        set({
+          heldStreak: slip.heldStreakAtSlip,
+          userMovesPlayed: slip.userMovesPlayedAtSlip,
+          history: state.history.slice(0, slip.historyLenAtSlip),
+        });
+        beginFrom(slip.fenBefore, token, slip.refEvalAtSlip);
+        return;
+      }
+      // Restarting the play-out starts the count over.
+      const startRef =
+        state.history[0]?.fen === opts.startFen
+          ? state.history[0].refEval
+          : state.slip?.fenBefore === opts.startFen
+            ? state.slip.refEvalAtSlip
+            : null;
+      positionKeys = [positionKey(opts.startFen)];
+      set({ heldStreak: 0, userMovesPlayed: 0, history: [] });
+      beginFrom(opts.startFen, token, startRef);
+    },
+
+    takeBack: () => {
+      const state = get();
+      if (!state.allowTakeBack || state.phase !== 'solving' || state.history.length === 0) return;
+      const entry = state.history[state.history.length - 1];
+      // Abandon the background eval for the position we're leaving.
+      stopOpponentSearch();
+      const token = ++nextToken;
+      activeToken = token;
+      pendingRef = null;
+      positionKeys.length = entry.positionKeysLen;
       set({
-        heldStreak: slip?.heldStreakAtSlip ?? 0,
-        userMovesPlayed: slip?.userMovesPlayedAtSlip ?? 0,
-        refEval: null,
+        fen: entry.fen,
+        lastMove: entry.lastMove,
+        refEval: entry.refEval,
+        refPending: entry.refEval === null,
+        heldStreak: entry.heldStreak,
+        userMovesPlayed: entry.userMovesPlayed,
+        engineError: null,
+        history: state.history.slice(0, -1),
       });
-      await beginFrom(fen, token);
+      if (entry.refEval === null) void kickRefEval(entry.fen, token, false);
     },
 
     logSlip: async () => {
@@ -423,19 +622,25 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
       activeToken = ++nextToken;
       activeOpts = null;
       pendingSlipLog = null;
+      pendingRef = null;
+      positionKeys = [];
+      stopOpponentSearch();
       set({
         phase: 'idle',
         fen: '',
         startFen: '',
         lastMove: null,
         heldStreak: 0,
+        holdTarget: null,
         userMovesPlayed: 0,
         refEval: null,
-        evaluating: false,
+        refPending: false,
         slip: null,
         terminal: null,
         engineError: null,
         slipLog: 'idle',
+        history: [],
+        allowTakeBack: false,
       });
     },
   };

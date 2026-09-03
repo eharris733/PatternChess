@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseDepth, parsePrincipalVariation } from './uci';
+import { parseDepth, parseInfoLine, parsePrincipalVariation } from './uci';
 
 const SEARCH_OUTPUT = [
   'info depth 10 seldepth 14 multipv 1 score cp 31 nodes 51234 nps 812000 pv e2e4 e7e5 g1f3',
@@ -48,5 +48,31 @@ describe('parsePrincipalVariation', () => {
       'g1f3',
       'b8c6',
     ]);
+  });
+});
+
+describe('parseInfoLine', () => {
+  it('parses depth and cp from a scored line', () => {
+    expect(parseInfoLine('info depth 18 seldepth 25 multipv 1 score cp -1043 nodes 1 nps 1 pv a1a2')).toEqual({
+      depth: 18,
+      cp: -1043,
+      bound: false,
+    });
+  });
+
+  it('maps mate scores like parseEvalCp', () => {
+    expect(parseInfoLine('info depth 20 score mate 3 pv a1a8')?.cp).toBe(9997);
+    expect(parseInfoLine('info depth 20 score mate -2 pv a1a8')?.cp).toBe(-9998);
+  });
+
+  it('flags fail-high/low iterations', () => {
+    expect(parseInfoLine('info depth 22 score cp 1200 lowerbound nodes 5 pv a1a2')?.bound).toBe(true);
+    expect(parseInfoLine('info depth 22 score cp -1200 upperbound nodes 5 pv a1a2')?.bound).toBe(true);
+  });
+
+  it('returns null for unscored and non-info lines', () => {
+    expect(parseInfoLine('info depth 13 currmove d2d4 currmovenumber 2')).toBeNull();
+    expect(parseInfoLine('info string NNUE evaluation using nn.nnue')).toBeNull();
+    expect(parseInfoLine('bestmove e2e4 ponder e7e5')).toBeNull();
   });
 });
