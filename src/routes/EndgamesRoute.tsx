@@ -15,6 +15,13 @@ import {
   SCENARIO_STATUS_LABEL,
 } from '../models/endgameScenario';
 import { useEndgamePlayoutStore } from '../state/endgamePlayoutStore';
+import { FINISH_RULES } from '../chess/adjudication';
+import {
+  classifyEndgameType,
+  ENDGAME_TYPE_LABEL,
+  ENDGAME_TYPE_ORDER,
+  isOppositeColoredBishops,
+} from '../chess/endgameType';
 import { BoardPanel } from '../components/BoardPanel';
 import { BoardActionBar } from '../components/BoardActionBar';
 import { BoardStage } from '../components/BoardStage';
@@ -23,7 +30,7 @@ import { BoardActionOverlay, useActionOverlay } from '../components/BoardActionO
 import { FeedbackBadge } from '../components/FeedbackBadge';
 import { MiniBoard } from '../components/MiniBoard';
 import {
-  HeldMeter,
+  PlayoutProgress,
   SlipReport,
   SlipPreview,
   usePlayoutHint,
@@ -59,23 +66,28 @@ export function EndgamesRoute() {
     return m;
   }, [games]);
 
-  // Grouped by what was dropped, worst chances-lost first within each group.
+  const [statusFilter, setStatusFilter] = useState<'all' | EndgameScenario['status']>('all');
+
+  // Grouped by endgame family (material of the start position), worst
+  // chances-lost first within each group. Win/draw shows on the card headline.
   const sections = useMemo(() => {
     const bySeverity = (a: EndgameScenarioWithSeverity, z: EndgameScenarioWithSeverity) =>
       (z.severity ?? -1) - (a.severity ?? -1) ||
       z.createdAt.getTime() - a.createdAt.getTime();
-    return [
-      {
-        key: 'win',
-        title: 'Missed wins',
-        items: (scenarios ?? []).filter((s) => s.deservedResult === 'win').sort(bySeverity),
-      },
-      {
-        key: 'draw',
-        title: 'Missed draws',
-        items: (scenarios ?? []).filter((s) => s.deservedResult === 'draw').sort(bySeverity),
-      },
-    ].filter((sec) => sec.items.length > 0);
+    const visible = (scenarios ?? []).filter(
+      (s) => statusFilter === 'all' || s.status === statusFilter,
+    );
+    return ENDGAME_TYPE_ORDER.map((type) => ({
+      key: type,
+      title: ENDGAME_TYPE_LABEL[type],
+      items: visible.filter((s) => classifyEndgameType(s.startFen) === type).sort(bySeverity),
+    })).filter((sec) => sec.items.length > 0);
+  }, [scenarios, statusFilter]);
+
+  const statusCounts = useMemo(() => {
+    const counts = { pending: 0, passed: 0, failed: 0 };
+    for (const s of scenarios ?? []) counts[s.status] += 1;
+    return counts;
   }, [scenarios]);
 
   const [selected, setSelected] = useState<EndgameScenario | null>(null);
@@ -110,6 +122,9 @@ export function EndgamesRoute() {
       userColor: scenario.userColor,
       target: scenario.deservedResult,
       sourceGameId: scenario.gameId,
+      // The Endgames tab plays to the finish; take-back is a free practice tool here.
+      rules: FINISH_RULES,
+      allowTakeBack: true,
       onFinish: (r) => {
         attemptsRef.current += 1;
         void supabaseService
@@ -165,7 +180,10 @@ export function EndgamesRoute() {
   if (selected) {
     const game = gameById.get(selected.gameId);
     const playing =
-      playout.phase === 'solving' || playout.phase === 'thinking' || playout.phase === 'loading';
+      playout.phase === 'solving' || playout.phase === 'judging' || playout.phase === 'thinking';
+    const settingUp = playout.phase === 'solving' && playout.refPending && playout.lastMove === null;
+    const canTakeBack =
+      playout.allowTakeBack && playout.phase === 'solving' && playout.history.length > 0 && !paused;
 
     const externalPlatform = resolvePlatform(game?.platform, 'lichess');
     const displayedFen = preview?.fen ?? (playout.fen || selected.startFen);
@@ -179,7 +197,9 @@ export function EndgamesRoute() {
         ? 'Checkmate — point rescued.'
         : selected.deservedResult === 'win'
           ? 'Win secured — point rescued.'
-          : 'Draw held — half point rescued.';
+          : playout.terminal
+            ? 'Draw held — half point rescued.'
+            : 'Engine accepts the draw — half point rescued.';
     const failedMessage =
       playout.terminal === 'checkmate-by-opponent'
         ? 'Checkmated — the point slipped away again.'
@@ -196,7 +216,7 @@ export function EndgamesRoute() {
         <div className="flex flex-col gap-3">
           <BoardStage
             paused={paused}
-            loading={playout.phase === 'loading'}
+            loading={playout.phase === 'judging'}
             overlay={
               overlay.enabled &&
               (playout.phase === 'passed' || playout.phase === 'failed') && (
@@ -247,6 +267,16 @@ export function EndgamesRoute() {
             externalUrl={externalAnalysis?.url ?? null}
             externalLabel={externalAnalysis?.label}
             onStepLine={slipViewer.stepLine}
+            onTakeBack={
+              playing
+                ? () => {
+                    hint.reset();
+                    setPreview(null);
+                    playout.takeBack();
+                  }
+                : undefined
+            }
+            takeBackDisabled={!canTakeBack}
           />
         </div>
 
@@ -267,8 +297,10 @@ export function EndgamesRoute() {
             </p>
             <p className="text-text-secondary mt-1">
               In the game you {selected.actualResult === 'draw' ? 'only drew' : 'lost'}. Play it
-              out against the engine — hold the {selected.deservedResult} for{' '}
-              {playout.holdTarget} moves (or finish it) to rescue the point.
+              out against the engine —{' '}
+              {selected.deservedResult === 'win'
+                ? 'deliver checkmate to rescue the point.'
+                : 'hold until the engine gives up on winning to rescue the half point.'}
             </p>
           </div>
 
@@ -282,15 +314,19 @@ export function EndgamesRoute() {
           )}
 
           {playing && (
-            <HeldMeter
-              heldStreak={playout.heldStreak}
-              holdTarget={playout.holdTarget}
+            <PlayoutProgress
+              target={selected.deservedResult}
+              userMovesPlayed={playout.userMovesPlayed}
+              evalCp={playout.refEval?.scoreCp ?? null}
               depth={playout.refEval?.depth}
+              fen={playout.fen || selected.startFen}
+              pending={playout.refPending}
             />
           )}
 
-          {playout.phase === 'loading' && (
-            <FeedbackBadge tone="info">Setting up the position…</FeedbackBadge>
+          {settingUp && <FeedbackBadge tone="info">Setting up the position…</FeedbackBadge>}
+          {playout.phase === 'judging' && (
+            <FeedbackBadge tone="info">Judging your move…</FeedbackBadge>
           )}
           {playout.phase === 'thinking' && (
             <FeedbackBadge tone="info">Opponent thinking…</FeedbackBadge>
@@ -375,12 +411,45 @@ export function EndgamesRoute() {
         </p>
       </header>
 
-      {sections.length === 0 ? (
+      {(scenarios?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
+          {(
+            [
+              ['all', 'All', scenarios?.length ?? 0],
+              ['pending', SCENARIO_STATUS_LABEL.pending, statusCounts.pending],
+              ['failed', SCENARIO_STATUS_LABEL.failed, statusCounts.failed],
+              ['passed', SCENARIO_STATUS_LABEL.passed, statusCounts.passed],
+            ] as const
+          ).map(([key, label, count]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setStatusFilter(key)}
+              aria-pressed={statusFilter === key}
+              className={clsx(
+                'px-3 py-1 rounded-none font-mono text-xs uppercase tracking-tight border-2 transition',
+                statusFilter === key
+                  ? 'bg-text-primary text-bg border-text-primary'
+                  : 'bg-surface text-text-secondary border-text-primary/30 hover:border-text-primary',
+              )}
+            >
+              {label}
+              <span className="opacity-60"> · {count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {(scenarios?.length ?? 0) === 0 ? (
         <div className="card max-w-xl">
           <p className="text-text-secondary">
             No dropped endgames found — every endgame mistake we detected happened in games you
             weren't winning, or you converted your winning endgames. Nice.
           </p>
+        </div>
+      ) : sections.length === 0 ? (
+        <div className="card max-w-xl">
+          <p className="text-text-secondary">Nothing with that status yet.</p>
         </div>
       ) : (
         sections.map((section) => (
@@ -412,6 +481,11 @@ export function EndgamesRoute() {
                         >
                           {SCENARIO_STATUS_LABEL[s.status]}
                         </span>
+                        {isOppositeColoredBishops(s.startFen) && (
+                          <span className="px-2 py-0.5 rounded-none font-mono text-[10px] uppercase tracking-tight border-2 border-text-primary/30 text-text-secondary">
+                            Opposite-coloured bishops
+                          </span>
+                        )}
                       </div>
                       <p className="text-text-secondary text-sm">
                         {game ? `vs ${game.opponent}` : 'Unknown game'}
