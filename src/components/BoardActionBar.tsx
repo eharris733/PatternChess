@@ -18,6 +18,9 @@ interface BoardActionBarProps {
   externalLabel?: string;
   /** Mobile-only prev/next arrows stepping the active line (panel arrows sit below the fold). */
   onStepLine?: ((dir: 1 | -1) => void) | null;
+  /** Rewind the last move pair (Endgames tab play-outs only). Hidden when absent. */
+  onTakeBack?: () => void;
+  takeBackDisabled?: boolean;
 }
 
 function formatElapsed(ms: number): string {
@@ -39,6 +42,8 @@ export function BoardActionBar({
   externalUrl,
   externalLabel,
   onStepLine,
+  onTakeBack,
+  takeBackDisabled = false,
 }: BoardActionBarProps) {
   const [elapsed, setElapsed] = useState(0);
   const startRef = useRef<number | null>(null);
@@ -103,6 +108,18 @@ export function BoardActionBar({
             <ChevronIcon className="h-4 w-4" />
           </button>
         </>
+      )}
+
+      {onTakeBack && (
+        <button
+          type="button"
+          className="btn-ghost text-sm h-8 lg:h-10"
+          onClick={onTakeBack}
+          disabled={takeBackDisabled}
+          title="Take back your last move and the engine's reply"
+        >
+          Take back
+        </button>
       )}
 
       {showHint && (

@@ -16,6 +16,7 @@ import {
 } from '../endgame/PlayoutPanel';
 import { PositionSrState } from './PositionSrState';
 import { useTrainingStore } from '../../state/trainingStore';
+import { HOLD_MOVES, HOLD_RULES } from '../../chess/adjudication';
 import {
   PlayoutResult,
   useEndgamePlayoutStore,
@@ -117,6 +118,8 @@ export function EndgameDrillView({
       userColor,
       target,
       sourceGameId: blunder.gameId,
+      // Queue drills stay short: hold the result for HOLD_MOVES and move on.
+      rules: HOLD_RULES,
       onFinish: (r) => {
         useTrainingStore.getState().completeExternalDrill({
           success: r.success,
@@ -129,7 +132,9 @@ export function EndgameDrillView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [training.phase, blunder.id]);
 
-  const playing = playout.phase === 'solving' || playout.phase === 'thinking' || playout.phase === 'loading';
+  const playing =
+    playout.phase === 'solving' || playout.phase === 'judging' || playout.phase === 'thinking';
+  const settingUp = playout.phase === 'solving' && playout.refPending && playout.lastMove === null;
   const externalPlatform = resolvePlatform(training.game?.platform, 'lichess');
   const externalAnalysis =
     externalPlatform && playout.fen
@@ -142,6 +147,7 @@ export function EndgameDrillView({
         {showFilterBanner}
         <BoardStage
           paused={paused}
+          loading={playout.phase === 'judging'}
           overlay={
             overlay.enabled &&
             (training.phase === 'correct' || training.phase === 'incorrect') && (
@@ -232,18 +238,19 @@ export function EndgameDrillView({
             </FeedbackBadge>
             <HeldMeter
               heldStreak={playout.heldStreak}
-              holdTarget={playout.holdTarget}
+              holdTarget={playout.holdTarget ?? HOLD_MOVES}
               depth={playout.refEval?.depth}
             />
           </>
         )}
 
+        {playout.phase === 'judging' && (
+          <FeedbackBadge tone="info">Judging your move…</FeedbackBadge>
+        )}
         {playout.phase === 'thinking' && (
           <FeedbackBadge tone="info">Opponent thinking…</FeedbackBadge>
         )}
-        {playout.phase === 'loading' && (
-          <FeedbackBadge tone="info">Loading position…</FeedbackBadge>
-        )}
+        {settingUp && <FeedbackBadge tone="info">Loading position…</FeedbackBadge>}
         {playout.engineError && (
           <FeedbackBadge tone="warning">Engine hiccup — keep playing</FeedbackBadge>
         )}

@@ -1,6 +1,12 @@
 import { isTrainable, winningChancesLost } from '../chess/winningChances';
 import type { ParsedPosition } from '../services/pgnParserService';
-import { parseBestMove, parseDepth, parseEvalCp, parsePrincipalVariation } from './uci';
+import {
+  parseBestMove,
+  parseDepth,
+  parseEvalCp,
+  parseInfoLine,
+  parsePrincipalVariation,
+} from './uci';
 
 const ENGINE_MT = '/stockfish/stockfish-18-lite.js';
 const ENGINE_ST = '/stockfish/stockfish-18-lite-single.js';
@@ -34,7 +40,30 @@ interface PendingRequest {
   buffer: string[];
   resolve: (output: string) => void;
   reject: (err: Error) => void;
+  /** Observes every line as it streams in, before the terminator check. */
+  onLine?: (line: string) => void;
+  /** True for `go …` requests: `stop` is meaningful and a timeout asks the engine to wrap up first. */
+  search: boolean;
 }
+
+export interface SmartEvalOptions {
+  /** Hard time cap; the engine stops at this OR `maxDepth`, whichever comes first. */
+  movetimeMs: number;
+  /** Depth cap — no point thinking past this even with time left (simple endgames hit it fast). */
+  maxDepth: number;
+  /**
+   * Early stop for decided positions: once an iteration of at least
+   * `decidedMinDepth` reports |score| ≥ this many centipawns, the search is
+   * stopped and the current best line is returned. Omit to always run to the
+   * time/depth cap.
+   */
+  decidedCp?: number;
+  decidedMinDepth?: number;
+  pvMoves?: number;
+}
+
+/** After a timed-out search is told to `stop`, how long to wait for its `bestmove` before giving up on the worker. */
+const STOP_GRACE_MS = 1_000;
 
 export class StockfishWorkerClient {
   private worker: Worker | null = null;
@@ -129,6 +158,14 @@ export class StockfishWorkerClient {
       const req = this.pending;
       if (!req) return;
       req.buffer.push(line);
+      if (req.onLine) {
+        try {
+          req.onLine(line);
+        } catch (err) {
+          // A misbehaving observer must never strand the request.
+          console.warn('[stockfish] onLine observer threw', err);
+        }
+      }
       if (req.terminator(line)) {
         const out = req.buffer.join('\n');
         this.pending = null;
@@ -145,16 +182,30 @@ export class StockfishWorkerClient {
   }
 
   /**
+   * Abort the ACTIVE search, if any. The engine answers `stop` with its
+   * `bestmove`, which is the normal terminator, so the pending request resolves
+   * early with whatever depth it reached. Queue-safe: `pending` is only set once
+   * a request is at the head of the queue, so a `stop` can never target a
+   * queued-but-unsent `go`. No-op for non-search requests.
+   */
+  stop(): void {
+    if (this.worker && this.pending?.search) this.worker.postMessage('stop');
+  }
+
+  /**
    * Send one or more commands and wait for `terminator` to fire. Serializes with
    * prior commands. When `timeoutMs` is set and the terminator never fires, the
    * whole client is destroyed (a hung search's late output could satisfy the
    * *next* request's terminator) and the promise rejects — callers obtain a
    * fresh client through the singleton getters, which re-init on `!isReady`.
+   * Search requests get one `stop` and a short grace period first, so a
+   * throttled background tab doesn't lose the worker after every long think.
    */
   send(
     commands: string | string[],
     terminator: (line: string) => boolean,
     timeoutMs?: number,
+    opts: { onLine?: (line: string) => void; search?: boolean } = {},
   ): Promise<string> {
     const cmds = Array.isArray(commands) ? commands : [commands];
     const next = this.commandQueue.then(
@@ -180,13 +231,25 @@ export class StockfishWorkerClient {
               clear();
               reject(err);
             },
+            onLine: opts.onLine,
+            search: opts.search ?? false,
           };
           this.pending = req;
           if (timeoutMs && timeoutMs > 0) {
-            timer = setTimeout(() => {
+            const giveUp = () => {
               if (this.pending !== req) return;
               this.destroy();
               req.reject(new Error(`Engine command timed out after ${timeoutMs}ms`));
+            };
+            timer = setTimeout(() => {
+              if (this.pending !== req) return;
+              if (req.search && this.worker) {
+                // Ask the engine to wrap up; its bestmove is the terminator.
+                this.worker.postMessage('stop');
+                timer = setTimeout(giveUp, STOP_GRACE_MS);
+                return;
+              }
+              giveUp();
             }, timeoutMs);
           }
           for (const c of cmds) this.worker.postMessage(c);
@@ -225,6 +288,7 @@ export class StockfishWorkerClient {
       [`position fen ${fen}`, `go movetime ${movetimeMs}`],
       (line) => line.startsWith('bestmove'),
       movetimeMs + 3_000,
+      { search: true },
     );
     return {
       scoreCp: parseEvalCp(out),
@@ -239,6 +303,43 @@ export class StockfishWorkerClient {
     return this.evaluatePositionTimed(fen, movetimeMs, 5);
   }
 
+  /**
+   * "Smart depth": `go depth N movetime M` — UCI stops at whichever bound is
+   * hit first, so simple endgames (which reach depth 28+ in a fraction of a
+   * second) return early, while complex positions still get the full time.
+   * With `decidedCp` set, an iteration of at least `decidedMinDepth` that
+   * reports a decided score (|cp| ≥ decidedCp, mate always) stops the search
+   * immediately. Same terminal-position caveats as `evaluatePositionTimed`.
+   */
+  async evaluateSmart(fen: string, opts: SmartEvalOptions): Promise<PositionEval> {
+    const { movetimeMs, maxDepth, decidedCp, decidedMinDepth = 12, pvMoves = 5 } = opts;
+    let stopped = false;
+    const onLine =
+      decidedCp == null
+        ? undefined
+        : (line: string) => {
+            if (stopped) return;
+            const info = parseInfoLine(line);
+            if (!info || info.bound) return;
+            if (info.depth >= decidedMinDepth && Math.abs(info.cp) >= decidedCp) {
+              stopped = true;
+              this.stop();
+            }
+          };
+    const out = await this.send(
+      [`position fen ${fen}`, `go depth ${maxDepth} movetime ${movetimeMs}`],
+      (line) => line.startsWith('bestmove'),
+      movetimeMs + 3_000,
+      { onLine, search: true },
+    );
+    return {
+      scoreCp: parseEvalCp(out),
+      bestMove: parseBestMove(out),
+      principalVariation: parsePrincipalVariation(out, pvMoves),
+      depth: parseDepth(out),
+    };
+  }
+
   async evaluatePositionFull(
     fen: string,
     depth = 12,
@@ -249,6 +350,7 @@ export class StockfishWorkerClient {
       [`position fen ${fen}`, `go depth ${depth}`],
       (line) => line.startsWith('bestmove'),
       timeoutMs,
+      { search: true },
     );
     return {
       scoreCp: parseEvalCp(out),
