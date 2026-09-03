@@ -1,5 +1,6 @@
 import { useBlunderStats } from '../../hooks/useBlunderStats';
 import { rankFor } from '../../lib/ranks';
+import { SPACED_REPETITION_DAYS } from '../../models/blunder';
 import { Skeleton } from '../Skeleton';
 
 interface RankBadgeProps {
@@ -74,7 +75,7 @@ export function RankBadge({ variant = 'full' }: RankBadgeProps) {
         />
       </div>
       <p className="text-text-secondary text-xs">
-        Ranks advance as you master positions — 7 spaced cycles at ≥80% recall.
+        Ranks advance as you master positions — {SPACED_REPETITION_DAYS.length} spaced cycles at ≥80% recall.
         <span className="ml-1 opacity-70">{reviewed.toLocaleString()} reviews total.</span>
       </p>
     </section>

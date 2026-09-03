@@ -129,8 +129,10 @@ test('dashboard renders the renamed + new cards for an established user', async 
   await expect(page.getByText("Today's plan")).toBeVisible();
   await expect(page.getByText('Training timeline')).toBeVisible();
   // Stat strip leads for returning users; the explainer is gone once they've drilled.
-  await expect(page.getByText('Due today')).toBeVisible();
-  await expect(page.getByText('Points rescued')).toBeVisible();
+  await expect(page.getByText('Positions solved')).toBeVisible();
+  await expect(page.getByText('Elo gained')).toBeVisible();
+  await expect(page.getByText('Due today')).toHaveCount(0);
+  await expect(page.getByText('Points rescued')).toHaveCount(0);
   await expect(page.getByText('How training works')).toHaveCount(0);
   // The plan is a checklist with its own buttons — no single "Keep training" CTA.
   await expect(page.getByText('Train 10 positions')).toBeVisible();
@@ -142,9 +144,12 @@ test('dashboard renders the renamed + new cards for an established user', async 
   await expect(page.getByText(/blunders in vault/i)).toBeVisible();
   // Daily habit card surfaces the nearest achievement as a return nudge.
   await expect(page.getByText('Next achievement')).toBeVisible();
-  // The compact rank bar is gone from the dashboard; mastery lives in the strip.
-  await expect(page.getByText('Pawn', { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Mastered' })).toBeVisible();
+  // The mastery tile carries the piece-rank ladder: Pawn with the count needed for Knight.
+  const mastery = page.getByRole('button', { name: /^Mastered/ });
+  await expect(mastery).toBeVisible();
+  await expect(mastery.getByText('Pawn', { exact: true })).toBeVisible();
+  await expect(mastery.getByText('10 to Knight')).toBeVisible();
+  await expect(mastery.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
   // No "reviews" wording remains on the dashboard badge.
   await expect(page.getByText(/\breviews\b/i)).toHaveCount(0);
 });
