@@ -7,7 +7,6 @@ import { DailyHabitCard } from '../components/insights/DailyHabitCard';
 import { CycleTimelineCard } from '../components/insights/CycleTimelineCard';
 import { HowTrainingWorksCard } from '../components/insights/HowTrainingWorksCard';
 import { GetStartedHero } from '../components/insights/GetStartedHero';
-import { RankBadge } from '../components/insights/RankBadge';
 import { OpeningInsightsCard } from '../components/insights/OpeningInsightsCard';
 import { PhaseBlunderCard } from '../components/insights/PhaseBlunderCard';
 import { MotifWeaknessCard } from '../components/insights/MotifWeaknessCard';
@@ -59,10 +58,7 @@ export function DashboardRoute() {
             <h1 className="heading-xl">{firstName}, let's get started.</h1>
           </>
         ) : (
-          <>
-            <h1 className="heading-xl">Hey {firstName}</h1>
-            <RankBadge variant="compact" />
-          </>
+          <h1 className="heading-xl">Hey {firstName}</h1>
         )}
       </header>
 

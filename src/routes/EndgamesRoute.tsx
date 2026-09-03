@@ -216,7 +216,6 @@ export function EndgamesRoute() {
         <div className="flex flex-col gap-3">
           <BoardStage
             paused={paused}
-            loading={playout.phase === 'judging'}
             overlay={
               overlay.enabled &&
               (playout.phase === 'passed' || playout.phase === 'failed') && (

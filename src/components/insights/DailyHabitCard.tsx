@@ -1,26 +1,84 @@
 import { useNavigate } from 'react-router-dom';
+import clsx from 'clsx';
 import { useAuth } from '../../auth/useAuth';
 import { useDrillsToday } from '../../hooks/useTrainingActivity';
 import { useAchievements } from '../../hooks/useAchievements';
 import { useDueBlunders } from '../../hooks/useDueBlunders';
 import { useEndgameScenarios } from '../../hooks/useEndgameScenarios';
-import { dailyGoalProgress } from '../../lib/dailyGoal';
+import { DAILY_GOAL } from '../../lib/dailyGoal';
 import { nearestAchievement } from '../../lib/achievements';
-import { addDays, detectTimezone, localDate } from '../../services/streakService';
-import { FlameIcon } from '../icons/FlameIcon';
+import { detectTimezone, localDate } from '../../services/streakService';
 import { CheckIcon } from '../icons/CheckIcon';
 import { TrophyIcon } from '../icons/TrophyIcon';
 import { EndgameIcon } from '../icons/EndgameIcon';
 import { TrainIcon } from '../icons/TrainIcon';
 import { Skeleton } from '../Skeleton';
 
-/** How many endgame play-outs the plan suggests per day (the list may hold more). */
-const PLAYOUTS_PER_DAY = 2;
+/** Endgame play-outs the plan asks for per day (the list may hold many more). */
+export const PLAYOUTS_PER_DAY = 2;
+
+function PlanStep({
+  icon,
+  title,
+  detail,
+  done,
+  goal,
+  action,
+  onAction,
+  loading,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  detail?: string | null;
+  done: number;
+  goal: number;
+  action: string;
+  onAction: () => void;
+  loading?: boolean;
+}) {
+  const complete = done >= goal;
+  return (
+    <li className="flex items-center gap-3 py-3">
+      <span
+        className={clsx(
+          'flex h-6 w-6 shrink-0 items-center justify-center border-2',
+          complete
+            ? 'border-correct bg-correct/15 text-correct'
+            : 'border-text-primary/30 bg-surface text-transparent',
+        )}
+        aria-hidden
+      >
+        <CheckIcon className="h-4 w-4" />
+      </span>
+      <span className="shrink-0 text-gold-dark">{icon}</span>
+      <span className="flex-1 min-w-0">
+        <span className={clsx('block text-sm', complete ? 'text-text-secondary line-through' : 'text-text-primary')}>
+          {title}
+        </span>
+        {detail && <span className="block text-xs text-text-secondary truncate">{detail}</span>}
+      </span>
+      {loading ? (
+        <Skeleton className="h-4 w-10" />
+      ) : (
+        <span className="font-mono text-sm tabular-nums text-text-secondary shrink-0">
+          {Math.min(done, goal)}/{goal}
+        </span>
+      )}
+      <button
+        type="button"
+        className={clsx(complete ? 'btn-outline' : 'btn-primary', 'h-9 px-4 text-xs shrink-0')}
+        onClick={onAction}
+      >
+        {action}
+      </button>
+    </li>
+  );
+}
 
 /**
- * Today's plan: progress toward the daily goal, the streak, and the two things
- * to do — due positions (the SR queue) and endgame play-outs waiting on the
- * Endgames tab. Finished play-outs count toward the goal alongside drills.
+ * Today's plan: a checklist of the two things to do — drill the SR queue and
+ * play a couple of endgame play-outs — each with its own progress, check, and
+ * button. (The streak lives in the sidebar badge and on the profile.)
  */
 export function DailyHabitCard() {
   const navigate = useNavigate();
@@ -32,10 +90,6 @@ export function DailyHabitCard() {
 
   const tz = profile?.timezone ?? detectTimezone();
   const today = localDate(tz);
-  const yesterday = addDays(today, -1);
-  const last = profile?.lastDrillLocalDate ?? null;
-  const streakStale = !last || (last !== today && last !== yesterday);
-  const streakDays = profile?.currentStreakDays ?? 0;
 
   if (drillsQuery.isPending) {
     return (
@@ -44,8 +98,8 @@ export function DailyHabitCard() {
           <span className="label">Today's plan</span>
           <Skeleton className="h-3 w-20" />
         </header>
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-2 w-full" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
       </section>
     );
   }
@@ -55,111 +109,68 @@ export function DailyHabitCard() {
     (s) => s.lastPlayedAt && localDate(tz, s.lastPlayedAt) === today,
   ).length;
   const playoutsWaiting = scenarios.filter((s) => s.status !== 'passed').length;
+  const showEndgames = playoutsWaiting > 0 || playoutsToday > 0;
+  const drillsToday = drillsQuery.data ?? 0;
   const dueCount = dueQuery.data?.length ?? 0;
 
-  const progress = dailyGoalProgress((drillsQuery.data ?? 0) + playoutsToday);
+  const steps = [
+    { done: drillsToday, goal: DAILY_GOAL },
+    ...(showEndgames ? [{ done: playoutsToday, goal: PLAYOUTS_PER_DAY }] : []),
+  ];
+  const stepsDone = steps.filter((s) => s.done >= s.goal).length;
+  const allDone = stepsDone === steps.length;
   const next = nearestAchievement(achievements);
 
   return (
-    <section className="card flex flex-col gap-4">
+    <section className="card flex flex-col gap-3">
       <header className="flex items-baseline justify-between">
         <span className="label">Today's plan</span>
-        {streakDays > 0 && (
-          <span
-            className={streakStale ? 'flex items-center gap-1.5 opacity-50' : 'flex items-center gap-1.5'}
-            title={
-              streakStale
-                ? `Streak: ${streakDays} (resets on your next drill — last drill ${last ?? 'never'})`
-                : `${streakDays}-day streak`
-            }
-          >
-            <FlameIcon className="h-4 w-4" />
-            <span className="text-sm tabular-nums">
-              <span className="font-mono font-semibold text-gold-dark">{streakDays}</span>
-              <span className="text-text-secondary"> day{streakDays === 1 ? '' : 's'}</span>
-            </span>
-          </span>
-        )}
+        <span
+          className={clsx(
+            'font-mono text-xs uppercase tracking-tight inline-flex items-center gap-1.5',
+            allDone ? 'text-correct' : 'text-text-secondary',
+          )}
+        >
+          {allDone && <CheckIcon className="h-3.5 w-3.5" title="Plan complete" />}
+          {allDone ? 'All done today' : `${stepsDone}/${steps.length} done`}
+        </span>
       </header>
 
-      <div className="flex items-end gap-3">
-        <span className="font-mono text-4xl tracking-tight text-gold-dark">
-          {progress.done}
-          <span className="text-text-secondary text-2xl">/{progress.goal}</span>
-        </span>
-        <span className="text-text-secondary mb-1">
-          {progress.met ? (
-            <span className="text-correct inline-flex items-center gap-1.5">
-              <CheckIcon className="h-4 w-4" title="Daily goal complete" />
-              Goal complete
-            </span>
-          ) : (
-            `${progress.remaining} to go`
-          )}
-        </span>
-      </div>
-
-      <div className="h-2 rounded-none bg-text-primary/10 overflow-hidden border border-text-primary/20">
-        <div
-          className="h-full bg-gold-dark transition-[width] duration-300"
-          style={{ width: `${Math.round(progress.fraction * 100)}%` }}
-        />
-      </div>
-
       <ul className="flex flex-col divide-y-2 divide-text-primary/10 border-y-2 border-text-primary/10">
-        <li>
-          <button
-            type="button"
-            className="w-full flex items-center gap-3 py-2.5 text-left hover:bg-text-primary/5 transition"
-            onClick={() => navigate('/training')}
-          >
-            <TrainIcon className="h-4 w-4 shrink-0 text-gold-dark" />
-            <span className="flex-1 text-sm text-text-primary">
-              {dueQuery.isPending ? (
-                <Skeleton className="h-4 w-32" />
-              ) : dueCount > 0 ? (
-                `${dueCount} position${dueCount === 1 ? '' : 's'} due`
-              ) : (
-                'No positions due — all caught up'
-              )}
-            </span>
-            <span className="font-mono text-xs uppercase tracking-tight text-text-secondary">
-              Train
-            </span>
-          </button>
-        </li>
-        {playoutsWaiting > 0 && (
-          <li>
-            <button
-              type="button"
-              className="w-full flex items-center gap-3 py-2.5 text-left hover:bg-text-primary/5 transition"
-              onClick={() => navigate('/endgames')}
-            >
-              <EndgameIcon className="h-4 w-4 shrink-0 text-gold-dark" />
-              <span className="flex-1 text-sm text-text-primary">
-                {playoutsWaiting} endgame play-out{playoutsWaiting === 1 ? '' : 's'} waiting
-                <span className="text-text-secondary">
-                  {' '}
-                  · play {Math.min(PLAYOUTS_PER_DAY, playoutsWaiting)} today
-                </span>
-              </span>
-              <span className="font-mono text-xs uppercase tracking-tight text-text-secondary">
-                Play
-              </span>
-            </button>
-          </li>
+        <PlanStep
+          icon={<TrainIcon className="h-4 w-4" />}
+          title={`Train ${DAILY_GOAL} positions`}
+          detail={
+            dueQuery.isPending
+              ? null
+              : dueCount > 0
+                ? `${dueCount} due in your queue`
+                : 'Queue is clear — drills still count'
+          }
+          done={drillsToday}
+          goal={DAILY_GOAL}
+          action="Train"
+          onAction={() => navigate('/training')}
+        />
+        {showEndgames && (
+          <PlanStep
+            icon={<EndgameIcon className="h-4 w-4" />}
+            title={`Play ${PLAYOUTS_PER_DAY} endgames`}
+            detail={`${playoutsWaiting} play-out${playoutsWaiting === 1 ? '' : 's'} waiting`}
+            done={playoutsToday}
+            goal={PLAYOUTS_PER_DAY}
+            action="Play"
+            onAction={() => navigate('/endgames')}
+            loading={scenariosQuery.isPending && scenariosQuery.isFetching}
+          />
         )}
       </ul>
-
-      <button className="btn-primary w-full" onClick={() => navigate('/training')}>
-        {progress.done > 0 ? 'Keep training' : 'Start training'}
-      </button>
 
       {next && (
         <button
           type="button"
           onClick={() => navigate('/achievements')}
-          className="flex flex-col gap-1.5 border-t-2 border-text-primary/15 pt-3 text-left transition-opacity hover:opacity-90"
+          className="flex flex-col gap-1.5 pt-1 text-left transition-opacity hover:opacity-90"
         >
           <div className="flex items-baseline justify-between">
             <span className="label">Next achievement</span>

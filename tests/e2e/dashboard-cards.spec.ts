@@ -129,17 +129,22 @@ test('dashboard renders the renamed + new cards for an established user', async 
   await expect(page.getByText("Today's plan")).toBeVisible();
   await expect(page.getByText('Training timeline')).toBeVisible();
   // Stat strip leads for returning users; the explainer is gone once they've drilled.
-  await expect(page.getByText('Day streak')).toBeVisible();
+  await expect(page.getByText('Due today')).toBeVisible();
   await expect(page.getByText('Points rescued')).toBeVisible();
   await expect(page.getByText('How training works')).toHaveCount(0);
-  await expect(page.getByText(/positions? due/)).toBeVisible();
+  // The plan is a checklist with its own buttons — no single "Keep training" CTA.
+  await expect(page.getByText('Train 10 positions')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Train', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Keep training/i })).toHaveCount(0);
+  // The streak appears in the sidebar badge only, never in the strip or plan.
+  await expect(page.getByText('Day streak')).toHaveCount(0);
   // Timeline now combines the per-stage graph with the total blunder count.
   await expect(page.getByText(/blunders in vault/i)).toBeVisible();
   // Daily habit card surfaces the nearest achievement as a return nudge.
   await expect(page.getByText('Next achievement')).toBeVisible();
-  // Rank badge (compact) headlines mastery, not reviews.
-  await expect(page.getByText('Pawn', { exact: true })).toBeVisible();
-  await expect(page.getByText(/0 mastered/i)).toBeVisible();
+  // The compact rank bar is gone from the dashboard; mastery lives in the strip.
+  await expect(page.getByText('Pawn', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Mastered' })).toBeVisible();
   // No "reviews" wording remains on the dashboard badge.
   await expect(page.getByText(/\breviews\b/i)).toHaveCount(0);
 });
@@ -183,10 +188,12 @@ test('how-it-works explainer collapses to a disclosure once dismissed', async ({
   await expect(page.getByRole('button', { name: /Got it/i })).toBeVisible();
 });
 
-test('keep-training stays visible after the daily goal is met', async ({ page }) => {
-  await stubRichAuth(page, { drillsToday: 10 });
+test('the train step checks off after the daily goal is met, button stays', async ({ page }) => {
+  await stubRichAuth(page, { drillsToday: 12 });
   await page.goto('/dashboard');
-  // 10/10 drills today — the goal is met, and the CTA must remain available.
-  await expect(page.getByText('/10')).toBeVisible();
-  await expect(page.getByRole('button', { name: /Keep training/i })).toBeVisible();
+  // 12/10 drills today — the step is complete (capped at the goal), and the
+  // Train button must remain available.
+  await expect(page.getByText('10/10')).toBeVisible();
+  await expect(page.getByText('All done today')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Train', exact: true })).toBeVisible();
 });

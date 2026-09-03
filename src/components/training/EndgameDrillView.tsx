@@ -148,7 +148,6 @@ export function EndgameDrillView({
         {showFilterBanner}
         <BoardStage
           paused={paused}
-          loading={playout.phase === 'judging'}
           overlay={
             overlay.enabled &&
             (training.phase === 'correct' || training.phase === 'incorrect') && (
