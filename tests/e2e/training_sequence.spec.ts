@@ -122,6 +122,24 @@ async function stubTrainingAuth(page: Page, blunders: Record<string, unknown>[])
               new Response(null, { status: 200, headers: { 'content-range': '*/3' } }),
             );
           }
+          // Motif counts now come from a server-side RPC; reproduce the
+          // aggregation from the seeded rows (only tagged rows carry motifs).
+          if (url.includes('/rest/v1/rpc/get_blunder_motif_counts')) {
+            const counts: Record<string, number> = {};
+            let tagged = 0;
+            let untagged = 0;
+            for (const b of blunders as Array<Record<string, any>>) {
+              if (b.solution_line == null) {
+                untagged++;
+                continue;
+              }
+              tagged++;
+              for (const m of (b.motifs as string[] | undefined) ?? []) {
+                counts[m] = (counts[m] ?? 0) + 1;
+              }
+            }
+            return json({ counts, tagged, untagged, total: blunders.length });
+          }
           if (url.includes('/rest/v1/profiles')) return json(profile);
           if (url.includes('/rest/v1/blunders')) return json(blunders);
           if (url.includes('/rest/v1/games')) return json(game);

@@ -45,9 +45,11 @@ function persistAnalyzedSet(userId: string, set: Set<string>): void {
 
 function gameOutcome(game: GameRecord): Outcome | null {
   // Prefer the stored color; fall back to PGN headers for older rows where
-  // user_color was never parsed.
+  // user_color was never parsed. The list query omits `pgn`, so this fallback
+  // only fires for a single full-row fetch; legacy null-color rows have been
+  // backfilled server-side, so `game.pgn` is normally empty here.
   let color = game.userColor;
-  if (!color && (game.platform === 'lichess' || game.platform === 'pgn')) {
+  if (!color && game.pgn && (game.platform === 'lichess' || game.platform === 'pgn')) {
     const isWhite =
       extractHeaders(game.pgn).White?.toLowerCase() === game.username.toLowerCase();
     color = isWhite ? 'white' : 'black';

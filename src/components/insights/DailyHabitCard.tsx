@@ -38,7 +38,7 @@ function PlanStep({
 }) {
   const complete = done >= goal;
   return (
-    <li className="flex items-center gap-3 py-3">
+    <li className="flex items-center gap-3 py-3" data-plan-step>
       <span
         className={clsx(
           'flex h-6 w-6 shrink-0 items-center justify-center border-2',
@@ -75,6 +75,23 @@ function PlanStep({
   );
 }
 
+/** Placeholder row shown while the endgame scenario scan is still running, so
+ * the endgame step reserves its space instead of popping in after the Train
+ * step has already rendered. */
+function PlanStepSkeleton() {
+  return (
+    <li className="flex items-center gap-3 py-3" data-plan-step aria-hidden>
+      <Skeleton className="h-6 w-6 shrink-0" />
+      <Skeleton className="h-4 w-4 shrink-0" />
+      <span className="flex-1 min-w-0">
+        <Skeleton className="h-4 w-32" />
+      </span>
+      <Skeleton className="h-4 w-10 shrink-0" />
+      <Skeleton className="h-9 w-16 shrink-0" />
+    </li>
+  );
+}
+
 /**
  * Today's plan: a checklist of the two things to do — drill the SR queue and
  * play a couple of endgame play-outs — each with its own progress, check, and
@@ -104,6 +121,10 @@ export function DailyHabitCard() {
     );
   }
 
+  // The endgame step depends on games → scenario scan, which resolves after the
+  // drills query. Reserve its row with a skeleton while that's still pending so
+  // the two steps appear together rather than the endgame step sliding in late.
+  const scenariosPending = scenariosQuery.isPending;
   const scenarios = scenariosQuery.data ?? [];
   const playoutsToday = scenarios.filter(
     (s) => s.lastPlayedAt && localDate(tz, s.lastPlayedAt) === today,
@@ -125,15 +146,19 @@ export function DailyHabitCard() {
     <section className="card flex flex-col gap-3">
       <header className="flex items-baseline justify-between">
         <span className="label">Today's plan</span>
-        <span
-          className={clsx(
-            'font-mono text-xs uppercase tracking-tight inline-flex items-center gap-1.5',
-            allDone ? 'text-correct' : 'text-text-secondary',
-          )}
-        >
-          {allDone && <CheckIcon className="h-3.5 w-3.5" title="Plan complete" />}
-          {allDone ? 'All done today' : `${stepsDone}/${steps.length} done`}
-        </span>
+        {scenariosPending ? (
+          <Skeleton className="h-3 w-20" />
+        ) : (
+          <span
+            className={clsx(
+              'font-mono text-xs uppercase tracking-tight inline-flex items-center gap-1.5',
+              allDone ? 'text-correct' : 'text-text-secondary',
+            )}
+          >
+            {allDone && <CheckIcon className="h-3.5 w-3.5" title="Plan complete" />}
+            {allDone ? 'All done today' : `${stepsDone}/${steps.length} done`}
+          </span>
+        )}
       </header>
 
       <ul className="flex flex-col divide-y-2 divide-text-primary/10 border-y-2 border-text-primary/10">
@@ -152,17 +177,20 @@ export function DailyHabitCard() {
           action="Train"
           onAction={() => navigate('/training')}
         />
-        {showEndgames && (
-          <PlanStep
-            icon={<EndgameIcon className="h-4 w-4" />}
-            title={`Play ${PLAYOUTS_PER_DAY} endgames`}
-            detail={`${playoutsWaiting} play-out${playoutsWaiting === 1 ? '' : 's'} waiting`}
-            done={playoutsToday}
-            goal={PLAYOUTS_PER_DAY}
-            action="Play"
-            onAction={() => navigate('/endgames')}
-            loading={scenariosQuery.isPending && scenariosQuery.isFetching}
-          />
+        {scenariosPending ? (
+          <PlanStepSkeleton />
+        ) : (
+          showEndgames && (
+            <PlanStep
+              icon={<EndgameIcon className="h-4 w-4" />}
+              title={`Play ${PLAYOUTS_PER_DAY} endgames`}
+              detail={`${playoutsWaiting} play-out${playoutsWaiting === 1 ? '' : 's'} waiting`}
+              done={playoutsToday}
+              goal={PLAYOUTS_PER_DAY}
+              action="Play"
+              onAction={() => navigate('/endgames')}
+            />
+          )
         )}
       </ul>
 

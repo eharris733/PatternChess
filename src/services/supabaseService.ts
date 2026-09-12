@@ -41,8 +41,17 @@ export async function insertGames(
   return (data ?? []).map(gameRecordFromJson);
 }
 
+// Every column GameRecord needs EXCEPT the heavy `pgn` (full move text, ~1KB
+// each) and `clock_per_ply` (per-move clock array). The games list/insights
+// never render the PGN — replay fetches the single full row via getGame — so
+// omitting them drops the list payload from ~1MB to tens of KB for active users.
+const GAME_LIST_COLUMNS =
+  'id, platform, username, opponent, time_control, rated, result, played_at, ' +
+  'created_at, analyzed_at, eco, opening_name, user_color, user_rating, ' +
+  'opponent_rating, total_plies, parsed_metadata_at';
+
 export async function getGames(opts?: { userId?: string }): Promise<GameRecord[]> {
-  let q = supabase.from('games').select();
+  let q = supabase.from('games').select(GAME_LIST_COLUMNS);
   if (opts?.userId) q = q.eq('user_id', opts.userId);
   // Sort by played_at primarily, but break ties (and rank PGN uploads with
   // missing/old [Date] headers) by insertion time so freshly-imported games
@@ -276,27 +285,18 @@ export interface MotifCounts {
 }
 
 export async function getBlunderMotifCounts(): Promise<MotifCounts> {
-  const userId = await currentUserId();
-  if (!userId) return { counts: {}, tagged: 0, untagged: 0, total: 0 };
-  const { data, error } = await supabase
-    .from('blunders')
-    .select('motifs, solution_line')
-    .eq('user_id', userId)
-    .eq('kind', 'tactic');
+  // Aggregated server-side (get_blunder_motif_counts RPC) — the old client
+  // version downloaded solution_line + motifs for every tactic row (~180KB for
+  // an active user) just to tally these few numbers.
+  const { data, error } = await supabase.rpc('get_blunder_motif_counts');
   if (error) throw error;
-  const out: MotifCounts = { counts: {}, tagged: 0, untagged: 0, total: 0 };
-  for (const row of (data ?? []) as Array<{ motifs: string[] | null; solution_line: unknown }>) {
-    out.total++;
-    if (row.solution_line == null) {
-      out.untagged++;
-      continue;
-    }
-    out.tagged++;
-    for (const m of row.motifs ?? []) {
-      out.counts[m] = (out.counts[m] ?? 0) + 1;
-    }
-  }
-  return out;
+  const d = (data ?? {}) as Partial<MotifCounts>;
+  return {
+    counts: (d.counts as Record<string, number>) ?? {},
+    tagged: d.tagged ?? 0,
+    untagged: d.untagged ?? 0,
+    total: d.total ?? 0,
+  };
 }
 
 /** Persist backfilled enrichment (engine line + motif tags) on a blunder row. */
