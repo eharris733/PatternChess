@@ -10,6 +10,7 @@ export type AchievementCategory =
   | 'consistency'
   | 'mastery'
   | 'practice'
+  | 'discovery'
   | 'library'
   | 'rating';
 
@@ -18,6 +19,7 @@ export const ACHIEVEMENT_CATEGORY_LABEL: Record<AchievementCategory, string> = {
   consistency: 'Consistency',
   mastery: 'Mastery',
   practice: 'Practice',
+  discovery: 'Discovery',
   library: 'Library',
   rating: 'Rating',
 };
@@ -27,6 +29,7 @@ export const ACHIEVEMENT_CATEGORY_ORDER: readonly AchievementCategory[] = [
   'consistency',
   'mastery',
   'practice',
+  'discovery',
   'library',
   'rating',
 ];
@@ -47,6 +50,8 @@ export interface AchievementMetrics {
   connectedLichess: number; // 1 if a Lichess account is linked
   connectedChesscom: number; // 1 if a Chess.com account is linked
   ratingGained: number; // best net rating gain across time controls since joining
+  endgamesRescued: number; // /endgames scenarios rescued (status: passed)
+  usedTrainingFilter: number; // 1 if a /training focus (opening/motif/phase/situation) has ever been picked
 }
 
 export const EMPTY_METRICS: AchievementMetrics = {
@@ -59,6 +64,8 @@ export const EMPTY_METRICS: AchievementMetrics = {
   connectedLichess: 0,
   connectedChesscom: 0,
   ratingGained: 0,
+  endgamesRescued: 0,
+  usedTrainingFilter: 0,
 };
 
 export interface AchievementDef {
@@ -99,6 +106,12 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { id: 'review-500', title: 'Devoted', description: 'Recall 500 positions.', category: 'practice', metric: 'reviewed', threshold: 500 },
   { id: 'review-1000', title: 'Woodpecker', description: 'Recall 1,000 positions.', category: 'practice', metric: 'reviewed', threshold: 1000 },
   { id: 'review-2500', title: 'Relentless', description: 'Recall 2,500 positions.', category: 'practice', metric: 'reviewed', threshold: 2500 },
+
+  // Discovery — nudges toward the endgame trainer and the training-focus picker.
+  { id: 'endgame-rescue-1', title: 'First Rescue', description: 'Rescue a dropped point in the endgame trainer.', category: 'discovery', metric: 'endgamesRescued', threshold: 1 },
+  { id: 'endgame-rescue-5', title: 'Endgame Medic', description: 'Rescue 5 dropped points in the endgame trainer.', category: 'discovery', metric: 'endgamesRescued', threshold: 5 },
+  { id: 'endgame-rescue-15', title: 'Point Guard', description: 'Rescue 15 dropped points in the endgame trainer.', category: 'discovery', metric: 'endgamesRescued', threshold: 15 },
+  { id: 'filtered-training-1', title: 'Focused Training', description: 'Train a specific focus — an opening, pattern, phase, or situation — from the training picker.', category: 'discovery', metric: 'usedTrainingFilter', threshold: 1 },
 
   // Library — building up the material to train against.
   { id: 'games-10', title: 'Building a Vault', description: 'Analyze 10 games.', category: 'library', metric: 'gamesAnalyzed', threshold: 10 },

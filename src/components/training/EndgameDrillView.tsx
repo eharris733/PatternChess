@@ -69,6 +69,7 @@ export function EndgameDrillView({
   const hint = usePlayoutHint({
     bestMove: playout.refEval?.bestMove,
     solving: playout.phase === 'solving',
+    moveCount: playout.userMovesPlayed,
     // Revealing the move forfeits the clean first-attempt recall, same as
     // tactics; the level-1 piece highlight is free.
     onRevealMove: () => useTrainingStore.getState().markExternalAttempt(),

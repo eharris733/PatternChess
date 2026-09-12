@@ -36,6 +36,18 @@ export function isTrainable(chancesLost: number): boolean {
 }
 
 /**
+ * Raw centipawns lost by the move, from the mover's perspective. Both evals
+ * are raw engine output (each from its position's side-to-move); `evalAfter`
+ * is negated back to the mover's perspective before comparing, same
+ * convention as `winningChancesLost`. Positive = the move made things worse.
+ * Display-only companion to the percent-based `winningChancesLost` — the
+ * percent model still backs classification/threshold logic.
+ */
+export function cpLoss(evalBefore: number, evalAfter: number): number {
+  return evalBefore + evalAfter;
+}
+
+/**
  * Convert a raw engine score (always side-to-move perspective) to a fixed
  * color's perspective — e.g. for classifying an endgame as won/drawn/lost for
  * the user regardless of whose turn it is.

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
+import { authService } from '../services/authService';
 import { useTrainingStore } from '../state/trainingStore';
 import { useDueBlunders } from '../hooks/useDueBlunders';
 import { BoardStage } from '../components/BoardStage';
@@ -22,6 +23,7 @@ import { Skeleton } from '../components/Skeleton';
 import { PositionSrState } from '../components/training/PositionSrState';
 import { BlunderContextBadges } from '../components/training/BlunderContextBadges';
 import { EndgameDrillView } from '../components/training/EndgameDrillView';
+import { TrainLandingScreen, type TrainFilterPick } from '../components/training/TrainLandingScreen';
 import {
   ContextFilter,
   GAME_STATE_LABEL,
@@ -134,14 +136,43 @@ export function TrainingRoute() {
     setRevealBeforeSolve(revealBeforeSolve);
   }, [revealBeforeSolve, setRevealBeforeSolve]);
 
-  const contextFilter = location.state?.contextFilter ?? null;
-  const phaseFilter = location.state?.phaseFilter ?? null;
-  const motifFilter = location.state?.motifFilter ?? null;
-  const openingFilter = location.state?.openingFilter ?? null;
-  const openingColor = location.state?.openingColor ?? null;
-  const openingLabel = location.state?.openingLabel ?? null;
-  const dueBlunders = useDueBlunders(location.state?.gameIds);
+  // A deep link from a dashboard insight card arrives with `location.state`
+  // already populated — that skips the landing picker below entirely and
+  // behaves exactly as before this screen existed. Otherwise nothing is
+  // filtered (and the queue isn't started) until the user picks a focus on
+  // the landing screen, which fills `pickedFilter` with the same shape.
+  const [pickedFilter, setPickedFilter] = useState<LocationState | null>(null);
+  const filterChosen = !!location.state || pickedFilter !== null;
+  const effectiveState: LocationState = location.state ?? pickedFilter ?? {};
+
+  const contextFilter = effectiveState.contextFilter ?? null;
+  const phaseFilter = effectiveState.phaseFilter ?? null;
+  const motifFilter = effectiveState.motifFilter ?? null;
+  const openingFilter = effectiveState.openingFilter ?? null;
+  const openingColor = effectiveState.openingColor ?? null;
+  const openingLabel = effectiveState.openingLabel ?? null;
+  const dueBlunders = useDueBlunders(effectiveState.gameIds);
   const dueData = dueBlunders.data;
+  // Skip the landing picker when there's nothing due at all — offering a
+  // training focus is pointless with an empty queue, and it lets the plain
+  // "nothing due" empty state render directly instead of a flash of the picker.
+  const dueConfirmedEmpty = dueBlunders.isFetched && (dueData?.length ?? 0) === 0;
+  const sessionReady = filterChosen || dueConfirmedEmpty;
+
+  // Clears any deep-link filter state and local pick, then re-fetches the due
+  // count so the picker (or the "nothing due" empty state, if it comes back
+  // empty) reflects what's actually left after a session.
+  const backToPicker = () => {
+    setPickedFilter(null);
+    useTrainingStore.getState().reset();
+    navigate('/training', { replace: true });
+    void dueBlunders.refetch();
+  };
+  const resetToUnfiltered = () => {
+    setPickedFilter({});
+    useTrainingStore.getState().reset();
+    navigate('/training', { replace: true });
+  };
 
   // Context and opening filters both need the blunders' games (the per-blunder
   // game fetch in the store isn't enough for batch filtering); phase doesn't.
@@ -235,8 +266,61 @@ export function TrainingRoute() {
     setActiveTab(state.phase === 'incorrect' ? 'playedRefutation' : 'continuation');
   }, [state.currentIndex, state.phase]);
 
+  // On a repeat wrong attempt (not the drill's first try), autoplay the
+  // engine's refutation of the played move instead of leaving it as a static
+  // reveal — the point is to force the lesson to land on a re-miss without
+  // being harsh on the very first try. Cancelled the moment the user steps
+  // the line manually (see `stopAutoplay` usages below).
+  const autoplayEnabled = profile?.autoplayRefutation ?? true;
+  const autoplayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoplayedKeyRef = useRef<string | null>(null);
+  const stopAutoplay = () => {
+    if (autoplayTimerRef.current !== null) {
+      clearInterval(autoplayTimerRef.current);
+      autoplayTimerRef.current = null;
+    }
+  };
   useEffect(() => {
-    if (!filteredBlunders) return;
+    const shouldAutoplay =
+      state.phase === 'incorrect' &&
+      state.incorrectRequeue &&
+      !state.lastAttemptWasFirst &&
+      autoplayEnabled &&
+      state.playedRefutationMoves.length > 0;
+
+    if (!shouldAutoplay) {
+      stopAutoplay();
+      return;
+    }
+
+    const key = `${state.currentIndex}:${state.playedRefutationMoves.length}`;
+    if (autoplayedKeyRef.current === key) return;
+    autoplayedKeyRef.current = key;
+
+    const total = state.playedRefutationMoves.length;
+    let idx = 0;
+    state.selectPlayedRefutationIndex(idx);
+    autoplayTimerRef.current = setInterval(() => {
+      idx += 1;
+      if (idx >= total) {
+        stopAutoplay();
+        return;
+      }
+      useTrainingStore.getState().selectPlayedRefutationIndex(idx);
+    }, 700);
+
+    return stopAutoplay;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    state.phase,
+    state.incorrectRequeue,
+    state.lastAttemptWasFirst,
+    state.currentIndex,
+    autoplayEnabled,
+  ]);
+
+  useEffect(() => {
+    if (!sessionReady || !filteredBlunders) return;
     // Only initialize the store from the query when we haven't started training yet
     // (loading) or when the queue was empty (waiting for a sync to populate).
     // Don't interrupt an active session (reviewing/solving/correct/incorrect/complete).
@@ -247,8 +331,31 @@ export function TrainingRoute() {
       if (filteredBlunders.length > 0 && profile) {
         void beginSession(profile);
       }
+      // One-time milestone for the "Focused Training" achievement — a real
+      // picked focus, not the unfiltered "everything" queue.
+      const usedAFilter = !!(contextFilter || phaseFilter || motifFilter || openingFilter);
+      if (usedAFilter && profile && !profile.usedTrainingFilter) {
+        void authService
+          .markUsedTrainingFilter(profile.id)
+          .then(() => refreshProfile())
+          .catch((err) => console.warn('[training] markUsedTrainingFilter failed', err));
+      }
     }
-  }, [filteredBlunders, profile, setBlunders, beginSession]);
+    // refreshProfile is intentionally omitted — it's a fresh function identity
+    // on every AuthProvider render and is only used inside a fire-and-forget
+    // callback here, not something this effect needs to re-run on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    sessionReady,
+    filteredBlunders,
+    profile,
+    setBlunders,
+    beginSession,
+    contextFilter,
+    phaseFilter,
+    motifFilter,
+    openingFilter,
+  ]);
 
   const refreshProfileRef = useRef(refreshProfile);
   useEffect(() => {
@@ -303,6 +410,15 @@ export function TrainingRoute() {
     return () => window.removeEventListener('keydown', onKey);
   }, [state, activeTab]);
 
+  if (!sessionReady) {
+    return (
+      <TrainLandingScreen
+        dueCount={dueData?.length ?? 0}
+        onPick={(filter: TrainFilterPick) => setPickedFilter(filter)}
+      />
+    );
+  }
+
   if (
     dueBlunders.isLoading ||
     (needsGames && filterGamesQuery.isLoading) ||
@@ -351,7 +467,7 @@ export function TrainingRoute() {
               : 'Link a Lichess or Chess.com account to start.'}
         </p>
         {activeFilterLabel && (
-          <button className="btn-outline" onClick={() => navigate('/training', { replace: true })}>
+          <button className="btn-outline" onClick={resetToUnfiltered}>
             Drill full queue
           </button>
         )}
@@ -381,7 +497,10 @@ export function TrainingRoute() {
         <p className="text-text-secondary">
           {pct}% recall · {state.totalCorrect}/{state.totalAttempted} correct
         </p>
-        <button className="btn-primary" onClick={() => navigate('/dashboard')}>
+        <button className="btn-primary" onClick={backToPicker}>
+          Keep training
+        </button>
+        <button className="btn-outline" onClick={() => navigate('/dashboard')}>
           Back to dashboard
         </button>
       </div>
@@ -398,9 +517,9 @@ export function TrainingRoute() {
       </span>
       <button
         className="font-mono text-xs uppercase tracking-tight text-text-secondary hover:text-text-primary"
-        onClick={() => navigate('/training', { replace: true })}
+        onClick={backToPicker}
       >
-        Clear filter
+        Change focus
       </button>
     </div>
   ) : null;
@@ -477,10 +596,12 @@ export function TrainingRoute() {
     state.selectRefutationIndex((state.activeRefutationIndex ?? (dir === 1 ? -1 : 0)) + dir);
   const stepPostCorrect = (dir: 1 | -1) =>
     state.selectPostCorrectIndex((state.activePostCorrectIndex ?? (dir === 1 ? -1 : 0)) + dir);
-  const stepPlayedRefutation = (dir: 1 | -1) =>
+  const stepPlayedRefutation = (dir: 1 | -1) => {
+    stopAutoplay();
     state.selectPlayedRefutationIndex(
       (state.activePlayedRefutationIndex ?? (dir === 1 ? -1 : 0)) + dir,
     );
+  };
   // The line the user is currently looking at (mirrors the ←/→ keyboard handler);
   // surfaced as arrows in the board action bar on mobile.
   const activeLineStep: ((dir: 1 | -1) => void) | null = (() => {
@@ -591,8 +712,18 @@ export function TrainingRoute() {
 
         {blunder && (revealBeforeSolve || state.phase !== 'solving') && (
           <WinningChancesDisplay
-            evalBefore={blunder.evalBefore}
-            evalAfter={blunder.evalAfter}
+            // "Your try" (the default view of a wrong-answer toggle) shows the
+            // swing for the move just played, not the original blunder's swing.
+            evalBefore={
+              activeTab !== 'refutation' && state.livePlayedEval
+                ? state.livePlayedEval.before
+                : blunder.evalBefore
+            }
+            evalAfter={
+              activeTab !== 'refutation' && state.livePlayedEval
+                ? state.livePlayedEval.after
+                : blunder.evalAfter
+            }
             showEngineEvals={profile?.showEngineEvals ?? false}
           />
         )}
@@ -786,7 +917,10 @@ export function TrainingRoute() {
                       }
                       onSelect={(key) => {
                         const i = Number.parseInt(key.slice(1), 10);
-                        if (!Number.isNaN(i)) state.selectPlayedRefutationIndex(i);
+                        if (!Number.isNaN(i)) {
+                          stopAutoplay();
+                          state.selectPlayedRefutationIndex(i);
+                        }
                       }}
                     />
                   ) : (

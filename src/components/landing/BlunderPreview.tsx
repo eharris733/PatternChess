@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { Key } from 'chessground/types';
 import { LazyChessgroundReact } from '../../chess/LazyChessgroundReact';
 import { uciToSan } from '../../chess/moveUtils';
+import { cpLoss } from '../../chess/winningChances';
 import type { BlunderCandidate } from '../../stockfish/stockfishWorkerClient';
 
 interface Props {
@@ -76,7 +77,10 @@ export function BlunderPreview({ blunder, moveLabel }: Props) {
             <span className="font-bold">{playedSan}</span>.
             <br />
             <span className="text-gold-dark">{bestSan}</span> was{' '}
-            <span className="text-gold-dark font-bold">{blunder.evalSwing}%</span> stronger.
+            <span className="text-gold-dark font-bold">
+              {Math.round(Math.abs(cpLoss(blunder.evalBefore, blunder.evalAfter)))}cp
+            </span>{' '}
+            stronger.
           </div>
           <div className="mt-auto pt-4 border-t-2 border-text-primary/10">
             <div className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">

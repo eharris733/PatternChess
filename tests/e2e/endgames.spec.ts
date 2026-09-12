@@ -198,6 +198,7 @@ test('an endgame drill in the training queue is played out and passes on mate', 
 }) => {
   await stubEndgameAuth(page, { blunders: [makeEndgameDrillRow()], scenarios: [] });
   await page.goto('/training');
+  await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
 
   // Concealed presentation — same prompt as a tactic drill.
   await expect(page.getByText('White to play')).toBeVisible({ timeout: 30_000 });
@@ -214,6 +215,7 @@ test('an endgame drill in the training queue is played out and passes on mate', 
 test('stalemating in a training-queue play-out fails the drill', async ({ page }) => {
   await stubEndgameAuth(page, { blunders: [makeEndgameDrillRow()], scenarios: [] });
   await page.goto('/training');
+  await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
 
   await expect(page.getByText('White to play')).toBeVisible({ timeout: 30_000 });
   await waitForSolving(page);

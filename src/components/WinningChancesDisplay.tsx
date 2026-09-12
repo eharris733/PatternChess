@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { winPercent } from '../chess/winningChances';
+import { winPercent, cpLoss } from '../chess/winningChances';
 import { InfoTip } from './InfoTip';
 
 /** Raw engine eval in pawns, from the player's perspective. ±10000-ish = mate. */
@@ -25,26 +25,31 @@ export function WinningChancesDisplay({
   // evalAfter is stored from the opponent's perspective — negate for the player.
   const after = winPercent(-evalAfter);
   const lost = before - after;
+  const swing = cpLoss(evalBefore, evalAfter);
 
   return (
     <div className={clsx('flex items-center justify-between gap-2 text-xs', className)}>
-      <span className="text-text-secondary shrink-0">Win chance</span>
+      <span className="text-text-secondary shrink-0">Engine swing</span>
       <span className="font-mono tabular-nums text-text-primary text-right">
-        {before.toFixed(1)}%{showEngineEvals && ` (${formatEval(evalBefore)})`}
-        <span className="text-text-secondary"> {'→'} </span>
-        {after.toFixed(1)}%{showEngineEvals && ` (${formatEval(-evalAfter)})`}{' '}
+        {showEngineEvals && (
+          <>
+            {formatEval(evalBefore)}
+            <span className="text-text-secondary"> {'→'} </span>
+            {formatEval(-evalAfter)}{' '}
+          </>
+        )}
         <span
           className={clsx(
             'font-semibold',
             lost >= 25 ? 'text-incorrect' : lost >= 15 ? 'text-mistake' : lost >= 10 ? 'text-inaccuracy' : 'text-correct',
           )}
         >
-          ({lost > 0 ? '−' : '+'}{Math.abs(lost).toFixed(1)}%)
+          ({swing > 0 ? '−' : '+'}{Math.round(Math.abs(swing))}cp)
         </span>
       </span>
-      <InfoTip label="What do these percentages mean?">
-        Your odds of winning before and after the move, from the engine's evaluation (Lichess
-        winning-chances model). Moves that lose 15% or more become training positions.
+      <InfoTip label="What does this mean?">
+        The engine evaluation swing this move caused, in centipawns (100cp ≈ one pawn). Bigger
+        swings mean a bigger mistake.
       </InfoTip>
     </div>
   );

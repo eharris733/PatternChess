@@ -94,6 +94,8 @@ export const authService = {
       boardTheme: 'default',
       showEngineEvals: false,
       revealBeforeSolve: false,
+      autoplayRefutation: true,
+      usedTrainingFilter: false,
     };
     // Stamp the landing-page visitor id (if this browser ever hit the landing
     // page) so the funnel can link anonymous view/demo events to this account.
@@ -122,13 +124,32 @@ export const authService = {
    */
   async updateTrainingPrefs(
     userId: string,
-    prefs: { showEngineEvals?: boolean; revealBeforeSolve?: boolean },
+    prefs: {
+      showEngineEvals?: boolean;
+      revealBeforeSolve?: boolean;
+      autoplayRefutation?: boolean;
+    },
   ): Promise<void> {
     const patch: Record<string, unknown> = {};
     if (prefs.showEngineEvals !== undefined) patch.show_engine_evals = prefs.showEngineEvals;
     if (prefs.revealBeforeSolve !== undefined) patch.reveal_before_solve = prefs.revealBeforeSolve;
+    if (prefs.autoplayRefutation !== undefined) patch.autoplay_refutation = prefs.autoplayRefutation;
     if (Object.keys(patch).length === 0) return;
     const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
+    if (error) throw error;
+  },
+
+  /**
+   * One-time milestone flag (not a user preference) set the first time a
+   * /training session starts with a picked focus — backs the "Focused
+   * Training" achievement. Fire-and-forget from the caller; safe to call
+   * repeatedly since it's a flat `true` write.
+   */
+  async markUsedTrainingFilter(userId: string): Promise<void> {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ used_training_filter: true })
+      .eq('id', userId);
     if (error) throw error;
   },
 

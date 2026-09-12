@@ -185,12 +185,13 @@ async function dragMove(page: Page, from: { file: number; rank: number }, to: { 
 test('hidden mode (default): new position goes straight to solving with no spoilers', async ({ page }) => {
   await stubTrainingAuth(page, { revealBeforeSolve: false });
   await page.goto('/training');
+  await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
 
   await expect(page.getByText('White to play')).toBeVisible();
   // No review step, no played move, no win-chance numbers before the attempt.
   await expect(page.getByRole('button', { name: /I'm ready/i })).toHaveCount(0);
   await expect(page.getByText(/You played/)).toHaveCount(0);
-  await expect(page.getByText('Win chance')).toHaveCount(0);
+  await expect(page.getByText('Engine swing')).toHaveCount(0);
   // The peek button is part of the hidden extra info too.
   await expect(page.getByText(/See what you played/i)).toHaveCount(0);
   // Clock context is informational, not a hint — visible while solving.
@@ -200,13 +201,14 @@ test('hidden mode (default): new position goes straight to solving with no spoil
 test('hidden mode: solving reveals the win chances and the game move', async ({ page }) => {
   await stubTrainingAuth(page, { revealBeforeSolve: false });
   await page.goto('/training');
+  await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
 
   await expect(page.getByText('White to play')).toBeVisible();
   // d2 -> d4 is the stored correct move — accepted without the engine.
   await dragMove(page, { file: 3, rank: 2 }, { file: 3, rank: 4 });
 
   await expect(page.getByText('Solution correct')).toBeVisible();
-  await expect(page.getByText('Win chance')).toBeVisible();
+  await expect(page.getByText('Engine swing')).toBeVisible();
   // The game move lives in its own tab now (played f2f3 -> SAN "f3").
   await expect(page.getByRole('button', { name: 'Your game: f3' })).toBeVisible();
 });
@@ -214,6 +216,7 @@ test('hidden mode: solving reveals the win chances and the game move', async ({ 
 test('hidden mode: arrow keys step through the tab in focus', async ({ page }) => {
   await stubTrainingAuth(page, { revealBeforeSolve: false });
   await page.goto('/training');
+  await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
 
   await expect(page.getByText('White to play')).toBeVisible();
   await dragMove(page, { file: 3, rank: 2 }, { file: 3, rank: 4 });
@@ -231,6 +234,7 @@ test('hidden mode: arrow keys step through the tab in focus', async ({ page }) =
 test('hidden mode: the share button opens a preview modal that copies a /p link', async ({ page }) => {
   await stubTrainingAuth(page, { revealBeforeSolve: false });
   await page.goto('/training');
+  await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
 
   await expect(page.getByText('White to play')).toBeVisible();
   await page.getByRole('button', { name: /Share puzzle/i }).click();
@@ -259,6 +263,7 @@ test('hidden mode: a wrong try reveals both refutations after the attempt', asyn
   ];
   await stubTrainingAuth(page, { revealBeforeSolve: false, blunders });
   await page.goto('/training');
+  await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
 
   await expect(page.getByText('White to play')).toBeVisible();
   // e1 -> e2 (Ke2): legal, but leaves the queen alive — a real blunder.
@@ -268,7 +273,7 @@ test('hidden mode: a wrong try reveals both refutations after the attempt', asyn
   await expect(page.getByText(/That's a (blunder|mistake)|Incorrect/)).toBeVisible({
     timeout: 60_000,
   });
-  await expect(page.getByText('Win chance')).toBeVisible();
+  await expect(page.getByText('Engine swing')).toBeVisible();
   // Two tabs: the user's wrong try (default-active) and the game move.
   await expect(page.getByRole('button', { name: 'Your try: Ke2' })).toBeVisible();
   await page.getByRole('button', { name: 'Your game: Kd1' }).click();
@@ -281,14 +286,15 @@ test('hidden mode: a wrong try reveals both refutations after the attempt', asyn
 test('reveal mode: the review step shows the played move before solving', async ({ page }) => {
   await stubTrainingAuth(page, { revealBeforeSolve: true });
   await page.goto('/training');
+  await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
 
   await expect(page.getByRole('button', { name: /I'm ready/i })).toBeVisible();
   await expect(page.getByText(/You played/)).toBeVisible();
-  await expect(page.getByText('Win chance')).toBeVisible();
+  await expect(page.getByText('Engine swing')).toBeVisible();
 
   // Proceeding to solving keeps the win chances and offers the peek button.
   await page.getByRole('button', { name: /I'm ready/i }).click();
   await expect(page.getByText('White to play')).toBeVisible();
-  await expect(page.getByText('Win chance')).toBeVisible();
+  await expect(page.getByText('Engine swing')).toBeVisible();
   await expect(page.getByText(/See what you played/i)).toBeVisible();
 });
