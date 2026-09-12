@@ -53,7 +53,10 @@ export function gameRecordFromJson(json: any): GameRecord {
     platform: json.platform as string,
     username: json.username as string,
     opponent: json.opponent as string,
-    pgn: json.pgn as string,
+    // List/insight queries omit `pgn` and `clock_per_ply` to keep the payload
+    // small (full PGN is only needed for replay via getGame). Default to empty
+    // so the light row shape still satisfies GameRecord.
+    pgn: (json.pgn as string | null) ?? '',
     timeControl: (json.time_control as string | null) ?? null,
     rated: (json.rated as boolean | null) ?? false,
     result: (json.result as string | null) ?? null,

@@ -1,5 +1,7 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
+import { useGames } from './useGames';
 import {
   PhaseCounts,
   MotifCounts,
@@ -20,22 +22,22 @@ interface RatingMean {
   rated: boolean;
 }
 
-async function fetchUserRatingMean(): Promise<RatingMean> {
-  const games = await supabaseService.getGames();
-  const rated = games.filter((g) => g.rated && typeof g.userRating === 'number');
-  if (rated.length === 0) return { meanRating: null, rated: false };
-  const sum = rated.reduce((acc, g) => acc + (g.userRating ?? 0), 0);
-  return { meanRating: Math.round(sum / rated.length), rated: true };
-}
-
-function useUserRatingMean() {
-  const { user } = useAuth();
-  return useQuery({
-    queryKey: ['user', 'ratingMean', user?.id],
-    queryFn: fetchUserRatingMean,
-    enabled: !!user,
-    staleTime: 60_000,
-  });
+/**
+ * Mean rating, derived from the already-cached `['games']` query rather than a
+ * second full download of the games table. `isFetched` mirrors the games query
+ * so callers can still gate on it.
+ */
+function useUserRatingMean(): { data: RatingMean | undefined; isFetched: boolean } {
+  const gamesQuery = useGames();
+  const games = gamesQuery.data;
+  const data = useMemo<RatingMean | undefined>(() => {
+    if (!games) return undefined;
+    const rated = games.filter((g) => g.rated && typeof g.userRating === 'number');
+    if (rated.length === 0) return { meanRating: null, rated: false };
+    const sum = rated.reduce((acc, g) => acc + (g.userRating ?? 0), 0);
+    return { meanRating: Math.round(sum / rated.length), rated: true };
+  }, [games]);
+  return { data, isFetched: gamesQuery.isFetched };
 }
 
 export interface PhaseInsight {
