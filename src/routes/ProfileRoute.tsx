@@ -33,15 +33,20 @@ export function ProfileRoute() {
   const [trainingPrefs, setTrainingPrefs] = useState({
     showEngineEvals: false,
     revealBeforeSolve: false,
+    autoplayRefutation: true,
   });
   useEffect(() => {
     setTrainingPrefs({
       showEngineEvals: profile?.showEngineEvals ?? false,
       revealBeforeSolve: profile?.revealBeforeSolve ?? false,
+      autoplayRefutation: profile?.autoplayRefutation ?? true,
     });
-  }, [profile?.showEngineEvals, profile?.revealBeforeSolve]);
+  }, [profile?.showEngineEvals, profile?.revealBeforeSolve, profile?.autoplayRefutation]);
 
-  const onToggleTrainingPref = (pref: 'showEngineEvals' | 'revealBeforeSolve', value: boolean) => {
+  const onToggleTrainingPref = (
+    pref: 'showEngineEvals' | 'revealBeforeSolve' | 'autoplayRefutation',
+    value: boolean,
+  ) => {
     if (!profile) return;
     setTrainingPrefsError(null);
     setTrainingPrefs((cur) => ({ ...cur, [pref]: value }));
@@ -243,6 +248,22 @@ export function ProfileRoute() {
             Show raw engine evals
             <span className="block text-text-secondary text-xs">
               Adds the engine's evaluation (e.g. +1.2) next to the win-chance percentages.
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2 select-none">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={trainingPrefs.autoplayRefutation}
+            onChange={(e) => onToggleTrainingPref('autoplayRefutation', e.target.checked)}
+          />
+          <span>
+            Autoplay the refutation on a repeat miss
+            <span className="block text-text-secondary text-xs">
+              If you get a position wrong again after already trying it, automatically play out
+              why on the board instead of leaving it as a static line. Your first attempt at a
+              position is never affected — this only kicks in on a repeat wrong try.
             </span>
           </span>
         </label>

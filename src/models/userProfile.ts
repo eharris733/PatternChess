@@ -25,6 +25,14 @@ export interface UserProfile {
    * The profile UI exposes this inverted as "Hide extra info when solving".
    */
   revealBeforeSolve: boolean;
+  /**
+   * On a repeat wrong attempt at the same drill (not the first try), autoplay
+   * the engine's refutation of the played move instead of leaving it as a
+   * static reveal. Defaults on — off falls back to the static reveal.
+   */
+  autoplayRefutation: boolean;
+  /** True once the user has ever started a /training session with a picked focus (opening/motif/phase/situation) — backs the "Focused Training" achievement. */
+  usedTrainingFilter: boolean;
 }
 
 function parseBoardTheme(v: unknown): BoardTheme {
@@ -73,6 +81,8 @@ export function userProfileFromJson(json: any): UserProfile {
     // Columns may be absent until the 20260610 migration is applied; default off.
     showEngineEvals: Boolean(json.show_engine_evals ?? false),
     revealBeforeSolve: Boolean(json.reveal_before_solve ?? false),
+    autoplayRefutation: Boolean(json.autoplay_refutation ?? true),
+    usedTrainingFilter: Boolean(json.used_training_filter ?? false),
   };
 }
 

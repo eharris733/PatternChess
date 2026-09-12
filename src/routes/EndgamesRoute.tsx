@@ -97,6 +97,7 @@ export function EndgamesRoute() {
   const hint = usePlayoutHint({
     bestMove: playout.refEval?.bestMove,
     solving: playout.phase === 'solving',
+    moveCount: playout.userMovesPlayed,
   });
   const slipViewer = useSlipLineViewer({
     slip: playout.slip,

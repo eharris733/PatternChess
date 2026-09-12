@@ -23,16 +23,27 @@ export interface SlipPreview {
 export function usePlayoutHint({
   bestMove,
   solving,
+  moveCount,
   onRevealMove,
 }: {
   /** Engine best move (UCI) for the current position, when known. */
   bestMove: string | null | undefined;
   /** True while it is the user's turn — shapes render only then. */
   solving: boolean;
+  /**
+   * Count of user moves committed so far (e.g. playout.userMovesPlayed).
+   * Bumps once per move — used only to reset the hint back to unused for the
+   * next move, so a hint requested on one move doesn't keep reappearing.
+   */
+  moveCount: number;
   /** Fired when the full move is revealed (level 2), e.g. to forfeit the clean attempt. */
   onRevealMove?: () => void;
 }) {
   const [level, setLevel] = useState<0 | 1 | 2>(0);
+
+  useEffect(() => {
+    setLevel(0);
+  }, [moveCount]);
 
   const show = () => {
     if (!bestMove || level >= 2) return;

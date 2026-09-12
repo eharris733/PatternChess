@@ -176,6 +176,7 @@ async function dragMove(
 test('a stored mate line drills as a two-move sequence', async ({ page }) => {
   await stubTrainingAuth(page, [makeSequenceBlunder()]);
   await page.goto('/training');
+  await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
 
   await expect(page.getByText('White to play')).toBeVisible();
   await expect(page.getByText('Move 1 of 2')).toBeVisible();
@@ -195,6 +196,7 @@ test('a stored mate line drills as a two-move sequence', async ({ page }) => {
 test('a wrong move mid-sequence fails the drill', async ({ page }) => {
   await stubTrainingAuth(page, [makeSequenceBlunder()]);
   await page.goto('/training');
+  await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
 
   await expect(page.getByText('Move 1 of 2')).toBeVisible();
   await dragMove(page, { file: 0, rank: 2 }, { file: 0, rank: 7 });
@@ -243,6 +245,7 @@ test('a legacy row without a solution line stays a single-move drill', async ({ 
   });
   await stubTrainingAuth(page, [legacy]);
   await page.goto('/training');
+  await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
 
   await expect(page.getByText('White to play')).toBeVisible();
   await expect(page.getByText(/Move 1 of/)).toHaveCount(0);

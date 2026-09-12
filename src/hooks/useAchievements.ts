@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useAuth } from '../auth/useAuth';
 import { useBlunderStats } from './useBlunderStats';
 import { useGames } from './useGames';
+import { useEndgameScenarios } from './useEndgameScenarios';
 import { ratingProgressFromGames } from './useRatingProgress';
 import {
   AchievementMetrics,
@@ -25,6 +26,7 @@ export function useAchievements(): {
   const { profile } = useAuth();
   const statsQuery = useBlunderStats();
   const gamesQuery = useGames();
+  const scenariosQuery = useEndgameScenarios();
 
   // Stable key for the preferred-time-controls array so the memo below doesn't
   // re-run on every render (arrays are referentially unstable).
@@ -48,6 +50,9 @@ export function useAchievements(): {
       }
     }
 
+    const endgamesRescued =
+      scenariosQuery.data?.filter((s) => s.status === 'passed').length ?? 0;
+
     return {
       reviewed: stats.reviewed,
       mastered: stats.mastered,
@@ -58,16 +63,20 @@ export function useAchievements(): {
       connectedLichess: profile?.lichessUsername ? 1 : 0,
       connectedChesscom: profile?.chesscomUsername ? 1 : 0,
       ratingGained,
+      endgamesRescued,
+      usedTrainingFilter: profile?.usedTrainingFilter ? 1 : 0,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     statsQuery.data,
     gamesQuery.data,
+    scenariosQuery.data,
     profile?.currentStreakDays,
     profile?.longestStreakDays,
     profile?.lichessUsername,
     profile?.chesscomUsername,
     profile?.createdAt,
+    profile?.usedTrainingFilter,
     prefKey,
   ]);
 

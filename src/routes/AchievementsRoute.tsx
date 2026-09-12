@@ -12,6 +12,7 @@ import { Skeleton } from '../components/Skeleton';
 function AchievementTile({ a }: { a: EvaluatedAchievement }) {
   return (
     <div
+      data-testid={`achievement-${a.id}`}
       className={clsx(
         'flex flex-col gap-2 rounded-none border-2 border-text-primary p-4',
         a.earned ? 'bg-surface-3' : 'bg-surface opacity-80',

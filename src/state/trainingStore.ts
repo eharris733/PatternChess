@@ -102,10 +102,24 @@ export interface TrainingStateShape {
   postCorrectStartsWithWhite: boolean;
   incorrectFeedback: IncorrectFeedback | null;
   /**
+   * Live engine swing (raw before/after scoreCp, same convention as
+   * blunder.evalBefore/evalAfter) for the move the user just played this
+   * attempt — distinct from the blunder's stored swing, which is for the
+   * *original* game blunder. Null until an incorrect/nudge attempt computes
+   * one; cleared on every fresh solving attempt.
+   */
+  livePlayedEval: { before: number; after: number } | null;
+  /**
    * When true, the incorrect-phase action requeues the position later in the
    * session; when false (a "good but not best" nudge) it retries in place.
    */
   incorrectRequeue: boolean;
+  /**
+   * Whether the attempt that produced the current `incorrect` phase was the
+   * drill's first attempt this session — false means a repeat wrong try,
+   * which is what gates the refutation-autoplay behavior in the route.
+   */
+  lastAttemptWasFirst: boolean;
   evaluating: boolean;
   game: GameRecord | null;
   currentContext: BlunderContext | null;
@@ -230,6 +244,7 @@ function makeInitial(): InitialShape {
     activePostCorrectIndex: null,
     postCorrectStartsWithWhite: true,
     incorrectFeedback: null,
+    livePlayedEval: null,
     evaluating: false,
     game: null,
     currentContext: null,
@@ -248,6 +263,7 @@ function makeInitial(): InitialShape {
     stepFeedback: null,
     sequenceToken: 0,
     incorrectRequeue: false,
+    lastAttemptWasFirst: true,
     revealBeforeSolve: false,
   };
 }
@@ -628,6 +644,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         postCorrectPairs: [],
         activePostCorrectIndex: null,
         incorrectFeedback: null,
+        livePlayedEval: null,
         showWhatYouPlayed: false,
         hintLevel: 0,
       });
@@ -665,6 +682,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         postCorrectPairs: [],
         activePostCorrectIndex: null,
         incorrectFeedback: null,
+        livePlayedEval: null,
         showWhatYouPlayed: false,
         hintLevel: 0,
       });
@@ -693,6 +711,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       postCorrectPairs: [],
       activePostCorrectIndex: null,
       incorrectFeedback: null,
+      livePlayedEval: null,
       showWhatYouPlayed: false,
       hintLevel: 0,
     });
@@ -751,6 +770,11 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
 
     let chancesLost: number | null = null;
     let playedPv: string[] | null = null;
+    // Live swing for the move just played (before = best-move reference eval,
+    // after = raw scoreCp of the played move, same convention as
+    // blunder.evalBefore/evalAfter) — distinct from the original blunder's
+    // stored swing so the feedback screen can show the right one for "Your try".
+    let livePlayedEval: { before: number; after: number } | null = null;
     // An engine-approved deviation from the stored line completes the drill
     // early — its continuation is unknown, so there is nothing left to solve.
     let acceptedDeviation = false;
@@ -768,6 +792,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         const bestWinPct = winPercent(bestEval);
         const moveWinPct = winPercent(-ev.scoreCp);
         chancesLost = bestWinPct - moveWinPct;
+        livePlayedEval = { before: bestEval, after: ev.scoreCp };
         if (Math.abs(chancesLost) <= 5) {
           isCorrect = true;
           acceptedDeviation = true;
@@ -828,6 +853,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           message: 'Good move, but keep looking for the best one',
           tone: 'success',
         },
+        livePlayedEval,
         playedMovesFromBlunder: [uci],
       }));
       return;
@@ -887,6 +913,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           attemptedBlunderIds: nextAttempted,
           shapes: [{ orig: move.from as any, dest: move.to as any, brush: 'green' }],
           incorrectFeedback: null,
+          livePlayedEval: null,
           stepFeedback: null,
           playedMovesFromBlunder: playedSequence,
           // Keep refutationMoves/refutationPairs: the correct phase now shows
@@ -1006,7 +1033,9 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           attemptedBlunderIds: nextAttempted,
           shapes: [],
           incorrectRequeue: true,
+          lastAttemptWasFirst: isFirstAttempt,
           incorrectFeedback: feedback,
+          livePlayedEval,
           stepFeedback: null,
           playedRefutationMoves: playedRefutation ? playedRefutation.movesPlusFirst : [],
           playedRefutationPairs: playedRefutation ? playedRefutation.pairs : [],
@@ -1047,9 +1076,11 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         attemptedBlunderIds: nextAttempted,
         shapes: [],
         incorrectRequeue: true,
+        lastAttemptWasFirst: isFirstAttempt,
         incorrectFeedback: opts.success
           ? null
           : (opts.feedback ?? { message: 'Incorrect', tone: 'danger' }),
+        livePlayedEval: null,
         stepFeedback: null,
       };
     });

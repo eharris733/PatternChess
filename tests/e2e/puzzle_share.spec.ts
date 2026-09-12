@@ -80,7 +80,7 @@ test('solving with the stored best move succeeds without the engine', async ({ p
   await page.mouse.up();
 
   await expect(page.getByText('Solution correct')).toBeVisible();
-  await expect(page.getByText('Win chance')).toBeVisible();
+  await expect(page.getByText('Engine swing')).toBeVisible();
 });
 
 test('a garbage payload shows the invalid-link card with a signup CTA', async ({ page }) => {

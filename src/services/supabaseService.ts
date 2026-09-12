@@ -4,6 +4,7 @@ import {
   blunderFromJson,
   CorrectMove,
   nextDrillDate,
+  sortDueQueue,
   SPACED_REPETITION_DAYS,
   srBucket,
 } from '../models/blunder';
@@ -138,11 +139,18 @@ export async function getDueBlunders(opts?: { userId?: string }): Promise<Blunde
   const now = new Date().toISOString();
   // Retired rows (deepening showed the position wasn't really a blunder) are
   // hidden from the queue but keep their SR history and stay in Vault/stats.
-  let q = supabase.from('blunders').select().lte('next_drill_at', now).is('retired_at', null);
+  let q = supabase
+    .from('blunders')
+    .select()
+    .lte('next_drill_at', now)
+    .is('retired_at', null)
+    .order('next_drill_at', { ascending: true });
   if (opts?.userId) q = q.eq('user_id', opts.userId);
-  const { data, error } = await q.order('next_drill_at');
+  const { data, error } = await q;
   if (error) throw error;
-  return (data ?? []).map(blunderFromJson);
+  // Final ordering (pressing reviews → mastered maintenance → new, by relative
+  // overdue-ness) happens client-side in sortDueQueue — see its docstring for why.
+  return sortDueQueue((data ?? []).map(blunderFromJson));
 }
 
 export async function getDueTomorrowCount(opts?: { userId?: string }): Promise<number> {
@@ -485,11 +493,14 @@ export async function getOpeningPerformance(opts?: {
   }
 
   if (gameIdToEcoFamily.size > 0) {
-    const gameIds = Array.from(gameIdToEcoFamily.keys());
+    // Filter by user_id, not a `.in('game_id', gameIds)` list — a power user's
+    // game count turns that into a multi-thousand-character URL that Supabase
+    // rejects with 400. Rows for games without an eco code are simply skipped
+    // below (gameIdToEcoFamily.get() misses), so this is equivalent.
     const { data: blunderData, error: blunderError } = await supabase
       .from('blunders')
       .select('game_id, phase')
-      .in('game_id', gameIds)
+      .eq('user_id', userId)
       .eq('kind', 'tactic');
     if (blunderError) throw blunderError;
     for (const row of (blunderData ?? []) as Array<{ game_id: string; phase: string | null }>) {
@@ -694,11 +705,14 @@ export async function getTimeTroubleStats(): Promise<TimeTroubleStats> {
   empty.totalAllBlunders = blunders.length;
   if (blunders.length === 0) return empty;
 
-  const gameIds = Array.from(new Set(blunders.map((b) => b.game_id)));
+  // Filter by user_id, not a `.in('id', gameIds)` list built from every
+  // distinct blunder game_id — a power user's game count turns that into a
+  // multi-thousand-character URL that Supabase rejects with 400 (same class
+  // of bug as getOpeningPerformance above).
   const { data: gameRows, error: gErr } = await supabase
     .from('games')
     .select('id, clock_per_ply, time_control')
-    .in('id', gameIds);
+    .eq('user_id', userId);
   if (gErr) throw gErr;
 
   const gameById = new Map<string, GameRecord>();

@@ -237,3 +237,57 @@ export function srBucket(
   if (b.cycleNumber >= SPACED_REPETITION_DAYS.length) return 'mastered';
   return 'learning';
 }
+
+/**
+ * Due-queue priority tier, most pressing first:
+ * 0. `learning`/`tryAgain` — actively decaying memories; the pressing group.
+ * 1. `mastered` — due for its maintenance check, but a solid memory can wait
+ *    behind fragile ones regardless of how overdue the check is.
+ * 2. `new` — never attempted; lowest priority so it never crowds out review.
+ */
+function queueTier(b: Pick<Blunder, 'timesAttempted' | 'lastDrillFailed' | 'cycleNumber'>): 0 | 1 | 2 {
+  const bucket = srBucket(b);
+  if (bucket === 'new') return 2;
+  if (bucket === 'mastered') return 1;
+  return 0;
+}
+
+/**
+ * Fraction of this position's own review interval that has elapsed past due
+ * — "been longer than the days you are supposed to wait between cycles."
+ * Ranking by this (rather than raw cycle number or raw overdue days) means a
+ * badly-overdue short-interval item outranks a barely-overdue long-interval
+ * one, matching how fast each is actually decaying.
+ */
+function relativeOverdueness(b: Pick<Blunder, 'nextDrillAt' | 'cycleNumber'>, now: Date): number {
+  if (!b.nextDrillAt) return 0;
+  const intervalDays = intervalDaysForCycle(b.cycleNumber);
+  const overdueDays = (now.getTime() - b.nextDrillAt.getTime()) / 86_400_000;
+  return intervalDays > 0 ? overdueDays / intervalDays : overdueDays;
+}
+
+/**
+ * Canonical due-queue order: tier (pressing → maintenance → new) first,
+ * relative overdue-ness second (tiers 0/1 — new items skip this, since their
+ * 1-day interval would otherwise register as wildly "overdue" and crowd out
+ * genuinely overdue reviews), then `nextDrillAt` ascending as a chronological
+ * tiebreak. Filtering downstream (phase/motif/opening/etc.) must stay a plain
+ * `Array.filter` so it preserves this order — never re-sort after filtering.
+ */
+export function sortDueQueue(blunders: Blunder[], now: Date = new Date()): Blunder[] {
+  return [...blunders].sort((a, b) => {
+    const tierDiff = queueTier(a) - queueTier(b);
+    if (tierDiff !== 0) return tierDiff;
+
+    if (queueTier(a) === 2) {
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    }
+
+    const overdueDiff = relativeOverdueness(b, now) - relativeOverdueness(a, now);
+    if (overdueDiff !== 0) return overdueDiff;
+
+    const aDue = a.nextDrillAt ?? a.createdAt;
+    const bDue = b.nextDrillAt ?? b.createdAt;
+    return aDue.getTime() - bDue.getTime();
+  });
+}
