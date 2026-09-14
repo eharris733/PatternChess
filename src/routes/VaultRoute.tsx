@@ -8,115 +8,27 @@ import { useSyncStore } from '../state/syncStore';
 import { usePgnUploadStore } from '../state/pgnUploadStore';
 import { supabaseService } from '../services/supabaseService';
 import { platformGameUrl } from '../services/externalAnalysisUrlService';
-import { extractHeaders } from '../services/pgnParserService';
-import { orderedPlayers, resolveOutcome, type GameOutcome } from '../models/gameRecord';
+import { loadAnalyzedSet, persistAnalyzedSet } from '../services/analyzedGamesStore';
+import { orderedPlayers } from '../models/gameRecord';
 import type { GameRecord } from '../models/gameRecord';
 import type { Blunder } from '../models/blunder';
-import { MOTIF_LABEL } from '../chess/motifs';
-import { uciToSan, fenSideToMove } from '../chess/moveUtils';
-import { MiniBoard } from '../components/MiniBoard';
 import { TrashIcon } from '../components/icons/TrashIcon';
 import { ChevronIcon } from '../components/icons/ChevronIcon';
 import { CloseIcon } from '../components/icons/CloseIcon';
-
-type Outcome = GameOutcome;
-
-const ANALYZED_STORAGE_PREFIX = 'pc:analyzed-externally:';
-
-function loadAnalyzedSet(userId: string | null | undefined): Set<string> {
-  if (!userId) return new Set();
-  try {
-    const raw = localStorage.getItem(ANALYZED_STORAGE_PREFIX + userId);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? new Set(arr as string[]) : new Set();
-  } catch {
-    return new Set();
-  }
-}
-
-function persistAnalyzedSet(userId: string, set: Set<string>): void {
-  try {
-    localStorage.setItem(ANALYZED_STORAGE_PREFIX + userId, JSON.stringify([...set]));
-  } catch {
-    // localStorage unavailable — silently ignore
-  }
-}
-
-function gameOutcome(game: GameRecord): Outcome | null {
-  // Prefer the stored color; fall back to PGN headers for older rows where
-  // user_color was never parsed. The list query omits `pgn`, so this fallback
-  // only fires for a single full-row fetch; legacy null-color rows have been
-  // backfilled server-side, so `game.pgn` is normally empty here.
-  let color = game.userColor;
-  if (!color && game.pgn && (game.platform === 'lichess' || game.platform === 'pgn')) {
-    const isWhite =
-      extractHeaders(game.pgn).White?.toLowerCase() === game.username.toLowerCase();
-    color = isWhite ? 'white' : 'black';
-  }
-  return resolveOutcome(game.platform, game.result, color);
-}
-
-type BlunderFilter = 'all' | 'min1' | 'min2' | 'min3' | 'clean' | 'unanalyzed';
-type ResultFilter = 'all' | 'win' | 'loss' | 'draw';
-type SortOrder = 'newest' | 'oldest' | 'blunders';
-
-const BLUNDER_FILTERS: Array<{ key: BlunderFilter; label: string }> = [
-  { key: 'all', label: 'All' },
-  { key: 'min1', label: 'Has blunders' },
-  { key: 'min2', label: '2+' },
-  { key: 'min3', label: '3+' },
-  { key: 'clean', label: 'No blunders' },
-  { key: 'unanalyzed', label: 'Not analyzed' },
-];
-
-function matchesBlunderFilter(
-  filter: BlunderFilter,
-  game: GameRecord,
-  count: number,
-): boolean {
-  switch (filter) {
-    case 'all':
-      return true;
-    case 'min1':
-      return !!game.analyzedAt && count >= 1;
-    case 'min2':
-      return !!game.analyzedAt && count >= 2;
-    case 'min3':
-      return !!game.analyzedAt && count >= 3;
-    case 'clean':
-      return !!game.analyzedAt && count === 0;
-    case 'unanalyzed':
-      return !game.analyzedAt;
-  }
-}
-
-function gameSortTime(g: GameRecord): number {
-  return (g.playedAt ?? g.createdAt).getTime();
-}
-
-/**
- * Native select styled like `.input`, with the platform chevron replaced by an
- * inline icon so the arrow gets real right padding and sits centred, matching
- * the search field beside it.
- */
-function VaultSelect({
-  className,
-  children,
-  ...props
-}: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <div className="relative">
-      <select
-        {...props}
-        className={clsx('input h-9 w-auto appearance-none pr-9 cursor-pointer', className)}
-      >
-        {children}
-      </select>
-      <ChevronIcon className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-text-primary" />
-    </div>
-  );
-}
+import { VaultSelect } from '../components/vault/VaultSelect';
+import { ResultBadge } from '../components/vault/ResultBadge';
+import { GameBlunderThumbs } from '../components/vault/GameBlunderThumbs';
+import { PositionPreviewModal } from '../components/vault/PositionPreviewModal';
+import {
+  BLUNDER_FILTERS,
+  gameOutcome,
+  gameSortTime,
+  matchesBlunderFilter,
+  formatDate,
+  type BlunderFilter,
+  type ResultFilter,
+  type SortOrder,
+} from '../components/vault/vaultHelpers';
 
 export function VaultRoute() {
   const navigate = useNavigate();
@@ -517,170 +429,4 @@ export function VaultRoute() {
       )}
     </div>
   );
-}
-
-/** The blunder positions are the user's mistakes, so the side to move is the user. */
-function blunderOrientation(game: GameRecord, blunder: Blunder): 'white' | 'black' {
-  return game.userColor ?? fenSideToMove(blunder.fen);
-}
-
-function GameBlunderThumbs({
-  game,
-  onPreview,
-}: {
-  game: GameRecord;
-  onPreview: (b: Blunder) => void;
-}) {
-  const { data: blunders, isLoading } = useQuery({
-    queryKey: ['gameBlunders', game.id],
-    queryFn: () => supabaseService.getBlundersForGames([game.id]),
-    staleTime: 60_000,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="px-5 py-4 border-t-2 border-text-primary/10 text-xs text-text-secondary">
-        Loading positions…
-      </div>
-    );
-  }
-  if (!blunders || blunders.length === 0) {
-    return (
-      <div className="px-5 py-4 border-t-2 border-text-primary/10 text-xs text-text-secondary">
-        No stored positions for this game.
-      </div>
-    );
-  }
-  return (
-    <div className="px-5 py-4 border-t-2 border-text-primary/10 bg-surface-3/30">
-      <div className="flex flex-wrap gap-4">
-        {blunders.map((b) => {
-          const played = uciToSan(b.fen, b.playedMove) ?? b.playedMove;
-          return (
-            <button
-              key={b.id}
-              type="button"
-              className="group flex flex-col items-start gap-1.5 text-left"
-              onClick={() => onPreview(b)}
-              title="Expand position"
-            >
-              <MiniBoard
-                fen={b.fen}
-                orientation={blunderOrientation(game, b)}
-                className="w-28 transition-transform group-hover:-translate-y-0.5"
-              />
-              <span className="font-mono text-[10px] uppercase tracking-tight text-text-secondary">
-                Move {b.moveNumber} ·{' '}
-                {/* SAN is case-sensitive (Nxd5 ≠ NXD5) — undo the label uppercasing */}
-                <span className="text-mistake normal-case">{played}?</span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function PositionPreviewModal({
-  blunder,
-  game,
-  onClose,
-}: {
-  blunder: Blunder;
-  game: GameRecord;
-  onClose: () => void;
-}) {
-  const played = uciToSan(blunder.fen, blunder.playedMove) ?? blunder.playedMove;
-  const bestUci = blunder.correctMoves[0]?.move;
-  const best = bestUci ? (uciToSan(blunder.fen, bestUci) ?? bestUci) : null;
-  const sideToMove = fenSideToMove(blunder.fen);
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 backdrop-blur-sm p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Blunder position"
-      onClick={onClose}
-    >
-      <div
-        className="card max-w-sm w-full flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="heading-md">Move {blunder.moveNumber}</h2>
-            <p className="text-xs text-text-secondary mt-0.5">
-              {sideToMove === 'white' ? 'White' : 'Black'} to move ·{' '}
-              {orderedPlayers(game.username, game.opponent, game.userColor).join(' vs ')}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="btn-ghost h-8 px-2 shrink-0"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <CloseIcon className="h-4 w-4" />
-          </button>
-        </header>
-        <MiniBoard
-          fen={blunder.fen}
-          orientation={blunderOrientation(game, blunder)}
-          className="w-full"
-        />
-        <div className="flex flex-col gap-1.5 text-sm">
-          <div className="flex items-center justify-between gap-3">
-            <span className="label">Played</span>
-            <span className="font-mono text-incorrect">{played}?</span>
-          </div>
-          {best && (
-            <div className="flex items-center justify-between gap-3">
-              <span className="label">Best</span>
-              <span className="font-mono text-correct">{best}</span>
-            </div>
-          )}
-          {blunder.motifs.length > 0 && (
-            <div className="flex items-center justify-between gap-3">
-              <span className="label">Motifs</span>
-              <span className="flex flex-wrap justify-end gap-1.5">
-                {blunder.motifs.map((m) => (
-                  <span
-                    key={m}
-                    className="px-1.5 py-0.5 border-2 border-text-primary/30 font-mono text-[10px] uppercase tracking-tight text-text-secondary"
-                  >
-                    {MOTIF_LABEL[m]}
-                  </span>
-                ))}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ResultBadge({ outcome }: { outcome: Outcome | null }) {
-  const map = {
-    win: { letter: 'W', cls: 'bg-correct/20 text-correct border-correct/50' },
-    loss: { letter: 'L', cls: 'bg-incorrect/20 text-incorrect border-incorrect/50' },
-    draw: { letter: 'D', cls: 'bg-surface-3 text-text-secondary border-text-primary' },
-  } as const;
-  const meta = outcome ? map[outcome] : null;
-  return (
-    <span
-      className={clsx(
-        'inline-flex items-center justify-center w-6 h-6 rounded-none border-2 font-mono text-xs font-bold',
-        meta?.cls ?? 'bg-surface-3 text-text-secondary border-text-primary',
-      )}
-      title={outcome ?? 'unknown result'}
-    >
-      {meta?.letter ?? '–'}
-    </span>
-  );
-}
-
-function formatDate(d: Date): string {
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
