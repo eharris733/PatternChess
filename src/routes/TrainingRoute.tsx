@@ -614,6 +614,21 @@ export function TrainingRoute() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
       <div className="flex flex-col gap-2 lg:gap-3">
+        {state.persistError && (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-3 bg-incorrect/10 border-2 border-incorrect/50 text-incorrect rounded-none px-4 py-2 text-sm"
+          >
+            <span>{state.persistError}</span>
+            <button
+              type="button"
+              onClick={() => state.clearPersistError()}
+              className="shrink-0 text-xs underline hover:no-underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         {filterBanner}
         <BoardStage
           paused={paused}

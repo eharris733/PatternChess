@@ -164,7 +164,15 @@ export interface TrainingStateShape {
    * revealed only after the attempt via ensureBlunderRefutation().
    */
   revealBeforeSolve: boolean;
+  /**
+   * User-facing message set when a background persistence write (session
+   * progress, correct-move record) fails. Null when everything has saved.
+   * Surfaced as a dismissible banner in TrainingRoute so a failed write is no
+   * longer silent. Cleared on `reset` and via `clearPersistError`.
+   */
+  persistError: string | null;
 
+  clearPersistError: () => void;
   setRevealBeforeSolve: (value: boolean) => void;
   ensureBlunderRefutation: () => Promise<void>;
   setBlunders: (blunders: Blunder[]) => void;
@@ -217,6 +225,7 @@ type InitialShape = Omit<TrainingStateShape,
   | 'selectRefutationIndex'
   | 'selectPlayedRefutationIndex'
   | 'selectPostCorrectIndex'
+  | 'clearPersistError'
   | 'reset'>;
 
 function makeInitial(): InitialShape {
@@ -265,6 +274,7 @@ function makeInitial(): InitialShape {
     incorrectRequeue: false,
     lastAttemptWasFirst: true,
     revealBeforeSolve: false,
+    persistError: null,
   };
 }
 
@@ -292,6 +302,19 @@ function replayFen(baseFen: string, plies: string[]): string | null {
   return chess.fen();
 }
 
+const PERSIST_ERROR_MESSAGE = 'Some progress may not have saved — check your connection.';
+
+/**
+ * Report a failed background persistence write: log it and surface a
+ * dismissible banner via the store, instead of swallowing it silently. Safe to
+ * call from module-level helpers — `useTrainingStore` is resolved at call time,
+ * by which point the store exists.
+ */
+function notePersistFailure(label: string, err: unknown): void {
+  console.warn(`[training] ${label} failed`, err);
+  useTrainingStore.setState({ persistError: PERSIST_ERROR_MESSAGE });
+}
+
 function endActiveSession(state: TrainingStateShape): void {
   if (!state.sessionId) return;
   if (state.totalAttempted === 0) return;
@@ -301,7 +324,7 @@ function endActiveSession(state: TrainingStateShape): void {
       blundersCorrect: state.totalCorrect,
       endedAt: new Date(),
     })
-    .catch((err) => console.warn('[training] endActiveSession failed', err));
+    .catch((err) => notePersistFailure('endActiveSession', err));
 }
 
 async function applyStreakUpdate(snapshot: StreakSnapshot): Promise<void> {
@@ -505,6 +528,10 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
 
   setRevealBeforeSolve: (value) => {
     set({ revealBeforeSolve: value });
+  },
+
+  clearPersistError: () => {
+    set({ persistError: null });
   },
 
   /**
@@ -803,7 +830,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
             blunder.correctMoves = updated;
             void supabaseService
               .appendCorrectMove(blunder.id, updated)
-              .catch((err) => console.warn('[training] appendCorrectMove failed', err));
+              .catch((err) => notePersistFailure('appendCorrectMove', err));
           }
         }
       } catch {
@@ -932,7 +959,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
             blundersAttempted: afterCorrect.totalAttempted,
             blundersCorrect: afterCorrect.totalCorrect,
           })
-          .catch((err) => console.warn('[training] updateTrainingSession (correct) failed', err));
+          .catch((err) => notePersistFailure('updateTrainingSession (correct)', err));
       }
       if (!afterCorrect.streakApplied && afterCorrect.streakSnapshot) {
         set({ streakApplied: true });
@@ -1016,7 +1043,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
             blundersAttempted: afterIncorrect.totalAttempted + 1,
             blundersCorrect: afterIncorrect.totalCorrect + (firstAttemptRecalled ? 1 : 0),
           })
-          .catch((err) => console.warn('[training] updateTrainingSession (incorrect) failed', err));
+          .catch((err) => notePersistFailure('updateTrainingSession (incorrect)', err));
       }
 
       set((s) => {
@@ -1091,7 +1118,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           blundersAttempted: after.totalAttempted,
           blundersCorrect: after.totalCorrect,
         })
-        .catch((err) => console.warn('[training] updateTrainingSession (external) failed', err));
+        .catch((err) => notePersistFailure('updateTrainingSession (external)', err));
     }
     if (!after.streakApplied && after.streakSnapshot) {
       set({ streakApplied: true });
