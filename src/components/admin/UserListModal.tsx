@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Skeleton } from '../Skeleton';
+import { CloseIcon } from '../icons/CloseIcon';
 import { StageBadge } from '../../routes/AnalyticsRoute';
 import {
   useAdminUserList,
@@ -70,7 +71,7 @@ export function UserListModal({ category, onClose }: UserListModalProps) {
             className="text-text-secondary hover:text-text-primary shrink-0"
             aria-label="Close"
           >
-            ✕
+            <CloseIcon className="w-4 h-4" />
           </button>
         </header>
 

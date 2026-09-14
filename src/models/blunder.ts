@@ -20,6 +20,15 @@ export interface SolutionLine {
 
 export type BlunderPhase = 'opening' | 'middlegame' | 'endgame';
 
+/** The only source of user-facing phase labels — never hand-roll these in UI. */
+export const PHASE_LABEL: Record<BlunderPhase, string> = {
+  opening: 'Opening',
+  middlegame: 'Middlegame',
+  endgame: 'Endgame',
+};
+
+export const PHASE_ORDER: readonly BlunderPhase[] = ['opening', 'middlegame', 'endgame'] as const;
+
 /**
  * Discriminates how a trainable item is drilled in the unified queue:
  * - `tactic`  — game-analysis blunder; the stored 1–3 move sequence drill.

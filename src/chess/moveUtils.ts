@@ -1,4 +1,20 @@
-import { Chess } from 'chess.js';
+import { Chess, type Square } from 'chess.js';
+import type { Key } from 'chessground/types';
+
+/**
+ * The chess.js `Square` and chessground `Key` types are both string-literal
+ * unions of square names, so a runtime square string needs an assertion to
+ * satisfy either. These two helpers are the single sanctioned place for that
+ * assertion — call them instead of scattering `as any` (which disables all
+ * checking) across the board/engine boundary.
+ */
+export function toSquare(sq: string): Square {
+  return sq as Square;
+}
+
+export function toKey(sq: string): Key {
+  return sq as Key;
+}
 
 // Some PGN/UCI sources encode castling as "king-to-rook-square" (e.g. e8a8 / e1h1)
 // instead of standard "king-to-destination" (e8c8 / e1g1). chess.js v1 throws on

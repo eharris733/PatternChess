@@ -9,16 +9,16 @@ import { supabaseService } from '../services/supabaseService';
 import { getStockfish } from '../hooks/useStockfish';
 import {
   classify,
+  classifySwing,
   inaccuracyThresholdPercent,
   winPercent,
-  winningChancesLost,
 } from '../chess/winningChances';
 import {
   BlunderContext,
   ContextFilter,
   computeBlunderContext,
 } from '../chess/blunderContext';
-import { CASTLING_NORMALIZE, moveToUci, parseUciMove } from '../chess/moveUtils';
+import { CASTLING_NORMALIZE, moveToUci, parseUciMove, toKey } from '../chess/moveUtils';
 import {
   buildLineMoves,
   buildRefutationPairs,
@@ -349,10 +349,9 @@ function sanFromUci(fen: string, uci: string): string {
 }
 
 function classifyShortLabel(b: Blunder): 'Blunder' | 'Mistake' | 'Inaccuracy' {
-  const cl = winningChancesLost(b.evalBefore, b.evalAfter);
-  const c = classify(cl);
-  if (c === 'blunder') return 'Blunder';
-  if (c === 'inaccuracy') return 'Inaccuracy';
+  const { classification } = classifySwing(b.evalBefore, b.evalAfter);
+  if (classification === 'blunder') return 'Blunder';
+  if (classification === 'inaccuracy') return 'Inaccuracy';
   return 'Mistake';
 }
 
@@ -626,7 +625,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         orientation: playerSide,
         movableFor: null,
         lastMove: preplay.lastMove,
-        shapes: [{ orig: preplay.from as any, dest: preplay.to as any, brush: 'red' }],
+        shapes: [{ orig: toKey(preplay.from), dest: toKey(preplay.to), brush: 'red' }],
         blunderSan,
         game,
         currentContext,
@@ -866,7 +865,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     if (isCorrect && !isLastStep && !acceptedDeviation) {
       const playedSoFar = [...drillPlies.slice(0, drillPly), uci];
       set((s) => ({
-        shapes: [{ orig: move.from as any, dest: move.to as any, brush: 'green' }],
+        shapes: [{ orig: toKey(move.from), dest: toKey(move.to), brush: 'green' }],
         interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
         pendingTryAgain: false,
         stepFeedback: 'Correct — keep going',
@@ -911,7 +910,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           totalCorrect: isFirstAttempt && firstAttemptRecalled ? s.totalCorrect + 1 : s.totalCorrect,
           totalAttempted: isFirstAttempt ? s.totalAttempted + 1 : s.totalAttempted,
           attemptedBlunderIds: nextAttempted,
-          shapes: [{ orig: move.from as any, dest: move.to as any, brush: 'green' }],
+          shapes: [{ orig: toKey(move.from), dest: toKey(move.to), brush: 'green' }],
           incorrectFeedback: null,
           livePlayedEval: null,
           stepFeedback: null,
@@ -1200,7 +1199,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     }
     const from = uci.slice(0, 2);
     const to = uci.slice(2, 4);
-    const playedShape: DrawShape = { orig: from as any, dest: to as any, brush: 'red' };
+    const playedShape: DrawShape = { orig: toKey(from), dest: toKey(to), brush: 'red' };
     return { showWhatYouPlayed: true, shapes: [...otherShapes, playedShape] };
   }),
 
@@ -1222,7 +1221,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       // Level 1 (which piece) is free — finding the move still earns full credit.
       set({
         hintLevel: 1,
-        shapes: [{ orig: from as any, brush: 'blue' }, ...playedShapes],
+        shapes: [{ orig: toKey(from), brush: 'blue' }, ...playedShapes],
       });
     } else if (state.hintLevel === 1) {
       // Level 2 (the move itself) forfeits the first-attempt credit: the SR
@@ -1230,7 +1229,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       const isFirstAttempt = !state.attemptedBlunderIds.has(b.id);
       set((s) => ({
         hintLevel: 2,
-        shapes: [{ orig: from as any, dest: to as any, brush: 'blue' }, ...playedShapes],
+        shapes: [{ orig: toKey(from), dest: toKey(to), brush: 'blue' }, ...playedShapes],
         ...(isFirstAttempt
           ? {
               totalAttempted: s.totalAttempted + 1,
@@ -1260,7 +1259,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     set({
       fen: chess.fen(),
       lastMove: [m.from, m.to],
-      shapes: [{ orig: m.from as any, dest: m.to as any, brush: 'red' }],
+      shapes: [{ orig: toKey(m.from), dest: toKey(m.to), brush: 'red' }],
       activeRefutationIndex: idx,
       activePlayedRefutationIndex: null,
       activePostCorrectIndex: null,
@@ -1287,7 +1286,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     set({
       fen: chess.fen(),
       lastMove: [m.from, m.to],
-      shapes: [{ orig: m.from as any, dest: m.to as any, brush: 'red' }],
+      shapes: [{ orig: toKey(m.from), dest: toKey(m.to), brush: 'red' }],
       activePlayedRefutationIndex: idx,
       activeRefutationIndex: null,
       playedMovesFromBlunder: playedRefutationMoves.slice(0, idx + 1).map((rm) => rm.uci),
@@ -1326,7 +1325,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     set({
       fen: chess.fen(),
       lastMove: [m.from, m.to],
-      shapes: [{ orig: m.from as any, dest: m.to as any, brush: 'green' }],
+      shapes: [{ orig: toKey(m.from), dest: toKey(m.to), brush: 'green' }],
       activePostCorrectIndex: idx,
       activeRefutationIndex: null,
       playedMovesFromBlunder: postCorrectMoves.slice(0, idx + 1).map((rm) => rm.uci),

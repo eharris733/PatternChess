@@ -2,7 +2,7 @@ import { Blunder } from '../models/blunder';
 import { GameRecord, resolveOutcome } from '../models/gameRecord';
 import { EndgameScenario, EndgameScenarioWithSeverity } from '../models/endgameScenario';
 import { classifyGameState } from '../chess/blunderContext';
-import { winningChancesLost } from '../chess/winningChances';
+import { roundedChancesLost } from '../chess/winningChances';
 import { supabaseService } from './supabaseService';
 
 export interface ScenarioCandidate {
@@ -70,7 +70,7 @@ export function deriveScenarioCandidates(
 
 /** Winning chances lost (percent) by a blunder, preferring the stored swing. */
 function blunderSeverity(b: Blunder): number {
-  return b.evalSwing || Math.round(winningChancesLost(b.evalBefore, b.evalAfter));
+  return b.evalSwing || roundedChancesLost(b.evalBefore, b.evalAfter);
 }
 
 /**

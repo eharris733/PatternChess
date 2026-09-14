@@ -4,6 +4,8 @@ import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
 import { retryWithProfile, useSyncStore } from '../state/syncStore';
 import type { ProviderProgress } from '../services/syncService';
+import { CheckIcon } from './icons/CheckIcon';
+import { CloseIcon } from './icons/CloseIcon';
 
 type Aggregate = 'none' | 'idle' | 'syncing' | 'done' | 'error';
 
@@ -93,13 +95,13 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
     display === 'syncing' ? (
       <span className="inline-block w-3.5 h-3.5 border-2 border-gold-dark border-t-transparent rounded-full animate-spin" />
     ) : display === 'done' ? (
-      <span className="text-correct">✓</span>
+      <CheckIcon className="w-3.5 h-3.5 text-correct" />
     ) : display === 'error' ? (
-      <span className="text-incorrect">✕</span>
+      <CloseIcon className="w-3.5 h-3.5 text-incorrect" />
     ) : display === 'none' ? (
       <span className="text-text-secondary">+</span>
     ) : (
-      <span className="text-correct">✓</span>
+      <CheckIcon className="w-3.5 h-3.5 text-correct" />
     );
 
   const isBusy = display === 'syncing';

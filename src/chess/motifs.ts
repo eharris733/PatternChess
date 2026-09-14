@@ -1,6 +1,6 @@
 import { Chess } from 'chess.js';
 import type { Move } from 'chess.js';
-import { CASTLING_NORMALIZE, parseUciMove } from './moveUtils';
+import { CASTLING_NORMALIZE, parseUciMove, toSquare } from './moveUtils';
 
 /**
  * Tactical motif tagging, ported from the heuristics in lichess-puzzler's
@@ -124,7 +124,7 @@ function firstPieceOnRay(
   let r = rankOf(from) + dir[1];
   while (onBoard(f, r)) {
     const sq = sqName(f, r);
-    const p = chess.get(sq as any);
+    const p = chess.get(toSquare(sq));
     if (p) return { square: sq, type: p.type, color: p.color as Color };
     f += dir[0];
     r += dir[1];
@@ -156,11 +156,11 @@ function between(a: string, b: string): string[] {
  * lichess-puzzler's util.is_hanging).
  */
 function isHanging(chess: Chess, square: string, attacker: Color): boolean {
-  const piece = chess.get(square as any);
+  const piece = chess.get(toSquare(square));
   if (!piece || piece.color === attacker) return false;
-  const attackers = chess.attackers(square as any, attacker);
+  const attackers = chess.attackers(toSquare(square), attacker);
   if (attackers.length === 0) return false;
-  const defenders = chess.attackers(square as any, other(attacker));
+  const defenders = chess.attackers(toSquare(square), other(attacker));
   if (defenders.length === 0) return true;
   const cheapest = Math.min(...attackers.map((sq) => VALUE[chess.get(sq)?.type ?? 'p']));
   return cheapest < VALUE[piece.type];
@@ -252,8 +252,8 @@ function detectLineThemes(fen: string, pv: string[]): ThemeSet {
       for (const row of after.board()) {
         for (const cell of row) {
           if (!cell || cell.color !== opp) continue;
-          const attackedBy = after.attackers(cell.square as any, pov);
-          if (!attackedBy.includes(m.to as any)) continue;
+          const attackedBy = after.attackers(toSquare(cell.square), pov);
+          if (!attackedBy.includes(toSquare(m.to))) continue;
           if (
             cell.type === 'k' ||
             VALUE[cell.type] > VALUE[m.piece] ||
@@ -346,10 +346,10 @@ function detectLineThemes(fen: string, pv: string[]): ThemeSet {
           const mustMove = isHanging(after, cell.square, pov)
             ? true
             : after
-                .attackers(cell.square as any, pov)
+                .attackers(toSquare(cell.square), pov)
                 .some((sq) => VALUE[after.get(sq)?.type ?? 'p'] < VALUE[cell.type]);
           if (!mustMove) continue;
-          const escapes = after.moves({ square: cell.square as any, verbose: true });
+          const escapes = after.moves({ square: toSquare(cell.square), verbose: true });
           if (escapes.length === 0) continue; // nothing to judge — skip, king may be forced first
           const allHang = escapes.every((esc) => {
             const probe = new Chess(ply.fenAfter);
@@ -399,7 +399,7 @@ function isBackRankMate(endState: Chess, matingMove: Move, matedColor: Color): b
   let ownPawnBlocks = 0;
   for (const f of [kf - 1, kf, kf + 1]) {
     if (!onBoard(f, escapeRank)) continue;
-    const p = endState.get(sqName(f, escapeRank) as any);
+    const p = endState.get(toSquare(sqName(f, escapeRank)));
     if (p && p.color === matedColor && p.type === 'p') ownPawnBlocks++;
   }
   return ownPawnBlocks >= 2;

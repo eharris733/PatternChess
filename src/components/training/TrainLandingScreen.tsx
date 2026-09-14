@@ -4,7 +4,7 @@ import { OpeningRow, openingDisplayName } from '../insights/OpeningRow';
 import { InsightCardSkeleton } from '../Skeleton';
 import { MOTIF_LABEL, ALL_MOTIFS, type Motif } from '../../chess/motifs';
 import { GAME_STATE_LABEL, GAME_STATE_ORDER, type ContextFilter } from '../../chess/blunderContext';
-import type { BlunderPhase } from '../../models/blunder';
+import { PHASE_LABEL, PHASE_ORDER, type BlunderPhase } from '../../models/blunder';
 
 export interface TrainFilterPick {
   contextFilter?: ContextFilter;
@@ -15,12 +15,6 @@ export interface TrainFilterPick {
   openingLabel?: string;
 }
 
-const PHASES: BlunderPhase[] = ['opening', 'middlegame', 'endgame'];
-const PHASE_LABEL: Record<BlunderPhase, string> = {
-  opening: 'Opening',
-  middlegame: 'Middlegame',
-  endgame: 'Endgame',
-};
 const CONTEXT_LABEL: Record<'timeTrouble' | 'longThink', string> = {
   timeTrouble: 'Time trouble',
   longThink: 'Long think',
@@ -131,7 +125,7 @@ export function TrainLandingScreen({
       <section className="card flex flex-col gap-3">
         <span className="label">By phase</span>
         <div className="flex flex-wrap gap-1.5">
-          {PHASES.map((phase) => (
+          {PHASE_ORDER.map((phase) => (
             <button
               key={phase}
               type="button"

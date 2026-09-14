@@ -29,7 +29,7 @@ import {
   GAME_STATE_LABEL,
   computeBlunderContext,
 } from '../chess/blunderContext';
-import { Blunder, BlunderPhase, SPACED_REPETITION_DAYS } from '../models/blunder';
+import { Blunder, BlunderPhase, PHASE_LABEL, SPACED_REPETITION_DAYS } from '../models/blunder';
 import { MOTIF_LABEL, type Motif } from '../chess/motifs';
 import { GameRecord } from '../models/gameRecord';
 import { supabase } from '../lib/supabase';
@@ -55,10 +55,6 @@ function filterLabel(filter: ContextFilter): string {
   if (filter === 'timeTrouble') return 'Time trouble';
   if (filter === 'longThink') return 'Long think';
   return GAME_STATE_LABEL[filter];
-}
-
-function phaseLabel(phase: BlunderPhase): string {
-  return phase === 'opening' ? 'Opening' : phase === 'endgame' ? 'Endgame' : 'Middlegame';
 }
 
 type LineTab = 'continuation' | 'refutation' | 'playedRefutation';
@@ -225,7 +221,7 @@ export function TrainingRoute() {
     : openingFilter
       ? openingLabel ?? openingFilter
       : phaseFilter
-        ? phaseLabel(phaseFilter)
+        ? PHASE_LABEL[phaseFilter]
         : motifFilter
           ? MOTIF_LABEL[motifFilter]
           : null;

@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import type { Config } from 'chessground/config';
 import type { DrawShape } from 'chessground/draw';
+import type { Key } from 'chessground/types';
 import { ChessgroundReact } from '../chess/chessgroundReact';
 import { isCheck, legalDests, turnColor } from '../chess/legalDests';
+import { toKey } from '../chess/moveUtils';
 import clsx from 'clsx';
 
 export type Side = 'white' | 'black';
@@ -53,14 +55,14 @@ export function BoardPanel({
   const inCheck = useMemo(() => isCheck(fen), [fen]);
 
   const config = useMemo<Config>(() => {
-    const cgDests = new Map<any, any[]>();
-    for (const [k, v] of dests) cgDests.set(k as any, v as any[]);
+    const cgDests = new Map<Key, Key[]>();
+    for (const [k, v] of dests) cgDests.set(toKey(k), v.map(toKey));
     return {
       fen,
       orientation,
       turnColor: turn,
       check: inCheck ? turn : false,
-      lastMove: (lastMove ?? undefined) as any,
+      lastMove: lastMove ? lastMove.map(toKey) : undefined,
       coordinates,
       viewOnly: !!viewOnly,
       animation: { enabled: true, duration: 200 },

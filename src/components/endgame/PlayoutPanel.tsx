@@ -4,6 +4,7 @@ import type { DrawShape } from 'chessground/draw';
 import { MoveSequencePanel } from '../MoveSequencePanel';
 import { buildLineMoves, buildRefutationPairs } from '../../chess/refutationLines';
 import { parseUciMove } from '../../chess/moveUtils';
+import { formatEval } from '../../chess/formatEval';
 import { DRAW_ACCEPT_CP, DRAW_ACCEPT_QUIET_PLIES, RESIGN_CP } from '../../chess/adjudication';
 import { halfmoveClock } from '../../chess/material';
 import type { PlayoutSlip, SlipLogStatus } from '../../state/endgamePlayoutStore';
@@ -269,11 +270,7 @@ export function SlipReport({
   );
 }
 
-function formatPawns(cp: number): string {
-  if (Math.abs(cp) >= 9000) return cp > 0 ? 'Mate' : 'Mated';
-  const pawns = cp / 100;
-  return `${pawns > 0 ? '+' : ''}${pawns.toFixed(1)}`;
-}
+const formatPawns = (cp: number) => formatEval(cp, { decimals: 1, mate: 'word' });
 
 /**
  * Play-to-the-finish progress line for the Endgames tab (no hold target):

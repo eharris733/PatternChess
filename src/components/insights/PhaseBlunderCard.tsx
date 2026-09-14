@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { usePhaseBlunderInsight } from '../../hooks/useInsights';
 import { InsightCardSkeleton } from '../Skeleton';
-import type { BlunderPhase } from '../../models/blunder';
+import { PHASE_LABEL, type BlunderPhase } from '../../models/blunder';
 
 const MIN_BLUNDERS = 30;
 
@@ -92,21 +92,21 @@ export function PhaseBlunderCard() {
       </header>
       <div className="flex flex-col gap-3">
         <Bar
-          label="Opening"
+          label={PHASE_LABEL.opening}
           userPct={openingPct}
           benchmarkPct={benchmarkShare?.opening ?? null}
           benchmarkSampleSize={benchmarkSampleSize}
           onClick={counts.opening > 0 ? () => drill('opening') : undefined}
         />
         <Bar
-          label="Middlegame"
+          label={PHASE_LABEL.middlegame}
           userPct={middlePct}
           benchmarkPct={benchmarkShare?.middlegame ?? null}
           benchmarkSampleSize={benchmarkSampleSize}
           onClick={counts.middlegame > 0 ? () => drill('middlegame') : undefined}
         />
         <Bar
-          label="Endgame"
+          label={PHASE_LABEL.endgame}
           userPct={endPct}
           benchmarkPct={benchmarkShare?.endgame ?? null}
           benchmarkSampleSize={benchmarkSampleSize}

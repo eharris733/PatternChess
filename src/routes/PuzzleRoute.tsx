@@ -8,7 +8,7 @@ import { FeedbackBadge } from '../components/FeedbackBadge';
 import { WinningChancesDisplay } from '../components/WinningChancesDisplay';
 import { decodeSharedPuzzle, type SharedPuzzle } from '../services/puzzleShareService';
 import { getStockfish } from '../hooks/useStockfish';
-import { moveToUci, parseUciMove, uciToSan } from '../chess/moveUtils';
+import { moveToUci, parseUciMove, uciToSan, toKey } from '../chess/moveUtils';
 import { classify, winPercent } from '../chess/winningChances';
 import { useForceDefaultTheme } from '../state/themeStore';
 import { useHead } from '../seo/useHead';
@@ -151,7 +151,7 @@ function SharedPuzzlePlayer({ puzzle }: { puzzle: SharedPuzzle }) {
     if (isCorrect) {
       setPhase('correct');
       setFeedback(null);
-      setShapes([{ orig: move.from as any, dest: move.to as any, brush: 'green' }]);
+      setShapes([{ orig: toKey(move.from), dest: toKey(move.to), brush: 'green' }]);
     } else {
       setPhase('incorrect');
       if (uci === puzzle.pm) setFeedback('This is the move that was played in the game');
@@ -176,7 +176,7 @@ function SharedPuzzlePlayer({ puzzle }: { puzzle: SharedPuzzle }) {
     setLastMove(null);
     setShapes((cur) => [
       ...cur.filter((s) => s.brush !== 'green'),
-      { orig: m.from as any, dest: m.to as any, brush: 'green' },
+      { orig: toKey(m.from), dest: toKey(m.to), brush: 'green' },
     ]);
   };
 
@@ -187,7 +187,7 @@ function SharedPuzzlePlayer({ puzzle }: { puzzle: SharedPuzzle }) {
     setLastMove(null);
     setShapes((cur) => [
       ...cur.filter((s) => s.brush !== 'red'),
-      { orig: m.from as any, dest: m.to as any, brush: 'red' },
+      { orig: toKey(m.from), dest: toKey(m.to), brush: 'red' },
     ]);
   };
 

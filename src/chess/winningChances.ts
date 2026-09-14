@@ -30,6 +30,22 @@ export function classify(chancesLost: number): MoveClassification {
   return 'good';
 }
 
+/**
+ * Winning chances lost, rounded — the single definition of the `eval_swing`
+ * value stored on a blunder row. Kept here so every writer (game analysis,
+ * enrichment backfill, endgame slip logging, scenario severity) computes it the
+ * same way and can't drift.
+ */
+export function roundedChancesLost(evalBefore: number, evalAfter: number): number {
+  return Math.round(winningChancesLost(evalBefore, evalAfter));
+}
+
+/** Classify a move given its before/after evals, returning both the raw loss and the label. */
+export function classifySwing(evalBefore: number, evalAfter: number) {
+  const chancesLost = winningChancesLost(evalBefore, evalAfter);
+  return { chancesLost, classification: classify(chancesLost) };
+}
+
 /** Trainable = mistake or blunder (≥15% chances lost). */
 export function isTrainable(chancesLost: number): boolean {
   return chancesLost >= mistakeThresholdPercent;
