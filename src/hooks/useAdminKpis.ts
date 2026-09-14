@@ -98,7 +98,7 @@ export function useAdminKpis() {
     queryFn: async (): Promise<AdminKpis> => {
       const { data, error } = await supabase.rpc('admin_kpis');
       if (error) throw error;
-      return data as AdminKpis;
+      return data as unknown as AdminKpis;
     },
   });
 }

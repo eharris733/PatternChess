@@ -1,4 +1,6 @@
-import { supabase } from '../lib/supabase';
+import { supabase, toJson } from '../lib/supabase';
+import type { TablesInsert, TablesUpdate } from '../lib/database.types';
+import type { ExplorerResult } from './openingExplorerService';
 import {
   Blunder,
   blunderFromJson,
@@ -42,7 +44,7 @@ async function currentUserId(): Promise<string | null> {
 // --- Games ---
 
 export async function insertGames(
-  games: Array<Record<string, unknown>>,
+  games: Omit<TablesInsert<'games'>, 'user_id'>[],
 ): Promise<GameRecord[]> {
   const userId = await currentUserId();
   const enriched = userId ? games.map((g) => ({ ...g, user_id: userId })) : games;
@@ -89,11 +91,13 @@ export async function markGameAnalyzed(gameId: string): Promise<void> {
 
 // --- Blunders ---
 
-export async function insertBlunders(blunders: Array<Record<string, unknown>>): Promise<void> {
+export async function insertBlunders(
+  blunders: Omit<TablesInsert<'blunders'>, 'user_id'>[],
+): Promise<void> {
   if (blunders.length === 0) return;
   const userId = await currentUserId();
   // Analysis callers predate `kind` and omit it — they are always tactics.
-  const enriched = blunders.map((b) => ({
+  const enriched: TablesInsert<'blunders'>[] = blunders.map((b) => ({
     kind: 'tactic',
     ...b,
     ...(userId ? { user_id: userId } : {}),
@@ -101,10 +105,9 @@ export async function insertBlunders(blunders: Array<Record<string, unknown>>): 
   // Drop intra-batch duplicates (e.g. threefold repetition) — Postgres rejects
   // an upsert payload that conflicts with itself on the onConflict target.
   const seen = new Set<string>();
-  const deduped: Array<Record<string, unknown>> = [];
+  const deduped: TablesInsert<'blunders'>[] = [];
   for (const row of enriched) {
-    const r = row as Record<string, unknown>;
-    const key = `${r.user_id ?? ''}|${r.fen ?? ''}|${r.kind ?? ''}`;
+    const key = `${row.user_id ?? ''}|${row.fen ?? ''}|${row.kind ?? ''}`;
     if (seen.has(key)) continue;
     seen.add(key);
     deduped.push(row);
@@ -183,7 +186,7 @@ export async function appendCorrectMove(
 ): Promise<void> {
   const { error } = await supabase
     .from('blunders')
-    .update({ correct_moves: updatedMoves })
+    .update({ correct_moves: toJson(updatedMoves) })
     .eq('id', blunderId);
   if (error) throw error;
 }
@@ -238,11 +241,12 @@ export async function getEndgameScenarios(): Promise<EndgameScenario[]> {
  * status/attempts survive re-scans.
  */
 export async function upsertEndgameScenarios(
-  rows: Array<Record<string, unknown>>,
+  rows: Omit<TablesInsert<'endgame_scenarios'>, 'user_id'>[],
 ): Promise<void> {
   if (rows.length === 0) return;
   const userId = await currentUserId();
-  const enriched = userId ? rows.map((r) => ({ ...r, user_id: userId })) : rows;
+  if (!userId) return; // scenarios are owner-scoped — nothing to persist without one
+  const enriched: TablesInsert<'endgame_scenarios'>[] = rows.map((r) => ({ ...r, user_id: userId }));
   const { error } = await supabase
     .from('endgame_scenarios')
     .upsert(enriched, { onConflict: 'user_id,game_id', ignoreDuplicates: true });
@@ -326,7 +330,8 @@ export async function updateBlunderEnrichment(
     deepened_at?: string;
   },
 ): Promise<void> {
-  const { error } = await supabase.from('blunders').update(enrichment).eq('id', id);
+  const update = { ...enrichment, solution_line: toJson(enrichment.solution_line) };
+  const { error } = await supabase.from('blunders').update(update).eq('id', id);
   if (error) throw error;
 }
 
@@ -349,7 +354,12 @@ export async function updateBlunderDeepening(
     retired_at: string | null;
   },
 ): Promise<void> {
-  const { error } = await supabase.from('blunders').update(patch).eq('id', id);
+  const update = {
+    ...patch,
+    correct_moves: toJson(patch.correct_moves),
+    solution_line: toJson(patch.solution_line),
+  };
+  const { error } = await supabase.from('blunders').update(update).eq('id', id);
   if (error) throw error;
 }
 
@@ -382,7 +392,7 @@ export async function getBlundersForDeepening(opts: { limit: number }): Promise<
     .order('created_at', { ascending: false })
     .limit(opts.limit);
   if (error) throw error;
-  return ((data ?? []) as any[]).map(blunderFromJson);
+  return (data ?? []).map(blunderFromJson);
 }
 
 export async function countUnenrichedBlunders(): Promise<number> {
@@ -410,7 +420,7 @@ export async function getUnenrichedBlunders(opts: { limit: number }): Promise<Bl
     .order('created_at', { ascending: false })
     .limit(opts.limit);
   if (error) throw error;
-  return ((data ?? []) as any[]).map(blunderFromJson);
+  return (data ?? []).map(blunderFromJson);
 }
 
 export interface OpeningGroupRow {
@@ -934,7 +944,7 @@ export async function saveAnnotations(
   const payload = {
     game_id: gameId,
     user_id: userId,
-    annotations: annotations.map(moveAnnotationToJson),
+    annotations: toJson(annotations.map(moveAnnotationToJson)),
     updated_at: new Date().toISOString(),
   };
   const { error } = await supabase
@@ -1068,11 +1078,11 @@ export async function updateProfileLastSynced(
 ): Promise<void> {
   const userId = await currentUserId();
   if (!userId) return;
-  const column = platform === 'lichess' ? 'last_synced_lichess_at' : 'last_synced_chesscom_at';
-  const { error } = await supabase
-    .from('profiles')
-    .update({ [column]: ts.toISOString() })
-    .eq('id', userId);
+  const update: TablesUpdate<'profiles'> =
+    platform === 'lichess'
+      ? { last_synced_lichess_at: ts.toISOString() }
+      : { last_synced_chesscom_at: ts.toISOString() };
+  const { error } = await supabase.from('profiles').update(update).eq('id', userId);
   if (error) throw error;
 }
 
@@ -1107,7 +1117,7 @@ export async function updateTrainingSession(
     endedAt?: Date | null;
   },
 ): Promise<void> {
-  const update: Record<string, unknown> = {};
+  const update: TablesUpdate<'training_sessions'> = {};
   if (patch.blundersAttempted !== undefined) update.blunders_attempted = patch.blundersAttempted;
   if (patch.blundersCorrect !== undefined) update.blunders_correct = patch.blundersCorrect;
   if (patch.cyclesCompleted !== undefined) update.cycles_completed = patch.cyclesCompleted;
@@ -1219,7 +1229,7 @@ export async function updateGameMetadata(
     totalPlies?: number | null;
   },
 ): Promise<void> {
-  const update: Record<string, unknown> = {
+  const update: TablesUpdate<'games'> = {
     parsed_metadata_at: new Date().toISOString(),
   };
   if (patch.eco !== undefined) update.eco = patch.eco;
@@ -1248,29 +1258,29 @@ export async function getBenchmarks(kind?: string): Promise<BenchmarkRow[]> {
   if (kind) q = q.eq('kind', kind);
   const { data, error } = await q;
   if (error) throw error;
-  return (data ?? []).map((row: any) => ({
-    kind: row.kind as string,
-    bucket: row.bucket as string,
+  return (data ?? []).map((row) => ({
+    kind: row.kind,
+    bucket: row.bucket,
     value: Number(row.value),
-    sampleSize: row.sample_size as number,
-    source: (row.source as string | null) ?? null,
+    sampleSize: row.sample_size,
+    source: row.source ?? null,
   }));
 }
 
 // --- Opening Explorer Cache ---
 
-export async function getCachedExplorerResult(fen: string): Promise<any | null> {
+export async function getCachedExplorerResult(fen: string): Promise<ExplorerResult | null> {
   const { data, error } = await supabase
     .from('opening_explorer_cache')
     .select()
     .eq('fen', fen)
     .maybeSingle();
   if (error) return null;
-  return (data?.result as any) ?? null;
+  return data?.result ? (data.result as unknown as ExplorerResult) : null;
 }
 
-export async function cacheExplorerResult(fen: string, result: any): Promise<void> {
-  await supabase.from('opening_explorer_cache').upsert({ fen, result });
+export async function cacheExplorerResult(fen: string, result: ExplorerResult): Promise<void> {
+  await supabase.from('opening_explorer_cache').upsert({ fen, result: toJson(result) });
 }
 
 export const supabaseService = {

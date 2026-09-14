@@ -114,9 +114,7 @@ export async function syncProvider(
   let inserted: GameRecord[] = [];
   if (newOnly.length > 0) {
     try {
-      inserted = await supabaseService.insertGames(
-        newOnly.map((g) => ({ ...g })) as Array<Record<string, unknown>>,
-      );
+      inserted = await supabaseService.insertGames(newOnly.map((g) => ({ ...g })));
     } catch (e) {
       // 23505 = unique_violation. A concurrent sync raced us; the row already
       // exists, so treat it as a successful no-op rather than failing the

@@ -1,5 +1,6 @@
 import type { TimeControlCategory } from '../services/chessApiService';
 import { BOARD_THEMES, type BoardTheme } from '../state/themeStore';
+import type { TablesInsert, TablesUpdate } from '../lib/database.types';
 
 export interface UserProfile {
   id: string;
@@ -86,7 +87,7 @@ export function userProfileFromJson(json: any): UserProfile {
   };
 }
 
-export function userProfileToInsert(p: UserProfile): Record<string, unknown> {
+export function userProfileToInsert(p: UserProfile): TablesInsert<'profiles'> {
   return {
     id: p.id,
     display_name: p.displayName,
@@ -99,7 +100,7 @@ export function userProfileToInsert(p: UserProfile): Record<string, unknown> {
   };
 }
 
-export function userProfileToUpdate(p: UserProfile): Record<string, unknown> {
+export function userProfileToUpdate(p: UserProfile): TablesUpdate<'profiles'> {
   return {
     display_name: p.displayName,
     avatar_url: p.avatarUrl,

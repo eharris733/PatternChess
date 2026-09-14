@@ -1,6 +1,9 @@
 import { analyzeGames } from './analysisService';
 import { extractHeaders, parsePgnMetadata } from './pgnParserService';
 import { supabaseService } from './supabaseService';
+import type { TablesInsert } from '../lib/database.types';
+
+type GameInsert = Omit<TablesInsert<'games'>, 'user_id'>;
 
 export interface PgnUploadProgress {
   phase: 'parsing' | 'inserting' | 'analyzing' | 'done';
@@ -63,7 +66,7 @@ function deriveResult(headers: Record<string, string>): string | null {
 
 interface PreparedRow {
   pgn: string;
-  row: Record<string, unknown>;
+  row: GameInsert;
   externalId: string;
   hadHeaders: boolean;
   /** Whether the entered name matched the White/Black headers. */
@@ -113,7 +116,7 @@ async function preparePgn(
       : colorOverride;
   const playedAt = parsePgnDate(headers.UTCDate ?? headers.Date, headers.UTCTime ?? headers.StartTime);
 
-  const row: Record<string, unknown> = {
+  const row: GameInsert = {
     platform: 'pgn',
     username,
     opponent: opponent || 'Unknown',

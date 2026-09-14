@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { getAnonId } from '../lib/anonId';
+import type { TablesUpdate } from '../lib/database.types';
 import { ALL_TIME_CONTROLS } from './chessApiService';
 import {
   UserProfile,
@@ -130,7 +131,7 @@ export const authService = {
       autoplayRefutation?: boolean;
     },
   ): Promise<void> {
-    const patch: Record<string, unknown> = {};
+    const patch: TablesUpdate<'profiles'> = {};
     if (prefs.showEngineEvals !== undefined) patch.show_engine_evals = prefs.showEngineEvals;
     if (prefs.revealBeforeSolve !== undefined) patch.reveal_before_solve = prefs.revealBeforeSolve;
     if (prefs.autoplayRefutation !== undefined) patch.autoplay_refutation = prefs.autoplayRefutation;
