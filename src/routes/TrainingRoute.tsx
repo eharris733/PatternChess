@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
 import { authService } from '../services/authService';
 import { useTrainingStore } from '../state/trainingStore';
@@ -11,29 +10,19 @@ import { BoardActionOverlay, useActionOverlay } from '../components/BoardActionO
 import { useSyncStore } from '../state/syncStore';
 import { BoardPanel } from '../components/BoardPanel';
 import { BoardActionBar } from '../components/BoardActionBar';
-import { MoveSequencePanel } from '../components/MoveSequencePanel';
-import { ProgressBar } from '../components/ProgressBar';
-import { FeedbackBadge } from '../components/FeedbackBadge';
-import { WinningChancesDisplay } from '../components/WinningChancesDisplay';
-import { TrophyIcon } from '../components/icons/TrophyIcon';
-import { TrashIcon } from '../components/icons/TrashIcon';
-import { ShareIcon } from '../components/icons/ShareIcon';
-import { CloseIcon } from '../components/icons/CloseIcon';
+import { type LineTab } from '../components/training/LineTabs';
+import { fetchGamesByIds, applyContextFilter, filterLabel } from './training/trainingQueue';
 import { Skeleton } from '../components/Skeleton';
-import { PositionSrState } from '../components/training/PositionSrState';
-import { BlunderContextBadges } from '../components/training/BlunderContextBadges';
 import { EndgameDrillView } from '../components/training/EndgameDrillView';
 import { TrainLandingScreen, type TrainFilterPick } from '../components/training/TrainLandingScreen';
-import {
-  ContextFilter,
-  GAME_STATE_LABEL,
-  computeBlunderContext,
-} from '../chess/blunderContext';
-import { Blunder, BlunderPhase, PHASE_LABEL, SPACED_REPETITION_DAYS } from '../models/blunder';
+import { TrainingAnalysisPanel } from '../components/training/TrainingAnalysisPanel';
+import { TrainingCompleteScreen } from '../components/training/TrainingCompleteScreen';
+import { TrainingDeleteModal } from '../components/training/TrainingDeleteModal';
+import { TrainingShareModal } from '../components/training/TrainingShareModal';
+import { ContextFilter } from '../chess/blunderContext';
+import { BlunderPhase, PHASE_LABEL, SPACED_REPETITION_DAYS } from '../models/blunder';
 import { MOTIF_LABEL, type Motif } from '../chess/motifs';
-import { GameRecord } from '../models/gameRecord';
-import { supabase } from '../lib/supabase';
-import { gameRecordFromJson, ecoFamily, orderedPlayers } from '../models/gameRecord';
+import { ecoFamily, orderedPlayers } from '../models/gameRecord';
 import {
   externalAnalysisUrl,
   resolvePlatform,
@@ -49,69 +38,6 @@ interface LocationState {
   openingFilter?: string;
   openingColor?: 'white' | 'black' | null;
   openingLabel?: string;
-}
-
-function filterLabel(filter: ContextFilter): string {
-  if (filter === 'timeTrouble') return 'Time trouble';
-  if (filter === 'longThink') return 'Long think';
-  return GAME_STATE_LABEL[filter];
-}
-
-type LineTab = 'continuation' | 'refutation' | 'playedRefutation';
-
-function LineTabs({
-  tabs,
-  active,
-  onSelect,
-}: {
-  tabs: { key: LineTab; label: string }[];
-  active: LineTab;
-  onSelect: (key: LineTab) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {tabs.map((t) => (
-        <button
-          key={t.key}
-          type="button"
-          onClick={() => onSelect(t.key)}
-          className={clsx(
-            'font-mono uppercase text-[10px] tracking-tight px-2 py-1 rounded-none border-2 transition-colors',
-            active === t.key
-              ? 'bg-accent/15 border-accent text-text-primary'
-              : 'border-text-primary text-text-secondary hover:bg-accent/10',
-          )}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-async function fetchGamesByIds(ids: string[]): Promise<Map<string, GameRecord>> {
-  if (ids.length === 0) return new Map();
-  const { data, error } = await supabase.from('games').select().in('id', ids);
-  if (error) throw error;
-  const map = new Map<string, GameRecord>();
-  for (const row of data ?? []) {
-    const g = gameRecordFromJson(row);
-    map.set(g.id, g);
-  }
-  return map;
-}
-
-function applyContextFilter(
-  blunders: Blunder[],
-  games: Map<string, GameRecord>,
-  filter: ContextFilter,
-): Blunder[] {
-  return blunders.filter((b) => {
-    const ctx = computeBlunderContext(b, (b.gameId ? games.get(b.gameId) : null) ?? null);
-    if (filter === 'timeTrouble') return ctx.inTimeTrouble;
-    if (filter === 'longThink') return ctx.isLongThink;
-    return ctx.gameState === filter;
-  });
 }
 
 export function TrainingRoute() {
@@ -485,21 +411,13 @@ export function TrainingRoute() {
   }
 
   if (state.phase === 'complete') {
-    const pct = state.totalAttempted > 0 ? Math.round((state.totalCorrect / state.totalAttempted) * 100) : 0;
     return (
-      <div className="max-w-md mx-auto card text-center flex flex-col gap-4">
-        <TrophyIcon className="h-14 w-14 self-center text-gold-dark" />
-        <h1 className="heading-lg">Cycle complete</h1>
-        <p className="text-text-secondary">
-          {pct}% recall · {state.totalCorrect}/{state.totalAttempted} correct
-        </p>
-        <button className="btn-primary" onClick={backToPicker}>
-          Keep training
-        </button>
-        <button className="btn-outline" onClick={() => navigate('/dashboard')}>
-          Back to dashboard
-        </button>
-      </div>
+      <TrainingCompleteScreen
+        totalCorrect={state.totalCorrect}
+        totalAttempted={state.totalAttempted}
+        onKeepTraining={backToPicker}
+        onBackToDashboard={() => navigate('/dashboard')}
+      />
     );
   }
 
@@ -684,469 +602,65 @@ export function TrainingRoute() {
         />
       </div>
 
-      <aside className="card flex flex-col gap-4 sticky top-6 self-start max-h-[calc(100vh-3rem)] overflow-y-auto">
-        <header className="flex items-center justify-between">
-          <span className="label">
-            {state.game && blunder
-              ? orderedPlayers(
-                  state.game.username,
-                  state.game.opponent,
-                  blunder.sideToMove === 'white' ? 'white' : 'black',
-                ).join(' vs ')
-              : state.game
-                ? `${state.game.username} vs ${state.game.opponent}`
-                : 'Training'}
-          </span>
-          <span className="font-mono text-xs tabular-nums text-gold-dark">
-            {`${state.currentIndex + 1}/${state.blunders.length}`}
-          </span>
-        </header>
-
-        {state.pendingTryAgain && (
-          <div className="flex items-center gap-2 rounded-none border-2 border-mistake/50 bg-mistake/15 px-3 py-2">
-            <span className="px-2 py-0.5 rounded-none font-mono text-[10px] uppercase tracking-tight bg-mistake/30 text-mistake border-2 border-mistake/60">
-              Retry
-            </span>
-            <span className="text-xs text-text-primary">You missed this last time</span>
-          </div>
-        )}
-
-        {blunder && (
-          <PositionSrState
-            blunder={blunder}
-            showTryAgainLabel={state.pendingTryAgain}
-            showNextReview={state.phase === 'reviewing' || state.phase === 'solving'}
-          />
-        )}
-
-        {state.currentContext && <BlunderContextBadges context={state.currentContext} />}
-
-        {blunder && (revealBeforeSolve || state.phase !== 'solving') && (
-          <WinningChancesDisplay
-            // "Your try" (the default view of a wrong-answer toggle) shows the
-            // swing for the move just played, not the original blunder's swing.
-            evalBefore={
-              activeTab !== 'refutation' && state.livePlayedEval
-                ? state.livePlayedEval.before
-                : blunder.evalBefore
-            }
-            evalAfter={
-              activeTab !== 'refutation' && state.livePlayedEval
-                ? state.livePlayedEval.after
-                : blunder.evalAfter
-            }
-            showEngineEvals={profile?.showEngineEvals ?? false}
-          />
-        )}
-
-        {state.phase === 'reviewing' && blunder && (
-          <>
-            <div className="bg-surface-3 rounded-none border-2 border-text-primary p-3 text-sm">
-              <span className="text-text-secondary">You played </span>
-              <span className="font-mono font-bold text-incorrect">{state.blunderSan}</span>
-            </div>
-            {state.refutationPairs.length > 0 && (
-              <div>
-                <p className="label mb-2">Engine refutation</p>
-                <MoveSequencePanel
-                  pairs={state.refutationPairs}
-                  onStep={stepRefutation}
-                  stepArrowsDesktopOnly
-                  activeKey={
-                    state.activeRefutationIndex !== null
-                      ? `r${state.activeRefutationIndex}`
-                      : null
-                  }
-                  onSelect={(key) => {
-                    const i = Number.parseInt(key.slice(1), 10);
-                    if (!Number.isNaN(i)) state.selectRefutationIndex(i);
-                  }}
-                />
-              </div>
-            )}
-            <p className="text-text-primary font-semibold">
-              Find a better move for {blunder.sideToMove === 'white' ? 'White' : 'Black'}.
-            </p>
-            <button className="btn-primary" onClick={() => state.proceedFromReview()}>
-              I'm ready<span className="hidden lg:inline ml-1.5"> (Space)</span>
-            </button>
-          </>
-        )}
-
-        {state.phase === 'solving' && blunder && (
-          <>
-            <div className="flex items-center gap-2 text-text-primary">
-              <span
-                className={clsx(
-                  'w-3 h-3 rounded-full border-2 border-text-primary',
-                  blunder.sideToMove === 'white' ? 'bg-surface' : 'bg-black',
-                )}
-              />
-              <span className="font-medium">
-                {blunder.sideToMove === 'white' ? 'White' : 'Black'} to play
-              </span>
-              {state.userMovesRequired > 1 && (
-                <span className="ml-auto font-mono uppercase text-[10px] tracking-tight text-text-secondary">
-                  Move {Math.floor(state.drillPly / 2) + 1} of {state.userMovesRequired}
-                </span>
-              )}
-            </div>
-
-            {state.stepFeedback && (
-              <FeedbackBadge tone="success">{state.stepFeedback}</FeedbackBadge>
-            )}
-
-            {revealBeforeSolve && (
-              <button
-                className="text-left bg-surface-3 rounded-none border-2 border-text-primary p-3 text-sm hover:bg-text-primary/5 transition-colors"
-                onClick={() => state.toggleShowWhatYouPlayed()}
-                type="button"
-              >
-                <span className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
-                  {state.showWhatYouPlayed ? 'Hide' : 'See'} what you played
-                </span>
-                {state.showWhatYouPlayed && (
-                  <p className="font-mono font-bold text-incorrect mt-1">{state.blunderSan}</p>
-                )}
-              </button>
-            )}
-
-            {state.hintLevel === 1 && (
-              <p className="text-text-secondary text-xs">Piece highlighted — find the move for full credit.</p>
-            )}
-            {state.hintLevel === 2 && (
-              <p className="text-text-secondary text-xs">Move shown — no credit for this attempt.</p>
-            )}
-
-            {state.evaluating && (
-              <FeedbackBadge tone="info">Analyzing your move…</FeedbackBadge>
-            )}
-          </>
-        )}
-
-        {state.phase === 'correct' && (
-          <>
-            <FeedbackBadge tone="success">Solution correct</FeedbackBadge>
-            <LineTabs
-              tabs={[
-                { key: 'continuation', label: 'Continuation' },
-                { key: 'refutation', label: `Your game: ${state.blunderSan}` },
-              ]}
-              active={activeTab === 'refutation' ? 'refutation' : 'continuation'}
-              onSelect={setActiveTab}
-            />
-            {activeTab !== 'refutation' ? (
-              state.postCorrectPairs.length > 0 ? (
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => state.selectPostCorrectIndex(-1)}
-                    className={clsx(
-                      'w-full text-left font-mono text-[13px] rounded-none px-2 py-1.5 transition-colors hover:bg-accent/10',
-                      state.activePostCorrectIndex === -1
-                        ? 'bg-accent/15 ring-1 ring-inset ring-accent text-text-primary'
-                        : 'text-text-secondary',
-                    )}
-                  >
-                    Puzzle start
-                  </button>
-                  <MoveSequencePanel
-                    pairs={state.postCorrectPairs}
-                    onStep={stepPostCorrect}
-                    stepArrowsDesktopOnly
-                    activeKey={
-                      state.activePostCorrectIndex !== null && state.activePostCorrectIndex >= 0
-                        ? `p${state.activePostCorrectIndex}`
-                        : null
-                    }
-                    onSelect={(key) => {
-                      const i = Number.parseInt(key.slice(1), 10);
-                      if (!Number.isNaN(i)) state.selectPostCorrectIndex(i);
-                    }}
-                  />
-                </div>
-              ) : (
-                <p className="text-text-secondary text-sm">Calculating continuation…</p>
-              )
-            ) : (
-              <div>
-                <p className="label mb-2">{refutationLabel}</p>
-                {state.refutationPairs.length > 0 ? (
-                  <MoveSequencePanel
-                    pairs={state.refutationPairs}
-                    onStep={stepRefutation}
-                    stepArrowsDesktopOnly
-                    activeKey={
-                      state.activeRefutationIndex !== null
-                        ? `r${state.activeRefutationIndex}`
-                        : null
-                    }
-                    onSelect={(key) => {
-                      const i = Number.parseInt(key.slice(1), 10);
-                      if (!Number.isNaN(i)) state.selectRefutationIndex(i);
-                    }}
-                  />
-                ) : (
-                  <p className="text-text-secondary text-sm">Calculating…</p>
-                )}
-              </div>
-            )}
-            <button className="btn-primary mt-auto" onClick={() => state.advance()}>
-              Next<span className="hidden lg:inline ml-1.5"> (Space)</span>
-            </button>
-          </>
-        )}
-
-        {state.phase === 'incorrect' && state.incorrectFeedback && (
-          <>
-            <FeedbackBadge tone={state.incorrectFeedback.tone}>
-              {state.incorrectFeedback.message}
-            </FeedbackBadge>
-            {state.incorrectRequeue ? (
-              <>
-                <LineTabs
-                  tabs={[
-                    {
-                      key: 'playedRefutation',
-                      label: triedSan ? `Your try: ${triedSan}` : 'Your try',
-                    },
-                    { key: 'refutation', label: `Your game: ${state.blunderSan}` },
-                  ]}
-                  active={activeTab === 'refutation' ? 'refutation' : 'playedRefutation'}
-                  onSelect={setActiveTab}
-                />
-                {activeTab !== 'refutation' ? (
-                  state.playedRefutationPairs.length > 0 ? (
-                    <MoveSequencePanel
-                      pairs={state.playedRefutationPairs}
-                      onStep={stepPlayedRefutation}
-                      stepArrowsDesktopOnly
-                      activeKey={
-                        state.activePlayedRefutationIndex !== null
-                          ? `r${state.activePlayedRefutationIndex}`
-                          : null
-                      }
-                      onSelect={(key) => {
-                        const i = Number.parseInt(key.slice(1), 10);
-                        if (!Number.isNaN(i)) {
-                          stopAutoplay();
-                          state.selectPlayedRefutationIndex(i);
-                        }
-                      }}
-                    />
-                  ) : (
-                    <p className="text-text-secondary text-sm">No engine line for this move.</p>
-                  )
-                ) : (
-                  <div>
-                    <p className="label mb-2">{refutationLabel}</p>
-                    {state.refutationPairs.length > 0 ? (
-                      <MoveSequencePanel
-                        pairs={state.refutationPairs}
-                        onStep={stepRefutation}
-                        stepArrowsDesktopOnly
-                        activeKey={
-                          state.activeRefutationIndex !== null
-                            ? `r${state.activeRefutationIndex}`
-                            : null
-                        }
-                        onSelect={(key) => {
-                          const i = Number.parseInt(key.slice(1), 10);
-                          if (!Number.isNaN(i)) state.selectRefutationIndex(i);
-                        }}
-                      />
-                    ) : (
-                      <p className="text-text-secondary text-sm">Calculating…</p>
-                    )}
-                  </div>
-                )}
-              </>
-            ) : null}
-            <button
-              className="btn-primary mt-auto"
-              onClick={() =>
-                state.incorrectRequeue ? state.requeueAndAdvance() : state.retry()
-              }
-            >
-              {state.incorrectRequeue ? 'Continue' : 'Try again'}
-              <span className="hidden lg:inline ml-1.5"> (Space)</span>
-            </button>
-            {state.incorrectRequeue && (
-              <p className="text-text-secondary text-xs text-center -mt-1">
-                Comes back later this session
-              </p>
-            )}
-          </>
-        )}
-
-        <div className="mt-auto pt-2 flex flex-col gap-3">
-          <ProgressBar
-            current={Math.round(
-              state.totalAttempted > 0 ? (state.totalCorrect / state.totalAttempted) * 100 : 0,
-            )}
-            total={100}
-            label="Recall rate"
-          />
-          {blunder && (
-            <div className="flex items-center justify-between gap-3">
-              <button
-                type="button"
-                className="btn-ghost text-xs inline-flex items-center justify-center gap-1.5 text-text-secondary hover:text-text-primary"
-                onClick={() => {
-                  setShareCopied(false);
-                  setShareOpen(true);
-                }}
-                title="Share a public link to this puzzle"
-              >
-                <ShareIcon className="h-3.5 w-3.5" />
-                Share puzzle
-              </button>
-              <button
-                type="button"
-                className="btn-ghost text-xs inline-flex items-center justify-center gap-1.5 text-text-secondary hover:text-incorrect"
-                onClick={() => {
-                  setDeleteError(null);
-                  setConfirmDelete(true);
-                }}
-                disabled={state.evaluating || paused || deleting}
-                title="Delete this position from your training"
-              >
-                <TrashIcon className="h-3.5 w-3.5" />
-                Delete position
-              </button>
-            </div>
-          )}
-        </div>
-      </aside>
+      <TrainingAnalysisPanel
+        state={state}
+        blunder={blunder}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        revealBeforeSolve={revealBeforeSolve}
+        showEngineEvals={profile?.showEngineEvals ?? false}
+        refutationLabel={refutationLabel}
+        triedSan={triedSan}
+        stepRefutation={stepRefutation}
+        stepPostCorrect={stepPostCorrect}
+        stepPlayedRefutation={stepPlayedRefutation}
+        stopAutoplay={stopAutoplay}
+        paused={paused}
+        deleting={deleting}
+        onShareClick={() => {
+          setShareCopied(false);
+          setShareOpen(true);
+        }}
+        onDeleteClick={() => {
+          setDeleteError(null);
+          setConfirmDelete(true);
+        }}
+      />
 
       {confirmDelete && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 backdrop-blur-sm p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Delete position"
-          onClick={() => !deleting && setConfirmDelete(false)}
-        >
-          <div
-            className="card max-w-md w-full flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <header>
-              <h2 className="heading-lg">Delete this position?</h2>
-            </header>
-            <p className="text-text-secondary text-sm">
-              This permanently removes the position from your training. You won't be
-              asked to drill it again. This can't be undone.
-            </p>
-            {deleteError && (
-              <div className="bg-incorrect/10 border-2 border-incorrect/50 text-incorrect rounded-none p-3 text-sm">
-                {deleteError}
-              </div>
-            )}
-            <div className="flex items-center justify-end gap-3">
-              <button
-                type="button"
-                className="btn-ghost"
-                disabled={deleting}
-                onClick={() => setConfirmDelete(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn-primary bg-incorrect hover:bg-incorrect border-incorrect inline-flex items-center gap-1.5"
-                disabled={deleting}
-                onClick={async () => {
-                  setDeleting(true);
-                  setDeleteError(null);
-                  try {
-                    const res = await state.deleteCurrent();
-                    if (res.ok) {
-                      setConfirmDelete(false);
-                    } else {
-                      setDeleteError(res.error ?? 'Delete failed.');
-                    }
-                  } finally {
-                    setDeleting(false);
-                  }
-                }}
-              >
-                <TrashIcon className="h-4 w-4" />
-                {deleting ? 'Deleting…' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <TrainingDeleteModal
+          deleting={deleting}
+          deleteError={deleteError}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={async () => {
+            setDeleting(true);
+            setDeleteError(null);
+            try {
+              const res = await state.deleteCurrent();
+              if (res.ok) {
+                setConfirmDelete(false);
+              } else {
+                setDeleteError(res.error ?? 'Delete failed.');
+              }
+            } finally {
+              setDeleting(false);
+            }
+          }}
+        />
       )}
 
       {shareOpen && blunder && shareUrl && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 backdrop-blur-sm p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Share this puzzle"
-          onClick={() => setShareOpen(false)}
-        >
-          <div
-            className="card relative max-w-md w-full flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              aria-label="Close"
-              className="btn-ghost absolute top-3 right-3 p-1 text-text-secondary hover:text-text-primary"
-              onClick={() => setShareOpen(false)}
-            >
-              <CloseIcon className="h-5 w-5" />
-            </button>
-            <h2 className="heading-lg text-center">Share this puzzle</h2>
-            <div className="max-w-[280px] w-full mx-auto">
-              <BoardPanel
-                fen={blunder.fen}
-                orientation={blunder.sideToMove === 'white' ? 'white' : 'black'}
-                movableFor={null}
-                coordinates={false}
-                viewOnly
-              />
-            </div>
-            <div className="flex flex-col items-center gap-1 text-center">
-              {sharePlayersLabel && !shareAnonymous && (
-                <p className="text-sm font-medium text-text-primary">{sharePlayersLabel}</p>
-              )}
-              {sharePlayersLabel && (
-                <label className="flex items-center justify-center gap-2 text-text-secondary text-xs cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-accent"
-                    checked={shareAnonymous}
-                    onChange={(e) => setShareAnonymous(e.currentTarget.checked)}
-                  />
-                  Hide player names
-                </label>
-              )}
-              <p className="text-text-secondary text-xs">
-                {shareOpeningLabel ? `${shareOpeningLabel} · ` : ''}
-                {blunder.sideToMove === 'white' ? 'White' : 'Black'} to play
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                className="input flex-1 font-mono text-xs"
-                readOnly
-                value={shareUrl}
-                onFocus={(e) => e.currentTarget.select()}
-                aria-label="Share link"
-              />
-              <button
-                type="button"
-                className="btn-primary shrink-0"
-                onClick={() => void onCopyShareLink()}
-              >
-                {shareCopied ? 'Copied' : 'Copy'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <TrainingShareModal
+          blunder={blunder}
+          shareUrl={shareUrl}
+          sharePlayersLabel={sharePlayersLabel}
+          shareOpeningLabel={shareOpeningLabel}
+          shareAnonymous={shareAnonymous}
+          setShareAnonymous={setShareAnonymous}
+          shareCopied={shareCopied}
+          onCopy={() => void onCopyShareLink()}
+          onClose={() => setShareOpen(false)}
+        />
       )}
     </div>
   );
