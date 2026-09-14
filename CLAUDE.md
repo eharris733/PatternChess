@@ -78,7 +78,8 @@ tests/e2e/       Playwright specs
 
 | Concern | File |
 |---|---|
-| Supabase tables / CRUD | `src/services/supabaseService.ts` |
+| Supabase tables / CRUD | `src/services/supabaseService.ts` (barrel over `src/services/db/*` — games, blunders, endgameScenarios, stats, sessions, profiles, annotations, explorer, benchmarks; import `{ supabaseService }` and call `.method()` as before) |
+| Generated DB types | `src/lib/database.types.ts` (`Database`/`Tables`/`TablesInsert`/`TablesUpdate`); client is typed `createClient<Database>` in `src/lib/supabase.ts`, with a `toJson` helper for writing `Json` columns |
 | Google OAuth + claim_blunders_for_user | `src/services/authService.ts` |
 | Chess.com / Lichess fetch | `src/services/chessApiService.ts` |
 | PGN parsing | `src/services/pgnParserService.ts` |
