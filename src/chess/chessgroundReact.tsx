@@ -34,8 +34,16 @@ export function ChessgroundReact({ config, contained = true, className, onReady 
     // then once more after things settle.
     const redraw = () => apiRef.current?.redrawAll();
     let trailingId: number | null = null;
+    let leadingRaf: number | null = null;
     const observer = new ResizeObserver(() => {
-      redraw();
+      // Next frame, not synchronously: a redraw inside the observer callback
+      // trips "ResizeObserver loop completed with undelivered notifications".
+      if (leadingRaf === null) {
+        leadingRaf = requestAnimationFrame(() => {
+          leadingRaf = null;
+          redraw();
+        });
+      }
       if (trailingId !== null) window.clearTimeout(trailingId);
       trailingId = window.setTimeout(() => {
         trailingId = null;
@@ -51,6 +59,7 @@ export function ChessgroundReact({ config, contained = true, className, onReady 
       cancelAnimationFrame(rafId);
       observer.disconnect();
       document.removeEventListener('chessground.resize', redraw);
+      if (leadingRaf !== null) cancelAnimationFrame(leadingRaf);
       if (trailingId !== null) window.clearTimeout(trailingId);
       api.destroy();
       apiRef.current = null;
