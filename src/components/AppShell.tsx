@@ -5,12 +5,22 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { PgnUploadModal } from './PgnUploadModal';
 import { BrandLockup } from './BrandLogo';
 import { MenuIcon } from './icons/MenuIcon';
+import { useAuth } from '../auth/useAuth';
+import { installSoundUnlock, setSoundsEnabled } from '../lib/sounds';
 import clsx from 'clsx';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { pathname } = useLocation();
+  const { profile } = useAuth();
+
+  useEffect(() => {
+    installSoundUnlock();
+  }, []);
+  useEffect(() => {
+    setSoundsEnabled(profile?.soundsEnabled ?? true);
+  }, [profile?.soundsEnabled]);
 
   // Close the drawer whenever navigation happens (covers every NavLink tap).
   useEffect(() => {
@@ -33,6 +43,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           'relative shrink-0 border-r-2 border-text-primary bg-surface hidden lg:flex flex-col transition-[width] duration-200',
           collapsed ? 'w-14' : 'w-[220px]',
         )}
+        onTransitionEnd={(e) => {
+          // Boards size off the remaining width; make sure chessground
+          // recomputes its bounds once the sidebar has settled.
+          if (e.target === e.currentTarget && e.propertyName === 'width') {
+            document.dispatchEvent(new Event('chessground.resize'));
+          }
+        }}
       >
         <SidebarNav collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
         <button

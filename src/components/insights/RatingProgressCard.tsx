@@ -170,6 +170,20 @@ function CategoryLegend({ series }: { series: PlatformSeries[] }) {
             {s.delta >= 0 ? '+' : ''}
             {s.delta}
           </span>
+          <span
+            className="tabular-nums text-text-secondary"
+            title={`Started at ${s.startRating}; peaked at ${s.peakRating}`}
+          >
+            peak {s.peakRating}
+          </span>
+          {s.biggestGain && (
+            <span
+              className="tabular-nums text-text-secondary"
+              title={`Biggest single-game gain, ${s.biggestGain.at.toLocaleDateString()}`}
+            >
+              best +{s.biggestGain.delta}
+            </span>
+          )}
         </div>
       ))}
     </div>

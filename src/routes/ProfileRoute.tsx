@@ -34,17 +34,32 @@ export function ProfileRoute() {
     showEngineEvals: false,
     revealBeforeSolve: false,
     autoplayRefutation: true,
+    soundsEnabled: true,
+    leaderboardOptOut: false,
   });
   useEffect(() => {
     setTrainingPrefs({
       showEngineEvals: profile?.showEngineEvals ?? false,
       revealBeforeSolve: profile?.revealBeforeSolve ?? false,
       autoplayRefutation: profile?.autoplayRefutation ?? true,
+      soundsEnabled: profile?.soundsEnabled ?? true,
+      leaderboardOptOut: profile?.leaderboardOptOut ?? false,
     });
-  }, [profile?.showEngineEvals, profile?.revealBeforeSolve, profile?.autoplayRefutation]);
+  }, [
+    profile?.showEngineEvals,
+    profile?.revealBeforeSolve,
+    profile?.autoplayRefutation,
+    profile?.soundsEnabled,
+    profile?.leaderboardOptOut,
+  ]);
 
   const onToggleTrainingPref = (
-    pref: 'showEngineEvals' | 'revealBeforeSolve' | 'autoplayRefutation',
+    pref:
+      | 'showEngineEvals'
+      | 'revealBeforeSolve'
+      | 'autoplayRefutation'
+      | 'soundsEnabled'
+      | 'leaderboardOptOut',
     value: boolean,
   ) => {
     if (!profile) return;
@@ -267,7 +282,45 @@ export function ProfileRoute() {
             </span>
           </span>
         </label>
+        <label className="flex items-start gap-2 select-none">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={trainingPrefs.soundsEnabled}
+            onChange={(e) => onToggleTrainingPref('soundsEnabled', e.target.checked)}
+          />
+          <span>
+            Play sounds
+            <span className="block text-text-secondary text-xs">
+              Move, capture and check sounds on the board, plus a short cue when you solve a
+              position, miss one, or unlock an achievement.
+            </span>
+          </span>
+        </label>
         {trainingPrefsError && <p className="text-incorrect text-sm">{trainingPrefsError}</p>}
+      </section>
+
+      <section className="card flex flex-col gap-4">
+        <h2 className="heading-md">Community</h2>
+        <p className="text-text-secondary text-sm -mt-2">
+          Leaderboards show your Lichess or Chess.com username (or your display name) next to
+          positions solved, mastered, Elo gained and streak. Never your email.
+        </p>
+        <label className="flex items-start gap-2 select-none">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={!trainingPrefs.leaderboardOptOut}
+            onChange={(e) => onToggleTrainingPref('leaderboardOptOut', !e.target.checked)}
+          />
+          <span>
+            Show me on leaderboards
+            <span className="block text-text-secondary text-xs">
+              Untick to drop off every board immediately. Your own stats and achievements are
+              unaffected.
+            </span>
+          </span>
+        </label>
       </section>
 
       <section className="card flex flex-col gap-4">

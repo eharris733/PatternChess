@@ -133,6 +133,8 @@ describe('attachSeverity', () => {
       attempts: 0,
       lastPlayedAt: null,
       createdAt: new Date('2026-01-02'),
+      verifiedAt: null,
+      retiredAt: null,
       ...overrides,
     };
   }

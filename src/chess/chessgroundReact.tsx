@@ -27,20 +27,39 @@ export function ChessgroundReact({ config, contained = true, className, onReady 
     // pieces get translated against stale bounds and render clipped.
     const rafId = requestAnimationFrame(() => api.redrawAll());
 
+    // Leading + trailing redraw: the sidebar animates its width over ~200ms,
+    // and chessground hit-tests drags/clicks against cached bounds, so a
+    // trailing-only debounce left the board misaligned for the whole
+    // transition. Redraw on every observed tick (cheap — one bounds read),
+    // then once more after things settle.
+    const redraw = () => apiRef.current?.redrawAll();
     let trailingId: number | null = null;
+    let leadingRaf: number | null = null;
     const observer = new ResizeObserver(() => {
+      // Next frame, not synchronously: a redraw inside the observer callback
+      // trips "ResizeObserver loop completed with undelivered notifications".
+      if (leadingRaf === null) {
+        leadingRaf = requestAnimationFrame(() => {
+          leadingRaf = null;
+          redraw();
+        });
+      }
       if (trailingId !== null) window.clearTimeout(trailingId);
       trailingId = window.setTimeout(() => {
         trailingId = null;
-        apiRef.current?.redrawAll();
-        window.dispatchEvent(new Event('resize'));
+        redraw();
       }, 250);
     });
     observer.observe(el);
+    // Standard chessground hook — AppShell fires it when the sidebar
+    // transition ends so the final bounds are always fresh.
+    document.addEventListener('chessground.resize', redraw);
 
     return () => {
       cancelAnimationFrame(rafId);
       observer.disconnect();
+      document.removeEventListener('chessground.resize', redraw);
+      if (leadingRaf !== null) cancelAnimationFrame(leadingRaf);
       if (trailingId !== null) window.clearTimeout(trailingId);
       api.destroy();
       apiRef.current = null;

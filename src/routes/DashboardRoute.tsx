@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { useGames } from '../hooks/useGames';
 import { startBlunderMaintenance } from '../services/blunderEnrichmentBackfill';
+import { startEndgameScenarioVerification } from '../services/endgameScenarioVerifier';
 import { DailyHabitCard } from '../components/insights/DailyHabitCard';
 import { CycleTimelineCard } from '../components/insights/CycleTimelineCard';
 import { HowTrainingWorksCard } from '../components/insights/HowTrainingWorksCard';
@@ -30,6 +31,9 @@ export function DashboardRoute() {
   // (timed re-analysis of evals + solution PVs) while the user is here; stops
   // on unmount so training/review get the engine to themselves.
   useEffect(() => startBlunderMaintenance(), []);
+  // Deep re-check of newly derived endgame scenarios; yields to the worker
+  // above (same engine) and picks up on the next visit if it had to.
+  useEffect(() => startEndgameScenarioVerification(), []);
 
   const gamesLoading = gamesQuery.isPending;
   const gamesCount = gamesQuery.data?.length ?? 0;

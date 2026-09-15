@@ -26,6 +26,10 @@ export interface EndgameScenario {
   attempts: number;
   lastPlayedAt: Date | null;
   createdAt: Date;
+  /** Deep re-check of the start position done (see endgameScenarioVerifier). */
+  verifiedAt: Date | null;
+  /** Set when that re-check found the position not actually holdable/winning. */
+  retiredAt: Date | null;
 }
 
 /**
@@ -51,5 +55,7 @@ export function endgameScenarioFromJson(json: any): EndgameScenario {
     attempts: (json.attempts as number | null) ?? 0,
     lastPlayedAt: json.last_played_at ? new Date(json.last_played_at as string) : null,
     createdAt: new Date(json.created_at as string),
+    verifiedAt: json.verified_at ? new Date(json.verified_at as string) : null,
+    retiredAt: json.retired_at ? new Date(json.retired_at as string) : null,
   };
 }

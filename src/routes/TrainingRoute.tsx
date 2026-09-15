@@ -28,6 +28,7 @@ import {
   resolvePlatform,
 } from '../services/externalAnalysisUrlService';
 import { encodeSharedPuzzle } from '../services/puzzleShareService';
+import { playSound } from '../lib/sounds';
 import { formatOpeningDisplay, resolveOpeningName } from '../chess/openingNames';
 
 interface LocationState {
@@ -188,6 +189,16 @@ export function TrainingRoute() {
     setActiveTab(state.phase === 'incorrect' ? 'playedRefutation' : 'continuation');
   }, [state.currentIndex, state.phase]);
 
+  // Result cue. Incorrect feedback with a 'success' tone is the "good enough"
+  // alternative-move case, which shouldn't sound like a miss.
+  useEffect(() => {
+    if (state.phase === 'correct') playSound('correct');
+    else if (state.phase === 'incorrect' && state.incorrectFeedback?.tone !== 'success') {
+      playSound('incorrect');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.phase, state.currentIndex]);
+
   // On a repeat wrong attempt (not the drill's first try), autoplay the
   // engine's refutation of the played move instead of leaving it as a static
   // reveal — the point is to force the lesson to land on a re-miss without
@@ -196,10 +207,22 @@ export function TrainingRoute() {
   const autoplayEnabled = profile?.autoplayRefutation ?? true;
   const autoplayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoplayedKeyRef = useRef<string | null>(null);
+  // Exposed as state so the mobile result overlay can wait for the refutation
+  // to finish playing (otherwise it covers the board while the moves animate
+  // underneath, and the lesson is never seen).
+  const [autoplayActive, setAutoplayActive] = useState(false);
   const stopAutoplay = () => {
     if (autoplayTimerRef.current !== null) {
       clearInterval(autoplayTimerRef.current);
       autoplayTimerRef.current = null;
+    }
+    setAutoplayActive(false);
+  };
+  const skipAutoplay = () => {
+    stopAutoplay();
+    const s = useTrainingStore.getState();
+    if (s.playedRefutationMoves.length > 0) {
+      s.selectPlayedRefutationIndex(s.playedRefutationMoves.length - 1);
     }
   };
   useEffect(() => {
@@ -222,6 +245,7 @@ export function TrainingRoute() {
     const total = state.playedRefutationMoves.length;
     let idx = 0;
     state.selectPlayedRefutationIndex(idx);
+    setAutoplayActive(true);
     autoplayTimerRef.current = setInterval(() => {
       idx += 1;
       if (idx >= total) {
@@ -490,6 +514,11 @@ export function TrainingRoute() {
       await navigator.clipboard.writeText(shareUrl);
       setShareCopied(true);
       window.setTimeout(() => setShareCopied(false), 3000);
+      // Counts toward the share achievements; fire-and-forget.
+      void authService
+        .incrementSharesCount()
+        .then(() => refreshProfile())
+        .catch((err) => console.warn('[training] share count bump failed', err));
     } catch (err) {
       console.warn('[training] share copy failed', err);
     }
@@ -552,7 +581,17 @@ export function TrainingRoute() {
           paused={paused}
           overlay={
             overlay.enabled &&
-            (state.phase === 'correct' || state.phase === 'incorrect') && (
+            (state.phase === 'correct' || state.phase === 'incorrect') &&
+            (autoplayActive ? (
+              // Let the refutation play out visibly first; a tap jumps to the
+              // end and brings the result cover up right away.
+              <button
+                type="button"
+                aria-label="Skip refutation"
+                onClick={skipAutoplay}
+                className="absolute inset-0 z-10 bg-transparent"
+              />
+            ) : (
               <BoardActionOverlay
                 message={
                   state.phase === 'correct'
@@ -574,7 +613,7 @@ export function TrainingRoute() {
                 dismissLabel="Review the lines"
                 onDismiss={overlay.dismiss}
               />
-            )
+            ))
           }
         >
           <BoardPanel

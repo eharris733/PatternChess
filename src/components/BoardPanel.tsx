@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { fenPieceCount, installSoundUnlock, playSound } from '../lib/sounds';
 import type { Config } from 'chessground/config';
 import type { DrawShape } from 'chessground/draw';
 import type { Key } from 'chessground/types';
@@ -27,6 +28,8 @@ export interface BoardPanelProps {
   viewOnly?: boolean;
   /** Show rank/file coordinates (default true). */
   coordinates?: boolean;
+  /** Play move/capture/check sounds when the position changes by a move (default true). */
+  sounds?: boolean;
   className?: string;
 }
 
@@ -46,6 +49,7 @@ export function BoardPanel({
   onMove,
   viewOnly,
   coordinates = true,
+  sounds = true,
   className,
 }: BoardPanelProps) {
   const [pendingPromo, setPendingPromo] = useState<{ from: string; to: string } | null>(null);
@@ -53,6 +57,24 @@ export function BoardPanel({
   const dests = useMemo(() => (viewOnly ? new Map<string, string[]>() : legalDests(fen)), [fen, viewOnly]);
   const turn = useMemo(() => turnColor(fen), [fen]);
   const inCheck = useMemo(() => isCheck(fen), [fen]);
+
+  // One place for board sounds: every screen (training, endgame play-outs,
+  // review stepping, refutation autoplay) drives the board through `fen`, so
+  // a fen change that comes with a lastMove is a move. Position resets
+  // (lastMove null) and the first render stay silent.
+  useEffect(() => {
+    if (sounds) installSoundUnlock();
+  }, [sounds]);
+  const prevFenRef = useRef<string | null>(null);
+  useEffect(() => {
+    const prev = prevFenRef.current;
+    prevFenRef.current = fen;
+    if (!sounds || prev === null || prev === fen || !lastMove) return;
+    if (inCheck) playSound('check');
+    else if (fenPieceCount(fen) < fenPieceCount(prev)) playSound('capture');
+    else playSound('move');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fen]);
 
   const config = useMemo<Config>(() => {
     const cgDests = new Map<Key, Key[]>();

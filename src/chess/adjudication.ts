@@ -39,7 +39,8 @@ const WIN_SINGLE_MOVE_DROP_PCT = 15; // matches isTrainable
 
 // Draw target: the user must stay out of a lost position.
 const DRAW_FAIL_BELOW_PCT = 25; // matches classifyGameState's alreadyLosing band
-const DRAW_HOLD_PCT = 40;
+/** Exported for the scenario verifier: a "holdable" start must already sit at/above the hold bar. */
+export const DRAW_HOLD_PCT = 40;
 
 // "Engine accepts the draw" (finish mode, draw target): the position is
 // dead-level at a depth that means something, and nobody has made progress

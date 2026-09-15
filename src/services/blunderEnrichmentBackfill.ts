@@ -49,6 +49,11 @@ const RETIRE_THRESHOLD = 10;
 
 let running = false;
 
+/** True while the maintenance worker holds the analysis engine. */
+export function isMaintenanceRunning(): boolean {
+  return running;
+}
+
 /**
  * Dashboard-only background maintenance over the user's blunder rows, two
  * phases per run:

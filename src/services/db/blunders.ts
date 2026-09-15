@@ -135,6 +135,9 @@ export async function getEndgameCandidateBlunders(): Promise<Blunder[]> {
     .eq('user_id', userId)
     .eq('kind', 'tactic')
     .eq('phase', 'endgame')
+    // Rows the deeper pass retired weren't real blunders — don't seed
+    // scenarios from them.
+    .is('retired_at', null)
     .order('move_number');
   if (error) throw error;
   return (data ?? []).map(blunderFromJson);
