@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useAuth } from '../auth/useAuth';
+import { playSound } from '../lib/sounds';
 import { useBlunderStats } from './useBlunderStats';
 import { useGames } from './useGames';
 import { useEndgameScenarios } from './useEndgameScenarios';
@@ -82,6 +83,32 @@ export function useAchievements(): {
 
   const achievements = useMemo(() => evaluateAchievements(metrics), [metrics]);
   const earned = achievements.filter((a) => a.earned).length;
+
+  // Unlock cue: achievements are derived, not stored, so remember which ids
+  // this browser has already seen earned and chime for anything new. The
+  // first evaluation for a user just seeds the set (no fanfare for history).
+  const earnedKey = achievements
+    .filter((a) => a.earned)
+    .map((a) => a.id)
+    .join(',');
+  useEffect(() => {
+    if (!profile?.id || statsQuery.isPending) return;
+    const storageKey = `pc:ach-seen:${profile.id}`;
+    let seen: string[] | null = null;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      seen = raw ? (JSON.parse(raw) as string[]) : null;
+    } catch {
+      seen = null;
+    }
+    const now = earnedKey ? earnedKey.split(',') : [];
+    if (seen !== null && now.some((id) => !seen!.includes(id))) playSound('achievement');
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(now));
+    } catch {
+      /* private mode etc. */
+    }
+  }, [earnedKey, profile?.id, statsQuery.isPending]);
 
   return {
     metrics,

@@ -16,6 +16,7 @@ import {
 } from '../models/endgameScenario';
 import { useEndgamePlayoutStore } from '../state/endgamePlayoutStore';
 import { FINISH_RULES } from '../chess/adjudication';
+import { playSound } from '../lib/sounds';
 import {
   classifyEndgameType,
   ENDGAME_TYPE_LABEL,
@@ -111,6 +112,11 @@ export function EndgamesRoute() {
 
   // Leaving the tab abandons any in-flight play-out.
   useEffect(() => () => useEndgamePlayoutStore.getState().reset(), []);
+
+  useEffect(() => {
+    if (playout.phase === 'passed') playSound('correct');
+    else if (playout.phase === 'failed') playSound('incorrect');
+  }, [playout.phase]);
 
   const begin = (scenario: EndgameScenario) => {
     setSelected(scenario);

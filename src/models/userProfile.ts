@@ -34,6 +34,8 @@ export interface UserProfile {
   autoplayRefutation: boolean;
   /** True once the user has ever started a /training session with a picked focus (opening/motif/phase/situation) — backs the "Focused Training" achievement. */
   usedTrainingFilter: boolean;
+  /** Board + feedback sounds (src/lib/sounds.ts). Defaults on. */
+  soundsEnabled: boolean;
 }
 
 function parseBoardTheme(v: unknown): BoardTheme {
@@ -84,6 +86,7 @@ export function userProfileFromJson(json: any): UserProfile {
     revealBeforeSolve: Boolean(json.reveal_before_solve ?? false),
     autoplayRefutation: Boolean(json.autoplay_refutation ?? true),
     usedTrainingFilter: Boolean(json.used_training_filter ?? false),
+    soundsEnabled: Boolean(json.sounds_enabled ?? true),
   };
 }
 

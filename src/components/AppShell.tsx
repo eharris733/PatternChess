@@ -5,12 +5,22 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { PgnUploadModal } from './PgnUploadModal';
 import { BrandLockup } from './BrandLogo';
 import { MenuIcon } from './icons/MenuIcon';
+import { useAuth } from '../auth/useAuth';
+import { installSoundUnlock, setSoundsEnabled } from '../lib/sounds';
 import clsx from 'clsx';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { pathname } = useLocation();
+  const { profile } = useAuth();
+
+  useEffect(() => {
+    installSoundUnlock();
+  }, []);
+  useEffect(() => {
+    setSoundsEnabled(profile?.soundsEnabled ?? true);
+  }, [profile?.soundsEnabled]);
 
   // Close the drawer whenever navigation happens (covers every NavLink tap).
   useEffect(() => {

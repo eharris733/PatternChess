@@ -28,6 +28,7 @@ import {
   resolvePlatform,
 } from '../services/externalAnalysisUrlService';
 import { encodeSharedPuzzle } from '../services/puzzleShareService';
+import { playSound } from '../lib/sounds';
 import { formatOpeningDisplay, resolveOpeningName } from '../chess/openingNames';
 
 interface LocationState {
@@ -187,6 +188,16 @@ export function TrainingRoute() {
   useEffect(() => {
     setActiveTab(state.phase === 'incorrect' ? 'playedRefutation' : 'continuation');
   }, [state.currentIndex, state.phase]);
+
+  // Result cue. Incorrect feedback with a 'success' tone is the "good enough"
+  // alternative-move case, which shouldn't sound like a miss.
+  useEffect(() => {
+    if (state.phase === 'correct') playSound('correct');
+    else if (state.phase === 'incorrect' && state.incorrectFeedback?.tone !== 'success') {
+      playSound('incorrect');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.phase, state.currentIndex]);
 
   // On a repeat wrong attempt (not the drill's first try), autoplay the
   // engine's refutation of the played move instead of leaving it as a static

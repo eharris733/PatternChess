@@ -52,6 +52,7 @@ export function TrainingShareModal({
             movableFor={null}
             coordinates={false}
             viewOnly
+            sounds={false}
           />
         </div>
         <div className="flex flex-col items-center gap-1 text-center">

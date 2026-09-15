@@ -34,17 +34,24 @@ export function ProfileRoute() {
     showEngineEvals: false,
     revealBeforeSolve: false,
     autoplayRefutation: true,
+    soundsEnabled: true,
   });
   useEffect(() => {
     setTrainingPrefs({
       showEngineEvals: profile?.showEngineEvals ?? false,
       revealBeforeSolve: profile?.revealBeforeSolve ?? false,
       autoplayRefutation: profile?.autoplayRefutation ?? true,
+      soundsEnabled: profile?.soundsEnabled ?? true,
     });
-  }, [profile?.showEngineEvals, profile?.revealBeforeSolve, profile?.autoplayRefutation]);
+  }, [
+    profile?.showEngineEvals,
+    profile?.revealBeforeSolve,
+    profile?.autoplayRefutation,
+    profile?.soundsEnabled,
+  ]);
 
   const onToggleTrainingPref = (
-    pref: 'showEngineEvals' | 'revealBeforeSolve' | 'autoplayRefutation',
+    pref: 'showEngineEvals' | 'revealBeforeSolve' | 'autoplayRefutation' | 'soundsEnabled',
     value: boolean,
   ) => {
     if (!profile) return;
@@ -264,6 +271,21 @@ export function ProfileRoute() {
               If you get a position wrong again after already trying it, automatically play out
               why on the board instead of leaving it as a static line. Your first attempt at a
               position is never affected — this only kicks in on a repeat wrong try.
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2 select-none">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={trainingPrefs.soundsEnabled}
+            onChange={(e) => onToggleTrainingPref('soundsEnabled', e.target.checked)}
+          />
+          <span>
+            Play sounds
+            <span className="block text-text-secondary text-xs">
+              Move, capture and check sounds on the board, plus a short cue when you solve a
+              position, miss one, or unlock an achievement.
             </span>
           </span>
         </label>

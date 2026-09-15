@@ -395,6 +395,7 @@ export type Database = {
           preferred_time_controls: string[]
           reveal_before_solve: boolean
           show_engine_evals: boolean
+          sounds_enabled: boolean
           timezone: string | null
           used_training_filter: boolean
         }
@@ -417,6 +418,7 @@ export type Database = {
           preferred_time_controls?: string[]
           reveal_before_solve?: boolean
           show_engine_evals?: boolean
+          sounds_enabled?: boolean
           timezone?: string | null
           used_training_filter?: boolean
         }
@@ -439,6 +441,7 @@ export type Database = {
           preferred_time_controls?: string[]
           reveal_before_solve?: boolean
           show_engine_evals?: boolean
+          sounds_enabled?: boolean
           timezone?: string | null
           used_training_filter?: boolean
         }

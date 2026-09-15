@@ -97,6 +97,7 @@ export const authService = {
       revealBeforeSolve: false,
       autoplayRefutation: true,
       usedTrainingFilter: false,
+      soundsEnabled: true,
     };
     // Stamp the landing-page visitor id (if this browser ever hit the landing
     // page) so the funnel can link anonymous view/demo events to this account.
@@ -129,12 +130,14 @@ export const authService = {
       showEngineEvals?: boolean;
       revealBeforeSolve?: boolean;
       autoplayRefutation?: boolean;
+      soundsEnabled?: boolean;
     },
   ): Promise<void> {
     const patch: TablesUpdate<'profiles'> = {};
     if (prefs.showEngineEvals !== undefined) patch.show_engine_evals = prefs.showEngineEvals;
     if (prefs.revealBeforeSolve !== undefined) patch.reveal_before_solve = prefs.revealBeforeSolve;
     if (prefs.autoplayRefutation !== undefined) patch.autoplay_refutation = prefs.autoplayRefutation;
+    if (prefs.soundsEnabled !== undefined) patch.sounds_enabled = prefs.soundsEnabled;
     if (Object.keys(patch).length === 0) return;
     const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
     if (error) throw error;
