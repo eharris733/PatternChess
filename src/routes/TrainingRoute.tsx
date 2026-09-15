@@ -196,10 +196,22 @@ export function TrainingRoute() {
   const autoplayEnabled = profile?.autoplayRefutation ?? true;
   const autoplayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoplayedKeyRef = useRef<string | null>(null);
+  // Exposed as state so the mobile result overlay can wait for the refutation
+  // to finish playing (otherwise it covers the board while the moves animate
+  // underneath, and the lesson is never seen).
+  const [autoplayActive, setAutoplayActive] = useState(false);
   const stopAutoplay = () => {
     if (autoplayTimerRef.current !== null) {
       clearInterval(autoplayTimerRef.current);
       autoplayTimerRef.current = null;
+    }
+    setAutoplayActive(false);
+  };
+  const skipAutoplay = () => {
+    stopAutoplay();
+    const s = useTrainingStore.getState();
+    if (s.playedRefutationMoves.length > 0) {
+      s.selectPlayedRefutationIndex(s.playedRefutationMoves.length - 1);
     }
   };
   useEffect(() => {
@@ -222,6 +234,7 @@ export function TrainingRoute() {
     const total = state.playedRefutationMoves.length;
     let idx = 0;
     state.selectPlayedRefutationIndex(idx);
+    setAutoplayActive(true);
     autoplayTimerRef.current = setInterval(() => {
       idx += 1;
       if (idx >= total) {
@@ -552,7 +565,17 @@ export function TrainingRoute() {
           paused={paused}
           overlay={
             overlay.enabled &&
-            (state.phase === 'correct' || state.phase === 'incorrect') && (
+            (state.phase === 'correct' || state.phase === 'incorrect') &&
+            (autoplayActive ? (
+              // Let the refutation play out visibly first; a tap jumps to the
+              // end and brings the result cover up right away.
+              <button
+                type="button"
+                aria-label="Skip refutation"
+                onClick={skipAutoplay}
+                className="absolute inset-0 z-10 bg-transparent"
+              />
+            ) : (
               <BoardActionOverlay
                 message={
                   state.phase === 'correct'
@@ -574,7 +597,7 @@ export function TrainingRoute() {
                 dismissLabel="Review the lines"
                 onDismiss={overlay.dismiss}
               />
-            )
+            ))
           }
         >
           <BoardPanel
