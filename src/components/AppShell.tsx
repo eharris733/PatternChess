@@ -33,6 +33,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           'relative shrink-0 border-r-2 border-text-primary bg-surface hidden lg:flex flex-col transition-[width] duration-200',
           collapsed ? 'w-14' : 'w-[220px]',
         )}
+        onTransitionEnd={(e) => {
+          // Boards size off the remaining width; make sure chessground
+          // recomputes its bounds once the sidebar has settled.
+          if (e.target === e.currentTarget && e.propertyName === 'width') {
+            document.dispatchEvent(new Event('chessground.resize'));
+          }
+        }}
       >
         <SidebarNav collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
         <button
