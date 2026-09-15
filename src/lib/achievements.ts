@@ -52,6 +52,8 @@ export interface AchievementMetrics {
   ratingGained: number; // best net rating gain across time controls since joining
   endgamesRescued: number; // /endgames scenarios rescued (status: passed)
   usedTrainingFilter: number; // 1 if a /training focus (opening/motif/phase/situation) has ever been picked
+  followedInstagram: number; // 1 once the user has clicked through to the PatternChess Instagram
+  sharesCount: number; // puzzle share links copied
 }
 
 export const EMPTY_METRICS: AchievementMetrics = {
@@ -66,7 +68,11 @@ export const EMPTY_METRICS: AchievementMetrics = {
   ratingGained: 0,
   endgamesRescued: 0,
   usedTrainingFilter: 0,
+  followedInstagram: 0,
+  sharesCount: 0,
 };
+
+export const INSTAGRAM_URL = 'https://www.instagram.com/patternchess/';
 
 export interface AchievementDef {
   id: string;
@@ -76,12 +82,15 @@ export interface AchievementDef {
   /** Which metric this milestone is measured against, and the value to reach. */
   metric: keyof AchievementMetrics;
   threshold: number;
+  /** Optional call-to-action rendered on the tile while unearned (external link). */
+  action?: { label: string; href: string };
 }
 
 export const ACHIEVEMENTS: readonly AchievementDef[] = [
   // Getting set up — link an account so we have games to analyze.
   { id: 'connect-lichess', title: 'Lichess Linked', description: 'Connect your Lichess account.', category: 'setup', metric: 'connectedLichess', threshold: 1 },
   { id: 'connect-chesscom', title: 'Chess.com Linked', description: 'Connect your Chess.com account.', category: 'setup', metric: 'connectedChesscom', threshold: 1 },
+  { id: 'follow-instagram', title: 'Follow Along', description: 'Follow @patternchess on Instagram for puzzles and updates.', category: 'setup', metric: 'followedInstagram', threshold: 1, action: { label: 'Follow @patternchess', href: INSTAGRAM_URL } },
 
   // Consistency — measured against the longest streak so an earned badge sticks.
   { id: 'streak-3', title: 'Getting Started', description: 'Reach a 3-day training streak.', category: 'consistency', metric: 'longestStreakDays', threshold: 3 },
@@ -112,6 +121,9 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { id: 'endgame-rescue-5', title: 'Endgame Medic', description: 'Rescue 5 dropped points in the endgame trainer.', category: 'discovery', metric: 'endgamesRescued', threshold: 5 },
   { id: 'endgame-rescue-15', title: 'Point Guard', description: 'Rescue 15 dropped points in the endgame trainer.', category: 'discovery', metric: 'endgamesRescued', threshold: 15 },
   { id: 'filtered-training-1', title: 'Focused Training', description: 'Train a specific focus — an opening, pattern, phase, or situation — from the training picker.', category: 'discovery', metric: 'usedTrainingFilter', threshold: 1 },
+  { id: 'share-1', title: 'First Share', description: 'Share a position from your games.', category: 'discovery', metric: 'sharesCount', threshold: 1 },
+  { id: 'share-5', title: 'Spreading the Word', description: 'Share 5 positions.', category: 'discovery', metric: 'sharesCount', threshold: 5 },
+  { id: 'share-25', title: 'Ambassador', description: 'Share 25 positions.', category: 'discovery', metric: 'sharesCount', threshold: 25 },
 
   // Library — building up the material to train against.
   { id: 'games-10', title: 'Building a Vault', description: 'Analyze 10 games.', category: 'library', metric: 'gamesAnalyzed', threshold: 10 },

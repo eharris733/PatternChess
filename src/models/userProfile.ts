@@ -36,6 +36,12 @@ export interface UserProfile {
   usedTrainingFilter: boolean;
   /** Board + feedback sounds (src/lib/sounds.ts). Defaults on. */
   soundsEnabled: boolean;
+  /** Hide this user from every leaderboard (the Profile toggle is the inverse, "Show me on leaderboards"). */
+  leaderboardOptOut: boolean;
+  /** Clicked through to the PatternChess Instagram — backs the "Follow along" achievement. */
+  followedInstagram: boolean;
+  /** Puzzle share links copied (increment_shares_count RPC) — backs the share achievements. */
+  sharesCount: number;
 }
 
 function parseBoardTheme(v: unknown): BoardTheme {
@@ -87,6 +93,9 @@ export function userProfileFromJson(json: any): UserProfile {
     autoplayRefutation: Boolean(json.autoplay_refutation ?? true),
     usedTrainingFilter: Boolean(json.used_training_filter ?? false),
     soundsEnabled: Boolean(json.sounds_enabled ?? true),
+    leaderboardOptOut: Boolean(json.leaderboard_opt_out ?? false),
+    followedInstagram: Boolean(json.followed_instagram ?? false),
+    sharesCount: (json.shares_count as number | null) ?? 0,
   };
 }
 

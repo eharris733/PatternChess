@@ -17,7 +17,12 @@ export interface PlatformSeries {
   points: RatingSeriesPoint[];
   startRating: number;
   latestRating: number;
+  /** latest − start ("current vs start"). */
   delta: number;
+  /** Highest rating reached in the series. */
+  peakRating: number;
+  /** Largest single-game rating jump (between consecutive rated games); null if the series never went up. */
+  biggestGain: { delta: number; at: Date } | null;
 }
 
 export interface CategoryRatingProgress {
@@ -88,12 +93,25 @@ export function ratingProgressFromGames(
       if (!arr || arr.length < MIN_POINTS_PER_SERIES) continue;
       const start = arr[0].rating;
       const latest = arr[arr.length - 1].rating;
+      let peakRating = start;
+      let biggestGain: PlatformSeries['biggestGain'] = null;
+      for (let i = 0; i < arr.length; i++) {
+        if (arr[i].rating > peakRating) peakRating = arr[i].rating;
+        if (i > 0) {
+          const jump = arr[i].rating - arr[i - 1].rating;
+          if (jump > 0 && (!biggestGain || jump > biggestGain.delta)) {
+            biggestGain = { delta: jump, at: arr[i].at };
+          }
+        }
+      }
       const series: PlatformSeries = {
         platform,
         points: arr,
         startRating: start,
         latestRating: latest,
         delta: latest - start,
+        peakRating,
+        biggestGain,
       };
       const list = byCategory.get(category) ?? [];
       list.push(series);

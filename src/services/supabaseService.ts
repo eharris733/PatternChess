@@ -12,6 +12,7 @@ import * as profilesDb from './db/profiles';
 import * as annotationsDb from './db/annotations';
 import * as explorerDb from './db/explorer';
 import * as benchmarksDb from './db/benchmarks';
+import * as leaderboardDb from './db/leaderboard';
 
 export * from './db/games';
 export * from './db/blunders';
@@ -22,6 +23,7 @@ export * from './db/profiles';
 export * from './db/annotations';
 export * from './db/explorer';
 export * from './db/benchmarks';
+export * from './db/leaderboard';
 
 export const supabaseService = {
   ...gamesDb,
@@ -33,4 +35,5 @@ export const supabaseService = {
   ...annotationsDb,
   ...explorerDb,
   ...benchmarksDb,
+  ...leaderboardDb,
 };

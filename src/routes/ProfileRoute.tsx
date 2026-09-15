@@ -35,6 +35,7 @@ export function ProfileRoute() {
     revealBeforeSolve: false,
     autoplayRefutation: true,
     soundsEnabled: true,
+    leaderboardOptOut: false,
   });
   useEffect(() => {
     setTrainingPrefs({
@@ -42,16 +43,23 @@ export function ProfileRoute() {
       revealBeforeSolve: profile?.revealBeforeSolve ?? false,
       autoplayRefutation: profile?.autoplayRefutation ?? true,
       soundsEnabled: profile?.soundsEnabled ?? true,
+      leaderboardOptOut: profile?.leaderboardOptOut ?? false,
     });
   }, [
     profile?.showEngineEvals,
     profile?.revealBeforeSolve,
     profile?.autoplayRefutation,
     profile?.soundsEnabled,
+    profile?.leaderboardOptOut,
   ]);
 
   const onToggleTrainingPref = (
-    pref: 'showEngineEvals' | 'revealBeforeSolve' | 'autoplayRefutation' | 'soundsEnabled',
+    pref:
+      | 'showEngineEvals'
+      | 'revealBeforeSolve'
+      | 'autoplayRefutation'
+      | 'soundsEnabled'
+      | 'leaderboardOptOut',
     value: boolean,
   ) => {
     if (!profile) return;
@@ -290,6 +298,29 @@ export function ProfileRoute() {
           </span>
         </label>
         {trainingPrefsError && <p className="text-incorrect text-sm">{trainingPrefsError}</p>}
+      </section>
+
+      <section className="card flex flex-col gap-4">
+        <h2 className="heading-md">Community</h2>
+        <p className="text-text-secondary text-sm -mt-2">
+          Leaderboards show your Lichess or Chess.com username (or your display name) next to
+          positions solved, mastered, Elo gained and streak. Never your email.
+        </p>
+        <label className="flex items-start gap-2 select-none">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={!trainingPrefs.leaderboardOptOut}
+            onChange={(e) => onToggleTrainingPref('leaderboardOptOut', !e.target.checked)}
+          />
+          <span>
+            Show me on leaderboards
+            <span className="block text-text-secondary text-xs">
+              Untick to drop off every board immediately. Your own stats and achievements are
+              unaffected.
+            </span>
+          </span>
+        </label>
       </section>
 
       <section className="card flex flex-col gap-4">

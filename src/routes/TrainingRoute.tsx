@@ -514,6 +514,11 @@ export function TrainingRoute() {
       await navigator.clipboard.writeText(shareUrl);
       setShareCopied(true);
       window.setTimeout(() => setShareCopied(false), 3000);
+      // Counts toward the share achievements; fire-and-forget.
+      void authService
+        .incrementSharesCount()
+        .then(() => refreshProfile())
+        .catch((err) => console.warn('[training] share count bump failed', err));
     } catch (err) {
       console.warn('[training] share copy failed', err);
     }

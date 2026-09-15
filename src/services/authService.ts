@@ -98,6 +98,9 @@ export const authService = {
       autoplayRefutation: true,
       usedTrainingFilter: false,
       soundsEnabled: true,
+      leaderboardOptOut: false,
+      followedInstagram: false,
+      sharesCount: 0,
     };
     // Stamp the landing-page visitor id (if this browser ever hit the landing
     // page) so the funnel can link anonymous view/demo events to this account.
@@ -131,6 +134,7 @@ export const authService = {
       revealBeforeSolve?: boolean;
       autoplayRefutation?: boolean;
       soundsEnabled?: boolean;
+      leaderboardOptOut?: boolean;
     },
   ): Promise<void> {
     const patch: TablesUpdate<'profiles'> = {};
@@ -138,6 +142,7 @@ export const authService = {
     if (prefs.revealBeforeSolve !== undefined) patch.reveal_before_solve = prefs.revealBeforeSolve;
     if (prefs.autoplayRefutation !== undefined) patch.autoplay_refutation = prefs.autoplayRefutation;
     if (prefs.soundsEnabled !== undefined) patch.sounds_enabled = prefs.soundsEnabled;
+    if (prefs.leaderboardOptOut !== undefined) patch.leaderboard_opt_out = prefs.leaderboardOptOut;
     if (Object.keys(patch).length === 0) return;
     const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
     if (error) throw error;
@@ -155,6 +160,22 @@ export const authService = {
       .update({ used_training_filter: true })
       .eq('id', userId);
     if (error) throw error;
+  },
+
+  /** Same shape as markUsedTrainingFilter — set when the user clicks through to Instagram. */
+  async markFollowedInstagram(userId: string): Promise<void> {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ followed_instagram: true })
+      .eq('id', userId);
+    if (error) throw error;
+  },
+
+  /** Atomic server-side bump (no read-modify-write race). Returns the new count. */
+  async incrementSharesCount(): Promise<number> {
+    const { data, error } = await supabase.rpc('increment_shares_count');
+    if (error) throw error;
+    return typeof data === 'number' ? data : 0;
   },
 
   async claimAnonymousData(username: string): Promise<void> {

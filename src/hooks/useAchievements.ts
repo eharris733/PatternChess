@@ -66,6 +66,8 @@ export function useAchievements(): {
       ratingGained,
       endgamesRescued,
       usedTrainingFilter: profile?.usedTrainingFilter ? 1 : 0,
+      followedInstagram: profile?.followedInstagram ? 1 : 0,
+      sharesCount: profile?.sharesCount ?? 0,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -78,6 +80,8 @@ export function useAchievements(): {
     profile?.chesscomUsername,
     profile?.createdAt,
     profile?.usedTrainingFilter,
+    profile?.followedInstagram,
+    profile?.sharesCount,
     prefKey,
   ]);
 

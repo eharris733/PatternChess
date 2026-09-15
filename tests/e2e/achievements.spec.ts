@@ -43,6 +43,10 @@ function makeProfile(usedTrainingFilter: boolean) {
     reveal_before_solve: false,
     autoplay_refutation: true,
     used_training_filter: usedTrainingFilter,
+    sounds_enabled: true,
+    leaderboard_opt_out: false,
+    followed_instagram: false,
+    shares_count: 0,
   };
 }
 

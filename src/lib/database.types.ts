@@ -394,15 +394,18 @@ export type Database = {
           created_at: string | null
           current_streak_days: number
           display_name: string | null
+          followed_instagram: boolean
           id: string
           last_drill_local_date: string | null
           last_synced_chesscom_at: string | null
           last_synced_lichess_at: string | null
+          leaderboard_opt_out: boolean
           lichess_username: string | null
           longest_streak_days: number
           preferred_rated_only: boolean
           preferred_time_controls: string[]
           reveal_before_solve: boolean
+          shares_count: number
           show_engine_evals: boolean
           sounds_enabled: boolean
           timezone: string | null
@@ -417,15 +420,18 @@ export type Database = {
           created_at?: string | null
           current_streak_days?: number
           display_name?: string | null
+          followed_instagram?: boolean
           id: string
           last_drill_local_date?: string | null
           last_synced_chesscom_at?: string | null
           last_synced_lichess_at?: string | null
+          leaderboard_opt_out?: boolean
           lichess_username?: string | null
           longest_streak_days?: number
           preferred_rated_only?: boolean
           preferred_time_controls?: string[]
           reveal_before_solve?: boolean
+          shares_count?: number
           show_engine_evals?: boolean
           sounds_enabled?: boolean
           timezone?: string | null
@@ -440,15 +446,18 @@ export type Database = {
           created_at?: string | null
           current_streak_days?: number
           display_name?: string | null
+          followed_instagram?: boolean
           id?: string
           last_drill_local_date?: string | null
           last_synced_chesscom_at?: string | null
           last_synced_lichess_at?: string | null
+          leaderboard_opt_out?: boolean
           lichess_username?: string | null
           longest_streak_days?: number
           preferred_rated_only?: boolean
           preferred_time_controls?: string[]
           reveal_before_solve?: boolean
+          shares_count?: number
           show_engine_evals?: boolean
           sounds_enabled?: boolean
           timezone?: string | null
@@ -527,7 +536,9 @@ export type Database = {
       admin_kpis: { Args: never; Returns: Json }
       admin_user_list: { Args: { category: string }; Returns: Json }
       get_blunder_motif_counts: { Args: never; Returns: Json }
+      increment_shares_count: { Args: never; Returns: number }
       landing_stats: { Args: never; Returns: Json }
+      leaderboard: { Args: { metric: string; win: string; limit_n?: number }; Returns: Json }
     }
     Enums: {
       [_ in never]: never
