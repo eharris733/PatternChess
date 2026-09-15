@@ -143,10 +143,13 @@ export type Database = {
           game_id: string
           id: string
           last_played_at: string | null
+          retired_at: string | null
           start_fen: string
           status: string
           user_color: string
           user_id: string
+          verified_at: string | null
+          verify_eval_cp: number | null
         }
         Insert: {
           actual_result: string
@@ -157,10 +160,13 @@ export type Database = {
           game_id: string
           id?: string
           last_played_at?: string | null
+          retired_at?: string | null
           start_fen: string
           status?: string
           user_color: string
           user_id: string
+          verified_at?: string | null
+          verify_eval_cp?: number | null
         }
         Update: {
           actual_result?: string
@@ -171,10 +177,13 @@ export type Database = {
           game_id?: string
           id?: string
           last_played_at?: string | null
+          retired_at?: string | null
           start_fen?: string
           status?: string
           user_color?: string
           user_id?: string
+          verified_at?: string | null
+          verify_eval_cp?: number | null
         }
         Relationships: [
           {

@@ -17,6 +17,7 @@ import {
 import { useEndgamePlayoutStore } from '../state/endgamePlayoutStore';
 import { FINISH_RULES } from '../chess/adjudication';
 import { playSound } from '../lib/sounds';
+import { startEndgameScenarioVerification } from '../services/endgameScenarioVerifier';
 import {
   classifyEndgameType,
   ENDGAME_TYPE_LABEL,
@@ -112,6 +113,9 @@ export function EndgamesRoute() {
 
   // Leaving the tab abandons any in-flight play-out.
   useEffect(() => () => useEndgamePlayoutStore.getState().reset(), []);
+  // Re-check unverified scenarios here too — the user is about to play them.
+  // Play-outs use the opponent engine, so this doesn't contend with them.
+  useEffect(() => startEndgameScenarioVerification(), []);
 
   useEffect(() => {
     if (playout.phase === 'passed') playSound('correct');
