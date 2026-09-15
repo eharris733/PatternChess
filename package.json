@@ -15,7 +15,7 @@
     "format": "prettier --write src",
     "test": "vitest run",
     "e2e": "playwright test",
-    "smoke": "playwright test tests/e2e/shell.spec.ts tests/e2e/engine.spec.ts"
+    "smoke": "playwright test tests/e2e/headers.spec.ts tests/e2e/engine.spec.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

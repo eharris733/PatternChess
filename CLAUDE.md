@@ -78,7 +78,8 @@ tests/e2e/       Playwright specs
 
 | Concern | File |
 |---|---|
-| Supabase tables / CRUD | `src/services/supabaseService.ts` |
+| Supabase tables / CRUD | `src/services/supabaseService.ts` (barrel over `src/services/db/*` — games, blunders, endgameScenarios, stats, sessions, profiles, annotations, explorer, benchmarks; import `{ supabaseService }` and call `.method()` as before) |
+| Generated DB types | `src/lib/database.types.ts` (`Database`/`Tables`/`TablesInsert`/`TablesUpdate`); client is typed `createClient<Database>` in `src/lib/supabase.ts`, with a `toJson` helper for writing `Json` columns |
 | Google OAuth + claim_blunders_for_user | `src/services/authService.ts` |
 | Chess.com / Lichess fetch | `src/services/chessApiService.ts` |
 | PGN parsing | `src/services/pgnParserService.ts` |
@@ -91,14 +92,27 @@ tests/e2e/       Playwright specs
 
 ## Testing
 
-Playwright runs against the live dev server. Specs:
+Playwright runs against the live dev server. Specs (`tests/e2e/*.spec.ts`):
+
+Core boot/auth:
 - `headers.spec.ts` — COEP/COOP + `crossOriginIsolated`
 - `login.spec.ts` — login render + `RequireAuth` redirect
-- `sandbox.spec.ts` — board renders + drag e2→e4 updates FEN
+- `sandbox.spec.ts` — board renders + drag e2→e4 updates FEN (`/__sandbox`)
 - `engine.spec.ts` — Stockfish boots (MT or ST) and evaluates startpos
 - `visual.spec.ts` — every protected route renders inside the shell
 
-`stubAuth` in the specs writes a fake Supabase session into `localStorage` and shorts out outbound calls to `*.supabase.co`, so tests don't need a real user. Newer specs: `endgames.spec.ts` (adjudicated play-outs, real engine). Gotchas learned the hard way: match `[?&]id=eq.` with a regex (`user_id=eq.` contains `id=eq.` as a substring), and `scrollIntoViewIfNeeded()` before board drags (bottom ranks can sit below the 720px viewport fold).
+Feature flows:
+- `training_sequence.spec.ts`, `training_hidden_mode.spec.ts`, `training_prefs_and_upload.spec.ts`, `train_landing.spec.ts` — the training screen (stored-sequence drills, hidden/reveal mode, prefs + PGN upload, landing filters)
+- `endgames.spec.ts` — adjudicated play-outs (real engine)
+- `vault_filters.spec.ts` — vault filtering
+- `analytics.spec.ts`, `dashboard-cards.spec.ts`, `achievements.spec.ts` — dashboard/analytics/insight cards
+- `puzzle_share.spec.ts` — `/p?d=` share links
+- `otb_events.spec.ts` — events integration
+- `landing.spec.ts`, `funnel.spec.ts`, `sync_indicator.spec.ts` — public landing + sync onboarding
+
+`npm run smoke` runs the minimum viable subset: `headers.spec.ts` + `engine.spec.ts` (shell boot + engine).
+
+`stubAuth` in the specs writes a fake Supabase session into `localStorage` and shorts out outbound calls to `*.supabase.co`, so tests don't need a real user. Gotchas learned the hard way: match `[?&]id=eq.` with a regex (`user_id=eq.` contains `id=eq.` as a substring), and `scrollIntoViewIfNeeded()` before board drags (bottom ranks can sit below the 720px viewport fold). Note: `landing.spec.ts`, `sync_indicator.spec.ts`, and 3 `dashboard-cards.spec.ts` tests are known-flaky on a clean tree.
 
 ### Verifying UI changes
 

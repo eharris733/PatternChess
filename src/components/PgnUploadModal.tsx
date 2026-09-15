@@ -4,6 +4,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
 import { usePgnUploadStore } from '../state/pgnUploadStore';
 import { fetchLichessStudyPgn, parseLichessStudyId } from '../services/chessApiService';
+import { CheckIcon } from './icons/CheckIcon';
+import { CloseIcon } from './icons/CloseIcon';
 import {
   PgnColorOverride,
   PgnUploadProgress,
@@ -192,7 +194,7 @@ export function PgnUploadModal() {
             className="text-text-secondary hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed"
             aria-label="Close"
           >
-            ✕
+            <CloseIcon className="w-4 h-4" />
           </button>
         </header>
 
@@ -353,9 +355,7 @@ export function PgnUploadModal() {
         {stage === 'done' && result && (
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
-              <span className="text-3xl text-correct" aria-hidden>
-                ✓
-              </span>
+              <CheckIcon className="w-8 h-8 text-correct" />
               <div className="flex flex-col">
                 <p className="heading-md">
                   {result.inserted} game{result.inserted === 1 ? '' : 's'} imported

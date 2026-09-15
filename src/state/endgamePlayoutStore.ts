@@ -9,7 +9,7 @@ import {
   TerminalKind,
   terminalState,
 } from '../chess/adjudication';
-import { cpForColor, winPercent, winningChancesLost } from '../chess/winningChances';
+import { cpForColor, winPercent, roundedChancesLost } from '../chess/winningChances';
 import { uciToSan } from '../chess/moveUtils';
 import { getOpponentStockfish, stopOpponentSearch } from '../hooks/useStockfish';
 import type { PositionEval, SmartEvalOptions } from '../stockfish/stockfishWorkerClient';
@@ -214,9 +214,10 @@ async function insertSlipBlunder(payload: SlipLogPayload): Promise<void> {
       correct_moves: [{ move: refEval.bestMove, eval: refEval.scoreCp }],
       eval_before: refEval.scoreCp,
       eval_after: postEval?.scoreCp ?? 0,
-      eval_swing: Math.round(
-        slip.chancesLost ?? winningChancesLost(refEval.scoreCp, postEval?.scoreCp ?? 0),
-      ),
+      eval_swing:
+        slip.chancesLost != null
+          ? Math.round(slip.chancesLost)
+          : roundedChancesLost(refEval.scoreCp, postEval?.scoreCp ?? 0),
       side_to_move: payload.userColor,
       phase: 'endgame',
       analysis_depth: refEval.depth,

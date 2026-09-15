@@ -11,7 +11,10 @@ import {
 import { supabaseService } from '../services/supabaseService';
 import { fetchMasters, isBookMove } from '../services/openingExplorerService';
 import { getStockfish } from '../hooks/useStockfish';
-import { winningChancesLost, classify } from '../chess/winningChances';
+import { classifySwing } from '../chess/winningChances';
+
+// Re-exported for consumers that historically imported it from the review store.
+export { classifySwing };
 
 export type ReviewPhase = 'human' | 'engine';
 
@@ -244,12 +247,6 @@ function scheduleSave(
     }
   }, SAVE_DEBOUNCE_MS);
   set({ saveTimer: handle });
-}
-
-/** Helper for the engine phase: classify the swing given evals. */
-export function classifySwing(evalBefore: number, evalAfter: number) {
-  const cl = winningChancesLost(evalBefore, evalAfter);
-  return { chancesLost: cl, classification: classify(cl) };
 }
 
 void Chess; // ensure side-effect import

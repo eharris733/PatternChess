@@ -38,9 +38,9 @@ export function useAdminUserList(category: AdminUserCategory | null) {
     enabled: !!user && admin && !!category,
     staleTime: 60_000,
     queryFn: async (): Promise<AdminUserRow[]> => {
-      const { data, error } = await supabase.rpc('admin_user_list', { category });
+      const { data, error } = await supabase.rpc('admin_user_list', { category: category ?? '' });
       if (error) throw error;
-      return (data ?? []) as AdminUserRow[];
+      return (data ?? []) as unknown as AdminUserRow[];
     },
   });
 }

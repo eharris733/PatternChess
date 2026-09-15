@@ -1,14 +1,10 @@
 import clsx from 'clsx';
 import { winPercent, cpLoss } from '../chess/winningChances';
+import { formatEval } from '../chess/formatEval';
 import { InfoTip } from './InfoTip';
 
-/** Raw engine eval in pawns, from the player's perspective. ±10000-ish = mate. */
-function formatEval(cp: number): string {
-  if (cp > 9000) return '#';
-  if (cp < -9000) return '-#';
-  const pawns = cp / 100;
-  return `${pawns > 0 ? '+' : ''}${pawns.toFixed(1)}`;
-}
+/** One-decimal, bare `#` mate — the compact engine-swing presentation. */
+const formatSwingEval = (cp: number) => formatEval(cp, { decimals: 1, mate: 'symbol' });
 
 export function WinningChancesDisplay({
   evalBefore,
@@ -33,9 +29,9 @@ export function WinningChancesDisplay({
       <span className="font-mono tabular-nums text-text-primary text-right">
         {showEngineEvals && (
           <>
-            {formatEval(evalBefore)}
+            {formatSwingEval(evalBefore)}
             <span className="text-text-secondary"> {'→'} </span>
-            {formatEval(-evalAfter)}{' '}
+            {formatSwingEval(-evalAfter)}{' '}
           </>
         )}
         <span

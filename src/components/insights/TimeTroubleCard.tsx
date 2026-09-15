@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useTimeTroubleInsight } from '../../hooks/useInsights';
 import { InsightCardSkeleton } from '../Skeleton';
+import { PHASE_LABEL } from '../../models/blunder';
 
 const MIN_BLUNDERS_WITH_CLOCK = 20;
 
@@ -50,9 +51,9 @@ export function TimeTroubleCard() {
       </div>
       {totalTrouble > 0 && (
         <div className="flex flex-col gap-1.5">
-          {phaseRow('Opening', stats.byPhase.opening)}
-          {phaseRow('Middlegame', stats.byPhase.middlegame)}
-          {phaseRow('Endgame', stats.byPhase.endgame)}
+          {phaseRow(PHASE_LABEL.opening, stats.byPhase.opening)}
+          {phaseRow(PHASE_LABEL.middlegame, stats.byPhase.middlegame)}
+          {phaseRow(PHASE_LABEL.endgame, stats.byPhase.endgame)}
         </div>
       )}
       {stats.excludedBlunders > 0 && (
