@@ -59,7 +59,56 @@ function filtersFor(profile: UserProfile): SyncFilters {
   };
 }
 
-async function runOne(
+// In-flight guard per provider. Every entry point (startForProfile, triggerNow,
+// retryWithProfile) funnels through runOne, so a second trigger while a sync
+// is running — StrictMode double effects, the SIGNED_IN + profile effects in
+// AuthProvider both firing, a "Sync now" click mid-analysis — just joins the
+// existing promise instead of racing the insert.
+const inFlight = new Map<ProviderKey, Promise<void>>();
+
+export function isSyncInFlight(platform: Platform): boolean {
+  return inFlight.has(platformKey(platform));
+}
+
+function runOne(
+  platform: Platform,
+  username: string,
+  since: Date | null,
+  filters: SyncFilters,
+  set: SetState,
+): Promise<void> {
+  const key = platformKey(platform);
+  const existing = inFlight.get(key);
+  if (existing) return existing;
+  const p = runOneLocked(platform, username, since, filters, set).finally(() => {
+    if (inFlight.get(key) === p) inFlight.delete(key);
+  });
+  inFlight.set(key, p);
+  return p;
+}
+
+// Cross-tab: two tabs on the same account have independent stores, so use the
+// Web Locks API when available. `ifAvailable` means a second tab skips its
+// sync entirely (the first tab's run covers it) rather than queueing.
+async function runOneLocked(
+  platform: Platform,
+  username: string,
+  since: Date | null,
+  filters: SyncFilters,
+  set: SetState,
+): Promise<void> {
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  if (!locks) return runOneUnlocked(platform, username, since, filters, set);
+  await locks.request(`patternchess-sync:${platformKey(platform)}`, { ifAvailable: true }, async (lock) => {
+    if (!lock) {
+      console.info(`[sync] ${platform} already syncing in another tab; skipping`);
+      return;
+    }
+    await runOneUnlocked(platform, username, since, filters, set);
+  });
+}
+
+async function runOneUnlocked(
   platform: Platform,
   username: string,
   since: Date | null,
@@ -108,6 +157,12 @@ async function resolveSince(
   return profileTs;
 }
 
+// 'analyzing' is the long phase (minutes) and was previously not counted as
+// busy, so a re-trigger during it re-fetched and re-inserted the same games.
+function isBusy(p: ProviderProgress): boolean {
+  return p.phase === 'fetching' || p.phase === 'inserting' || p.phase === 'analyzing';
+}
+
 async function buildTasks(
   profile: UserProfile,
   providers: Record<ProviderKey, ProviderProgress>,
@@ -121,7 +176,7 @@ async function buildTasks(
 
   if (lichessUsername) {
     const cur = providers.lichess;
-    if (cur.phase !== 'fetching' && cur.phase !== 'inserting') {
+    if (!isSyncInFlight('lichess') && !isBusy(cur)) {
       const since =
         forceSince === 'profile'
           ? await resolveSince('lichess', lichessUsername, profile.lastSyncedLichessAt)
@@ -131,7 +186,7 @@ async function buildTasks(
   }
   if (chesscomUsername) {
     const cur = providers.chesscom;
-    if (cur.phase !== 'fetching' && cur.phase !== 'inserting') {
+    if (!isSyncInFlight('chess.com') && !isBusy(cur)) {
       const since =
         forceSince === 'profile'
           ? await resolveSince('chess.com', chesscomUsername, profile.lastSyncedChesscomAt)
@@ -155,11 +210,16 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   startForProfile: async (profile) => {
     const fp = fingerprint(profile);
     if (get().lastTriggeredFor === fp) return;
+    // Claim the fingerprint synchronously — buildTasks awaits (resolveSince),
+    // and two callers racing through that await would both pass the check.
+    const prev = get().lastTriggeredFor;
+    set({ lastTriggeredFor: fp });
 
     const tasks = await buildTasks(profile, get().providers, set, 'profile');
-    if (tasks.length === 0) return;
-
-    set({ lastTriggeredFor: fp });
+    if (tasks.length === 0) {
+      set({ lastTriggeredFor: prev });
+      return;
+    }
     await Promise.allSettled(tasks);
   },
 

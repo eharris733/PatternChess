@@ -8,7 +8,17 @@ export async function insertGames(
 ): Promise<GameRecord[]> {
   const userId = await currentUserId();
   const enriched = userId ? games.map((g) => ({ ...g, user_id: userId })) : games;
-  const { data, error } = await supabase.from('games').insert(enriched).select();
+  // ON CONFLICT DO NOTHING on (user_id, platform, external_game_id): a second
+  // tab / a racing trigger inserting the same game must not abort the whole
+  // batch. `.select()` returns only the rows actually inserted, so callers'
+  // "inserted" counts stay honest.
+  const { data, error } = await supabase
+    .from('games')
+    .upsert(enriched, {
+      onConflict: 'user_id,platform,external_game_id',
+      ignoreDuplicates: true,
+    })
+    .select();
   if (error) throw error;
   return (data ?? []).map(gameRecordFromJson);
 }
@@ -111,14 +121,26 @@ export async function getExistingExternalGameIds(
   platform: string,
 ): Promise<Set<string>> {
   const userId = await currentUserId();
-  let q = supabase.from('games').select('external_game_id').eq('platform', platform);
-  if (userId) q = q.eq('user_id', userId);
-  const { data, error } = await q;
-  if (error) throw error;
   const ids = new Set<string>();
-  for (const row of data ?? []) {
-    const id = (row as { external_game_id: string | null }).external_game_id;
-    if (id) ids.add(id);
+  // PostgREST caps a single response at 1000 rows; active users have more
+  // games than that, so page through explicitly.
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    let q = supabase
+      .from('games')
+      .select('external_game_id')
+      .eq('platform', platform)
+      .not('external_game_id', 'is', null)
+      .order('id')
+      .range(from, from + PAGE - 1);
+    if (userId) q = q.eq('user_id', userId);
+    const { data, error } = await q;
+    if (error) throw error;
+    for (const row of data ?? []) {
+      const id = (row as { external_game_id: string | null }).external_game_id;
+      if (id) ids.add(id);
+    }
+    if ((data?.length ?? 0) < PAGE) break;
   }
   return ids;
 }
