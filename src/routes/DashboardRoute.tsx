@@ -4,6 +4,7 @@ import { useAuth } from '../auth/useAuth';
 import { useGames } from '../hooks/useGames';
 import { startBlunderMaintenance } from '../services/blunderEnrichmentBackfill';
 import { startEndgameScenarioVerification } from '../services/endgameScenarioVerifier';
+import { startOpeningBackfill } from '../services/openingClassificationService';
 import { DailyHabitCard } from '../components/insights/DailyHabitCard';
 import { CycleTimelineCard } from '../components/insights/CycleTimelineCard';
 import { HowTrainingWorksCard } from '../components/insights/HowTrainingWorksCard';
@@ -34,6 +35,9 @@ export function DashboardRoute() {
   // Deep re-check of newly derived endgame scenarios; yields to the worker
   // above (same engine) and picks up on the next visit if it had to.
   useEffect(() => startEndgameScenarioVerification(), []);
+  // Classify openings on games that predate the position-based classifier.
+  // Pure CPU (no engine), so it runs alongside the two workers above.
+  useEffect(() => startOpeningBackfill(), []);
 
   const gamesLoading = gamesQuery.isPending;
   const gamesCount = gamesQuery.data?.length ?? 0;

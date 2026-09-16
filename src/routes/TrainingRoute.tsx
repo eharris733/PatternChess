@@ -22,7 +22,7 @@ import { TrainingShareModal } from '../components/training/TrainingShareModal';
 import { ContextFilter } from '../chess/blunderContext';
 import { BlunderPhase, PHASE_LABEL, SPACED_REPETITION_DAYS } from '../models/blunder';
 import { MOTIF_LABEL, type Motif } from '../chess/motifs';
-import { ecoFamily, orderedPlayers } from '../models/gameRecord';
+import { orderedPlayers } from '../models/gameRecord';
 import {
   externalAnalysisUrl,
   resolvePlatform,
@@ -123,7 +123,7 @@ export function TrainingRoute() {
       if (openingFilter) {
         list = list.filter((b) => {
           const g = b.gameId ? games.get(b.gameId) : undefined;
-          if (!g || ecoFamily(g.eco) !== openingFilter) return false;
+          if (!g || g.openingFamily !== openingFilter) return false;
           return openingColor ? g.userColor === openingColor : true;
         });
       }

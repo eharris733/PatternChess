@@ -278,6 +278,8 @@ export type Database = {
           eco: string | null
           external_game_id: string
           id: string
+          opening_classified_at: string | null
+          opening_family: string | null
           opening_name: string | null
           opponent: string
           opponent_rating: number | null
@@ -301,6 +303,8 @@ export type Database = {
           eco?: string | null
           external_game_id: string
           id?: string
+          opening_classified_at?: string | null
+          opening_family?: string | null
           opening_name?: string | null
           opponent: string
           opponent_rating?: number | null
@@ -324,6 +328,8 @@ export type Database = {
           eco?: string | null
           external_game_id?: string
           id?: string
+          opening_classified_at?: string | null
+          opening_family?: string | null
           opening_name?: string | null
           opponent?: string
           opponent_rating?: number | null
@@ -535,6 +541,7 @@ export type Database = {
     Functions: {
       admin_kpis: { Args: never; Returns: Json }
       admin_user_list: { Args: { category: string }; Returns: Json }
+      apply_game_openings: { Args: { p_rows: Json }; Returns: number }
       get_blunder_motif_counts: { Args: never; Returns: Json }
       increment_shares_count: { Args: never; Returns: number }
       landing_stats: { Args: never; Returns: Json }

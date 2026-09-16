@@ -46,58 +46,6 @@ for (const letter of ['a', 'b', 'c', 'd', 'e']) {
 
 const sortedEcos = [...best.keys()].sort();
 
-const FAMILY_NAMES = {
-  'A0*': 'Flank Openings',
-  'A1*': 'English Opening',
-  'A2*': 'English Opening',
-  'A3*': 'English Opening',
-  'A4*': "Queen's Pawn Game",
-  'A5*': 'Indian Defense',
-  'A6*': 'Benoni Defense',
-  'A7*': 'Benoni Defense',
-  'A8*': 'Dutch Defense',
-  'A9*': 'Dutch Defense',
-  'B0*': "Uncommon King's Pawn Defenses",
-  'B1*': 'Caro-Kann Defense',
-  'B2*': 'Sicilian Defense',
-  'B3*': 'Sicilian Defense',
-  'B4*': 'Sicilian Defense',
-  'B5*': 'Sicilian Defense',
-  'B6*': 'Sicilian Defense',
-  'B7*': 'Sicilian Defense',
-  'B8*': 'Sicilian Defense',
-  'B9*': 'Sicilian Defense',
-  'C0*': 'French Defense',
-  'C1*': 'French Defense',
-  'C2*': 'Open Games',
-  'C3*': "King's Gambit",
-  'C4*': 'Open Games',
-  'C5*': 'Italian Game',
-  'C6*': 'Ruy Lopez',
-  'C7*': 'Ruy Lopez',
-  'C8*': 'Ruy Lopez',
-  'C9*': 'Ruy Lopez',
-  'D0*': "Queen's Pawn Game",
-  'D1*': 'Slav Defense',
-  'D2*': "Queen's Gambit Accepted",
-  'D3*': "Queen's Gambit Declined",
-  'D4*': 'Semi-Slav Defense',
-  'D5*': "Queen's Gambit Declined",
-  'D6*': "Queen's Gambit Declined",
-  'D7*': 'Grünfeld Defense',
-  'D8*': 'Grünfeld Defense',
-  'D9*': 'Grünfeld Defense',
-  'E0*': 'Catalan Opening',
-  'E1*': 'Queen’s Indian Defense',
-  'E2*': 'Nimzo-Indian Defense',
-  'E3*': 'Nimzo-Indian Defense',
-  'E4*': 'Nimzo-Indian Defense',
-  'E5*': 'Nimzo-Indian Defense',
-  'E6*': "King's Indian Defense",
-  'E7*': "King's Indian Defense",
-  'E8*': "King's Indian Defense",
-  'E9*': "King's Indian Defense",
-};
 
 function quote(s) {
   // Use double quotes; escape backslashes and double quotes.
@@ -112,11 +60,7 @@ export const ECO_OPENING_NAMES: Record<string, string> = {
 for (const eco of sortedEcos) {
   out += `  ${quote(eco)}: ${quote(best.get(eco).name)},\n`;
 }
-out += `};\n\nexport const ECO_FAMILY_NAMES: Record<string, string> = {\n`;
-for (const fam of Object.keys(FAMILY_NAMES)) {
-  out += `  ${quote(fam)}: ${quote(FAMILY_NAMES[fam])},\n`;
-}
 out += `};\n`;
 
 writeFileSync(outPath, out);
-console.log(`Wrote ${sortedEcos.length} ECO entries + ${Object.keys(FAMILY_NAMES).length} families to ${outPath}`);
+console.log(`Wrote ${sortedEcos.length} ECO entries to ${outPath}`);

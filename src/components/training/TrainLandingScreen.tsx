@@ -79,7 +79,7 @@ function OpeningPicker({ onPick }: { onPick: (row: OpeningInsightRow) => void })
       <ul className="flex flex-col divide-y divide-text-primary/15">
         {visible.map((row) => (
           <OpeningRow
-            key={`${row.ecoFamily}-${row.userColor ?? 'unknown'}`}
+            key={`${row.family}-${row.userColor ?? 'unknown'}`}
             row={row}
             onClick={() => onPick(row)}
           />
@@ -114,7 +114,7 @@ export function TrainLandingScreen({
         <OpeningPicker
           onPick={(row) =>
             onPick({
-              openingFilter: row.ecoFamily,
+              openingFilter: row.family,
               openingColor: row.userColor,
               openingLabel: openingDisplayName(row),
             })
