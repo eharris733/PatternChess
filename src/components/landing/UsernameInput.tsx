@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { getStockfish } from '../../hooks/useStockfish';
 import { PlatformPill } from './PlatformPill';
 
@@ -16,6 +16,14 @@ interface Props {
 export function UsernameInput({ onSubmit, loading = false }: Props) {
   const [platform, setPlatform] = useState<DemoPlatform>('lichess');
   const [username, setUsername] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // The landing page's one job is to get a username typed in, so the field takes
+  // focus on arrival. preventScroll keeps a restored scroll position (back-nav)
+  // from being yanked up to the hero.
+  useEffect(() => {
+    inputRef.current?.focus({ preventScroll: true });
+  }, []);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -53,6 +61,7 @@ export function UsernameInput({ onSubmit, loading = false }: Props) {
           </label>
           <input
             id="demo-username"
+            ref={inputRef}
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
