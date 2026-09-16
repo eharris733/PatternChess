@@ -63,10 +63,12 @@ export async function getBlunderMotifCounts(): Promise<MotifCounts> {
 }
 
 export interface OpeningGroupRow {
-  ecoFamily: string;
-  /** Most frequent full ECO code within the family (e.g. "B33" for "B3*"). */
+  /** Classified opening family — the grouping key, e.g. "Sicilian Defense". */
+  family: string;
+  /** Most-played full variation within the family (e.g. "Sicilian Defense: Najdorf Variation"). */
+  dominantVariation: string | null;
+  /** Most frequent ECO code within the family (e.g. "B90"), for display only. */
   dominantEco: string | null;
-  openingName: string | null;
   userColor: 'white' | 'black' | null;
   games: number;
   wins: number;
@@ -78,17 +80,45 @@ export interface OpeningGroupRow {
 
 interface OpeningRawRow {
   id: string;
-  eco: string | null;
+  opening_family: string | null;
   opening_name: string | null;
+  eco: string | null;
   user_color: string | null;
   result: string | null;
   platform: string | null;
 }
 
+/** Most frequent value in a tally, ties broken alphabetically for stability. */
+function dominantOf(counts: Map<string, number> | undefined): string | null {
+  if (!counts) return null;
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [value, count] of counts) {
+    if (count > bestCount || (count === bestCount && best !== null && value < best)) {
+      best = value;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+function bump(counts: Map<string, Map<string, number>>, key: string, value: string): void {
+  let inner = counts.get(key);
+  if (!inner) {
+    inner = new Map();
+    counts.set(key, inner);
+  }
+  inner.set(value, (inner.get(value) ?? 0) + 1);
+}
+
 /**
- * Aggregate the user's most-played openings (grouped by ECO family) with
- * win/loss/draw counts and total blunder counts. Returns rows sorted by game
- * count descending.
+ * Aggregate the user's most-played openings with win/loss/draw and blunder
+ * counts, sorted by game count descending.
+ *
+ * Grouping is by `opening_family` — the position-classified name written by
+ * src/chess/openingClassifier.ts — so one opening is one row whichever
+ * platform the game came from, and whatever move order reached it. Games that
+ * are too short to classify carry a NULL family and are left out.
  */
 export async function getOpeningPerformance(opts?: {
   limit?: number;
@@ -98,32 +128,32 @@ export async function getOpeningPerformance(opts?: {
 
   const { data: gamesData, error: gamesError } = await supabase
     .from('games')
-    .select('id, eco, opening_name, user_color, result, platform')
+    .select('id, opening_family, opening_name, eco, user_color, result, platform')
     .eq('user_id', userId)
-    .not('eco', 'is', null);
+    .not('opening_family', 'is', null);
   if (gamesError) throw gamesError;
   const games = (gamesData ?? []) as OpeningRawRow[];
   if (games.length === 0) return [];
 
-  const gameIdToEcoFamily = new Map<string, string>();
+  const gameIdToGroup = new Map<string, string>();
   const groups = new Map<string, OpeningGroupRow>();
-  // Per group, count full ECO codes so we can surface the dominant one
-  // (e.g. "B33") instead of the bare family wildcard ("B3*").
+  // Per group, tally variation names and ECO codes so the row can name the
+  // line the user actually plays rather than the bare family.
+  const variationCounts = new Map<string, Map<string, number>>();
   const ecoCounts = new Map<string, Map<string, number>>();
 
   for (const g of games) {
-    const eco = g.eco;
-    if (!eco || eco.length < 2) continue;
-    const family = `${eco[0].toUpperCase()}${eco[1]}*`;
+    const family = g.opening_family?.trim();
+    if (!family) continue;
     const color = g.user_color === 'white' || g.user_color === 'black' ? g.user_color : null;
     const key = `${family}|${color ?? 'unknown'}`;
-    gameIdToEcoFamily.set(g.id, key);
+    gameIdToGroup.set(g.id, key);
     let group = groups.get(key);
     if (!group) {
       group = {
-        ecoFamily: family,
+        family,
+        dominantVariation: null,
         dominantEco: null,
-        openingName: g.opening_name,
         userColor: color,
         games: 0,
         wins: 0,
@@ -135,13 +165,8 @@ export async function getOpeningPerformance(opts?: {
       groups.set(key, group);
     }
     group.games++;
-    const fullEco = eco.trim().toUpperCase();
-    let counts = ecoCounts.get(key);
-    if (!counts) {
-      counts = new Map();
-      ecoCounts.set(key, counts);
-    }
-    counts.set(fullEco, (counts.get(fullEco) ?? 0) + 1);
+    if (g.opening_name?.trim()) bump(variationCounts, key, g.opening_name.trim());
+    if (g.eco?.trim()) bump(ecoCounts, key, g.eco.trim().toUpperCase());
     // Result format varies by platform (chess.com per-player codes vs PGN);
     // resolveOutcome normalizes both relative to the user's side.
     const outcome = resolveOutcome(g.platform, g.result, color);
@@ -150,11 +175,11 @@ export async function getOpeningPerformance(opts?: {
     else if (outcome === 'draw') group.draws++;
   }
 
-  if (gameIdToEcoFamily.size > 0) {
+  if (gameIdToGroup.size > 0) {
     // Filter by user_id, not a `.in('game_id', gameIds)` list — a power user's
     // game count turns that into a multi-thousand-character URL that Supabase
-    // rejects with 400. Rows for games without an eco code are simply skipped
-    // below (gameIdToEcoFamily.get() misses), so this is equivalent.
+    // rejects with 400. Rows for unclassified games are simply skipped below
+    // (gameIdToGroup.get() misses), so this is equivalent.
     const { data: blunderData, error: blunderError } = await supabase
       .from('blunders')
       .select('game_id, phase')
@@ -162,7 +187,7 @@ export async function getOpeningPerformance(opts?: {
       .eq('kind', 'tactic');
     if (blunderError) throw blunderError;
     for (const row of (blunderData ?? []) as Array<{ game_id: string; phase: string | null }>) {
-      const key = gameIdToEcoFamily.get(row.game_id);
+      const key = gameIdToGroup.get(row.game_id);
       if (!key) continue;
       const group = groups.get(key);
       if (!group) continue;
@@ -172,17 +197,8 @@ export async function getOpeningPerformance(opts?: {
   }
 
   for (const [key, group] of groups) {
-    const counts = ecoCounts.get(key);
-    if (!counts) continue;
-    let best: string | null = null;
-    let bestCount = 0;
-    for (const [eco, count] of counts) {
-      if (count > bestCount || (count === bestCount && best !== null && eco < best)) {
-        best = eco;
-        bestCount = count;
-      }
-    }
-    group.dominantEco = best;
+    group.dominantVariation = dominantOf(variationCounts.get(key));
+    group.dominantEco = dominantOf(ecoCounts.get(key));
   }
 
   const list = Array.from(groups.values()).sort((a, b) => b.games - a.games);
@@ -392,6 +408,8 @@ export async function getTimeTroubleStats(): Promise<TimeTroubleStats> {
       analyzedAt: null,
       eco: null,
       openingName: null,
+      openingFamily: null,
+      openingClassifiedAt: null,
       userColor: null,
       userRating: null,
       opponentRating: null,

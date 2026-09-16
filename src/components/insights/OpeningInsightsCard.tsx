@@ -31,12 +31,12 @@ export function OpeningInsightsCard() {
       <ul className="flex flex-col divide-y divide-text-primary/15">
         {visible.map((row) => (
           <OpeningRow
-            key={`${row.ecoFamily}-${row.userColor ?? 'unknown'}`}
+            key={`${row.family}-${row.userColor ?? 'unknown'}`}
             row={row}
             onClick={() =>
               navigate('/training', {
                 state: {
-                  openingFilter: row.ecoFamily,
+                  openingFilter: row.family,
                   openingColor: row.userColor,
                   openingLabel: openingDisplayName(row),
                 },

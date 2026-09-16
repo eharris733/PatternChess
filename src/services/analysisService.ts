@@ -136,7 +136,14 @@ export async function analyzeGames(
 
     // Stamp PGN-derived metadata if we haven't already (cheap, runs once per game).
     if (!game.parsedMetadataAt) {
-      const meta = parsePgnMetadata(game.pgn, game.username || fallbackUsername, game.userColor);
+      const { eco, openingName, ...rest } = parsePgnMetadata(
+        game.pgn,
+        game.username || fallbackUsername,
+        game.userColor,
+      );
+      // The position-based classifier owns eco/opening_name once it has run —
+      // the PGN headers are only a fallback for games it hasn't reached.
+      const meta = game.openingClassifiedAt ? rest : { ...rest, eco, openingName };
       try {
         await supabaseService.updateGameMetadata(game.id, meta);
       } catch {

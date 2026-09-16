@@ -7,6 +7,7 @@ import {
 } from './chessApiService';
 import { supabaseService } from './supabaseService';
 import { analyzeGames } from './analysisService';
+import { classifyGameRowsForInsert } from './openingClassificationService';
 import type { GameRecord } from '../models/gameRecord';
 
 export type Platform = 'lichess' | 'chess.com';
@@ -114,7 +115,11 @@ export async function syncProvider(
   let inserted: GameRecord[] = [];
   if (newOnly.length > 0) {
     try {
-      inserted = await supabaseService.insertGames(newOnly.map((g) => ({ ...g })));
+      // Classify openings from the moves before the rows land, so a game has
+      // its opening from the moment it exists (the dashboard backfill only
+      // covers games that predate the classifier).
+      const rows = await classifyGameRowsForInsert(newOnly.map((g) => ({ ...g })));
+      inserted = await supabaseService.insertGames(rows);
     } catch (e) {
       // 23505 = unique_violation. A concurrent sync raced us; the row already
       // exists, so treat it as a successful no-op rather than failing the

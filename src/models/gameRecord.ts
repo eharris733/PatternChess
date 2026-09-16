@@ -13,7 +13,11 @@ export interface GameRecord {
   createdAt: Date;
   analyzedAt: Date | null;
   eco: string | null;
+  /** Full classified variation, e.g. "Sicilian Defense: Najdorf Variation". */
   openingName: string | null;
+  /** Classified opening family — the grouping key, e.g. "Sicilian Defense". */
+  openingFamily: string | null;
+  openingClassifiedAt: Date | null;
   userColor: 'white' | 'black' | null;
   userRating: number | null;
   opponentRating: number | null;
@@ -65,6 +69,10 @@ export function gameRecordFromJson(json: any): GameRecord {
     analyzedAt: json.analyzed_at ? new Date(json.analyzed_at as string) : null,
     eco: (json.eco as string | null) ?? null,
     openingName: (json.opening_name as string | null) ?? null,
+    openingFamily: (json.opening_family as string | null) ?? null,
+    openingClassifiedAt: json.opening_classified_at
+      ? new Date(json.opening_classified_at as string)
+      : null,
     userColor: parseColor(json.user_color),
     userRating: (json.user_rating as number | null) ?? null,
     opponentRating: (json.opponent_rating as number | null) ?? null,
@@ -117,8 +125,3 @@ export function resolveOutcome(
   return null;
 }
 
-/** ECO family (`B33` → `B3*`) used for opening grouping. */
-export function ecoFamily(eco: string | null): string | null {
-  if (!eco || eco.length < 2) return null;
-  return `${eco[0].toUpperCase()}${eco[1]}*`;
-}

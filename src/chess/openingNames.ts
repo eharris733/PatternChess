@@ -1,4 +1,4 @@
-import { ECO_FAMILY_NAMES, ECO_OPENING_NAMES } from './ecoOpenings';
+import { ECO_OPENING_NAMES } from './ecoOpenings';
 
 export interface OpeningDisplay {
   name: string | null;
@@ -14,10 +14,6 @@ export function resolveOpeningName(
     ? trimmed
     : (eco ? ECO_OPENING_NAMES[eco] ?? null : null);
   return { name, eco: eco?.trim() || null };
-}
-
-export function resolveOpeningFamilyName(family: string): OpeningDisplay {
-  return { name: ECO_FAMILY_NAMES[family] ?? null, eco: family };
 }
 
 export function formatOpeningDisplay(d: OpeningDisplay): string | null {

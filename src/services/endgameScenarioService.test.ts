@@ -22,6 +22,8 @@ function makeGame(overrides: Partial<GameRecord>): GameRecord {
     analyzedAt: new Date('2026-01-02'),
     eco: null,
     openingName: null,
+    openingFamily: null,
+    openingClassifiedAt: null,
     userColor: 'white',
     userRating: 1500,
     opponentRating: 1500,

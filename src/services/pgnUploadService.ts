@@ -1,5 +1,6 @@
 import { analyzeGames } from './analysisService';
 import { extractHeaders, parsePgnMetadata } from './pgnParserService';
+import { classifyGameRowsForInsert } from './openingClassificationService';
 import { supabaseService } from './supabaseService';
 import type { TablesInsert } from '../lib/database.types';
 
@@ -175,7 +176,8 @@ export async function uploadPgns(args: {
   let insertedIds: string[] = [];
   if (fresh.length > 0) {
     try {
-      const inserted = await supabaseService.insertGames(fresh.map((p) => p.row));
+      const rows = await classifyGameRowsForInsert(fresh.map((p) => p.row));
+      const inserted = await supabaseService.insertGames(rows);
       insertedIds = inserted.map((g) => g.id);
       console.info('[pgn-upload] inserted games', {
         ids: insertedIds,

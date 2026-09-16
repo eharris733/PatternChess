@@ -29,7 +29,8 @@ export async function insertGames(
 // omitting them drops the list payload from ~1MB to tens of KB for active users.
 const GAME_LIST_COLUMNS =
   'id, platform, username, opponent, time_control, rated, result, played_at, ' +
-  'created_at, analyzed_at, eco, opening_name, user_color, user_rating, ' +
+  'created_at, analyzed_at, eco, opening_name, opening_family, ' +
+  'opening_classified_at, user_color, user_rating, ' +
   'opponent_rating, total_plies, parsed_metadata_at';
 
 export async function getGames(opts?: { userId?: string }): Promise<GameRecord[]> {
@@ -196,6 +197,58 @@ export async function countUnparsedGames(): Promise<number> {
     .is('parsed_metadata_at', null);
   if (error) throw error;
   return count ?? 0;
+}
+
+/** Games still needing position-based opening classification, oldest first. */
+export async function getUnclassifiedOpeningGames(opts?: {
+  limit?: number;
+}): Promise<Array<{ id: string; pgn: string }>> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  let q = supabase
+    .from('games')
+    .select('id, pgn')
+    .eq('user_id', userId)
+    .is('opening_classified_at', null)
+    .order('id');
+  if (opts?.limit) q = q.limit(opts.limit);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []) as Array<{ id: string; pgn: string }>;
+}
+
+export async function countUnclassifiedOpeningGames(): Promise<number> {
+  const userId = await currentUserId();
+  if (!userId) return 0;
+  const { count, error } = await supabase
+    .from('games')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .is('opening_classified_at', null);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export interface GameOpeningPatch {
+  id: string;
+  /** NULL for games too short to classify — the row is still stamped as done. */
+  eco: string | null;
+  opening_name: string | null;
+  opening_family: string | null;
+}
+
+/**
+ * Write a batch of classified openings in one round trip (an active account has
+ * thousands of games, so per-row PATCHes are far too slow). Returns the number
+ * of rows the RPC actually updated.
+ */
+export async function applyGameOpenings(rows: GameOpeningPatch[]): Promise<number> {
+  if (rows.length === 0) return 0;
+  const { data, error } = await supabase.rpc('apply_game_openings', {
+    p_rows: rows as unknown as TablesInsert<'games'>[] as never,
+  });
+  if (error) throw error;
+  return (data as number | null) ?? 0;
 }
 
 export async function updateGameMetadata(
