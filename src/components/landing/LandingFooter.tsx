@@ -5,6 +5,7 @@ const LINKS = [
   { label: 'About', to: '/about' },
   { label: 'FAQ', to: '/faq' },
   { label: 'Blog', to: '/blog' },
+  { label: 'Chess GIF maker', to: '/moments' },
   { label: 'Tournaments', to: '/events' },
   { label: 'Privacy', to: '/privacy' },
   { label: 'Terms', to: '/terms' },
@@ -21,7 +22,7 @@ export function LandingFooter() {
               PatternChess
             </span>
           </div>
-          <nav className="flex items-center gap-5">
+          <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
             {LINKS.map((link) => (
               <Link
                 key={link.label}

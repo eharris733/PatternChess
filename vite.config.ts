@@ -1,6 +1,7 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type UserConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
+import { devBookProxy } from './scripts/devBookProxy.mjs';
 
 const crossOriginIsolation = {
   name: 'cross-origin-isolation',
@@ -22,19 +23,25 @@ const crossOriginIsolation = {
   },
 };
 
-export default defineConfig({
-  plugins: [react(), crossOriginIsolation],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, 'src'),
+export default defineConfig((): UserConfig => {
+  return {
+    plugins: [
+      react(),
+      crossOriginIsolation,
+      devBookProxy({ root: process.cwd() }),
+    ],
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, 'src'),
+      },
     },
-  },
-  server: { port: 5173 },
-  preview: { port: 4173 },
-  worker: { format: 'es' },
-  assetsInclude: ['**/*.wasm'],
-  optimizeDeps: { exclude: ['chessground'] },
-  // Hidden source maps: emitted for error tooling but no sourceMappingURL in
-  // the shipped JS, so browsers never fetch them.
-  build: { target: 'es2022', sourcemap: 'hidden' },
+    server: { port: 5173 },
+    preview: { port: 4173 },
+    worker: { format: 'es' },
+    assetsInclude: ['**/*.wasm'],
+    optimizeDeps: { exclude: ['chessground'] },
+    // Hidden source maps: emitted for error tooling but no sourceMappingURL in
+    // the shipped JS, so browsers never fetch them.
+    build: { target: 'es2022', sourcemap: 'hidden' },
+  };
 });

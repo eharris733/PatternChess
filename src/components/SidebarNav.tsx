@@ -11,14 +11,16 @@ import { TrainIcon } from './icons/TrainIcon';
 import { AnalyticsIcon } from './icons/AnalyticsIcon';
 import { TrophyIcon } from './icons/TrophyIcon';
 import { EndgameIcon } from './icons/EndgameIcon';
-import { CalendarIcon } from './icons/CalendarIcon';
+import { OpeningIcon } from './icons/OpeningIcon';
+import { SettingsLink } from './SettingsLink';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { to: '/vault', label: 'Vault', Icon: VaultIcon },
   { to: '/training', label: 'Train', Icon: TrainIcon },
+  { to: '/openings', label: 'Openings', Icon: OpeningIcon },
   { to: '/endgames', label: 'Endgames', Icon: EndgameIcon },
-  { to: '/achievements', label: 'Achievements', Icon: TrophyIcon },
+  { to: '/leaderboards', label: 'Leaderboards', Icon: TrophyIcon },
 ];
 
 const ADMIN_NAV_ITEM = { to: '/analytics', label: 'Analytics', Icon: AnalyticsIcon };
@@ -78,21 +80,6 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
           </NavLink>
         ))}
 
-        {/* External: OTB tournament listings on the events subdomain */}
-        <a
-          href="https://events.patternchess.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className={clsx(
-            'mx-2 flex items-center gap-3 py-2.5 rounded-none font-mono uppercase tracking-tight text-xs transition-colors text-text-primary hover:bg-accent/10',
-            collapsed ? 'justify-center px-0' : 'px-3',
-          )}
-        >
-          <span className="shrink-0 text-text-primary">
-            <CalendarIcon className="h-5 w-5" />
-          </span>
-          {!collapsed && <span>Tournaments</span>}
-        </a>
       </nav>
 
       <div className="mt-auto" />
@@ -102,33 +89,37 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
       <div className="mx-2 mb-1 border-2 border-text-primary bg-surface-3 divide-y-2 divide-text-primary/30">
         <StreakBadge collapsed={collapsed} />
 
-        <NavLink
-          to="/profile"
-          className={({ isActive }) =>
-            clsx(
-              'flex items-center gap-3 py-2.5 rounded-none font-mono uppercase tracking-tight text-xs transition-colors',
-              collapsed ? 'justify-center px-0' : 'px-3',
-              isActive
-                ? 'bg-accent/15 text-text-primary shadow-[inset_3px_0_0_rgb(var(--accent))]'
-                : 'text-text-primary hover:bg-accent/10',
-            )
-          }
-        >
-          {profile?.avatarUrl ? (
-            <img
-              src={profile.avatarUrl}
-              alt=""
-              crossOrigin="anonymous"
-              referrerPolicy="no-referrer"
-              className="w-7 h-7 rounded-full shrink-0 border-2 border-text-primary"
-            />
-          ) : (
-            <span className="w-7 h-7 rounded-full bg-text-primary text-bg shrink-0 flex items-center justify-center text-xs">
-              {firstName.charAt(0).toUpperCase()}
-            </span>
-          )}
-          {!collapsed && <span className="truncate">{firstName}</span>}
-        </NavLink>
+        <div className="flex items-center">
+          <NavLink
+            to="/profile"
+            className={({ isActive }) =>
+              clsx(
+                'flex min-w-0 flex-1 items-center gap-3 py-2.5 rounded-none font-mono uppercase tracking-tight text-xs transition-colors',
+                collapsed ? 'justify-center px-0' : 'px-3',
+                isActive
+                  ? 'bg-accent/15 text-text-primary shadow-[inset_3px_0_0_rgb(var(--accent))]'
+                  : 'text-text-primary hover:bg-accent/10',
+              )
+            }
+          >
+            {profile?.avatarUrl ? (
+              <img
+                src={profile.avatarUrl}
+                alt=""
+                crossOrigin="anonymous"
+                referrerPolicy="no-referrer"
+                className="w-7 h-7 rounded-full shrink-0 border-2 border-text-primary"
+              />
+            ) : (
+              <span className="w-7 h-7 rounded-full bg-text-primary text-bg shrink-0 flex items-center justify-center text-xs">
+                {firstName.charAt(0).toUpperCase()}
+              </span>
+            )}
+            {!collapsed && <span className="truncate">{firstName}</span>}
+          </NavLink>
+          {/* Collapsed rail is too narrow for a second control. */}
+          {!collapsed && <SettingsLink className="mr-1.5 h-8 w-8 border-0 hover:bg-accent/10" />}
+        </div>
       </div>
     </div>
   );

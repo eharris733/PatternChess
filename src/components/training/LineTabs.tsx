@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 
-export type LineTab = 'continuation' | 'refutation' | 'playedRefutation';
+export type LineTab = 'continuation' | 'refutation' | 'playedRefutation' | 'solution';
 
 /** Small tab strip for switching between the continuation / refutation lines in the analysis panel. */
 export function LineTabs({

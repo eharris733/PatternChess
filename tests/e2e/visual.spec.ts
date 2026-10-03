@@ -113,11 +113,27 @@ const ROUTES: Array<{ path: string; name: string; expect: (p: import('@playwrigh
     },
   },
   {
-    path: '/achievements',
-    name: 'achievements',
+    path: '/openings',
+    name: 'openings',
     expect: async (p) => {
-      await expect(p.getByText(/Your milestones/i)).toBeVisible();
-      await expect(p.getByText(/Unlocked/i)).toBeVisible();
+      await expect(p.getByRole('heading', { name: /Where you leave theory/i })).toBeVisible();
+      await expect(p.getByTestId('openings-empty')).toBeVisible();
+    },
+  },
+  {
+    path: '/learn',
+    name: 'learn',
+    expect: async (p) => {
+      await expect(p.getByRole('heading', { name: /Study library/i })).toBeVisible();
+      await expect(p.getByTestId('tab-openings')).toBeVisible();
+    },
+  },
+  {
+    path: '/leaderboards',
+    name: 'leaderboards',
+    expect: async (p) => {
+      await expect(p.getByRole('heading', { name: 'Leaderboards' })).toBeVisible();
+      await expect(p.getByTestId('invite-card')).toBeVisible();
     },
   },
 ];

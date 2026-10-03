@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import { MasteryDots } from '../MasteryDots';
 import {
   Blunder,
   nextIntervalDaysIfSolved,
@@ -8,9 +9,9 @@ import {
   srBucket,
 } from '../../models/blunder';
 
-const SR_BUCKET_PILL: Record<SrBucket, string> = {
+export const SR_BUCKET_PILL: Record<SrBucket, string> = {
   new: 'bg-gold-light text-text-primary border-text-primary',
-  learning: 'bg-surface-3 text-text-secondary border-text-primary',
+  learning: 'bg-surface-3 text-text-primary border-text-primary',
   tryAgain: 'bg-mistake/20 text-mistake border-mistake/60',
   mastered: 'bg-correct/20 text-correct border-correct/60',
 };
@@ -80,20 +81,7 @@ export function PositionSrState({
         </span>
       </div>
       <div className="flex items-center justify-between">
-        <div
-          className="flex items-center gap-1.5"
-          aria-label={`${filled} of ${total} cycles completed`}
-        >
-          {Array.from({ length: total }).map((_, i) => (
-            <span
-              key={i}
-              className={clsx(
-                'w-3 h-3 rounded-none border-2',
-                i < filled ? 'bg-gold-dark border-text-primary' : 'border-text-primary bg-surface',
-              )}
-            />
-          ))}
-        </div>
+        <MasteryDots cycleNumber={blunder.cycleNumber} />
         <span className="text-xs font-mono text-text-secondary">
           cycle {filled}/{total}
         </span>

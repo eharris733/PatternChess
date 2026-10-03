@@ -26,6 +26,7 @@ const STATIC_ROUTES = [
   { path: '/about', changefreq: 'monthly', priority: '0.7' },
   { path: '/faq', changefreq: 'monthly', priority: '0.7' },
   { path: '/events', changefreq: 'monthly', priority: '0.7' },
+  { path: '/moments', changefreq: 'monthly', priority: '0.7' },
   { path: '/terms', changefreq: 'yearly', priority: '0.3' },
   { path: '/privacy', changefreq: 'yearly', priority: '0.3' },
 ];
@@ -38,6 +39,7 @@ const DISALLOW = [
   '/endgames',
   '/profile',
   '/achievements',
+  '/leaderboards',
   '/analytics',
   '/p',
 ];
@@ -107,7 +109,8 @@ function main() {
     `## Core pages\n` +
     `- [Home](${SITE_URL}/): What PatternChess is and how it trains the blunders from your own games.\n` +
     `- [About & glossary](${SITE_URL}/about): What the app is, the Woodpecker Method, and definitions of blunder, spaced repetition, and winning chances.\n` +
-    `- [FAQ](${SITE_URL}/faq): Answers to common questions about PatternChess and chess improvement.\n\n` +
+    `- [FAQ](${SITE_URL}/faq): Answers to common questions about PatternChess and chess improvement.\n` +
+    `- [Chess GIF maker](${SITE_URL}/moments): Free tool that turns a PGN move sequence into an animated, shareable chess GIF or board screenshot.\n\n` +
     `## Blog\n` +
     posts.map((p) => `- [${p.title}](${SITE_URL}/blog/${p.slug}): ${p.description}`).join('\n') +
     `\n\n## Machine-readable\n` +

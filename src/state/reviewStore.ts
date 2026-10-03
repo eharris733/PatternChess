@@ -9,7 +9,8 @@ import {
   MoveGrade,
 } from '../models/gameAnnotation';
 import { supabaseService } from '../services/supabaseService';
-import { fetchMasters, isBookMove } from '../services/openingExplorerService';
+import { fetchBook, isBookMove } from '../services/openingBookService';
+import { MIN_MOVE_GAMES, epdOf } from '../chess/openingDeviation';
 import { getStockfish } from '../hooks/useStockfish';
 import { classifySwing } from '../chess/winningChances';
 
@@ -182,23 +183,22 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
 
   prefetchBook: async () => {
     const { positions } = get();
+    const window = positions.slice(0, Math.min(positions.length - 1, 22));
+    // One request for the whole window — the self-hosted book has no rate limit.
+    const book = await fetchBook(window.map((p) => p.fen));
+    if (!book) return;
     let lastBook: number | null = null;
-    for (let i = 0; i < Math.min(positions.length - 1, 22); i++) {
-      const pos = positions[i];
+    const map: Record<number, boolean> = {};
+    for (let i = 0; i < window.length; i++) {
+      const pos = window[i];
       if (!pos.uciMove) break;
-      const result = await fetchMasters(pos.fen);
-      if (!result) break;
-      const inBook = isBookMove(result, pos.uciMove);
-      const map = { ...get().bookMoves, [i]: inBook };
-      set({ bookMoves: map });
-      if (inBook) lastBook = i;
-      else {
-        set({ lastBookMoveIndex: lastBook });
-        return;
-      }
-      await new Promise((r) => setTimeout(r, 300));
+      const result = book.get(epdOf(pos.fen));
+      const inBook = !!result && isBookMove(result, pos.uciMove, MIN_MOVE_GAMES);
+      map[i] = inBook;
+      if (!inBook) break;
+      lastBook = i;
     }
-    set({ lastBookMoveIndex: lastBook });
+    set({ bookMoves: { ...get().bookMoves, ...map }, lastBookMoveIndex: lastBook });
   },
 
   setPhase: (phase) => set({ phase }),

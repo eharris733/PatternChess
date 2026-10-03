@@ -40,6 +40,8 @@ export interface PlayoutSlip {
   userMovesPlayedAtSlip: number;
   /** Reference eval of `fenBefore`, so retry('slip') needs no fresh engine call. */
   refEvalAtSlip: PositionEval | null;
+  /** Eval after the slip, side to move (the opponent); null on terminal fails. */
+  evalAfterSlip: number | null;
   /** History length at the slip, so retry('slip') keeps take-back working. */
   historyLenAtSlip: number;
 }
@@ -425,6 +427,7 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
               heldStreakAtSlip: heldStreak,
               userMovesPlayedAtSlip: userMovesPlayed,
               refEvalAtSlip: refEval,
+              evalAfterSlip: null,
               historyLenAtSlip: historyLen,
             };
             set({ slipLog: stashSlipLog(slip, refEval, null) });
@@ -459,6 +462,7 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
             heldStreakAtSlip: heldStreak,
             userMovesPlayedAtSlip: userMovesPlayed,
             refEvalAtSlip: refEval,
+            evalAfterSlip: postEval.scoreCp,
             historyLenAtSlip: historyLen,
           };
           set({ slipLog: stashSlipLog(slip, refEval, postEval) });

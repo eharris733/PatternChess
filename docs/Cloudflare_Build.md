@@ -47,7 +47,7 @@ take over.
 
 ```
 npm run build
-npx wrangler pages deploy dist --project-name=pattern-chess
+npx wrangler pages deploy dist --project-name=patternchess
 ```
 
 `_headers` and `_redirects` from `public/` end up in `dist/` automatically via

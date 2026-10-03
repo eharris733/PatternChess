@@ -33,8 +33,24 @@ export const PHASE_ORDER: readonly BlunderPhase[] = ['opening', 'middlegame', 'e
  * Discriminates how a trainable item is drilled in the unified queue:
  * - `tactic`  — game-analysis blunder; the stored 1–3 move sequence drill.
  * - `endgame` — play-out slip; the full adjudicated endgame vs the engine.
+ * - `opening` — the position where the user left masters theory at a cost of
+ *   ≥10% winning chances; drilled as a single-move stored-sequence drill whose
+ *   correct moves are the theory moves (src/services/openingDeviationService.ts).
  */
-export type DrillKind = 'tactic' | 'endgame';
+export type DrillKind = 'tactic' | 'endgame' | 'opening';
+
+/**
+ * The only source of user-facing kind labels. Never render tactic/endgame
+ * labels before the user's first move in /training — concealing the kind is
+ * the product. Opening drills are the exception: they open by replaying the
+ * user's game up to the position (trainingStore phase 'introducing'), which
+ * reveals the kind anyway, so they may be named from the start.
+ */
+export const DRILL_KIND_LABEL: Record<DrillKind, string> = {
+  tactic: 'Tactic',
+  endgame: 'Endgame',
+  opening: 'Opening',
+};
 
 export interface EndgameDrillData {
   deservedResult: 'win' | 'draw';
@@ -42,7 +58,41 @@ export interface EndgameDrillData {
   v: 1;
 }
 
-export type DrillData = EndgameDrillData;
+/**
+ * A move offered as the answer at an opening position: a book move (with its
+ * game stats) or, past the book, an engine candidate (stats only if the book
+ * has a few games there).
+ */
+export interface TheoryMove {
+  uci: string;
+  san: string;
+  games: number;
+  /** Share of the position's book games that chose this move, 0..100. */
+  share: number;
+  /** Win % for the side making the move, 0..100. */
+  moverWinPct: number;
+  /** Share of titled players' games here that chose it (OTB tier only). */
+  titledShare?: number | null;
+  /** Book tier the stats come from ('otb' = OTB 2200+, 'elite' = Lichess Elite). */
+  tier?: 'otb' | 'elite' | null;
+  /** Engine candidates: true for the engine's top move. */
+  engineBest?: boolean;
+}
+
+/** Where an opening drill's answer comes from. */
+export type OpeningDrillSource = 'book' | 'engine';
+
+export interface OpeningDrillData {
+  openingFamily: string | null;
+  openingName: string | null;
+  theoryMoves: TheoryMove[];
+  positionGames: number;
+  /** v1 rows (Lichess masters era) are all 'book'. */
+  source: OpeningDrillSource;
+  v: 1 | 2;
+}
+
+export type DrillData = EndgameDrillData | OpeningDrillData;
 
 export interface Blunder {
   id: string;
@@ -96,7 +146,28 @@ function parsePhase(v: unknown): BlunderPhase {
 }
 
 function parseKind(v: unknown): DrillKind {
-  return v === 'endgame' ? v : 'tactic';
+  return v === 'endgame' || v === 'opening' ? v : 'tactic';
+}
+
+export function parseTheoryMoves(v: unknown): TheoryMove[] {
+  if (!Array.isArray(v)) return [];
+  const out: TheoryMove[] = [];
+  for (const m of v) {
+    if (!m || typeof m !== 'object') continue;
+    const r = m as Record<string, unknown>;
+    if (typeof r.uci !== 'string' || typeof r.san !== 'string') continue;
+    out.push({
+      uci: r.uci,
+      san: r.san,
+      games: typeof r.games === 'number' ? r.games : 0,
+      share: typeof r.share === 'number' ? r.share : 0,
+      moverWinPct: typeof r.moverWinPct === 'number' ? r.moverWinPct : 0,
+      titledShare: typeof r.titledShare === 'number' ? r.titledShare : null,
+      tier: r.tier === 'otb' || r.tier === 'elite' ? r.tier : null,
+      engineBest: r.engineBest === true,
+    });
+  }
+  return out;
 }
 
 function parseDrillData(kind: DrillKind, v: unknown): DrillData | null {
@@ -111,6 +182,16 @@ function parseDrillData(kind: DrillKind, v: unknown): DrillData | null {
       };
     }
     return null;
+  }
+  if (kind === 'opening') {
+    return {
+      openingFamily: typeof d.openingFamily === 'string' ? d.openingFamily : null,
+      openingName: typeof d.openingName === 'string' ? d.openingName : null,
+      theoryMoves: parseTheoryMoves(d.theoryMoves),
+      positionGames: typeof d.positionGames === 'number' ? d.positionGames : 0,
+      source: d.source === 'engine' ? 'engine' : 'book',
+      v: d.v === 2 ? 2 : 1,
+    };
   }
   return null;
 }
@@ -145,7 +226,7 @@ export function intervalDaysForCycle(cycleNumber: number): number {
   return SPACED_REPETITION_DAYS[Math.max(0, cycleNumber)];
 }
 
-export function nextDrillDate(b: Blunder): Date {
+export function nextDrillDate(b: Pick<Blunder, 'cycleNumber' | 'lastDrilledAt' | 'createdAt'>): Date {
   const base = b.lastDrilledAt ?? b.createdAt;
   const result = new Date(base);
   result.setDate(result.getDate() + intervalDaysForCycle(b.cycleNumber));

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
 import { authService } from '../services/authService';
@@ -9,14 +10,32 @@ import {
   runGameMetadataBackfill,
 } from '../services/gameMetadataBackfill';
 import { RankBadge } from '../components/insights/RankBadge';
+import { FlairBadge, FLAIR_RING_CLASS } from '../components/FlairBadge';
+import { FlairPickerModal } from '../components/FlairPicker';
+import { AchievementsTrophyLink } from '../components/achievements/AchievementsTrophyLink';
+import { SettingsLink } from '../components/SettingsLink';
+import { flairById } from '../lib/flair';
+import clsx from 'clsx';
 import { GameTypePreferences } from '../components/GameTypePreferences';
 import { ThemePicker } from '../components/ThemePicker';
 import { useRecentTrainingSessions } from '../hooks/useTrainingActivity';
+import { useDrillFeedbackPrefs } from '../hooks/useDrillFeedbackPrefs';
 import { useThemeStore, type BoardTheme } from '../state/themeStore';
 
 export function ProfileRoute() {
   const { profile, refreshProfile, user } = useAuth();
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const [flairOpen, setFlairOpen] = useState(false);
+  const settingsRef = useRef<HTMLElement>(null);
+  // Router doesn't scroll to hashes: the sidebar / header gear links to
+  // /profile#settings. Re-runs on each click (location.key changes).
+  useEffect(() => {
+    // Instant, not smooth: a smooth scroll is cancelled by the layout shifts
+    // while the profile's cards load.
+    if (location.hash === '#settings' && profile) settingsRef.current?.scrollIntoView({ block: 'start' });
+  }, [location.hash, location.key, profile?.id]);
+
   const activeTheme = useThemeStore((s) => s.theme);
   const setStoreTheme = useThemeStore((s) => s.setTheme);
   const [lichess, setLichess] = useState('');
@@ -33,7 +52,6 @@ export function ProfileRoute() {
   const [trainingPrefs, setTrainingPrefs] = useState({
     showEngineEvals: false,
     revealBeforeSolve: false,
-    autoplayRefutation: true,
     soundsEnabled: true,
     leaderboardOptOut: false,
   });
@@ -41,23 +59,22 @@ export function ProfileRoute() {
     setTrainingPrefs({
       showEngineEvals: profile?.showEngineEvals ?? false,
       revealBeforeSolve: profile?.revealBeforeSolve ?? false,
-      autoplayRefutation: profile?.autoplayRefutation ?? true,
       soundsEnabled: profile?.soundsEnabled ?? true,
       leaderboardOptOut: profile?.leaderboardOptOut ?? false,
     });
   }, [
     profile?.showEngineEvals,
     profile?.revealBeforeSolve,
-    profile?.autoplayRefutation,
     profile?.soundsEnabled,
     profile?.leaderboardOptOut,
   ]);
+
+  const drillPrefs = useDrillFeedbackPrefs();
 
   const onToggleTrainingPref = (
     pref:
       | 'showEngineEvals'
       | 'revealBeforeSolve'
-      | 'autoplayRefutation'
       | 'soundsEnabled'
       | 'leaderboardOptOut',
     value: boolean,
@@ -165,6 +182,9 @@ export function ProfileRoute() {
     window.location.replace('/');
   };
 
+  const flair = flairById(profile?.flair);
+  const ring = flair ? clsx('ring-2 ring-offset-2 ring-offset-surface', FLAIR_RING_CLASS[flair.tone]) : null;
+
   return (
     <div className="max-w-xl mx-auto flex flex-col gap-6">
       <header className="flex items-center gap-4">
@@ -174,20 +194,42 @@ export function ProfileRoute() {
             alt=""
             crossOrigin="anonymous"
             referrerPolicy="no-referrer"
-            className="w-14 h-14 rounded-full border-2 border-text-primary"
+            className={clsx('w-14 h-14 rounded-full border-2 border-text-primary', ring)}
           />
         ) : (
-          <div className="w-14 h-14 rounded-full bg-text-primary" />
+          <div className={clsx('w-14 h-14 rounded-full bg-text-primary', ring)} />
         )}
-        <div>
-          <h1 className="heading-lg">{profile?.displayName ?? 'Your profile'}</h1>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex items-center gap-3">
+            <h1 className="heading-lg min-w-0 truncate">{profile?.displayName ?? 'Your profile'}</h1>
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <AchievementsTrophyLink />
+              <SettingsLink />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFlairOpen(true)}
+            aria-label={flair ? `Flair: ${flair.title}. Change flair` : 'Choose flair'}
+            data-testid="flair-open"
+            className="self-start transition-opacity hover:opacity-80"
+          >
+            {flair ? (
+              <FlairBadge flair={profile?.flair} size="md" />
+            ) : (
+              <span className="inline-flex items-center border border-dashed border-text-primary/40 px-2 py-0.5 font-mono text-xs uppercase text-text-primary">
+                Choose flair
+              </span>
+            )}
+          </button>
           <p className="text-text-secondary text-sm">{user?.email}</p>
         </div>
       </header>
+      {flairOpen && <FlairPickerModal onClose={() => setFlairOpen(false)} />}
 
       <RankBadge />
 
-      <section className="card flex flex-col gap-4">
+      <section id="settings" ref={settingsRef} className="card flex flex-col gap-4 scroll-mt-6">
         <h2 className="heading-md">Linked accounts</h2>
         <div className="flex flex-col gap-2">
           <label className="label">Lichess username</label>
@@ -270,15 +312,30 @@ export function ProfileRoute() {
           <input
             type="checkbox"
             className="mt-1"
-            checked={trainingPrefs.autoplayRefutation}
-            onChange={(e) => onToggleTrainingPref('autoplayRefutation', e.target.checked)}
+            checked={drillPrefs.showAnswer}
+            onChange={(e) => drillPrefs.setShowAnswer(e.target.checked)}
           />
           <span>
-            Autoplay the refutation on a repeat miss
+            Show the answer after a miss
             <span className="block text-text-secondary text-xs">
-              If you get a position wrong again after already trying it, automatically play out
-              why on the board instead of leaving it as a static line. Your first attempt at a
-              position is never affected — this only kicks in on a repeat wrong try.
+              After a wrong move, draws the best move on the board and adds the solution line
+              next to the refutation. Applies to tactics and endgames; also in the gear on the
+              board.
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2 select-none">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={drillPrefs.autoplay}
+            onChange={(e) => drillPrefs.setAutoplay(e.target.checked)}
+          />
+          <span>
+            Autoplay the lines after a miss
+            <span className="block text-text-secondary text-xs">
+              After every wrong move, plays out why it fails on the board, then the solution
+              when &ldquo;Show the answer&rdquo; is on. Tap the board or step a line to stop it.
             </span>
           </span>
         </label>
@@ -297,7 +354,9 @@ export function ProfileRoute() {
             </span>
           </span>
         </label>
-        {trainingPrefsError && <p className="text-incorrect text-sm">{trainingPrefsError}</p>}
+        {(trainingPrefsError ?? drillPrefs.error) && (
+          <p className="text-incorrect text-sm">{trainingPrefsError ?? drillPrefs.error}</p>
+        )}
       </section>
 
       <section className="card flex flex-col gap-4">

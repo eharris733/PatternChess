@@ -10,9 +10,10 @@ import * as statsDb from './db/stats';
 import * as sessionsDb from './db/sessions';
 import * as profilesDb from './db/profiles';
 import * as annotationsDb from './db/annotations';
-import * as explorerDb from './db/explorer';
 import * as benchmarksDb from './db/benchmarks';
 import * as leaderboardDb from './db/leaderboard';
+import * as openingDeviationsDb from './db/openingDeviations';
+import * as repertoireDb from './db/repertoire';
 
 export * from './db/games';
 export * from './db/blunders';
@@ -21,9 +22,10 @@ export * from './db/stats';
 export * from './db/sessions';
 export * from './db/profiles';
 export * from './db/annotations';
-export * from './db/explorer';
 export * from './db/benchmarks';
 export * from './db/leaderboard';
+export * from './db/openingDeviations';
+export * from './db/repertoire';
 
 export const supabaseService = {
   ...gamesDb,
@@ -33,7 +35,8 @@ export const supabaseService = {
   ...sessionsDb,
   ...profilesDb,
   ...annotationsDb,
-  ...explorerDb,
   ...benchmarksDb,
   ...leaderboardDb,
+  ...openingDeviationsDb,
+  ...repertoireDb,
 };

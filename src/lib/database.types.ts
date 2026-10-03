@@ -137,6 +137,12 @@ export type Database = {
         Row: {
           actual_result: string
           attempts: number
+          cycle_number: number
+          last_drill_failed: boolean
+          last_drilled_at: string | null
+          next_drill_at: string | null
+          times_attempted: number
+          times_correct: number
           blunder_id: string | null
           created_at: string
           deserved_result: string
@@ -154,6 +160,12 @@ export type Database = {
         Insert: {
           actual_result: string
           attempts?: number
+          cycle_number?: number
+          last_drill_failed?: boolean
+          last_drilled_at?: string | null
+          next_drill_at?: string | null
+          times_attempted?: number
+          times_correct?: number
           blunder_id?: string | null
           created_at?: string
           deserved_result: string
@@ -171,6 +183,12 @@ export type Database = {
         Update: {
           actual_result?: string
           attempts?: number
+          cycle_number?: number
+          last_drill_failed?: boolean
+          last_drilled_at?: string | null
+          next_drill_at?: string | null
+          times_attempted?: number
+          times_correct?: number
           blunder_id?: string | null
           created_at?: string
           deserved_result?: string
@@ -279,6 +297,7 @@ export type Database = {
           external_game_id: string
           id: string
           opening_classified_at: string | null
+          opening_deviation_version: number | null
           opening_family: string | null
           opening_name: string | null
           opponent: string
@@ -304,6 +323,7 @@ export type Database = {
           external_game_id: string
           id?: string
           opening_classified_at?: string | null
+          opening_deviation_version?: number | null
           opening_family?: string | null
           opening_name?: string | null
           opponent: string
@@ -329,6 +349,7 @@ export type Database = {
           external_game_id?: string
           id?: string
           opening_classified_at?: string | null
+          opening_deviation_version?: number | null
           opening_family?: string | null
           opening_name?: string | null
           opponent?: string
@@ -366,29 +387,122 @@ export type Database = {
         }
         Relationships: []
       }
-      opening_explorer_cache: {
+      opening_deviations: {
         Row: {
+          blunder_id: string | null
+          book_end_ply: number | null
+          book_tier: string | null
+          chances_lost: number | null
+          classification: string | null
           created_at: string
-          db: string
-          fen: string
-          result: Json
-          variant_key: string
+          eco: string | null
+          epd_before: string | null
+          eval_after: number | null
+          eval_before: number | null
+          eval_depth: number | null
+          evaluated_at: string | null
+          fen_before: string | null
+          game_id: string
+          id: string
+          move_number: number | null
+          opening_family: string | null
+          opening_name: string | null
+          past_book_checked_at: string | null
+          played_games: number | null
+          played_mover_win_pct: number | null
+          played_san: string | null
+          played_uci: string | null
+          ply: number | null
+          position_games: number | null
+          reason: string | null
+          rule_version: number
+          status: string
+          theory_moves: Json | null
+          user_color: string | null
+          user_id: string
         }
         Insert: {
+          blunder_id?: string | null
+          book_end_ply?: number | null
+          book_tier?: string | null
+          chances_lost?: number | null
+          classification?: string | null
           created_at?: string
-          db?: string
-          fen: string
-          result: Json
-          variant_key?: string
+          eco?: string | null
+          epd_before?: string | null
+          eval_after?: number | null
+          eval_before?: number | null
+          eval_depth?: number | null
+          evaluated_at?: string | null
+          fen_before?: string | null
+          game_id: string
+          id?: string
+          move_number?: number | null
+          opening_family?: string | null
+          opening_name?: string | null
+          past_book_checked_at?: string | null
+          played_games?: number | null
+          played_mover_win_pct?: number | null
+          played_san?: string | null
+          played_uci?: string | null
+          ply?: number | null
+          position_games?: number | null
+          reason?: string | null
+          rule_version: number
+          status: string
+          theory_moves?: Json | null
+          user_color?: string | null
+          user_id: string
         }
         Update: {
+          blunder_id?: string | null
+          book_end_ply?: number | null
+          book_tier?: string | null
+          chances_lost?: number | null
+          classification?: string | null
           created_at?: string
-          db?: string
-          fen?: string
-          result?: Json
-          variant_key?: string
+          eco?: string | null
+          epd_before?: string | null
+          eval_after?: number | null
+          eval_before?: number | null
+          eval_depth?: number | null
+          evaluated_at?: string | null
+          fen_before?: string | null
+          game_id?: string
+          id?: string
+          move_number?: number | null
+          opening_family?: string | null
+          opening_name?: string | null
+          past_book_checked_at?: string | null
+          played_games?: number | null
+          played_mover_win_pct?: number | null
+          played_san?: string | null
+          played_uci?: string | null
+          ply?: number | null
+          position_games?: number | null
+          reason?: string | null
+          rule_version?: number
+          status?: string
+          theory_moves?: Json | null
+          user_color?: string | null
+          user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "opening_deviations_blunder_id_fkey"
+            columns: ["blunder_id"]
+            isOneToOne: false
+            referencedRelation: "blunders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opening_deviations_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -400,18 +514,25 @@ export type Database = {
           created_at: string | null
           current_streak_days: number
           display_name: string | null
+          flair: string | null
           followed_instagram: boolean
           id: string
           last_drill_local_date: string | null
           last_synced_chesscom_at: string | null
           last_synced_lichess_at: string | null
+          learn_chapters_done: string[]
           leaderboard_opt_out: boolean
           lichess_username: string | null
           longest_streak_days: number
+          opening_reviews_opened: number
           preferred_rated_only: boolean
+          referral_code: string
+          referrals_count: number
+          referred_by: string | null
           preferred_time_controls: string[]
           reveal_before_solve: boolean
           shares_count: number
+          show_answer_on_miss: boolean
           show_engine_evals: boolean
           sounds_enabled: boolean
           timezone: string | null
@@ -426,18 +547,25 @@ export type Database = {
           created_at?: string | null
           current_streak_days?: number
           display_name?: string | null
+          flair?: string | null
           followed_instagram?: boolean
           id: string
           last_drill_local_date?: string | null
           last_synced_chesscom_at?: string | null
           last_synced_lichess_at?: string | null
+          learn_chapters_done?: string[]
           leaderboard_opt_out?: boolean
           lichess_username?: string | null
           longest_streak_days?: number
+          opening_reviews_opened?: number
           preferred_rated_only?: boolean
+          referral_code?: string
+          referrals_count?: number
+          referred_by?: string | null
           preferred_time_controls?: string[]
           reveal_before_solve?: boolean
           shares_count?: number
+          show_answer_on_miss?: boolean
           show_engine_evals?: boolean
           sounds_enabled?: boolean
           timezone?: string | null
@@ -452,18 +580,25 @@ export type Database = {
           created_at?: string | null
           current_streak_days?: number
           display_name?: string | null
+          flair?: string | null
           followed_instagram?: boolean
           id?: string
           last_drill_local_date?: string | null
           last_synced_chesscom_at?: string | null
           last_synced_lichess_at?: string | null
+          learn_chapters_done?: string[]
           leaderboard_opt_out?: boolean
           lichess_username?: string | null
           longest_streak_days?: number
+          opening_reviews_opened?: number
           preferred_rated_only?: boolean
+          referral_code?: string
+          referrals_count?: number
+          referred_by?: string | null
           preferred_time_controls?: string[]
           reveal_before_solve?: boolean
           shares_count?: number
+          show_answer_on_miss?: boolean
           show_engine_evals?: boolean
           sounds_enabled?: boolean
           timezone?: string | null
@@ -543,9 +678,16 @@ export type Database = {
       admin_user_list: { Args: { category: string }; Returns: Json }
       apply_game_openings: { Args: { p_rows: Json }; Returns: number }
       get_blunder_motif_counts: { Args: never; Returns: Json }
+      increment_opening_reviews: { Args: never; Returns: number }
+      claim_referral: { Args: { code: string }; Returns: boolean }
       increment_shares_count: { Args: never; Returns: number }
       landing_stats: { Args: never; Returns: Json }
-      leaderboard: { Args: { metric: string; win: string; limit_n?: number }; Returns: Json }
+      leaderboard: {
+        Args: { limit_n?: number; metric: string; win: string }
+        Returns: Json
+      }
+      mark_learn_chapter_done: { Args: { key: string }; Returns: number }
+      training_totals: { Args: never; Returns: Json }
     }
     Enums: {
       [_ in never]: never

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
 import { authService } from '../services/authService';
+import { recordShare } from '../share/recordShare';
 import { useTrainingStore } from '../state/trainingStore';
 import { useDueBlunders } from '../hooks/useDueBlunders';
 import { BoardStage } from '../components/BoardStage';
@@ -11,6 +12,9 @@ import { useSyncStore } from '../state/syncStore';
 import { BoardPanel } from '../components/BoardPanel';
 import { BoardActionBar } from '../components/BoardActionBar';
 import { type LineTab } from '../components/training/LineTabs';
+import { useDrillFeedbackPrefs } from '../hooks/useDrillFeedbackPrefs';
+import { useLineAutoplay, type AutoplaySegment } from '../hooks/useLineAutoplay';
+import { useRepertoire } from '../hooks/useRepertoire';
 import { fetchGamesByIds, applyContextFilter, filterLabel } from './training/trainingQueue';
 import { Skeleton } from '../components/Skeleton';
 import { EndgameDrillView } from '../components/training/EndgameDrillView';
@@ -20,7 +24,13 @@ import { TrainingCompleteScreen } from '../components/training/TrainingCompleteS
 import { TrainingDeleteModal } from '../components/training/TrainingDeleteModal';
 import { TrainingShareModal } from '../components/training/TrainingShareModal';
 import { ContextFilter } from '../chess/blunderContext';
-import { BlunderPhase, PHASE_LABEL, SPACED_REPETITION_DAYS } from '../models/blunder';
+import {
+  BlunderPhase,
+  DRILL_KIND_LABEL,
+  PHASE_LABEL,
+  SPACED_REPETITION_DAYS,
+  type DrillKind,
+} from '../models/blunder';
 import { MOTIF_LABEL, type Motif } from '../chess/motifs';
 import { orderedPlayers } from '../models/gameRecord';
 import {
@@ -31,6 +41,10 @@ import { encodeSharedPuzzle } from '../services/puzzleShareService';
 import { playSound } from '../lib/sounds';
 import { formatOpeningDisplay, resolveOpeningName } from '../chess/openingNames';
 
+/** Opening intro pace, and the pause on the final position before the prompt. */
+const INTRO_STEP_MS = 400;
+const INTRO_HOLD_MS = 500;
+
 interface LocationState {
   gameIds?: string[];
   contextFilter?: ContextFilter;
@@ -39,6 +53,12 @@ interface LocationState {
   openingFilter?: string;
   openingColor?: 'white' | 'black' | null;
   openingLabel?: string;
+  /** Only drills of this kind ("Review N due" on /openings and /endgames). */
+  kindFilter?: DrillKind;
+  /** Exactly these drills, due or not ("Drill these" / "Train" on /openings). */
+  blunderIds?: string[];
+  /** Banner label for a `blunderIds` session. */
+  focusLabel?: string;
 }
 
 export function TrainingRoute() {
@@ -74,7 +94,10 @@ export function TrainingRoute() {
   const openingFilter = effectiveState.openingFilter ?? null;
   const openingColor = effectiveState.openingColor ?? null;
   const openingLabel = effectiveState.openingLabel ?? null;
-  const dueBlunders = useDueBlunders(effectiveState.gameIds);
+  const kindFilter = effectiveState.kindFilter ?? null;
+  const focusIds = effectiveState.blunderIds ?? null;
+  const focusLabel = effectiveState.focusLabel ?? null;
+  const dueBlunders = useDueBlunders(effectiveState.gameIds, focusIds ?? undefined);
   const dueData = dueBlunders.data;
   // Skip the landing picker when there's nothing due at all — offering a
   // training focus is pointless with an empty queue, and it lets the plain
@@ -116,6 +139,7 @@ export function TrainingRoute() {
   const filteredBlunders = useMemo(() => {
     if (!dueData) return null;
     let list = phaseFilter ? dueData.filter((b) => b.phase === phaseFilter) : dueData;
+    if (kindFilter) list = list.filter((b) => b.kind === kindFilter);
     if (motifFilter) list = list.filter((b) => b.motifs.includes(motifFilter));
     if (needsGames) {
       if (!filterGamesQuery.data) return null; // wait for game data
@@ -137,13 +161,18 @@ export function TrainingRoute() {
     openingFilter,
     openingColor,
     phaseFilter,
+    kindFilter,
     motifFilter,
     filterGamesQuery.data,
   ]);
 
   // Whichever drill filter is active (only one is set at a time in practice) —
   // drives the filter chip and empty-state copy.
-  const activeFilterLabel = contextFilter
+  const activeFilterLabel = focusIds
+    ? (focusLabel ?? 'Selected positions')
+    : kindFilter
+      ? `${DRILL_KIND_LABEL[kindFilter]} reviews`
+      : contextFilter
     ? filterLabel(contextFilter)
     : openingFilter
       ? openingLabel ?? openingFilter
@@ -199,71 +228,85 @@ export function TrainingRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase, state.currentIndex]);
 
-  // On a repeat wrong attempt (not the drill's first try), autoplay the
-  // engine's refutation of the played move instead of leaving it as a static
-  // reveal — the point is to force the lesson to land on a re-miss without
-  // being harsh on the very first try. Cancelled the moment the user steps
-  // the line manually (see `stopAutoplay` usages below).
-  const autoplayEnabled = profile?.autoplayRefutation ?? true;
-  const autoplayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const autoplayedKeyRef = useRef<string | null>(null);
-  // Exposed as state so the mobile result overlay can wait for the refutation
-  // to finish playing (otherwise it covers the board while the moves animate
-  // underneath, and the lesson is never seen).
-  const [autoplayActive, setAutoplayActive] = useState(false);
-  const stopAutoplay = () => {
-    if (autoplayTimerRef.current !== null) {
-      clearInterval(autoplayTimerRef.current);
-      autoplayTimerRef.current = null;
-    }
-    setAutoplayActive(false);
-  };
-  const skipAutoplay = () => {
-    stopAutoplay();
-    const s = useTrainingStore.getState();
-    if (s.playedRefutationMoves.length > 0) {
-      s.selectPlayedRefutationIndex(s.playedRefutationMoves.length - 1);
-    }
-  };
+  // After a real miss (not the "good but not best" retry-in-place), the
+  // drill-feedback prefs decide what the board does: autoplay steps the
+  // refutation of the played move, then — with "show the answer" on — the
+  // solution from the missed position. Show-answer alone parks the board on
+  // the missed position with the best move drawn. Any manual step cancels.
+  const { showAnswer, autoplay: autoplayEnabled } = useDrillFeedbackPrefs();
+  const isRealMiss = state.phase === 'incorrect' && state.incorrectRequeue;
+  const hasSolution = showAnswer && state.solutionMoves.length > 0;
+  const autoplaySegments: AutoplaySegment[] = [
+    {
+      length: state.playedRefutationMoves.length,
+      select: (i) => useTrainingStore.getState().selectPlayedRefutationIndex(i),
+      onEnter: () => setActiveTab('playedRefutation'),
+    },
+    ...(hasSolution
+      ? [
+          {
+            // +1: the missed position with the best-move arrow comes first.
+            length: state.solutionMoves.length + 1,
+            select: (i: number) => useTrainingStore.getState().selectSolutionIndex(i - 1),
+            onEnter: () => setActiveTab('solution'),
+          },
+        ]
+      : []),
+  ];
+  const {
+    active: autoplayActive,
+    stop: stopAutoplay,
+    skip: skipAutoplay,
+  } = useLineAutoplay({
+    runKey:
+      isRealMiss && autoplayEnabled
+        ? // sequenceToken is bumped on every load, so each miss gets one run.
+          `${state.currentIndex}:${state.sequenceToken}`
+        : null,
+    segments: autoplaySegments,
+  });
+
+  // Opening drills: the user's repertoire is the expected answer, so the
+  // store needs it before the first opening position is solved.
+  const repertoire = useRepertoire();
   useEffect(() => {
-    const shouldAutoplay =
-      state.phase === 'incorrect' &&
-      state.incorrectRequeue &&
-      !state.lastAttemptWasFirst &&
-      autoplayEnabled &&
-      state.playedRefutationMoves.length > 0;
+    useTrainingStore.getState().setRepertoire(repertoire.data ?? null);
+  }, [repertoire.data]);
 
-    if (!shouldAutoplay) {
-      stopAutoplay();
-      return;
-    }
+  // Opening drills open by playing the user's game up to the position, then
+  // hand the board over with a short beat on the final position.
+  const introLength = state.phase === 'introducing' ? (state.openingIntro?.fens.length ?? 0) : 0;
+  const introSegments = useMemo<AutoplaySegment[]>(
+    () => [
+      {
+        length: introLength,
+        select: (i: number) => {
+          const store = useTrainingStore.getState();
+          store.setIntroIndex(i);
+          if (i !== introLength - 1) return;
+          const token = store.sequenceToken;
+          window.setTimeout(() => {
+            const cur = useTrainingStore.getState();
+            if (cur.sequenceToken === token) cur.finishIntro();
+          }, INTRO_HOLD_MS);
+        },
+      },
+    ],
+    [introLength],
+  );
+  const { skip: skipIntro } = useLineAutoplay({
+    runKey: state.phase === 'introducing' ? `intro:${state.sequenceToken}` : null,
+    segments: introSegments,
+    stepMs: INTRO_STEP_MS,
+  });
 
-    const key = `${state.currentIndex}:${state.playedRefutationMoves.length}`;
-    if (autoplayedKeyRef.current === key) return;
-    autoplayedKeyRef.current = key;
-
-    const total = state.playedRefutationMoves.length;
-    let idx = 0;
-    state.selectPlayedRefutationIndex(idx);
-    setAutoplayActive(true);
-    autoplayTimerRef.current = setInterval(() => {
-      idx += 1;
-      if (idx >= total) {
-        stopAutoplay();
-        return;
-      }
-      useTrainingStore.getState().selectPlayedRefutationIndex(idx);
-    }, 700);
-
-    return stopAutoplay;
+  // Show-answer without autoplay: land on the answer instead of the refutation.
+  useEffect(() => {
+    if (!isRealMiss || autoplayEnabled || !hasSolution) return;
+    setActiveTab('solution');
+    useTrainingStore.getState().selectSolutionIndex(-1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    state.phase,
-    state.incorrectRequeue,
-    state.lastAttemptWasFirst,
-    state.currentIndex,
-    autoplayEnabled,
-  ]);
+  }, [isRealMiss, state.sequenceToken, autoplayEnabled, hasSolution]);
 
   useEffect(() => {
     if (!sessionReady || !filteredBlunders) return;
@@ -332,8 +375,12 @@ export function TrainingRoute() {
         e.preventDefault();
         if (state.phase === 'reviewing') state.proceedFromReview();
         else if (state.phase === 'correct') state.advance();
-        else if (state.phase === 'incorrect')
-          state.incorrectRequeue ? state.requeueAndAdvance() : state.retry();
+        else if (state.phase === 'incorrect') {
+          // Opening misses retry in place: find the move, then move on.
+          const isOpening = state.blunders[state.currentIndex]?.kind === 'opening';
+          if (state.incorrectRequeue && !isOpening) state.requeueAndAdvance();
+          else state.retry();
+        }
       } else if (e.code === 'ArrowRight' || e.code === 'ArrowLeft') {
         // Arrows step through the line the user is looking at: the visible
         // tab in the post-attempt phases, the refutation while reviewing.
@@ -342,8 +389,15 @@ export function TrainingRoute() {
         if (state.phase === 'reviewing' && state.refutationMoves.length > 0) {
           state.selectRefutationIndex((state.activeRefutationIndex ?? base) + step);
         } else if (state.phase === 'correct' || state.phase === 'incorrect') {
+          if (state.phase === 'incorrect') stopAutoplay();
           if (activeTab === 'refutation' && state.refutationMoves.length > 0) {
             state.selectRefutationIndex((state.activeRefutationIndex ?? base) + step);
+          } else if (
+            activeTab === 'solution' &&
+            state.phase === 'incorrect' &&
+            state.solutionMoves.length > 0
+          ) {
+            state.selectSolutionIndex((state.activeSolutionIndex ?? base - 1) + step);
           } else if (state.phase === 'correct' && state.postCorrectMoves.length > 0) {
             state.selectPostCorrectIndex((state.activePostCorrectIndex ?? base) + step);
           } else if (state.phase === 'incorrect' && state.playedRefutationMoves.length > 0) {
@@ -354,6 +408,7 @@ export function TrainingRoute() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, activeTab]);
 
   if (!sessionReady) {
@@ -402,7 +457,7 @@ export function TrainingRoute() {
       <div className="max-w-md mx-auto card text-center flex flex-col gap-4">
         <h1 className="heading-lg">
           {activeFilterLabel
-            ? `No ${activeFilterLabel.toLowerCase()} blunders due`
+            ? `Nothing due in ${activeFilterLabel}`
             : 'No blunders due'}
         </h1>
         <p className="text-text-secondary text-sm">
@@ -450,7 +505,7 @@ export function TrainingRoute() {
   const filterBanner = activeFilterLabel ? (
     <div className="flex items-baseline justify-between rounded-none border-2 border-text-primary bg-surface-3 px-3 py-2">
       <span className="font-mono text-xs uppercase tracking-tight text-gold-dark">
-        {activeFilterLabel} · {state.blunders.length} blunder
+        {activeFilterLabel} · {state.blunders.length} position
         {state.blunders.length === 1 ? '' : 's'}
       </span>
       <button
@@ -515,10 +570,7 @@ export function TrainingRoute() {
       setShareCopied(true);
       window.setTimeout(() => setShareCopied(false), 3000);
       // Counts toward the share achievements; fire-and-forget.
-      void authService
-        .incrementSharesCount()
-        .then(() => refreshProfile())
-        .catch((err) => console.warn('[training] share count bump failed', err));
+      recordShare(true, refreshProfile);
     } catch (err) {
       console.warn('[training] share copy failed', err);
     }
@@ -545,12 +597,18 @@ export function TrainingRoute() {
       (state.activePlayedRefutationIndex ?? (dir === 1 ? -1 : 0)) + dir,
     );
   };
+  const stepSolution = (dir: 1 | -1) => {
+    stopAutoplay();
+    state.selectSolutionIndex((state.activeSolutionIndex ?? (dir === 1 ? -2 : -1)) + dir);
+  };
   // The line the user is currently looking at (mirrors the ←/→ keyboard handler);
   // surfaced as arrows in the board action bar on mobile.
   const activeLineStep: ((dir: 1 | -1) => void) | null = (() => {
     if (state.phase === 'reviewing' && state.refutationMoves.length > 0) return stepRefutation;
     if (state.phase === 'correct' || state.phase === 'incorrect') {
       if (activeTab === 'refutation' && state.refutationMoves.length > 0) return stepRefutation;
+      if (activeTab === 'solution' && state.phase === 'incorrect' && state.solutionMoves.length > 0)
+        return stepSolution;
       if (state.phase === 'correct' && state.postCorrectMoves.length > 0) return stepPostCorrect;
       if (state.phase === 'incorrect' && state.playedRefutationMoves.length > 0)
         return stepPlayedRefutation;
@@ -595,19 +653,23 @@ export function TrainingRoute() {
               <BoardActionOverlay
                 message={
                   state.phase === 'correct'
-                    ? 'Solution correct'
+                    ? state.openingVerdict
+                      ? state.openingVerdict.kind === 'sound'
+                        ? 'Good move'
+                        : 'Great!'
+                      : 'Solution correct'
                     : state.incorrectFeedback?.message ?? 'Not the best move'
                 }
                 actionLabel={
                   state.phase === 'correct'
                     ? 'Next'
-                    : state.incorrectRequeue
+                    : state.incorrectRequeue && blunder?.kind !== 'opening'
                       ? 'Continue'
                       : 'Try again'
                 }
                 onAction={() => {
                   if (state.phase === 'correct') state.advance();
-                  else if (state.incorrectRequeue) state.requeueAndAdvance();
+                  else if (state.incorrectRequeue && blunder?.kind !== 'opening') state.requeueAndAdvance();
                   else state.retry();
                 }}
                 dismissLabel="Review the lines"
@@ -653,7 +715,10 @@ export function TrainingRoute() {
         stepRefutation={stepRefutation}
         stepPostCorrect={stepPostCorrect}
         stepPlayedRefutation={stepPlayedRefutation}
+        stepSolution={stepSolution}
+        showAnswer={showAnswer}
         stopAutoplay={stopAutoplay}
+        onSkipIntro={skipIntro}
         paused={paused}
         deleting={deleting}
         onShareClick={() => {
@@ -698,6 +763,7 @@ export function TrainingRoute() {
           setShareAnonymous={setShareAnonymous}
           shareCopied={shareCopied}
           onCopy={() => void onCopyShareLink()}
+          onShared={() => recordShare(true, refreshProfile)}
           onClose={() => setShareOpen(false)}
         />
       )}

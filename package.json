@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "blog:gen": "node scripts/build-blog.mjs",
+    "learn:sync": "node scripts/build-learn.ts",
     "build": "node scripts/build-blog.mjs && node scripts/fetch-landing-stats.mjs && tsc -b && vite build && node scripts/gen-seo.mjs && playwright install chromium-headless-shell && node scripts/prerender.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -15,7 +16,10 @@
     "format": "prettier --write src",
     "test": "vitest run",
     "e2e": "playwright test",
-    "smoke": "playwright test tests/e2e/headers.spec.ts tests/e2e/engine.spec.ts"
+    "smoke": "playwright test tests/e2e/headers.spec.ts tests/e2e/engine.spec.ts",
+    "ad:stats": "node marketing/ad/stats.ts",
+    "ad:record": "node marketing/ad/record.ts",
+    "ad:render": "node marketing/ad/stitch.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
@@ -23,6 +27,7 @@
     "chess.js": "^1.4.0",
     "chessground": "^9.1.1",
     "clsx": "^2.1.1",
+    "gifenc": "^1.0.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-is": "^19.2.6",
@@ -34,6 +39,7 @@
     "@cloudflare/workers-types": "^4.20260612.1",
     "@fontsource/inter": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
+    "@mliebelt/pgn-parser": "^1.4.19",
     "@playwright/test": "^1.48.0",
     "@types/markdown-it": "^14.1.2",
     "@types/react": "^18.3.10",

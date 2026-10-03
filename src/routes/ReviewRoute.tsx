@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { BoardPanel } from '../components/BoardPanel';
 import { BoardControls } from '../components/BoardControls';
 import { ClassificationButtons } from '../components/ClassificationButtons';
-import { EvalDisplay } from '../components/EvalDisplay';
+import { WinningChancesDisplay } from '../components/WinningChancesDisplay';
 import { FeedbackBadge } from '../components/FeedbackBadge';
 import { MoveSequencePanel, type MovePair } from '../components/MoveSequencePanel';
 import { classifySwing, useReviewStore } from '../state/reviewStore';
@@ -178,6 +178,28 @@ export function ReviewRoute() {
             />
           );
         })()}
+
+        {r.game.pgn && (
+          <button
+            type="button"
+            className="btn-outline self-start text-sm"
+            data-testid="make-gif"
+            onClick={() =>
+              // The board shows the position after ply currentIndex + 1; start
+              // one ply earlier so the first move animates.
+              navigate('/moments', {
+                state: {
+                  pgn: r.game!.pgn,
+                  from: r.currentIndex,
+                  to: r.currentIndex + 8,
+                  orientation: r.orientation,
+                },
+              })
+            }
+          >
+            Make a GIF from here
+          </button>
+        )}
       </div>
 
       <aside className="card flex flex-col gap-4 sticky top-6 self-start max-h-[calc(100vh-3rem)] overflow-y-auto">
@@ -236,14 +258,14 @@ export function ReviewRoute() {
 
             {ev && swing && pos && pos.sanMove && (
               <div className="flex flex-col gap-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-text-secondary">Engine eval before</span>
-                  <EvalDisplay cp={ev.before} />
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-text-secondary">Engine eval after</span>
-                  <EvalDisplay cp={ev.after} />
-                </div>
+                <WinningChancesDisplay
+                  evalBefore={ev.before}
+                  evalAfter={ev.after}
+                  mover={pos.sideToMove === 'white' ? 'white' : 'black'}
+                  orientation={r.orientation}
+                  label={`${pos.moveNumber}${pos.sideToMove === 'white' ? '.' : '...'} ${pos.sanMove}`}
+                  showEngineEvals
+                />
                 <div className="flex justify-between text-sm">
                   <span className="text-text-secondary">Engine best</span>
                   <span className="font-mono text-text-primary">{ev.bestMove || '—'}</span>

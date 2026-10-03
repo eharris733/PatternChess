@@ -1,4 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
+import { BackLink } from '../components/BackLink';
 import { LandingTopBar } from '../components/landing/LandingTopBar';
 import { LandingFooter } from '../components/landing/LandingFooter';
 import { getPostBySlug, formatPostDate } from '../blog/posts';
@@ -70,12 +71,7 @@ export function BlogPost() {
       <LandingTopBar />
       <main id="main" className="flex-1 scroll-mt-20">
         <article className="max-w-3xl mx-auto px-6 py-12">
-          <Link
-            to="/blog"
-            className="font-mono uppercase text-xs tracking-tight text-text-primary/60 hover:text-gold-dark transition-colors"
-          >
-            ← Blog
-          </Link>
+          <BackLink to="/blog" label="Blog" />
           <h1 className="mt-6 text-3xl sm:text-4xl font-bold tracking-tight leading-tight">
             {post.title}
           </h1>

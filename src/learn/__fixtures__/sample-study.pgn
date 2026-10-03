@@ -1,0 +1,25 @@
+[Event "Sample Study: Italian basics"]
+[Site "https://lichess.org/study/abcd1234/ch1"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "C50"]
+[Opening "Italian Game"]
+[Annotator "https://lichess.org/@/SampleAuthor"]
+[StudyName "Sample Study"]
+[ChapterName "Italian basics"]
+[ChapterURL "https://lichess.org/study/abcd1234/ch1"]
+[Orientation "white"]
+
+{ The Italian starts here. [%csl Ge4] } 1. e4 { [%anno "helper", helper] Claim the centre. [%cal Ge2e4,Rd7d5] } 1... e5 2. Nf3 Nc6 3. Bc4 $1 { Aim at f7. } (3. Bb5 { The Spanish instead. } 3... a6 (3... Nf6 { Berlin. })) 3... Bc5 (3... Nf6?! $6 4. Ng5) 4. c3 *
+
+[Event "Sample Study: Rook endgame"]
+[Result "*"]
+[Variant "From Position"]
+[FEN "8/8/8/8/8/2k5/3r4/K7 b - - 0 1"]
+[SetUp "1"]
+[ChapterName "Rook endgame"]
+[ChapterURL "https://lichess.org/study/abcd1234/ch2"]
+[ChapterMode "gamebook"]
+[Orientation "black"]
+
+1... Kb3 2. Kb1 Rd1# *

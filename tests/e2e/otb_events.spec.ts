@@ -185,11 +185,11 @@ test('events card disappears quietly when the API is down or empty', async ({ pa
   await expect(page.getByText('Upcoming OTB events')).toHaveCount(0);
 });
 
-test('sidebar has an external Tournaments link', async ({ page }) => {
+test('sidebar no longer links Tournaments or Learn, and shows Leaderboards', async ({ page }) => {
   await stubAuthAndEvents(page);
   await page.goto('/dashboard');
-  const nav = page.getByRole('link', { name: /Tournaments/i });
-  await expect(nav).toBeVisible();
-  await expect(nav).toHaveAttribute('href', 'https://events.patternchess.com');
-  await expect(nav).toHaveAttribute('target', '_blank');
+  const nav = page.locator('nav').first();
+  await expect(nav.getByRole('link', { name: /Leaderboards/i })).toHaveAttribute('href', '/leaderboards');
+  await expect(nav.getByRole('link', { name: /Tournaments/i })).toHaveCount(0);
+  await expect(nav.getByRole('link', { name: /^Learn$/i })).toHaveCount(0);
 });

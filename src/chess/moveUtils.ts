@@ -32,6 +32,13 @@ export interface UciMove {
   promotion?: 'q' | 'r' | 'b' | 'n';
 }
 
+const UCI_MOVE = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
+
+/** Whether `uci` is a well-formed UCI move (guards arrow building). */
+export function isUciMove(uci: string | null | undefined): uci is string {
+  return !!uci && UCI_MOVE.test(uci);
+}
+
 export function parseUciMove(uci: string): UciMove {
   const from = uci.slice(0, 2);
   const to = uci.slice(2, 4);

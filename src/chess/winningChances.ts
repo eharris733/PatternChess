@@ -3,6 +3,14 @@
 
 export type MoveClassification = 'good' | 'inaccuracy' | 'mistake' | 'blunder';
 
+/** The only source of user-facing move-classification labels. */
+export const MOVE_CLASSIFICATION_LABEL: Record<MoveClassification, string> = {
+  good: 'Sound',
+  inaccuracy: 'Inaccuracy',
+  mistake: 'Mistake',
+  blunder: 'Blunder',
+};
+
 export const inaccuracyThresholdPercent = 10;
 export const mistakeThresholdPercent = 15;
 export const blunderThresholdPercent = 25;

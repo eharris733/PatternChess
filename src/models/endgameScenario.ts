@@ -30,6 +30,15 @@ export interface EndgameScenario {
   verifiedAt: Date | null;
   /** Set when that re-check found the position not actually holdable/winning. */
   retiredAt: Date | null;
+  // Spaced repetition — the same ladder as blunders (advanceSr in
+  // src/state/drills/applyDrillResult.ts; bucket via srBucket()).
+  cycleNumber: number;
+  timesCorrect: number;
+  timesAttempted: number;
+  lastDrillFailed: boolean;
+  lastDrilledAt: Date | null;
+  /** Null only before the SR migration's backfill reached the row (treated as due). */
+  nextDrillAt: Date | null;
 }
 
 /**
@@ -57,5 +66,16 @@ export function endgameScenarioFromJson(json: any): EndgameScenario {
     createdAt: new Date(json.created_at as string),
     verifiedAt: json.verified_at ? new Date(json.verified_at as string) : null,
     retiredAt: json.retired_at ? new Date(json.retired_at as string) : null,
+    cycleNumber: (json.cycle_number as number | null) ?? 0,
+    timesCorrect: (json.times_correct as number | null) ?? 0,
+    timesAttempted: (json.times_attempted as number | null) ?? 0,
+    lastDrillFailed: !!json.last_drill_failed,
+    lastDrilledAt: json.last_drilled_at ? new Date(json.last_drilled_at as string) : null,
+    nextDrillAt: json.next_drill_at ? new Date(json.next_drill_at as string) : null,
   };
+}
+
+/** Due for review now (unplayed and never-scheduled scenarios count as due). */
+export function isScenarioDue(s: Pick<EndgameScenario, 'nextDrillAt'>, now: Date = new Date()): boolean {
+  return !s.nextDrillAt || s.nextDrillAt.getTime() <= now.getTime();
 }

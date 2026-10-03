@@ -2,10 +2,12 @@ import { createContext, ReactNode, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { authService } from '../services/authService';
+import { takeStoredReferral } from '../lib/referral';
 import type { UserProfile } from '../models/userProfile';
 import { useSyncStore } from '../state/syncStore';
 import { useOnboardingStore } from '../state/onboardingStore';
 import { hasStoredTheme, useThemeStore } from '../state/themeStore';
+import { setCachedUserId } from '../services/db/currentUser';
 
 export interface AuthContextValue {
   session: Session | null;
@@ -59,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .getSession()
       .then(({ data }) => {
         if (cancelled) return;
+        setCachedUserId(data.session?.user?.id ?? null);
         setSession(data.session ?? null);
         scrubAuthFromUrl();
         setLoading(false);
@@ -70,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      setCachedUserId(nextSession?.user?.id ?? null);
       setSession(nextSession ?? null);
       scrubAuthFromUrl();
       if (event === 'SIGNED_IN' && nextSession) {
@@ -78,6 +82,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .then((p) => {
             setProfile(p);
             void useSyncStore.getState().startForProfile(p);
+            const ref = takeStoredReferral();
+            if (ref && ref !== p.referralCode) {
+              void authService
+                .claimReferral(ref)
+                .catch((err) => console.warn('[auth] claim_referral failed', err));
+            }
           })
           .catch((err) => console.warn('[auth] getOrCreateProfile failed', err));
       }

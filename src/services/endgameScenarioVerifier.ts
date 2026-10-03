@@ -51,6 +51,11 @@ export function toUserPov(fen: string, userColor: 'white' | 'black', scoreCp: nu
 
 let running = false;
 
+/** True while the verifier holds the analysis engine. */
+export function isEndgameVerificationRunning(): boolean {
+  return running;
+}
+
 export function startEndgameScenarioVerification(): () => void {
   if (running) return () => {};
   running = true;

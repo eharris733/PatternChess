@@ -37,3 +37,9 @@ playwright/.cache/
 .bg-shell/
 
 supabase/.temp
+# Opening-book build inputs/outputs (scripts/book, tools/book-builder)
+/data/
+/tools/book-builder/target/
+
+# Ad recordings (marketing/ad)
+marketing/ad/out/
