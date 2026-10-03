@@ -8,6 +8,7 @@ import {
   sortDueQueue,
 } from '../../models/blunder';
 import { currentUserId } from './currentUser';
+import { fetchAllRows, fetchInChunks } from './paginate';
 
 export async function insertBlunders(
   blunders: Omit<TablesInsert<'blunders'>, 'user_id'>[],
@@ -40,26 +41,24 @@ export async function insertBlunders(
 // endgame play-out slips also carry a game_id but aren't part of the game's
 // analysis, so these stay tactic-only.
 export async function getBlundersForGames(gameIds: string[]): Promise<Blunder[]> {
-  if (gameIds.length === 0) return [];
-  const { data, error } = await supabase
-    .from('blunders')
-    .select()
-    .in('game_id', gameIds)
-    .eq('kind', 'tactic')
-    .order('move_number');
-  if (error) throw error;
-  return (data ?? []).map(blunderFromJson);
+  const rows = await fetchInChunks(gameIds, (chunk) =>
+    fetchAllRows(() =>
+      supabase.from('blunders').select().in('game_id', chunk).eq('kind', 'tactic').order('id'),
+    ),
+  );
+  return rows.map(blunderFromJson).sort((a, b) => a.moveNumber - b.moveNumber);
 }
 
 export async function getBlunderCountsByGame(opts?: {
   userId?: string;
 }): Promise<Record<string, number>> {
-  let q = supabase.from('blunders').select('game_id').eq('kind', 'tactic');
-  if (opts?.userId) q = q.eq('user_id', opts.userId);
-  const { data, error } = await q;
-  if (error) throw error;
+  const rows = await fetchAllRows(() => {
+    let q = supabase.from('blunders').select('game_id').eq('kind', 'tactic').order('id');
+    if (opts?.userId) q = q.eq('user_id', opts.userId);
+    return q;
+  });
   const counts: Record<string, number> = {};
-  for (const row of (data ?? []) as Array<{ game_id: string }>) {
+  for (const row of rows as Array<{ game_id: string }>) {
     counts[row.game_id] = (counts[row.game_id] ?? 0) + 1;
   }
   return counts;
@@ -69,18 +68,21 @@ export async function getDueBlunders(opts?: { userId?: string }): Promise<Blunde
   const now = new Date().toISOString();
   // Retired rows (deepening showed the position wasn't really a blunder) are
   // hidden from the queue but keep their SR history and stay in Vault/stats.
-  let q = supabase
-    .from('blunders')
-    .select()
-    .lte('next_drill_at', now)
-    .is('retired_at', null)
-    .order('next_drill_at', { ascending: true });
-  if (opts?.userId) q = q.eq('user_id', opts.userId);
-  const { data, error } = await q;
-  if (error) throw error;
+  // Paged: a backlog past PostgREST's 1000-row cap used to show "Review 1000".
+  const rows = await fetchAllRows(() => {
+    let q = supabase
+      .from('blunders')
+      .select()
+      .lte('next_drill_at', now)
+      .is('retired_at', null)
+      .order('next_drill_at', { ascending: true })
+      .order('id');
+    if (opts?.userId) q = q.eq('user_id', opts.userId);
+    return q;
+  });
   // Final ordering (pressing reviews → mastered maintenance → new, by relative
   // overdue-ness) happens client-side in sortDueQueue — see its docstring for why.
-  return sortDueQueue((data ?? []).map(blunderFromJson));
+  return sortDueQueue(rows.map(blunderFromJson));
 }
 
 /**
@@ -88,13 +90,10 @@ export async function getDueBlunders(opts?: { userId?: string }): Promise<Blunde
  * mastery views on /openings. Not filtered by due date.
  */
 export async function getDrillsOfKind(kind: 'opening' | 'endgame'): Promise<Blunder[]> {
-  const { data, error } = await supabase
-    .from('blunders')
-    .select()
-    .eq('kind', kind)
-    .is('retired_at', null);
-  if (error) throw error;
-  return (data ?? []).map(blunderFromJson);
+  const rows = await fetchAllRows(() =>
+    supabase.from('blunders').select().eq('kind', kind).is('retired_at', null).order('id'),
+  );
+  return rows.map(blunderFromJson);
 }
 
 /**
@@ -103,10 +102,12 @@ export async function getDrillsOfKind(kind: 'opening' | 'endgame'): Promise<Blun
  * early still goes through the normal SR rules.
  */
 export async function getBlundersByIds(ids: string[]): Promise<Blunder[]> {
-  if (ids.length === 0) return [];
-  const { data, error } = await supabase.from('blunders').select().in('id', ids).is('retired_at', null);
-  if (error) throw error;
-  return sortDueQueue((data ?? []).map(blunderFromJson));
+  const rows = await fetchInChunks(ids, async (chunk) => {
+    const { data, error } = await supabase.from('blunders').select().in('id', chunk).is('retired_at', null);
+    if (error) throw error;
+    return data ?? [];
+  });
+  return sortDueQueue(rows.map(blunderFromJson));
 }
 
 export async function getDueTomorrowCount(opts?: { userId?: string }): Promise<number> {
@@ -155,18 +156,20 @@ export async function updateBlunderAfterDrill(blunder: Blunder): Promise<void> {
 export async function getEndgameCandidateBlunders(): Promise<Blunder[]> {
   const userId = await currentUserId();
   if (!userId) return [];
-  const { data, error } = await supabase
-    .from('blunders')
-    .select()
-    .eq('user_id', userId)
-    .eq('kind', 'tactic')
-    .eq('phase', 'endgame')
-    // Rows the deeper pass retired weren't real blunders — don't seed
-    // scenarios from them.
-    .is('retired_at', null)
-    .order('move_number');
-  if (error) throw error;
-  return (data ?? []).map(blunderFromJson);
+  const rows = await fetchAllRows(() =>
+    supabase
+      .from('blunders')
+      .select()
+      .eq('user_id', userId)
+      .eq('kind', 'tactic')
+      .eq('phase', 'endgame')
+      // Rows the deeper pass retired weren't real blunders — don't seed
+      // scenarios from them.
+      .is('retired_at', null)
+      .order('move_number')
+      .order('id'),
+  );
+  return rows.map(blunderFromJson);
 }
 
 /** Persist backfilled enrichment (engine line + motif tags) on a blunder row. */

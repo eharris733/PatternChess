@@ -39,14 +39,21 @@ export function TheoryMovesLine({
   if (source === 'engine') {
     const engine = shown.find((t) => t.engineBest) ?? shown[0];
     const others = shown.filter((t) => t !== engine);
+    const isMine = (t: TheoryMove) => !!highlightUci && sameUci(t.uci, highlightUci);
     return (
       <p className="text-text-primary text-sm" data-testid="theory-moves-line">
         <span className="font-semibold">Best: </span>
-        <span className="font-mono font-semibold">{engine.san}</span>
+        <span className={clsx('font-mono font-semibold', isMine(engine) && 'text-correct')}>{engine.san}</span>
+        {isMine(engine) && ' (your move)'}
         {others.length > 0 && (
           <>
             {' · also fine: '}
-            <span className="font-mono">{others.map((t) => t.san).join(', ')}</span>
+            {others.map((t, i) => (
+              <span key={t.uci}>
+                {i > 0 && ', '}
+                <span className={clsx('font-mono', isMine(t) && 'font-semibold text-correct')}>{t.san}</span>
+              </span>
+            ))}
           </>
         )}
       </p>

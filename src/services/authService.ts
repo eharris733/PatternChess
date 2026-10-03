@@ -2,6 +2,8 @@ import { supabase } from '../lib/supabase';
 import { getAnonId } from '../lib/anonId';
 import type { TablesUpdate } from '../lib/database.types';
 import { ALL_TIME_CONTROLS } from './chessApiService';
+import { fetchAllRows, fetchInChunks } from './db/paginate';
+import { currentUserId } from './db/currentUser';
 import {
   UserProfile,
   userProfileFromJson,
@@ -33,13 +35,15 @@ export const authService = {
   },
 
   async getProfile(): Promise<UserProfile | null> {
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData.user;
-    if (!user) return null;
+    // Cached session id, not getUser(): refreshProfile runs often (flair,
+    // prefs, achievements) and getUser() is a network call held under the
+    // gotrue lock — see currentUserId. RLS scopes the read either way.
+    const userId = await currentUserId();
+    if (!userId) return null;
     const { data, error } = await supabase
       .from('profiles')
       .select()
-      .eq('id', user.id)
+      .eq('id', userId)
       .maybeSingle();
     if (error) return null;
     if (!data) return null;
@@ -241,14 +245,21 @@ export const authService = {
     // Claim blunders through the user's now-owned games. (Previously this went
     // through a `claim_blunders_for_user` RPC, but that function isn't deployed
     // and always 404'd straight into this path — so do it directly.)
-    const { data: games } = await supabase.from('games').select('id').eq('user_id', user.id);
-    const gameIds = (games ?? []).map((g: any) => g.id as string);
-    if (gameIds.length > 0) {
-      await supabase
-        .from('blunders')
-        .update({ user_id: user.id })
-        .in('game_id', gameIds)
-        .is('user_id', null);
-    }
+    // Paged + chunked: a big history overflows both the 1000-row read cap
+    // and the URL length of one `.in()` list.
+    const games = await fetchAllRows(() =>
+      supabase.from('games').select('id').eq('user_id', user.id).order('id'),
+    );
+    await fetchInChunks(
+      games.map((g) => g.id),
+      async (chunk) => {
+        await supabase
+          .from('blunders')
+          .update({ user_id: user.id })
+          .in('game_id', chunk)
+          .is('user_id', null);
+        return [];
+      },
+    );
   },
 };

@@ -1,17 +1,21 @@
 import { useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import type { DrawShape } from 'chessground/draw';
 import { BoardPanel } from '../BoardPanel';
 import { MasteryDots } from '../MasteryDots';
-import { parseUciMove, toKey } from '../../chess/moveUtils';
+import { isUciMove, parseUciMove, toKey } from '../../chess/moveUtils';
 import { DEVIATION_REASON_LABEL, type DeviationLeak } from '../../chess/openingDeviation';
 import { SR_BUCKET_LABEL, srBucket, type Blunder } from '../../models/blunder';
 import type { RepertoireMove } from '../../models/repertoire';
 import { TheoryMovesLine } from './TheoryMovesLine';
+import { useAuth } from '../../auth/useAuth';
+import { recordOpeningReview } from '../../lib/openingReviews';
 
-function arrow(uci: string, brush: string): DrawShape {
+/** Arrow for a UCI move; none for a malformed one (it would draw at NaN). */
+function arrow(uci: string, brush: string): DrawShape[] {
+  if (!isUciMove(uci)) return [];
   const m = parseUciMove(uci);
-  return { orig: toKey(m.from), dest: toKey(m.to), brush };
+  return [{ orig: toKey(m.from), dest: toKey(m.to), brush }];
 }
 
 export function moveLabel(fen: string, moveNumber: number, san: string): string {
@@ -21,7 +25,7 @@ export function moveLabel(fen: string, moveNumber: number, san: string): string 
 /**
  * One recurring exit: the position with your move (red) and the theory
  * moves (green), how often it happened, where it sits on the mastery chain,
- * and the two things to do about it — train it, or replay the game.
+ * and training it.
  */
 export function DeviationCard({
   leak,
@@ -39,27 +43,41 @@ export function DeviationCard({
   repertoireMove: RepertoireMove | null;
 }) {
   const navigate = useNavigate();
+  const { refreshProfile } = useAuth();
   const shapes = useMemo(
-    () => [...leak.theoryMoves.slice(0, 3).map((t) => arrow(t.uci, 'green')), arrow(leak.playedUci, 'red')],
+    () => [...leak.theoryMoves.slice(0, 3).flatMap((t) => arrow(t.uci, 'green')), ...arrow(leak.playedUci, 'red')],
     [leak],
   );
-  const [newest] = leak.gameIds;
-  const href = `/openings/review/${newest}${leak.gameIds.length > 1 ? `?games=${leak.gameIds.join(',')}` : ''}`;
   const label = moveLabel(leak.fenBefore, leak.moveNumber, leak.playedSan);
+  const train = drill
+    ? () => {
+        recordOpeningReview(() => void refreshProfile());
+        navigate('/training', {
+          state: { blunderIds: [drill.id], focusLabel: `${openingLabel} · ${label}` },
+        });
+      }
+    : null;
+  const board = (
+    <BoardPanel
+      fen={leak.fenBefore}
+      orientation={color}
+      movableFor={null}
+      shapes={shapes}
+      viewOnly
+      coordinates={false}
+      sounds={false}
+    />
+  );
 
   return (
     <li data-testid="deviation-card" className="flex flex-col sm:flex-row gap-4 border-2 border-text-primary/20 p-3">
-      <Link to={href} className="w-full sm:w-40 shrink-0 block" aria-label={`Replay the game with ${label}`}>
-        <BoardPanel
-          fen={leak.fenBefore}
-          orientation={color}
-          movableFor={null}
-          shapes={shapes}
-          viewOnly
-          coordinates={false}
-          sounds={false}
-        />
-      </Link>
+      {train ? (
+        <button type="button" onClick={train} className="w-full sm:w-40 shrink-0 block" aria-label={`Train ${label}`}>
+          {board}
+        </button>
+      ) : (
+        <div className="w-full sm:w-40 shrink-0">{board}</div>
+      )}
       <div className="flex flex-col gap-2 min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className="font-mono text-lg font-semibold text-incorrect">You played {label}</span>
@@ -93,11 +111,7 @@ export function DeviationCard({
                 type="button"
                 className="btn-primary text-sm"
                 data-testid="train-position"
-                onClick={() =>
-                  navigate('/training', {
-                    state: { blunderIds: [drill.id], focusLabel: `${openingLabel} · ${label}` },
-                  })
-                }
+                onClick={train ?? undefined}
               >
                 Train
               </button>
@@ -105,9 +119,6 @@ export function DeviationCard({
           ) : leak.avgChancesLost == null ? (
             <span className="text-xs text-text-primary">Engine check pending</span>
           ) : null}
-          <Link to={href} className="btn-outline text-sm" data-testid="deviation-link">
-            Replay
-          </Link>
         </div>
       </div>
     </li>

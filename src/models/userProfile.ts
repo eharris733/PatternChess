@@ -52,7 +52,7 @@ export interface UserProfile {
   referralCode: string | null;
   /** Friends who joined through this user's invite link (claim_referral RPC). */
   referralsCount: number;
-  /** /openings reviews opened (increment_opening_reviews RPC) — backs the review achievements. */
+  /** Opening training started from /openings (increment_opening_reviews RPC) — backs the review achievements. */
   openingReviewsOpened: number;
   /** Distinct Learn chapters completed ("<slug>/<chapter>", mark_learn_chapter_done RPC). */
   learnChaptersDone: string[];

@@ -220,7 +220,10 @@ export function startOpeningDeviationScan(
         }
       }
     } catch (err) {
-      console.warn('[openings] deviation scan stopped', err);
+      // A stolen auth lock aborts the in-flight request; nothing is lost —
+      // unstamped games are picked up on the next mount.
+      if (err instanceof Error && err.name === 'AbortError') console.debug('[openings] deviation scan interrupted', err);
+      else console.warn('[openings] deviation scan stopped', err);
     } finally {
       running = false;
       report();

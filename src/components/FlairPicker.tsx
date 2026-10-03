@@ -6,12 +6,49 @@ import { evaluateFlairs, FLAIR_TRACK_LABEL, FLAIR_TRACK_ORDER } from '../lib/fla
 import { authService } from '../services/authService';
 import { FlairBadge } from './FlairBadge';
 import { Skeleton } from './Skeleton';
+import { CloseIcon } from './icons/CloseIcon';
 
 /**
- * Profile section: pick the flair shown next to your name (profile header and
- * leaderboards). Locked flairs show what unlocks them and how close you are.
+ * Pick the flair shown next to your name (profile header and leaderboards),
+ * in a modal opened from the profile header's badge. Locked flairs show what
+ * unlocks them and how close you are.
  */
-export function FlairPicker() {
+export function FlairPickerModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Choose your flair"
+      onClick={onClose}
+    >
+      <div
+        className="card relative max-w-xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          aria-label="Close"
+          className="btn-ghost absolute top-3 right-3 p-1 text-text-secondary hover:text-text-primary"
+          onClick={onClose}
+        >
+          <CloseIcon className="h-5 w-5" />
+        </button>
+        <FlairPickerGrid />
+      </div>
+    </div>
+  );
+}
+
+function FlairPickerGrid() {
   const { profile, refreshProfile } = useAuth();
   const { achievements, isPending } = useAchievements();
   const [selected, setSelected] = useState<string | null>(profile?.flair ?? null);
@@ -37,8 +74,8 @@ export function FlairPicker() {
   };
 
   return (
-    <section className="card flex flex-col gap-4" data-testid="flair-picker">
-      <header className="flex items-baseline justify-between gap-2">
+    <section className="flex flex-col gap-4" data-testid="flair-picker">
+      <header className="flex items-baseline gap-3 pr-10">
         <h2 className="heading-md">Flair</h2>
         <span className="text-text-secondary text-xs">
           {unlockedCount}/{flairs.length} unlocked

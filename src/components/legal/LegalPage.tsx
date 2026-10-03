@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { BackLink } from '../BackLink';
 import { Link } from 'react-router-dom';
 import { LandingTopBar } from '../landing/LandingTopBar';
 import { LandingFooter } from '../landing/LandingFooter';
@@ -15,12 +16,7 @@ export function LegalPage({ title, effectiveDate, children }: LegalPageProps) {
       <LandingTopBar />
       <main id="main" className="flex-1 scroll-mt-20">
         <div className="max-w-3xl mx-auto px-6 py-12">
-          <Link
-            to="/"
-            className="font-mono uppercase text-xs tracking-tight text-text-primary/60 hover:text-gold-dark transition-colors"
-          >
-            ← Back home
-          </Link>
+          <BackLink to="/" label="Back home" />
           <h1 className="mt-6 text-3xl font-bold tracking-tight">{title}</h1>
           <p className="mt-2 font-mono uppercase text-xs tracking-tight text-text-primary/50">
             Effective {effectiveDate}

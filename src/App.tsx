@@ -46,9 +46,6 @@ const EndgamesRoute = lazy(() =>
 const OpeningsRoute = lazy(() =>
   import('./routes/OpeningsRoute').then((m) => ({ default: m.OpeningsRoute })),
 );
-const OpeningReviewRoute = lazy(() =>
-  import('./routes/OpeningReviewRoute').then((m) => ({ default: m.OpeningReviewRoute })),
-);
 const LearnRoute = lazy(() => import('./routes/LearnRoute').then((m) => ({ default: m.LearnRoute })));
 const LearnStudyRoute = lazy(() =>
   import('./routes/LearnStudyRoute').then((m) => ({ default: m.LearnStudyRoute })),
@@ -113,7 +110,8 @@ export default function App() {
         <Route path="/vault" element={<VaultRoute />} />
         <Route path="/endgames" element={<EndgamesRoute />} />
         <Route path="/openings" element={<OpeningsRoute />} />
-        <Route path="/openings/review/:gameId" element={<OpeningReviewRoute />} />
+        {/* The game-replay review was removed (2026-10-03); old links land on /openings. */}
+        <Route path="/openings/review/*" element={<Navigate to="/openings" replace />} />
         <Route path="/learn" element={<LearnRoute />} />
         <Route path="/learn/:slug/:chapter?" element={<LearnStudyRoute />} />
         <Route path="/profile" element={<ProfileRoute />} />

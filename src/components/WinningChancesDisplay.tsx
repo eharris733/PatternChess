@@ -9,7 +9,7 @@ const formatSwingEval = (cp: number) => formatEval(cp, { decimals: 1, mate: 'sym
 
 type Side = 'white' | 'black';
 
-/** Chess colours for the bar — the same White / Black swatches as BookExplorerPanel. */
+/** Chess colours for the bar — White / Black swatches. */
 const SIDE_FILL: Record<Side, string> = { white: '#ffffff', black: '#3a3a3a' };
 
 function toneFor(lost: number): { text: string; bg: string } {

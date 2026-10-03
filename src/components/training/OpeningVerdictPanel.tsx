@@ -13,6 +13,8 @@ function headline(v: OpeningVerdict): string {
       return `Great! ${v.san} is your repertoire move.`;
     case 'book':
       return `Great! ${v.san} is book.`;
+    case 'best':
+      return `Great! ${v.san} is the engine's top move.`;
     case 'sound':
       return `Good move. ${v.san} holds up.`;
   }

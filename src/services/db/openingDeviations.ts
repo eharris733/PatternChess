@@ -10,6 +10,7 @@ import {
   type OpeningDeviation,
 } from '../../chess/openingDeviation';
 import { currentUserId } from './currentUser';
+import { fetchAllRows, fetchInChunks } from './paginate';
 
 const STATUSES: readonly DeviationStatus[] = [
   'user_left',
@@ -301,21 +302,16 @@ export async function setPastBookResult(
 export async function getDeviations(): Promise<OpeningDeviation[]> {
   const userId = await currentUserId();
   if (!userId) return [];
-  const out: OpeningDeviation[] = [];
-  const PAGE = 1000;
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase
+  const rows = await fetchAllRows(() =>
+    supabase
       .from('opening_deviations')
       .select()
       .eq('user_id', userId)
       .neq('status', 'skipped')
       .order('created_at', { ascending: false })
-      .range(from, from + PAGE - 1);
-    if (error) throw error;
-    out.push(...(data ?? []).map(openingDeviationFromJson));
-    if ((data?.length ?? 0) < PAGE) break;
-  }
-  return out;
+      .order('id'),
+  );
+  return rows.map(openingDeviationFromJson);
 }
 
 /**
@@ -368,67 +364,51 @@ export async function hasTacticForGamePosition(gameId: string, epd: string): Pro
 export async function retireOrphanOpeningDrills(): Promise<number> {
   const userId = await currentUserId();
   if (!userId) return 0;
-  const { data: drills, error } = await supabase
-    .from('blunders')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('kind', 'opening')
-    .is('retired_at', null);
-  if (error) throw error;
-  if (!drills?.length) return 0;
-  const { data: refs, error: refErr } = await supabase
-    .from('opening_deviations')
-    .select('blunder_id')
-    .eq('user_id', userId)
-    .not('blunder_id', 'is', null);
-  if (refErr) throw refErr;
-  const live = new Set((refs ?? []).map((r) => r.blunder_id));
+  // Both reads must be complete: a refs list truncated at PostgREST's
+  // 1000-row cap would make live drills look orphaned and retire them.
+  const drills = await fetchAllRows(() =>
+    supabase.from('blunders').select('id').eq('user_id', userId).eq('kind', 'opening').is('retired_at', null).order('id'),
+  );
+  if (drills.length === 0) return 0;
+  const refs = await fetchAllRows(() =>
+    supabase
+      .from('opening_deviations')
+      .select('blunder_id')
+      .eq('user_id', userId)
+      .not('blunder_id', 'is', null)
+      .order('id'),
+  );
+  const live = new Set(refs.map((r) => r.blunder_id));
   const orphans = drills.map((d) => d.id).filter((id) => !live.has(id));
   if (orphans.length === 0) return 0;
-  for (let i = 0; i < orphans.length; i += 200) {
+  await fetchInChunks(orphans, async (chunk) => {
     const { error: upErr } = await supabase
       .from('blunders')
       .update({ retired_at: new Date().toISOString() })
-      .in('id', orphans.slice(i, i + 200));
+      .in('id', chunk);
     if (upErr) throw upErr;
-  }
+    return [];
+  });
   return orphans.length;
-}
-
-/** The deviation row for one game (the opening review screen). */
-export async function getDeviationForGame(gameId: string): Promise<OpeningDeviation | null> {
-  const userId = await currentUserId();
-  if (!userId) return null;
-  const { data, error } = await supabase
-    .from('opening_deviations')
-    .select()
-    .eq('user_id', userId)
-    .eq('game_id', gameId)
-    .maybeSingle();
-  if (error) throw error;
-  return data ? openingDeviationFromJson(data) : null;
 }
 
 /** Games where the user was still in theory at move 10 (achievement metric). */
 export async function countBookDepthGames(): Promise<number> {
   const userId = await currentUserId();
   if (!userId) return 0;
-  let n = 0;
-  const PAGE = 1000;
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase
+  const rows = await fetchAllRows(() =>
+    supabase
       .from('opening_deviations')
       .select('status, reason, ply, book_end_ply')
       .eq('user_id', userId)
       .neq('status', 'skipped')
-      .range(from, from + PAGE - 1);
-    if (error) throw error;
-    for (const r of data ?? []) {
-      const status = (STATUSES as readonly string[]).includes(r.status) ? (r.status as DeviationStatus) : 'skipped';
-      const reason = (REASONS as readonly string[]).includes(r.reason ?? '') ? (r.reason as DeviationReason) : null;
-      if (stayedInBookThrough({ status, reason, ply: r.ply, bookEndPly: r.book_end_ply })) n++;
-    }
-    if ((data?.length ?? 0) < PAGE) break;
+      .order('id'),
+  );
+  let n = 0;
+  for (const r of rows) {
+    const status = (STATUSES as readonly string[]).includes(r.status) ? (r.status as DeviationStatus) : 'skipped';
+    const reason = (REASONS as readonly string[]).includes(r.reason ?? '') ? (r.reason as DeviationReason) : null;
+    if (stayedInBookThrough({ status, reason, ply: r.ply, bookEndPly: r.book_end_ply })) n++;
   }
   return n;
 }

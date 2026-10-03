@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { BackLink } from '../components/BackLink';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
@@ -221,9 +222,7 @@ export function LearnStudyRoute() {
   return (
     <div className="max-w-6xl mx-auto flex flex-col gap-5">
       <header className="flex flex-col gap-2">
-        <Link to={`/learn${meta.category === 'openings' ? '' : `?tab=${meta.category}`}`} className="label hover:text-text-primary">
-          Learn
-        </Link>
+        <BackLink to={`/learn${meta.category === 'openings' ? '' : `?tab=${meta.category}`}`} label="Learn" />
         <h1 className="heading-lg">{meta.title}</h1>
         <p className="text-text-secondary text-sm" data-testid="learn-attribution">
           Study by{' '}

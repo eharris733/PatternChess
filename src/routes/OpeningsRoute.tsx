@@ -15,11 +15,13 @@ import {
   type DeviationLeak,
   type OpeningSummary,
 } from '../chess/openingDeviation';
-import { CASTLING_NORMALIZE, parseUciMove, toKey } from '../chess/moveUtils';
+import { CASTLING_NORMALIZE, isUciMove, parseUciMove, toKey } from '../chess/moveUtils';
 import { formatOpeningDisplay } from '../chess/openingNames';
 import { useOpeningDeviations } from '../hooks/useOpeningDeviations';
 import { isDue, useDrillsOfKind } from '../hooks/useDrillsOfKind';
 import { useRepertoire } from '../hooks/useRepertoire';
+import { useAuth } from '../auth/useAuth';
+import { recordOpeningReview } from '../lib/openingReviews';
 import { studiesForOpening } from '../learn/catalog';
 import { srBucket, type Blunder } from '../models/blunder';
 import { repertoireMoveFor, type RepertoireMap } from '../models/repertoire';
@@ -59,9 +61,11 @@ function SideSwatch({ color }: { color: 'white' | 'black' }) {
   );
 }
 
-function arrow(uci: string, brush: string): DrawShape {
+/** Arrow for a UCI move; none for a malformed one (it would draw at NaN). */
+function arrow(uci: string, brush: string): DrawShape[] {
+  if (!isUciMove(uci)) return [];
   const m = parseUciMove(uci);
-  return { orig: toKey(m.from), dest: toKey(m.to), brush };
+  return [{ orig: toKey(m.from), dest: toKey(m.to), brush }];
 }
 
 /** Drill rows for the summary's leaks that are still live (not retired). */
@@ -104,7 +108,7 @@ function OpeningsHero({
   const shapes = useMemo(
     () =>
       top
-        ? [...top.theoryMoves.slice(0, 2).map((t) => arrow(t.uci, 'green')), arrow(top.playedUci, 'red')]
+        ? [...top.theoryMoves.slice(0, 2).flatMap((t) => arrow(t.uci, 'green')), ...arrow(top.playedUci, 'red')]
         : [],
     [top],
   );
@@ -290,6 +294,7 @@ function OpeningPatternCard({
 }
 
 export function OpeningsRoute() {
+  const { refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const colorParam = params.get('color');
@@ -325,8 +330,11 @@ export function OpeningsRoute() {
   const dueCount = allDrills.filter((d) => isDue(d)).length;
   const masteredCount = allDrills.filter((d) => srBucket(d) === 'mastered').length;
 
-  const drill = (ids: string[], label: string) =>
+  const countReview = () => recordOpeningReview(() => void refreshProfile());
+  const drill = (ids: string[], label: string) => {
+    countReview();
     navigate('/training', { state: { blunderIds: ids, focusLabel: label } });
+  };
 
   const left = progress ? progress.unwalked + progress.unscored + progress.pastBook : 0;
   const scanning = left > 0 && !!progress?.active;
@@ -349,7 +357,10 @@ export function OpeningsRoute() {
             type="button"
             className="btn-primary"
             data-testid="review-due"
-            onClick={() => navigate('/training', { state: { kindFilter: 'opening' } })}
+            onClick={() => {
+              countReview();
+              navigate('/training', { state: { kindFilter: 'opening' } });
+            }}
           >
             Review {dueCount} due
           </button>

@@ -18,7 +18,7 @@ import {
   ContextFilter,
   computeBlunderContext,
 } from '../chess/blunderContext';
-import { CASTLING_NORMALIZE, moveToUci, parseUciMove, toKey } from '../chess/moveUtils';
+import { CASTLING_NORMALIZE, isUciMove, moveToUci, parseUciMove, toKey } from '../chess/moveUtils';
 import {
   buildLineMoves,
   buildRefutationPairs,
@@ -72,11 +72,12 @@ export interface IncorrectFeedback {
 /**
  * How an opening drill was solved — drives the "Great / Good" feedback and
  * the "Add to repertoire" offer. `repertoire` = the user's saved move;
- * `book` = a theory move strong players play; `sound` = an engine-approved
- * move outside theory (within the 5% accept bar).
+ * `book` = a theory move strong players play; `best` = the engine's top
+ * move (engine-sourced drills, past the book); `sound` = another
+ * engine-approved move (within the 5% accept bar).
  */
 export interface OpeningVerdict {
-  kind: 'repertoire' | 'book' | 'sound';
+  kind: 'repertoire' | 'book' | 'best' | 'sound';
   uci: string;
   san: string;
   /** Position the move was played from (the drill FEN). */
@@ -343,9 +344,11 @@ function openingVerdictFor(blunder: Blunder, uci: string, san: string, playedRep
   // Engine-sourced drills list engine candidates too; only moves strong
   // players actually chose count as book.
   const isBook = !!hit && (data?.source === 'book' || hit.games > 0);
+  const engineTop = theory.find((t) => t.engineBest)?.uci ?? blunder.correctMoves[0]?.move;
+  const isBest = !!hit?.engineBest || (!!engineTop && sameUci(engineTop, uci));
   const main = theory[0] ?? null;
   return {
-    kind: playedRepertoire ? 'repertoire' : isBook ? 'book' : 'sound',
+    kind: playedRepertoire ? 'repertoire' : isBook ? 'book' : isBest ? 'best' : 'sound',
     uci,
     san,
     fen: blunder.fen,
@@ -1439,7 +1442,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     // Hint the current step's expected move (falls back to the stored best
     // move for legacy single-move rows).
     const uci = state.drillPlies[state.drillPly] ?? b.correctMoves[0]?.move;
-    if (!uci) return;
+    if (!isUciMove(uci)) return;
     const from = uci.slice(0, 2);
     const to = uci.slice(2, 4);
 

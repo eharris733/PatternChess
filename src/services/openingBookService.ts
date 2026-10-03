@@ -55,17 +55,6 @@ export async function fetchBook(fens: string[]): Promise<Map<string, BookPositio
   return out;
 }
 
-/**
- * Synchronous cache read: the position when this session already fetched
- * it (null = known to be outside the book), undefined when it never did.
- * Lets panels render a cached position on the first frame instead of
- * flashing a loading state.
- */
-export function peekBookPosition(fen: string): BookPosition | null | undefined {
-  const epd = bookEpd(fen);
-  return memoryCache.has(epd) ? memoryCache.get(epd)! : undefined;
-}
-
 /** Single-position convenience over `fetchBook`. */
 export async function fetchBookPosition(fen: string): Promise<BookPosition | null | undefined> {
   const map = await fetchBook([fen]);

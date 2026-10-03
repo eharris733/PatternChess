@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
 import { authService } from '../services/authService';
@@ -10,8 +11,9 @@ import {
 } from '../services/gameMetadataBackfill';
 import { RankBadge } from '../components/insights/RankBadge';
 import { FlairBadge, FLAIR_RING_CLASS } from '../components/FlairBadge';
-import { FlairPicker } from '../components/FlairPicker';
-import { AchievementsLinkCard } from '../components/achievements/AchievementsLinkCard';
+import { FlairPickerModal } from '../components/FlairPicker';
+import { AchievementsTrophyLink } from '../components/achievements/AchievementsTrophyLink';
+import { SettingsLink } from '../components/SettingsLink';
 import { flairById } from '../lib/flair';
 import clsx from 'clsx';
 import { GameTypePreferences } from '../components/GameTypePreferences';
@@ -23,6 +25,16 @@ import { useThemeStore, type BoardTheme } from '../state/themeStore';
 export function ProfileRoute() {
   const { profile, refreshProfile, user } = useAuth();
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const [flairOpen, setFlairOpen] = useState(false);
+  const settingsRef = useRef<HTMLElement>(null);
+  // Router doesn't scroll to hashes: the sidebar / header gear links to
+  // /profile#settings. Re-runs on each click (location.key changes).
+  useEffect(() => {
+    // Instant, not smooth: a smooth scroll is cancelled by the layout shifts
+    // while the profile's cards load.
+    if (location.hash === '#settings' && profile) settingsRef.current?.scrollIntoView({ block: 'start' });
+  }, [location.hash, location.key, profile?.id]);
 
   const activeTheme = useThemeStore((s) => s.theme);
   const setStoreTheme = useThemeStore((s) => s.setTheme);
@@ -187,20 +199,37 @@ export function ProfileRoute() {
         ) : (
           <div className={clsx('w-14 h-14 rounded-full bg-text-primary', ring)} />
         )}
-        <div className="flex flex-col gap-1">
-          <h1 className="heading-lg">{profile?.displayName ?? 'Your profile'}</h1>
-          <FlairBadge flair={profile?.flair} size="md" className="self-start" />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex items-center gap-3">
+            <h1 className="heading-lg min-w-0 truncate">{profile?.displayName ?? 'Your profile'}</h1>
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <AchievementsTrophyLink />
+              <SettingsLink />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFlairOpen(true)}
+            aria-label={flair ? `Flair: ${flair.title}. Change flair` : 'Choose flair'}
+            data-testid="flair-open"
+            className="self-start transition-opacity hover:opacity-80"
+          >
+            {flair ? (
+              <FlairBadge flair={profile?.flair} size="md" />
+            ) : (
+              <span className="inline-flex items-center border border-dashed border-text-primary/40 px-2 py-0.5 font-mono text-xs uppercase text-text-primary">
+                Choose flair
+              </span>
+            )}
+          </button>
           <p className="text-text-secondary text-sm">{user?.email}</p>
         </div>
       </header>
+      {flairOpen && <FlairPickerModal onClose={() => setFlairOpen(false)} />}
 
       <RankBadge />
 
-      <FlairPicker />
-
-      <AchievementsLinkCard />
-
-      <section className="card flex flex-col gap-4">
+      <section id="settings" ref={settingsRef} className="card flex flex-col gap-4 scroll-mt-6">
         <h2 className="heading-md">Linked accounts</h2>
         <div className="flex flex-col gap-2">
           <label className="label">Lichess username</label>

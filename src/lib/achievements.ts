@@ -63,7 +63,7 @@ export interface AchievementMetrics {
   referralsCount: number; // friends who joined through your invite link
   minutesTrained: number; // lifetime training minutes (sessions capped at 120 min each)
   activeDays: number; // lifetime distinct days with ≥1 correct drill
-  openingReviewsOpened: number; // /openings reviews opened
+  openingReviewsOpened: number; // opening training started from /openings
   openingSolved: number; // first-attempt correct recalls on opening drills
   openingMastered: number; // opening drills mastered
   bookDepthGames: number; // games still in theory at move 10 (stayedInBookThrough)
@@ -153,9 +153,9 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { id: 'review-1000', title: 'Woodpecker', description: 'Recall 1,000 positions.', category: 'practice', metric: 'reviewed', threshold: 1000 },
   { id: 'review-2500', title: 'Relentless', description: 'Recall 2,500 positions.', category: 'practice', metric: 'reviewed', threshold: 2500 },
 
-  // Openings — the /openings theory-exit review, opening drills and /learn.
-  { id: 'opening-review-1', title: 'First Look', description: 'Open one of your opening exits and replay it against the database.', category: 'openings', metric: 'openingReviewsOpened', threshold: 1, icon: 'opening', action: { label: 'See your openings', href: '/openings' } },
-  { id: 'opening-review-10', title: 'Case Study', description: 'Review 10 opening exits.', category: 'openings', metric: 'openingReviewsOpened', threshold: 10, icon: 'opening' },
+  // Openings — training your /openings theory exits, opening drills and /learn.
+  { id: 'opening-review-1', title: 'First Look', description: 'Train one of your opening exits from the Openings tab.', category: 'openings', metric: 'openingReviewsOpened', threshold: 1, icon: 'opening', action: { label: 'See your openings', href: '/openings' } },
+  { id: 'opening-review-10', title: 'Case Study', description: 'Start opening training from the Openings tab 10 times.', category: 'openings', metric: 'openingReviewsOpened', threshold: 10, icon: 'opening' },
   { id: 'opening-drill-1', title: 'Back in Book', description: 'Solve an opening drill on the first try.', category: 'openings', metric: 'openingSolved', threshold: 1, icon: 'opening' },
   { id: 'opening-drill-25', title: 'Theory Student', description: 'Solve 25 opening drills.', category: 'openings', metric: 'openingSolved', threshold: 25, icon: 'opening' },
   { id: 'opening-drill-100', title: 'Repertoire Builder', description: 'Solve 100 opening drills.', category: 'openings', metric: 'openingSolved', threshold: 100, icon: 'opening' },

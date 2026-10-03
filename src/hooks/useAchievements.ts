@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/useAuth';
 import { playSound } from '../lib/sounds';
 import { useBlunderStats } from './useBlunderStats';
@@ -14,6 +14,28 @@ import {
   type EvaluatedAchievement,
 } from '../lib/achievements';
 
+// "Viewed" = earned ids the user has seen on /achievements. Separate from the
+// chime's seen-set above, which is written wherever the hook first runs.
+const VIEWED_EVENT = 'pc:ach-viewed';
+const viewedStorageKey = (profileId: string) => `pc:ach-viewed:${profileId}`;
+
+function readIdSet(key: string): string[] | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as string[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeIdSet(key: string, ids: string[]): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(ids));
+  } catch {
+    /* private mode etc. */
+  }
+}
+
 /**
  * Assembles the shared achievement metric bundle from the stats the app already
  * loads (blunder stats, vault games, profile streaks + rating history) and
@@ -25,6 +47,10 @@ export function useAchievements(): {
   earned: number;
   total: number;
   isPending: boolean;
+  /** Earned ids not yet seen on /achievements (the trophy badge count). */
+  unseenIds: string[];
+  /** Mark everything earned so far as seen (call from /achievements). */
+  markViewed: () => void;
 } {
   const { profile } = useAuth();
   const statsQuery = useBlunderStats();
@@ -141,11 +167,56 @@ export function useAchievements(): {
     }
   }, [earnedKey, profile?.id, statsQuery.isPending, totalsQuery.isPending, bookDepthQuery.isPending]);
 
+  // Unseen badge. Every metric source must have loaded before comparing,
+  // or a late query would briefly look like fresh unlocks.
+  const ready =
+    !!profile?.id &&
+    !statsQuery.isPending &&
+    !totalsQuery.isPending &&
+    !bookDepthQuery.isPending &&
+    !gamesQuery.isPending &&
+    !scenariosQuery.isPending;
+  const viewedKey = profile?.id ? viewedStorageKey(profile.id) : null;
+  const [viewed, setViewed] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (!viewedKey) return;
+    const sync = () => setViewed(readIdSet(viewedKey));
+    sync();
+    window.addEventListener(VIEWED_EVENT, sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener(VIEWED_EVENT, sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, [viewedKey]);
+
+  const markViewed = useCallback(() => {
+    if (!viewedKey || !ready) return;
+    const stored = readIdSet(viewedKey);
+    const now = earnedKey ? earnedKey.split(',') : [];
+    if (stored && now.every((id) => stored.includes(id))) return;
+    writeIdSet(viewedKey, [...new Set([...(stored ?? []), ...now])]);
+    window.dispatchEvent(new Event(VIEWED_EVENT));
+  }, [viewedKey, ready, earnedKey]);
+
+  // First evaluation for this user/browser: everything already earned counts
+  // as seen, so existing players don't get a badge for their whole history.
+  useEffect(() => {
+    if (ready && viewedKey && readIdSet(viewedKey) === null) markViewed();
+  }, [ready, viewedKey, markViewed]);
+
+  const unseenIds = useMemo(() => {
+    if (!ready || !viewed || !earnedKey) return [];
+    return earnedKey.split(',').filter((id) => !viewed.includes(id));
+  }, [ready, viewed, earnedKey]);
+
   return {
     metrics,
     achievements,
     earned,
     total: achievements.length,
     isPending: statsQuery.isPending,
+    unseenIds,
+    markViewed,
   };
 }

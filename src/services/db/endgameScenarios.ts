@@ -3,18 +3,21 @@ import type { TablesInsert } from '../../lib/database.types';
 import { EndgameScenario, endgameScenarioFromJson, ScenarioStatus } from '../../models/endgameScenario';
 import { nextDrillDate } from '../../models/blunder';
 import { currentUserId } from './currentUser';
+import { fetchAllRows } from './paginate';
 
 export async function getEndgameScenarios(): Promise<EndgameScenario[]> {
   const userId = await currentUserId();
   if (!userId) return [];
-  const { data, error } = await supabase
-    .from('endgame_scenarios')
-    .select()
-    .eq('user_id', userId)
-    .is('retired_at', null)
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map(endgameScenarioFromJson);
+  const rows = await fetchAllRows(() =>
+    supabase
+      .from('endgame_scenarios')
+      .select()
+      .eq('user_id', userId)
+      .is('retired_at', null)
+      .order('created_at', { ascending: false })
+      .order('id'),
+  );
+  return rows.map(endgameScenarioFromJson);
 }
 
 /** Scenarios the deep re-check hasn't looked at yet (oldest first). */

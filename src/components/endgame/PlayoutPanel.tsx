@@ -3,7 +3,7 @@ import { Chess } from 'chess.js';
 import type { DrawShape } from 'chessground/draw';
 import { MoveSequencePanel } from '../MoveSequencePanel';
 import { buildLineMoves, buildRefutationPairs } from '../../chess/refutationLines';
-import { parseUciMove, toKey } from '../../chess/moveUtils';
+import { isUciMove, parseUciMove, toKey } from '../../chess/moveUtils';
 import { formatEval } from '../../chess/formatEval';
 import { WinningChancesDisplay } from '../WinningChancesDisplay';
 import { DRAW_ACCEPT_CP, DRAW_ACCEPT_QUIET_PLIES, RESIGN_CP } from '../../chess/adjudication';
@@ -58,7 +58,7 @@ export function usePlayoutHint({
   };
 
   const shapes: DrawShape[] = useMemo(() => {
-    if (!bestMove || level === 0 || !solving) return [];
+    if (!isUciMove(bestMove) || level === 0 || !solving) return [];
     const orig = bestMove.slice(0, 2) as DrawShape['orig'];
     if (level === 1) return [{ orig, brush: 'blue' }];
     return [{ orig, dest: bestMove.slice(2, 4) as DrawShape['orig'], brush: 'blue' }];

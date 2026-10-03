@@ -289,6 +289,9 @@ test('an unlocked flair can be picked on the profile and shows on leaderboards',
   });
   await page.goto('/profile');
 
+  // The picker lives in a modal opened from the header badge / chip.
+  await expect(page.getByTestId('flair-picker')).toHaveCount(0);
+  await page.getByTestId('flair-open').click();
   const picker = page.getByTestId('flair-picker');
   await expect(picker).toBeVisible();
   await expect(picker.getByTestId('flair-option-grinder')).toBeDisabled();
@@ -299,6 +302,37 @@ test('an unlocked flair can be picked on the profile and shows on leaderboards',
 
   await page.goto('/leaderboards');
   await expect(page.getByTestId('flair-badge').filter({ hasText: 'Grinder' })).toBeVisible();
+});
+
+test('clicking your own leaderboard row opens the flair picker', async ({ page }) => {
+  await stubAuth(page, {
+    usedTrainingFilter: false,
+    blunders: [],
+    scenarios: [],
+    profile: { longest_streak_days: 7 },
+    rpc: {
+      training_totals: { minutes: 0, activeDays: 0 },
+      leaderboard: {
+        metric: 'solved',
+        window: 'all',
+        since: null,
+        rows: [
+          { rank: 1, label: 'rival', value: 40, isMe: false, flair: 'grinder' },
+          { rank: 2, label: 'me', value: 12, isMe: true, flair: null },
+        ],
+        me: null,
+      },
+    },
+  });
+  await page.goto('/leaderboards');
+  await page.getByTestId('leaderboard-me').getByRole('button', { name: 'Change your flair' }).click();
+  const picker = page.getByTestId('flair-picker');
+  await expect(picker).toBeVisible();
+  await picker.getByTestId('flair-option-regular').click();
+  await page.keyboard.press('Escape');
+  await expect(picker).toHaveCount(0);
+  // Your row shows the new pick right away.
+  await expect(page.getByTestId('leaderboard-me').getByTestId('flair-badge')).toHaveText(/Regular/);
 });
 
 test('the profile links to /achievements; ?tab=leaderboards goes to /leaderboards', async ({ page }) => {

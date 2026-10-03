@@ -175,6 +175,11 @@ test('groups recurring theory exits per opening with theory arrows', async ({ pa
 });
 
 test('leads with the biggest leak and offers to drill it', async ({ page }) => {
+  // Arrows redrawn on a 0×0 board (the /training layout swap) render as <line x1="NaN">.
+  const nanErrors: string[] = [];
+  page.on('console', (m) => {
+    if (m.type() === 'error' && m.text().includes('NaN')) nanErrors.push(m.text());
+  });
   await stubAuth(page, ROWS);
   await page.goto('/openings');
   const hero = page.getByTestId('openings-hero');
@@ -186,6 +191,9 @@ test('leads with the biggest leak and offers to drill it', async ({ page }) => {
   await hero.getByTestId('hero-drill').click();
   await expect(page).toHaveURL(/\/training$/);
   await expect(page.getByText(/King's Pawn Game · 1 position/)).toBeVisible();
+  // Let the opening intro replay (and its arrows) run.
+  await page.waitForTimeout(2500);
+  expect(nanErrors).toEqual([]);
 });
 
 test('empty state points at the dashboard', async ({ page }) => {

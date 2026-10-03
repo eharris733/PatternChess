@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { Key } from 'chessground/types';
 import { LazyChessgroundReact } from '../../chess/LazyChessgroundReact';
-import { uciToSan } from '../../chess/moveUtils';
+import { isUciMove, uciToSan } from '../../chess/moveUtils';
 import { cpLoss } from '../../chess/winningChances';
 import type { BlunderCandidate } from '../../stockfish/stockfishWorkerClient';
 
@@ -36,7 +36,7 @@ export function BlunderPreview({ blunder, moveLabel }: Props) {
       coordinates: true,
       animation: { enabled: false, duration: 0 },
       drawable: {
-        autoShapes: bestUci
+        autoShapes: isUciMove(bestUci)
           ? [
               {
                 orig: bestUci.slice(0, 2) as Key,
@@ -47,10 +47,9 @@ export function BlunderPreview({ blunder, moveLabel }: Props) {
           : [],
       },
       highlight: { lastMove: true, check: true },
-      lastMove: [
-        blunder.playedMove.slice(0, 2) as Key,
-        blunder.playedMove.slice(2, 4) as Key,
-      ],
+      lastMove: isUciMove(blunder.playedMove)
+        ? [blunder.playedMove.slice(0, 2) as Key, blunder.playedMove.slice(2, 4) as Key]
+        : undefined,
     }),
     [blunder.fen, blunder.playedMove, bestUci, orientation],
   );

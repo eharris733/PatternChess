@@ -9,6 +9,7 @@ import {
 } from '../../chess/blunderContext';
 import { parseStartIncrement as parseStartIncrementImpl } from '../../chess/timeControl';
 import { currentUserId } from './currentUser';
+import { fetchAllRows } from './paginate';
 
 // --- Insights aggregation queries ---
 
@@ -22,14 +23,16 @@ export interface PhaseCounts {
 export async function getBlunderPhaseCounts(): Promise<PhaseCounts> {
   const userId = await currentUserId();
   if (!userId) return { opening: 0, middlegame: 0, endgame: 0, total: 0 };
-  const { data, error } = await supabase
-    .from('blunders')
-    .select('phase')
-    .eq('user_id', userId)
-    .eq('kind', 'tactic');
-  if (error) throw error;
+  const data = await fetchAllRows(() =>
+    supabase
+      .from('blunders')
+      .select('phase')
+      .eq('user_id', userId)
+      .eq('kind', 'tactic')
+      .order('id'),
+  );
   const counts: PhaseCounts = { opening: 0, middlegame: 0, endgame: 0, total: 0 };
-  for (const row of (data ?? []) as Array<{ phase: string | null }>) {
+  for (const row of data as Array<{ phase: string | null }>) {
     counts.total++;
     if (row.phase === 'opening') counts.opening++;
     else if (row.phase === 'endgame') counts.endgame++;
@@ -126,13 +129,15 @@ export async function getOpeningPerformance(opts?: {
   const userId = await currentUserId();
   if (!userId) return [];
 
-  const { data: gamesData, error: gamesError } = await supabase
-    .from('games')
-    .select('id, opening_family, opening_name, eco, user_color, result, platform')
-    .eq('user_id', userId)
-    .not('opening_family', 'is', null);
-  if (gamesError) throw gamesError;
-  const games = (gamesData ?? []) as OpeningRawRow[];
+  const gamesData = await fetchAllRows(() =>
+    supabase
+      .from('games')
+      .select('id, opening_family, opening_name, eco, user_color, result, platform')
+      .eq('user_id', userId)
+      .not('opening_family', 'is', null)
+      .order('id'),
+  );
+  const games = gamesData as OpeningRawRow[];
   if (games.length === 0) return [];
 
   const gameIdToGroup = new Map<string, string>();
@@ -180,13 +185,15 @@ export async function getOpeningPerformance(opts?: {
     // game count turns that into a multi-thousand-character URL that Supabase
     // rejects with 400. Rows for unclassified games are simply skipped below
     // (gameIdToGroup.get() misses), so this is equivalent.
-    const { data: blunderData, error: blunderError } = await supabase
-      .from('blunders')
-      .select('game_id, phase')
-      .eq('user_id', userId)
-      .eq('kind', 'tactic');
-    if (blunderError) throw blunderError;
-    for (const row of (blunderData ?? []) as Array<{ game_id: string; phase: string | null }>) {
+    const blunderData = await fetchAllRows(() =>
+      supabase
+        .from('blunders')
+        .select('game_id, phase')
+        .eq('user_id', userId)
+        .eq('kind', 'tactic')
+        .order('id'),
+    );
+    for (const row of blunderData as Array<{ game_id: string; phase: string | null }>) {
       const key = gameIdToGroup.get(row.game_id);
       if (!key) continue;
       const group = groups.get(key);
@@ -242,12 +249,14 @@ export async function getUserTimeManagement(): Promise<TimeManagementSample[]> {
   const userId = await currentUserId();
   if (!userId) return [];
 
-  const { data, error } = await supabase
-    .from('games')
-    .select('user_color, clock_per_ply, total_plies, time_control, rated')
-    .eq('user_id', userId)
-    .not('clock_per_ply', 'is', null);
-  if (error) throw error;
+  const data = await fetchAllRows(() =>
+    supabase
+      .from('games')
+      .select('user_color, clock_per_ply, total_plies, time_control, rated')
+      .eq('user_id', userId)
+      .not('clock_per_ply', 'is', null)
+      .order('id'),
+  );
 
   const totals: Record<'opening' | 'middlegame' | 'endgame', { sumCs: number; plies: number }> = {
     opening: { sumCs: 0, plies: 0 },
@@ -255,7 +264,7 @@ export async function getUserTimeManagement(): Promise<TimeManagementSample[]> {
     endgame: { sumCs: 0, plies: 0 },
   };
 
-  for (const row of (data ?? []) as ClockGameRow[]) {
+  for (const row of data as ClockGameRow[]) {
     if (isBullet(row.time_control)) continue;
     const color = row.user_color;
     if (color !== 'white' && color !== 'black') continue;
@@ -325,13 +334,15 @@ export async function getBlunderGameStateStats(): Promise<GameStateStats> {
     },
   };
   if (!userId) return empty;
-  const { data, error } = await supabase
-    .from('blunders')
-    .select('eval_before, phase')
-    .eq('user_id', userId)
-    .eq('kind', 'tactic');
-  if (error) throw error;
-  for (const row of (data ?? []) as Array<{ eval_before: number | null; phase: string | null }>) {
+  const data = await fetchAllRows(() =>
+    supabase
+      .from('blunders')
+      .select('eval_before, phase')
+      .eq('user_id', userId)
+      .eq('kind', 'tactic')
+      .order('id'),
+  );
+  for (const row of data as Array<{ eval_before: number | null; phase: string | null }>) {
     if (typeof row.eval_before !== 'number') continue;
     const bucket = classifyGameState(row.eval_before);
     empty.total++;
@@ -363,13 +374,15 @@ export async function getTimeTroubleStats(): Promise<TimeTroubleStats> {
   const userId = await currentUserId();
   if (!userId) return empty;
 
-  const { data: blunderRows, error: bErr } = await supabase
-    .from('blunders')
-    .select('move_number, side_to_move, phase, game_id, eval_before')
-    .eq('user_id', userId)
-    .eq('kind', 'tactic');
-  if (bErr) throw bErr;
-  const blunders = (blunderRows ?? []) as Array<{
+  const blunderRows = await fetchAllRows(() =>
+    supabase
+      .from('blunders')
+      .select('move_number, side_to_move, phase, game_id, eval_before')
+      .eq('user_id', userId)
+      .eq('kind', 'tactic')
+      .order('id'),
+  );
+  const blunders = blunderRows as Array<{
     move_number: number;
     side_to_move: string;
     phase: string | null;
@@ -383,14 +396,16 @@ export async function getTimeTroubleStats(): Promise<TimeTroubleStats> {
   // distinct blunder game_id — a power user's game count turns that into a
   // multi-thousand-character URL that Supabase rejects with 400 (same class
   // of bug as getOpeningPerformance above).
-  const { data: gameRows, error: gErr } = await supabase
-    .from('games')
-    .select('id, clock_per_ply, time_control')
-    .eq('user_id', userId);
-  if (gErr) throw gErr;
+  const gameRows = await fetchAllRows(() =>
+    supabase
+      .from('games')
+      .select('id, clock_per_ply, time_control')
+      .eq('user_id', userId)
+      .order('id'),
+  );
 
   const gameById = new Map<string, GameRecord>();
-  for (const raw of (gameRows ?? []) as Array<Record<string, unknown>>) {
+  for (const raw of gameRows as Array<Record<string, unknown>>) {
     const id = raw.id as string;
     // Build a minimal GameRecord-shaped object — only the fields
     // computeTimeRemainingPercent reads.
@@ -485,11 +500,13 @@ export async function getBlunderStats(): Promise<BlunderStats> {
       endgameMastered: 0,
     };
   }
-  const { data, error } = await supabase
-    .from('blunders')
-    .select('kind, cycle_number, times_correct, times_attempted, last_drilled_at')
-    .eq('user_id', userId);
-  if (error) throw error;
+  const data = await fetchAllRows(() =>
+    supabase
+      .from('blunders')
+      .select('kind, cycle_number, times_correct, times_attempted, last_drilled_at')
+      .eq('user_id', userId)
+      .order('id'),
+  );
   const recentSince = Date.now() - RECENT_WINDOW_MS;
   let reviewed = 0;
   let attempted = 0;
@@ -500,7 +517,7 @@ export async function getBlunderStats(): Promise<BlunderStats> {
   let openingMastered = 0;
   let endgameSolved = 0;
   let endgameMastered = 0;
-  for (const row of (data ?? []) as Array<{
+  for (const row of data as Array<{
     kind: string | null;
     cycle_number: number | null;
     times_correct: number | null;
@@ -594,12 +611,14 @@ export async function getCycleDistribution(): Promise<CycleDistribution> {
   };
   const userId = await currentUserId();
   if (!userId) return empty;
-  const { data, error } = await supabase
-    .from('blunders')
-    .select('cycle_number, times_attempted, last_drill_failed')
-    .eq('user_id', userId);
-  if (error) throw error;
-  for (const row of (data ?? []) as Array<{
+  const data = await fetchAllRows(() =>
+    supabase
+      .from('blunders')
+      .select('cycle_number, times_attempted, last_drill_failed')
+      .eq('user_id', userId)
+      .order('id'),
+  );
+  for (const row of data as Array<{
     cycle_number: number | null;
     times_attempted: number | null;
     last_drill_failed: boolean | null;

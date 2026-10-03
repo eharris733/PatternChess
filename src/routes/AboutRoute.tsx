@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { BackLink } from '../components/BackLink';
 import { LandingTopBar } from '../components/landing/LandingTopBar';
 import { LandingFooter } from '../components/landing/LandingFooter';
 import { AboutCreator } from '../components/landing/AboutCreator';
@@ -46,12 +47,7 @@ export function AboutRoute() {
       <LandingTopBar />
       <main id="main" className="flex-1 scroll-mt-20">
         <div className="max-w-3xl mx-auto px-6 py-12">
-          <Link
-            to="/"
-            className="font-mono uppercase text-xs tracking-tight text-text-primary/60 hover:text-gold-dark transition-colors"
-          >
-            ← Back home
-          </Link>
+          <BackLink to="/" label="Back home" />
           <h1 className="mt-6 text-3xl font-bold tracking-tight">About PatternChess</h1>
 
           <div className="legal-body mt-8 space-y-6 leading-relaxed text-text-primary/90">
