@@ -96,11 +96,17 @@ export const authService = {
       showEngineEvals: false,
       revealBeforeSolve: false,
       autoplayRefutation: true,
+      showAnswerOnMiss: false,
       usedTrainingFilter: false,
       soundsEnabled: true,
       leaderboardOptOut: false,
       followedInstagram: false,
       sharesCount: 0,
+      referralCode: null,
+      referralsCount: 0,
+      openingReviewsOpened: 0,
+      learnChaptersDone: [],
+      flair: null,
     };
     // Stamp the landing-page visitor id (if this browser ever hit the landing
     // page) so the funnel can link anonymous view/demo events to this account.
@@ -133,6 +139,7 @@ export const authService = {
       showEngineEvals?: boolean;
       revealBeforeSolve?: boolean;
       autoplayRefutation?: boolean;
+      showAnswerOnMiss?: boolean;
       soundsEnabled?: boolean;
       leaderboardOptOut?: boolean;
     },
@@ -141,6 +148,7 @@ export const authService = {
     if (prefs.showEngineEvals !== undefined) patch.show_engine_evals = prefs.showEngineEvals;
     if (prefs.revealBeforeSolve !== undefined) patch.reveal_before_solve = prefs.revealBeforeSolve;
     if (prefs.autoplayRefutation !== undefined) patch.autoplay_refutation = prefs.autoplayRefutation;
+    if (prefs.showAnswerOnMiss !== undefined) patch.show_answer_on_miss = prefs.showAnswerOnMiss;
     if (prefs.soundsEnabled !== undefined) patch.sounds_enabled = prefs.soundsEnabled;
     if (prefs.leaderboardOptOut !== undefined) patch.leaderboard_opt_out = prefs.leaderboardOptOut;
     if (Object.keys(patch).length === 0) return;
@@ -171,11 +179,52 @@ export const authService = {
     if (error) throw error;
   },
 
+  /** Selected flair id, or null to clear. Unlock is checked by the caller (cosmetic). */
+  async setFlair(userId: string, flair: string | null): Promise<void> {
+    const { error } = await supabase.from('profiles').update({ flair }).eq('id', userId);
+    if (error) throw error;
+  },
+
+  /** Atomic bump when an /openings review is opened. Returns the new count. */
+  async incrementOpeningReviews(): Promise<number> {
+    const { data, error } = await supabase.rpc('increment_opening_reviews');
+    if (error) throw error;
+    return typeof data === 'number' ? data : 0;
+  },
+
+  /** Record a Learn chapter as done (idempotent server-side). Returns the distinct count. */
+  async markLearnChapterDone(key: string): Promise<number> {
+    const { data, error } = await supabase.rpc('mark_learn_chapter_done', { key });
+    if (error) throw error;
+    return typeof data === 'number' ? data : 0;
+  },
+
+  /**
+   * Lifetime training totals: minutes (finished sessions, each capped at 120)
+   * and distinct active days (≥1 correct drill).
+   */
+  async getTrainingTotals(): Promise<{ minutes: number; activeDays: number }> {
+    const { data, error } = await supabase.rpc('training_totals');
+    if (error) throw error;
+    const o = (data ?? {}) as { minutes?: unknown; activeDays?: unknown };
+    return {
+      minutes: typeof o.minutes === 'number' ? o.minutes : 0,
+      activeDays: typeof o.activeDays === 'number' ? o.activeDays : 0,
+    };
+  },
+
   /** Atomic server-side bump (no read-modify-write race). Returns the new count. */
   async incrementSharesCount(): Promise<number> {
     const { data, error } = await supabase.rpc('increment_shares_count');
     if (error) throw error;
     return typeof data === 'number' ? data : 0;
+  },
+
+  /** Credit the friend whose invite link brought this user here (no-op if not eligible). */
+  async claimReferral(code: string): Promise<boolean> {
+    const { data, error } = await supabase.rpc('claim_referral', { code });
+    if (error) throw error;
+    return data === true;
   },
 
   async claimAnonymousData(username: string): Promise<void> {

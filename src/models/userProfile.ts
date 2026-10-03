@@ -27,11 +27,17 @@ export interface UserProfile {
    */
   revealBeforeSolve: boolean;
   /**
-   * On a repeat wrong attempt at the same drill (not the first try), autoplay
-   * the engine's refutation of the played move instead of leaving it as a
-   * static reveal. Defaults on — off falls back to the static reveal.
+   * After any wrong attempt (tactic or endgame, first try included), autoplay
+   * the engine's refutation of the played move — then the solution line when
+   * `showAnswerOnMiss` is on. Defaults on; off leaves the lines static.
+   * Read through `useDrillFeedbackPrefs`, never directly.
    */
   autoplayRefutation: boolean;
+  /**
+   * After a wrong attempt, draw the best move and offer the solution line.
+   * Defaults off. Read through `useDrillFeedbackPrefs`, never directly.
+   */
+  showAnswerOnMiss: boolean;
   /** True once the user has ever started a /training session with a picked focus (opening/motif/phase/situation) — backs the "Focused Training" achievement. */
   usedTrainingFilter: boolean;
   /** Board + feedback sounds (src/lib/sounds.ts). Defaults on. */
@@ -40,8 +46,18 @@ export interface UserProfile {
   leaderboardOptOut: boolean;
   /** Clicked through to the PatternChess Instagram — backs the "Follow along" achievement. */
   followedInstagram: boolean;
-  /** Puzzle share links copied (increment_shares_count RPC) — backs the share achievements. */
+  /** Shares from PatternChess (links, images, GIFs; increment_shares_count RPC) — backs the share achievements. */
   sharesCount: number;
+  /** Public code for invite links (?ref=CODE); null until the referrals migration has run. */
+  referralCode: string | null;
+  /** Friends who joined through this user's invite link (claim_referral RPC). */
+  referralsCount: number;
+  /** /openings reviews opened (increment_opening_reviews RPC) — backs the review achievements. */
+  openingReviewsOpened: number;
+  /** Distinct Learn chapters completed ("<slug>/<chapter>", mark_learn_chapter_done RPC). */
+  learnChaptersDone: string[];
+  /** Selected flair id (src/lib/flair.ts); null = none. Cosmetic only. */
+  flair: string | null;
 }
 
 function parseBoardTheme(v: unknown): BoardTheme {
@@ -91,11 +107,19 @@ export function userProfileFromJson(json: any): UserProfile {
     showEngineEvals: Boolean(json.show_engine_evals ?? false),
     revealBeforeSolve: Boolean(json.reveal_before_solve ?? false),
     autoplayRefutation: Boolean(json.autoplay_refutation ?? true),
+    showAnswerOnMiss: Boolean(json.show_answer_on_miss ?? false),
     usedTrainingFilter: Boolean(json.used_training_filter ?? false),
     soundsEnabled: Boolean(json.sounds_enabled ?? true),
     leaderboardOptOut: Boolean(json.leaderboard_opt_out ?? false),
     followedInstagram: Boolean(json.followed_instagram ?? false),
     sharesCount: (json.shares_count as number | null) ?? 0,
+    referralCode: (json.referral_code as string | null) ?? null,
+    referralsCount: (json.referrals_count as number | null) ?? 0,
+    openingReviewsOpened: (json.opening_reviews_opened as number | null) ?? 0,
+    learnChaptersDone: Array.isArray(json.learn_chapters_done)
+      ? (json.learn_chapters_done as unknown[]).filter((k): k is string => typeof k === 'string')
+      : [],
+    flair: typeof json.flair === 'string' && json.flair ? json.flair : null,
   };
 }
 

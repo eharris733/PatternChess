@@ -228,7 +228,7 @@ test('the motif card surfaces recurring weaknesses and drills them on click', as
   // Click-through lands on training with the motif filter chip active.
   await page.getByText('Missed fork').click();
   await expect(page).toHaveURL(/\/training/);
-  await expect(page.getByText(/Missed fork · \d+ blunder/)).toBeVisible();
+  await expect(page.getByText(/Missed fork · \d+ position/)).toBeVisible();
 });
 
 test('a legacy row without a solution line stays a single-move drill', async ({ page }) => {

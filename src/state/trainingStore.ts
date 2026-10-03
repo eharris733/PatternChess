@@ -28,6 +28,9 @@ import { computeDrillLine } from '../chess/solutionLine';
 import type { MovePair } from '../components/MoveSequencePanel';
 import { computeNextStreak, detectTimezone, localDate } from '../services/streakService';
 import { queryClient } from '../lib/queryClient';
+import { parseGame } from '../services/pgnParserService';
+import { introLineTo, type IntroLine } from '../chess/openingLine';
+import { repertoireMoveFor, type RepertoireMap } from '../models/repertoire';
 
 // Per-drill SR writes are fire-and-forget, but leaving a session (e.g. to change
 // the theme) must not drop them or re-serve a stale "due" list on return. Track
@@ -52,6 +55,8 @@ async function flushDrillWritesAndRefreshDue(): Promise<void> {
 
 export type TrainingPhase =
   | 'loading'
+  /** Opening drills: the game's opening plays out on the board before the prompt. */
+  | 'introducing'
   | 'reviewing'
   | 'solving'
   | 'correct'
@@ -62,6 +67,22 @@ export type TrainingPhase =
 export interface IncorrectFeedback {
   message: string;
   tone: 'danger' | 'warning' | 'info' | 'success';
+}
+
+/**
+ * How an opening drill was solved — drives the "Great / Good" feedback and
+ * the "Add to repertoire" offer. `repertoire` = the user's saved move;
+ * `book` = a theory move strong players play; `sound` = an engine-approved
+ * move outside theory (within the 5% accept bar).
+ */
+export interface OpeningVerdict {
+  kind: 'repertoire' | 'book' | 'sound';
+  uci: string;
+  san: string;
+  /** Position the move was played from (the drill FEN). */
+  fen: string;
+  /** Main theory move, when the user's move wasn't it. */
+  theorySan: string | null;
 }
 
 export interface DeleteResult {
@@ -96,6 +117,15 @@ export interface TrainingStateShape {
   playedRefutationMoves: ReviewMove[];
   playedRefutationPairs: MovePair[];
   activePlayedRefutationIndex: number | null;
+  /**
+   * The stored solution from the position the user missed (incorrect phase):
+   * best move first, then the rest of the drill line. Always computed on a
+   * miss; the route shows it only when `useDrillFeedbackPrefs().showAnswer`.
+   */
+  solutionMoves: ReviewMove[];
+  solutionPairs: MovePair[];
+  /** -1 = the missed position with the best-move arrow; null = not on the board. */
+  activeSolutionIndex: number | null;
   postCorrectMoves: ReviewMove[];
   postCorrectPairs: MovePair[];
   activePostCorrectIndex: number | null;
@@ -108,7 +138,8 @@ export interface TrainingStateShape {
    * *original* game blunder. Null until an incorrect/nudge attempt computes
    * one; cleared on every fresh solving attempt.
    */
-  livePlayedEval: { before: number; after: number } | null;
+  /** Swing of the move the user just played (SAN for the label); null = show the game's move. */
+  livePlayedEval: { before: number; after: number; san?: string } | null;
   /**
    * When true, the incorrect-phase action requeues the position later in the
    * session; when false (a "good but not best" nudge) it retries in place.
@@ -171,8 +202,19 @@ export interface TrainingStateShape {
    * longer silent. Cleared on `reset` and via `clearPersistError`.
    */
   persistError: string | null;
+  /** Opening drills: the opening as played in the user's game, stepped by the route. */
+  openingIntro: IntroLine | null;
+  /** Opening drills: set on a correct answer. */
+  openingVerdict: OpeningVerdict | null;
+  /** The user's repertoire (mirrored in by TrainingRoute); the saved move is the expected answer. */
+  repertoire: RepertoireMap | null;
 
   clearPersistError: () => void;
+  setRepertoire: (map: RepertoireMap | null) => void;
+  /** Put intro position `i` on the board (phase 'introducing'). */
+  setIntroIndex: (i: number) => void;
+  /** End the intro (or skip it) and prompt for the move. */
+  finishIntro: () => void;
   setRevealBeforeSolve: (value: boolean) => void;
   ensureBlunderRefutation: () => Promise<void>;
   setBlunders: (blunders: Blunder[]) => void;
@@ -201,6 +243,7 @@ export interface TrainingStateShape {
   showHint: () => void;
   selectRefutationIndex: (idx: number) => void;
   selectPlayedRefutationIndex: (idx: number) => void;
+  selectSolutionIndex: (idx: number) => void;
   selectPostCorrectIndex: (idx: number) => void;
   reset: () => void;
 }
@@ -224,8 +267,12 @@ type InitialShape = Omit<TrainingStateShape,
   | 'showHint'
   | 'selectRefutationIndex'
   | 'selectPlayedRefutationIndex'
+  | 'selectSolutionIndex'
   | 'selectPostCorrectIndex'
   | 'clearPersistError'
+  | 'setRepertoire'
+  | 'setIntroIndex'
+  | 'finishIntro'
   | 'reset'>;
 
 function makeInitial(): InitialShape {
@@ -248,6 +295,9 @@ function makeInitial(): InitialShape {
     playedRefutationMoves: [],
     playedRefutationPairs: [],
     activePlayedRefutationIndex: null,
+    solutionMoves: [],
+    solutionPairs: [],
+    activeSolutionIndex: null,
     postCorrectMoves: [],
     postCorrectPairs: [],
     activePostCorrectIndex: null,
@@ -275,6 +325,31 @@ function makeInitial(): InitialShape {
     lastAttemptWasFirst: true,
     revealBeforeSolve: false,
     persistError: null,
+    openingIntro: null,
+    openingVerdict: null,
+    repertoire: null,
+  };
+}
+
+function sameUci(a: string, b: string): boolean {
+  return (CASTLING_NORMALIZE[a] ?? a) === (CASTLING_NORMALIZE[b] ?? b);
+}
+
+/** Classify a correct opening answer (see OpeningVerdict). */
+function openingVerdictFor(blunder: Blunder, uci: string, san: string, playedRepertoire: boolean): OpeningVerdict {
+  const data = blunder.drillData && 'theoryMoves' in blunder.drillData ? blunder.drillData : null;
+  const theory = data?.theoryMoves ?? [];
+  const hit = theory.find((t) => sameUci(t.uci, uci));
+  // Engine-sourced drills list engine candidates too; only moves strong
+  // players actually chose count as book.
+  const isBook = !!hit && (data?.source === 'book' || hit.games > 0);
+  const main = theory[0] ?? null;
+  return {
+    kind: playedRepertoire ? 'repertoire' : isBook ? 'book' : 'sound',
+    uci,
+    san,
+    fen: blunder.fen,
+    theorySan: main && !sameUci(main.uci, uci) ? main.san : null,
   };
 }
 
@@ -300,6 +375,34 @@ function replayFen(baseFen: string, plies: string[]): string | null {
     }
   }
   return chess.fen();
+}
+
+/**
+ * The answer to the position the user just missed: the remaining drill plies
+ * from the step position (best move first), as a green-taggable line. Falls
+ * back to the stored best move for legacy rows with no drill line.
+ */
+function buildSolutionLine(opts: {
+  stepFen: string;
+  plies: string[];
+  moveNumber: number;
+  sideToMove: string;
+}): { pairs: MovePair[]; movesPlusFirst: ReviewMove[] } | null {
+  const moves = buildLineMoves(
+    opts.stepFen,
+    opts.plies.map((p) => CASTLING_NORMALIZE[p] ?? p),
+  );
+  const first = moves[0];
+  if (!first) return null;
+  return buildRefutationPairs({
+    fen: opts.stepFen,
+    moveNumber: opts.moveNumber,
+    sideToMove: opts.sideToMove,
+    firstSan: first.san,
+    firstUci: first.uci,
+    tag: 'BEST',
+    pvMoves: moves.slice(1),
+  });
 }
 
 const PERSIST_ERROR_MESSAGE = 'Some progress may not have saved — check your connection.';
@@ -478,8 +581,31 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
   reset: () => {
     endActiveSession(get());
     void flushDrillWritesAndRefreshDue();
-    // revealBeforeSolve is a user preference, not session state — survive resets.
-    set({ ...makeInitial(), revealBeforeSolve: get().revealBeforeSolve });
+    // revealBeforeSolve and the repertoire are user data, not session state — survive resets.
+    set({ ...makeInitial(), revealBeforeSolve: get().revealBeforeSolve, repertoire: get().repertoire });
+  },
+
+  setRepertoire: (map) => set({ repertoire: map }),
+
+  setIntroIndex: (i) => {
+    const { phase, openingIntro } = get();
+    if (phase !== 'introducing' || !openingIntro) return;
+    const idx = Math.max(0, Math.min(i, openingIntro.fens.length - 1));
+    set({ fen: openingIntro.fens[idx], lastMove: openingIntro.lastMoves[idx] });
+  },
+
+  finishIntro: () => {
+    const { phase, openingIntro, blunders, currentIndex } = get();
+    if (phase !== 'introducing') return;
+    const blunder = blunders[currentIndex];
+    if (!blunder) return;
+    const playerSide: 'white' | 'black' = blunder.sideToMove === 'white' ? 'white' : 'black';
+    set({
+      phase: 'solving',
+      fen: blunder.fen,
+      movableFor: playerSide,
+      lastMove: openingIntro ? openingIntro.lastMoves[openingIntro.lastMoves.length - 1] : null,
+    });
   },
 
   beginSession: async (profile) => {
@@ -648,6 +774,8 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     if (preplay) {
       set({
         phase: 'reviewing',
+        openingIntro: null,
+        openingVerdict: null,
         fen: preplay.afterFen,
         orientation: playerSide,
         movableFor: null,
@@ -669,6 +797,9 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         postCorrectMoves: [],
         postCorrectPairs: [],
         activePostCorrectIndex: null,
+        solutionMoves: [],
+        solutionPairs: [],
+        activeSolutionIndex: null,
         incorrectFeedback: null,
         livePlayedEval: null,
         showWhatYouPlayed: false,
@@ -684,12 +815,22 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         });
       }
     } else {
+      // Opening drills play the user's own game up to the position first
+      // (the kind is revealed here on purpose: an opening is obvious from
+      // the move number anyway). Only on the first showing this session —
+      // a retry or requeue goes straight to the prompt.
+      const openingIntro =
+        blunder.kind === 'opening' && game && !get().interactedBlunderIds.has(blunder.id)
+          ? introLineTo(parseGame(game.pgn), blunder.fen)
+          : null;
       set({
-        phase: 'solving',
-        fen: blunder.fen,
+        phase: openingIntro ? 'introducing' : 'solving',
+        fen: openingIntro ? openingIntro.fens[0] : blunder.fen,
         orientation: playerSide,
-        movableFor: playerSide,
+        movableFor: openingIntro ? null : playerSide,
         lastMove: null,
+        openingIntro,
+        openingVerdict: null,
         shapes: [],
         blunderSan,
         game,
@@ -707,6 +848,9 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         postCorrectMoves: [],
         postCorrectPairs: [],
         activePostCorrectIndex: null,
+        solutionMoves: [],
+        solutionPairs: [],
+        activeSolutionIndex: null,
         incorrectFeedback: null,
         livePlayedEval: null,
         showWhatYouPlayed: false,
@@ -766,6 +910,14 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     // Step 0 also accepts every stored alternative first move; later steps
     // demand the line's move (or an engine-approved deviation, below).
     let isCorrect = matchesExpected || (isStep0 && isCorrectMove(blunder, uci));
+    // Opening drills: the user's saved repertoire move is always an answer,
+    // and any other good move is a retry-in-place nudge toward it (below).
+    const repertoireMove =
+      blunder.kind === 'opening' && isStep0
+        ? repertoireMoveFor(state.repertoire, playerSide, blunder.fen)
+        : null;
+    const playedRepertoire = !!repertoireMove && sameUci(repertoireMove.uci, uci);
+    if (playedRepertoire) isCorrect = true;
 
     // Apply move locally to compute next FEN. chess.js v1 throws on illegal
     // moves; treat any throw as "no-op" and snap the board back to the
@@ -800,7 +952,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     // after = raw scoreCp of the played move, same convention as
     // blunder.evalBefore/evalAfter) — distinct from the original blunder's
     // stored swing so the feedback screen can show the right one for "Your try".
-    let livePlayedEval: { before: number; after: number } | null = null;
+    let livePlayedEval: { before: number; after: number; san?: string } | null = null;
     // An engine-approved deviation from the stored line completes the drill
     // early — its continuation is unknown, so there is nothing left to solve.
     let acceptedDeviation = false;
@@ -818,7 +970,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         const bestWinPct = winPercent(bestEval);
         const moveWinPct = winPercent(-ev.scoreCp);
         chancesLost = bestWinPct - moveWinPct;
-        livePlayedEval = { before: bestEval, after: ev.scoreCp };
+        livePlayedEval = { before: bestEval, after: ev.scoreCp, san: result.san };
         if (Math.abs(chancesLost) <= 5) {
           isCorrect = true;
           acceptedDeviation = true;
@@ -838,6 +990,28 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       } finally {
         set({ evaluating: false });
       }
+    }
+
+    // Opening drill with a saved repertoire move: a different good move is
+    // fine chess but not the user's line — nudge back, no SR change.
+    if (isCorrect && repertoireMove && !playedRepertoire) {
+      set((s) => ({
+        phase: 'incorrect',
+        pendingTryAgain: false,
+        interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
+        shapes: [],
+        playedRefutationMoves: [],
+        playedRefutationPairs: [],
+        activePlayedRefutationIndex: null,
+        incorrectRequeue: false,
+        incorrectFeedback: {
+          message: `Good move, but your repertoire move is ${repertoireMove.san}`,
+          tone: 'success',
+        },
+        livePlayedEval,
+        playedMovesFromBlunder: [uci],
+      }));
+      return;
     }
 
     // "Good but not best" — chancesLost in (5, 10). Engine classifies as 'good'
@@ -926,12 +1100,24 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       applyDrillResult(blunder, { success: true, isFirstAttempt }, { trackWrite: trackDrillWrite });
 
       const playedSequence = [...drillPlies.slice(0, drillPly), uci];
+      // The swing panel describes the user's own move once solved: the live
+      // engine check for an accepted deviation, else the stored first-move
+      // eval (step 0 only — later steps have no per-move evals).
+      const storedHit = isStep0 ? blunder.correctMoves.find((cm) => sameUci(cm.move, uci)) : undefined;
+      const correctPlayedEval =
+        livePlayedEval ??
+        (storedHit && blunder.correctMoves[0]
+          ? { before: blunder.correctMoves[0].eval, after: -storedHit.eval, san: result.san }
+          : null);
+      const openingVerdict =
+        blunder.kind === 'opening' ? openingVerdictFor(blunder, uci, result.san, playedRepertoire) : null;
       set((s) => {
         const nextAttempted = isFirstAttempt
           ? new Set(s.attemptedBlunderIds).add(blunder.id)
           : s.attemptedBlunderIds;
         return {
           phase: 'correct',
+          openingVerdict,
           pendingTryAgain: false,
           interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
           totalCorrect: isFirstAttempt && firstAttemptRecalled ? s.totalCorrect + 1 : s.totalCorrect,
@@ -939,7 +1125,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           attemptedBlunderIds: nextAttempted,
           shapes: [{ orig: toKey(move.from), dest: toKey(move.to), brush: 'green' }],
           incorrectFeedback: null,
-          livePlayedEval: null,
+          livePlayedEval: correctPlayedEval,
           stepFeedback: null,
           playedMovesFromBlunder: playedSequence,
           // Keep refutationMoves/refutationPairs: the correct phase now shows
@@ -1035,6 +1221,18 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
               pvMoves: buildLineMoves(newFen, playedPv),
             })
           : null;
+      const solutionPlies = drillPlies.slice(drillPly);
+      const solution = buildSolutionLine({
+        stepFen,
+        plies:
+          solutionPlies.length > 0
+            ? solutionPlies
+            : blunder.correctMoves[0]?.move
+              ? [blunder.correctMoves[0].move]
+              : [],
+        moveNumber: stepMoveNumber,
+        sideToMove: blunder.sideToMove,
+      });
 
       const afterIncorrect = get();
       if (afterIncorrect.sessionId && isFirstAttempt) {
@@ -1066,6 +1264,9 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           playedRefutationMoves: playedRefutation ? playedRefutation.movesPlusFirst : [],
           playedRefutationPairs: playedRefutation ? playedRefutation.pairs : [],
           activePlayedRefutationIndex: playedRefutation ? 0 : null,
+          solutionMoves: solution ? solution.movesPlusFirst : [],
+          solutionPairs: solution ? solution.pairs : [],
+          activeSolutionIndex: null,
           playedMovesFromBlunder: [...drillPlies.slice(0, drillPly), uci],
         };
       });
@@ -1289,6 +1490,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       shapes: [{ orig: toKey(m.from), dest: toKey(m.to), brush: 'red' }],
       activeRefutationIndex: idx,
       activePlayedRefutationIndex: null,
+      activeSolutionIndex: null,
       activePostCorrectIndex: null,
       playedMovesFromBlunder: refutationMoves.slice(0, idx + 1).map((rm) => rm.uci),
     });
@@ -1316,7 +1518,49 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       shapes: [{ orig: toKey(m.from), dest: toKey(m.to), brush: 'red' }],
       activePlayedRefutationIndex: idx,
       activeRefutationIndex: null,
+      activeSolutionIndex: null,
       playedMovesFromBlunder: playedRefutationMoves.slice(0, idx + 1).map((rm) => rm.uci),
+    });
+  },
+
+  selectSolutionIndex: (idx) => {
+    const { solutionMoves } = get();
+    if (idx < -1 || idx >= solutionMoves.length) return;
+    if (idx === -1) {
+      // The missed position itself, with the best move drawn as the answer.
+      const first = solutionMoves[0];
+      if (!first) return;
+      const m = parseUciMove(first.uci);
+      set({
+        fen: first.fenBefore,
+        lastMove: null,
+        shapes: [{ orig: toKey(m.from), dest: toKey(m.to), brush: 'green' }],
+        activeSolutionIndex: -1,
+        activePlayedRefutationIndex: null,
+        activeRefutationIndex: null,
+      });
+      return;
+    }
+    const sm = solutionMoves[idx];
+    const chess = new Chess(sm.fenBefore);
+    const m = parseUciMove(sm.uci);
+    try {
+      chess.move({ from: m.from, to: m.to, promotion: m.promotion });
+    } catch (err) {
+      console.warn('[training] selectSolutionIndex skipped illegal stored move', {
+        fenBefore: sm.fenBefore,
+        uci: sm.uci,
+        err,
+      });
+      return;
+    }
+    set({
+      fen: chess.fen(),
+      lastMove: [m.from, m.to],
+      shapes: [{ orig: toKey(m.from), dest: toKey(m.to), brush: 'green' }],
+      activeSolutionIndex: idx,
+      activePlayedRefutationIndex: null,
+      activeRefutationIndex: null,
     });
   },
 

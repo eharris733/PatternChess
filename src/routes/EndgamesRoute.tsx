@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useGames } from '../hooks/useGames';
 import { useEndgameScenarios } from '../hooks/useEndgameScenarios';
-import { supabaseService } from '../services/supabaseService';
 import {
   externalAnalysisUrl,
   resolvePlatform,
@@ -12,8 +11,12 @@ import {
 import {
   EndgameScenario,
   EndgameScenarioWithSeverity,
-  SCENARIO_STATUS_LABEL,
+  isScenarioDue,
 } from '../models/endgameScenario';
+import { SR_BUCKET_LABEL, SR_BUCKET_ORDER, srBucket, type SrBucket } from '../models/blunder';
+import { applyScenarioResult } from '../state/drills/applyDrillResult';
+import { MasteryDots } from '../components/MasteryDots';
+import { SR_BUCKET_PILL } from '../components/training/PositionSrState';
 import { useEndgamePlayoutStore } from '../state/endgamePlayoutStore';
 import { FINISH_RULES } from '../chess/adjudication';
 import { playSound } from '../lib/sounds';
@@ -41,11 +44,15 @@ import {
 import { Skeleton } from '../components/Skeleton';
 import { GameRecord } from '../models/gameRecord';
 
-const STATUS_PILL: Record<EndgameScenario['status'], string> = {
-  pending: 'bg-gold-light text-text-primary border-text-primary',
-  passed: 'bg-correct/20 text-correct border-correct/60',
-  failed: 'bg-mistake/20 text-mistake border-mistake/60',
-};
+type ListFilter = 'all' | 'due' | SrBucket;
+
+/** Review order: the ones you just failed first, then the most overdue. */
+function byReviewPriority(a: EndgameScenario, z: EndgameScenario): number {
+  return (
+    Number(z.lastDrillFailed) - Number(a.lastDrillFailed) ||
+    (a.nextDrillAt?.getTime() ?? 0) - (z.nextDrillAt?.getTime() ?? 0)
+  );
+}
 
 function scenarioHeadline(s: EndgameScenario): string {
   if (s.deservedResult === 'win') {
@@ -68,7 +75,7 @@ export function EndgamesRoute() {
     return m;
   }, [games]);
 
-  const [statusFilter, setStatusFilter] = useState<'all' | EndgameScenario['status']>('all');
+  const [listFilter, setListFilter] = useState<ListFilter>('all');
 
   // Grouped by endgame family (material of the start position), worst
   // chances-lost first within each group. Win/draw shows on the card headline.
@@ -76,21 +83,30 @@ export function EndgamesRoute() {
     const bySeverity = (a: EndgameScenarioWithSeverity, z: EndgameScenarioWithSeverity) =>
       (z.severity ?? -1) - (a.severity ?? -1) ||
       z.createdAt.getTime() - a.createdAt.getTime();
-    const visible = (scenarios ?? []).filter(
-      (s) => statusFilter === 'all' || s.status === statusFilter,
+    const visible = (scenarios ?? []).filter((s) =>
+      listFilter === 'all' ? true : listFilter === 'due' ? isScenarioDue(s) : srBucket(s) === listFilter,
     );
     return ENDGAME_TYPE_ORDER.map((type) => ({
       key: type,
       title: ENDGAME_TYPE_LABEL[type],
       items: visible.filter((s) => classifyEndgameType(s.startFen) === type).sort(bySeverity),
     })).filter((sec) => sec.items.length > 0);
-  }, [scenarios, statusFilter]);
+  }, [scenarios, listFilter]);
 
-  const statusCounts = useMemo(() => {
-    const counts = { pending: 0, passed: 0, failed: 0 };
-    for (const s of scenarios ?? []) counts[s.status] += 1;
+  const bucketCounts = useMemo(() => {
+    const counts: Record<SrBucket, number> = { new: 0, learning: 0, tryAgain: 0, mastered: 0 };
+    for (const s of scenarios ?? []) counts[srBucket(s)] += 1;
     return counts;
   }, [scenarios]);
+  const dueScenarios = useMemo(
+    () => (scenarios ?? []).filter((s) => isScenarioDue(s)).sort(byReviewPriority),
+    [scenarios],
+  );
+  // "Review N due": the remaining ids of the review run, null outside one.
+  const [reviewQueue, setReviewQueue] = useState<string[] | null>(null);
+  // Only a scenario's first finished play-out per visit moves the SR ladder;
+  // retries from the slip (or a restart) are practice.
+  const playedThisVisit = useRef(new Set<string>());
 
   const [selected, setSelected] = useState<EndgameScenario | null>(null);
   const [paused, setPaused] = useState(false);
@@ -109,7 +125,6 @@ export function EndgamesRoute() {
     onPreview: setPreview,
   });
   const overlay = useActionOverlay(`${selected?.id ?? 'none'}:${playout.phase}`);
-  const attemptsRef = useRef(0);
 
   // Leaving the tab abandons any in-flight play-out.
   useEffect(() => () => useEndgamePlayoutStore.getState().reset(), []);
@@ -127,7 +142,6 @@ export function EndgamesRoute() {
     setPaused(false);
     hint.reset();
     setPreview(null);
-    attemptsRef.current = scenario.attempts;
     void playout.start({
       startFen: scenario.startFen,
       userColor: scenario.userColor,
@@ -137,12 +151,9 @@ export function EndgamesRoute() {
       rules: FINISH_RULES,
       allowTakeBack: true,
       onFinish: (r) => {
-        attemptsRef.current += 1;
-        void supabaseService
-          .updateEndgameScenarioResult(scenario.id, {
-            status: r.success ? 'passed' : 'failed',
-            attempts: attemptsRef.current,
-          })
+        const isFirstAttempt = !playedThisVisit.current.has(scenario.id);
+        playedThisVisit.current.add(scenario.id);
+        void applyScenarioResult(scenario, { success: r.success, isFirstAttempt })
           .then(() =>
             queryClient.invalidateQueries({ queryKey: ['endgameScenarios'], refetchType: 'all' }),
           )
@@ -161,7 +172,32 @@ export function EndgamesRoute() {
     playout.reset();
     setSelected(null);
     setPreview(null);
+    setReviewQueue(null);
   };
+
+  const startReview = () => {
+    const [first, ...rest] = dueScenarios;
+    if (!first) return;
+    setReviewQueue(rest.map((s) => s.id));
+    begin(first);
+  };
+
+  // Next scenario of the review run (skipping any that left the list meanwhile).
+  const nextDue = () => {
+    const queue = [...(reviewQueue ?? [])];
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      const next = scenarios?.find((s) => s.id === id);
+      if (next) {
+        setReviewQueue(queue);
+        playout.reset();
+        begin(next);
+        return;
+      }
+    }
+    backToList();
+  };
+  const hasNextDue = (reviewQueue?.length ?? 0) > 0;
 
   // Space advances the finished play-out, same as the training shell: retry
   // from the mistake after a fail, back to the list after a pass.
@@ -179,13 +215,14 @@ export function EndgamesRoute() {
         retry(slip ? 'slip' : 'start');
       } else if (phase === 'passed') {
         e.preventDefault();
-        backToList();
+        if (hasNextDue) nextDue();
+        else backToList();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected]);
+  }, [selected, hasNextDue]);
 
   // ---- Play-out view ----
   if (selected) {
@@ -229,19 +266,32 @@ export function EndgamesRoute() {
             paused={paused}
             overlay={
               overlay.enabled &&
-              (playout.phase === 'passed' || playout.phase === 'failed') && (
+              (playout.phase === 'passed' || playout.phase === 'failed') &&
+              (slipViewer.autoplayActive ? (
+                // Let the lines play out visibly first; a tap jumps to the end.
+                <button
+                  type="button"
+                  aria-label="Skip autoplay"
+                  onClick={slipViewer.skipAutoplay}
+                  className="absolute inset-0 z-10 bg-transparent"
+                />
+              ) : (
                 <BoardActionOverlay
                   message={playout.phase === 'passed' ? passedMessage : failedMessage}
                   actionLabel={
                     playout.phase === 'passed'
-                      ? 'Return to list'
+                      ? hasNextDue
+                        ? 'Next due'
+                        : 'Return to list'
                       : playout.slip
                         ? 'Retry from the mistake'
                         : 'Restart play-out'
                   }
                   onAction={() => {
-                    if (playout.phase === 'passed') backToList();
-                    else retry(playout.slip ? 'slip' : 'start');
+                    if (playout.phase === 'passed') {
+                      if (hasNextDue) nextDue();
+                      else backToList();
+                    } else retry(playout.slip ? 'slip' : 'start');
                   }}
                   dismissLabel={
                     playout.phase === 'failed' && playout.slip
@@ -250,7 +300,7 @@ export function EndgamesRoute() {
                   }
                   onDismiss={overlay.dismiss}
                 />
-              )
+              ))
             }
           >
             <BoardPanel
@@ -258,7 +308,7 @@ export function EndgamesRoute() {
               orientation={selected.userColor}
               movableFor={playout.phase === 'solving' && !paused ? selected.userColor : null}
               lastMove={preview ? preview.lastMove : playout.lastMove}
-              shapes={hint.shapes}
+              shapes={preview?.shapes ?? hint.shapes}
               onMove={(m) => void playout.processMove(m)}
             />
           </BoardStage>
@@ -314,6 +364,11 @@ export function EndgamesRoute() {
             </p>
           </div>
 
+          <div className="flex items-center gap-2">
+            <MasteryDots cycleNumber={selected.cycleNumber} />
+            <span className="text-xs font-semibold text-text-primary">{SR_BUCKET_LABEL[srBucket(selected)]}</span>
+          </div>
+
           {playing && (
             <SideToPlay
               color={selected.userColor}
@@ -351,9 +406,16 @@ export function EndgamesRoute() {
           {playout.phase === 'passed' && (
             <>
               <FeedbackBadge tone="success">{passedMessage}</FeedbackBadge>
-              <button className="btn-primary" onClick={backToList}>
-                Return to list<span className="hidden lg:inline ml-1.5"> (Space)</span>
-              </button>
+              {hasNextDue ? (
+                <button className="btn-primary" onClick={nextDue} data-testid="next-due">
+                  Next due ({reviewQueue?.length} left)
+                  <span className="hidden lg:inline ml-1.5"> (Space)</span>
+                </button>
+              ) : (
+                <button className="btn-primary" onClick={backToList}>
+                  Return to list<span className="hidden lg:inline ml-1.5"> (Space)</span>
+                </button>
+              )}
             </>
           )}
 
@@ -364,6 +426,7 @@ export function EndgamesRoute() {
                 <SlipReport
                   slip={playout.slip}
                   target={selected.deservedResult}
+                  userColor={selected.userColor}
                   logStatus={playout.slipLog}
                   onLog={() => void playout.logSlip()}
                   viewer={slipViewer}
@@ -377,6 +440,11 @@ export function EndgamesRoute() {
               <button className="btn-ghost" onClick={() => retry('start')}>
                 Restart play-out
               </button>
+              {hasNextDue && (
+                <button className="btn-ghost" onClick={nextDue}>
+                  Skip to the next due ({reviewQueue?.length} left)
+                </button>
+              )}
             </>
           )}
         </aside>
@@ -412,13 +480,24 @@ export function EndgamesRoute() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-xl font-bold">Endgames</h1>
-        <p className="text-text-secondary text-sm max-w-2xl">
-          Endgames where you had the better result on the board and dropped it — replay them
-          against the engine until you can keep the point. Slips you make can be added to your
-          training queue.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-xl font-bold">Endgames</h1>
+          <p className="text-text-primary text-sm max-w-2xl">
+            Endgames where you dropped points. Play them out against the engine until you keep the
+            point; each one comes back on the same schedule as your other drills.
+          </p>
+          {(scenarios?.length ?? 0) > 0 && (
+            <p className="text-text-primary text-sm font-semibold" data-testid="endgame-stats">
+              {bucketCounts.mastered} of {scenarios?.length} mastered
+            </p>
+          )}
+        </div>
+        {dueScenarios.length > 0 && (
+          <button type="button" className="btn-primary" onClick={startReview} data-testid="review-due">
+            Review {dueScenarios.length} due
+          </button>
+        )}
       </header>
 
       {(scenarios?.length ?? 0) > 0 && (
@@ -426,25 +505,24 @@ export function EndgamesRoute() {
           {(
             [
               ['all', 'All', scenarios?.length ?? 0],
-              ['pending', SCENARIO_STATUS_LABEL.pending, statusCounts.pending],
-              ['failed', SCENARIO_STATUS_LABEL.failed, statusCounts.failed],
-              ['passed', SCENARIO_STATUS_LABEL.passed, statusCounts.passed],
-            ] as const
+              ['due', 'Due', dueScenarios.length],
+              ...SR_BUCKET_ORDER.map((b) => [b, SR_BUCKET_LABEL[b], bucketCounts[b]] as const),
+            ] as ReadonlyArray<readonly [ListFilter, string, number]>
           ).map(([key, label, count]) => (
             <button
               key={key}
               type="button"
-              onClick={() => setStatusFilter(key)}
-              aria-pressed={statusFilter === key}
+              onClick={() => setListFilter(key)}
+              aria-pressed={listFilter === key}
               className={clsx(
                 'px-3 py-1 rounded-none font-mono text-xs uppercase tracking-tight border-2 transition',
-                statusFilter === key
+                listFilter === key
                   ? 'bg-text-primary text-bg border-text-primary'
-                  : 'bg-surface text-text-secondary border-text-primary/30 hover:border-text-primary',
+                  : 'bg-surface text-text-primary border-text-primary/30 hover:border-text-primary',
               )}
             >
               {label}
-              <span className="opacity-60"> · {count}</span>
+              <span> · {count}</span>
             </button>
           ))}
         </div>
@@ -459,7 +537,7 @@ export function EndgamesRoute() {
         </div>
       ) : sections.length === 0 ? (
         <div className="card max-w-xl">
-          <p className="text-text-secondary">Nothing with that status yet.</p>
+          <p className="text-text-primary">Nothing here yet.</p>
         </div>
       ) : (
         sections.map((section) => (
@@ -486,10 +564,10 @@ export function EndgamesRoute() {
                         <span
                           className={clsx(
                             'px-2 py-0.5 rounded-none font-mono text-[10px] uppercase tracking-tight border-2',
-                            STATUS_PILL[s.status],
+                            SR_BUCKET_PILL[srBucket(s)],
                           )}
                         >
-                          {SCENARIO_STATUS_LABEL[s.status]}
+                          {SR_BUCKET_LABEL[srBucket(s)]}
                         </span>
                         {isOppositeColoredBishops(s.startFen) && (
                           <span className="px-2 py-0.5 rounded-none font-mono text-[10px] uppercase tracking-tight border-2 border-text-primary/30 text-text-secondary">
@@ -497,17 +575,23 @@ export function EndgamesRoute() {
                           </span>
                         )}
                       </div>
-                      <p className="text-text-secondary text-sm">
+                      <MasteryDots cycleNumber={s.cycleNumber} size="sm" />
+                      <p className="text-text-primary text-sm">
                         {game ? `vs ${game.opponent}` : 'Unknown game'}
                         {game?.playedAt ? ` · ${game.playedAt.toLocaleDateString()}` : ''}
                         {s.attempts > 0
                           ? ` · ${s.attempts} attempt${s.attempts === 1 ? '' : 's'}`
                           : ''}
                       </p>
-                      <div className="mt-auto">
+                      <div className="mt-auto flex items-center gap-3">
                         <button className="btn-primary" onClick={() => begin(s)}>
                           Play
                         </button>
+                        {isScenarioDue(s) && (
+                          <span className="text-xs font-semibold text-gold-dark" data-testid="scenario-due">
+                            Due
+                          </span>
+                        )}
                       </div>
                     </div>
                   </li>

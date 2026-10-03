@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { RequireAuth } from './auth/RequireAuth';
 // Public routes are eager: they are prerendered to static HTML, so React should
@@ -11,6 +11,7 @@ import { PrivacyRoute } from './routes/PrivacyRoute';
 import { AboutRoute } from './routes/AboutRoute';
 import { FaqRoute } from './routes/FaqRoute';
 import { EventsRoute } from './routes/EventsRoute';
+import { MomentsRoute } from './routes/MomentsRoute';
 import { BlogIndex } from './routes/BlogIndex';
 import { BlogPost } from './routes/BlogPost';
 import { NotFoundRoute } from './routes/NotFoundRoute';
@@ -36,8 +37,21 @@ const ProfileRoute = lazy(() =>
 const AchievementsRoute = lazy(() =>
   import('./routes/AchievementsRoute').then((m) => ({ default: m.AchievementsRoute })),
 );
+const LeaderboardsRoute = lazy(() =>
+  import('./routes/LeaderboardsRoute').then((m) => ({ default: m.LeaderboardsRoute })),
+);
 const EndgamesRoute = lazy(() =>
   import('./routes/EndgamesRoute').then((m) => ({ default: m.EndgamesRoute })),
+);
+const OpeningsRoute = lazy(() =>
+  import('./routes/OpeningsRoute').then((m) => ({ default: m.OpeningsRoute })),
+);
+const OpeningReviewRoute = lazy(() =>
+  import('./routes/OpeningReviewRoute').then((m) => ({ default: m.OpeningReviewRoute })),
+);
+const LearnRoute = lazy(() => import('./routes/LearnRoute').then((m) => ({ default: m.LearnRoute })));
+const LearnStudyRoute = lazy(() =>
+  import('./routes/LearnStudyRoute').then((m) => ({ default: m.LearnStudyRoute })),
 );
 const AnalyticsRoute = lazy(() =>
   import('./routes/AnalyticsRoute').then((m) => ({ default: m.AnalyticsRoute })),
@@ -48,6 +62,13 @@ const SandboxRoute = lazy(() =>
 const EngineTestRoute = lazy(() =>
   import('./routes/EngineTestRoute').then((m) => ({ default: m.EngineTestRoute })),
 );
+
+/** Old /achievements?tab=leaderboards links: leaderboards have their own route now. */
+function AchievementsOrLeaderboards() {
+  const { search } = useLocation();
+  if (new URLSearchParams(search).get('tab') === 'leaderboards') return <Navigate to="/leaderboards" replace />;
+  return <AchievementsRoute />;
+}
 
 function RouteFallback() {
   return (
@@ -67,6 +88,7 @@ export default function App() {
       <Route path="/about" element={<AboutRoute />} />
       <Route path="/faq" element={<FaqRoute />} />
       <Route path="/events" element={<EventsRoute />} />
+      <Route path="/moments" element={<MomentsRoute />} />
       <Route path="/blog" element={<BlogIndex />} />
       <Route path="/blog/:slug" element={<BlogPost />} />
       <Route
@@ -90,8 +112,13 @@ export default function App() {
         <Route path="/training" element={<TrainingRoute />} />
         <Route path="/vault" element={<VaultRoute />} />
         <Route path="/endgames" element={<EndgamesRoute />} />
+        <Route path="/openings" element={<OpeningsRoute />} />
+        <Route path="/openings/review/:gameId" element={<OpeningReviewRoute />} />
+        <Route path="/learn" element={<LearnRoute />} />
+        <Route path="/learn/:slug/:chapter?" element={<LearnStudyRoute />} />
         <Route path="/profile" element={<ProfileRoute />} />
-        <Route path="/achievements" element={<AchievementsRoute />} />
+        <Route path="/leaderboards" element={<LeaderboardsRoute />} />
+        <Route path="/achievements" element={<AchievementsOrLeaderboards />} />
         <Route path="/analytics" element={<AnalyticsRoute />} />
         <Route path="/__sandbox" element={<SandboxRoute />} />
         <Route path="/__engine-test" element={<EngineTestRoute />} />

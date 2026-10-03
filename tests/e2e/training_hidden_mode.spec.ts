@@ -248,6 +248,17 @@ test('hidden mode: the share button opens a preview modal that copies a /p link'
   await expect(dialog.getByRole('button', { name: 'Copied' })).toBeVisible();
   const copied = await page.evaluate(() => (window as any).__copiedText as string);
   expect(copied).toContain('/p?d=');
+
+  // Same modal: switch to a screenshot, then the solution GIF.
+  await dialog.getByTestId('share-format-png').click();
+  await expect(dialog.getByTestId('share-format-png')).toHaveAttribute('aria-checked', 'true');
+  await expect(dialog.getByTestId('share-preview')).toBeVisible({ timeout: 10_000 });
+  const png = page.waitForEvent('download');
+  await dialog.getByTestId('share-download').click();
+  expect((await png).suggestedFilename()).toBe('patternchess-puzzle.png');
+  await dialog.getByTestId('share-format-gif').click();
+  await expect(dialog.getByTestId('share-preview')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('dialog')).toHaveCount(1);
 });
 
 test('hidden mode: a wrong try reveals both refutations after the attempt', async ({ page }) => {

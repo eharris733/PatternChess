@@ -10,6 +10,8 @@ export type AchievementCategory =
   | 'consistency'
   | 'mastery'
   | 'practice'
+  | 'openings'
+  | 'endgames'
   | 'discovery'
   | 'library'
   | 'rating';
@@ -19,6 +21,8 @@ export const ACHIEVEMENT_CATEGORY_LABEL: Record<AchievementCategory, string> = {
   consistency: 'Consistency',
   mastery: 'Mastery',
   practice: 'Practice',
+  openings: 'Openings',
+  endgames: 'Endgames',
   discovery: 'Discovery',
   library: 'Library',
   rating: 'Rating',
@@ -29,6 +33,8 @@ export const ACHIEVEMENT_CATEGORY_ORDER: readonly AchievementCategory[] = [
   'consistency',
   'mastery',
   'practice',
+  'openings',
+  'endgames',
   'discovery',
   'library',
   'rating',
@@ -53,7 +59,18 @@ export interface AchievementMetrics {
   endgamesRescued: number; // /endgames scenarios rescued (status: passed)
   usedTrainingFilter: number; // 1 if a /training focus (opening/motif/phase/situation) has ever been picked
   followedInstagram: number; // 1 once the user has clicked through to the PatternChess Instagram
-  sharesCount: number; // puzzle share links copied
+  sharesCount: number; // shares from PatternChess (links, images, GIFs)
+  referralsCount: number; // friends who joined through your invite link
+  minutesTrained: number; // lifetime training minutes (sessions capped at 120 min each)
+  activeDays: number; // lifetime distinct days with ≥1 correct drill
+  openingReviewsOpened: number; // /openings reviews opened
+  openingSolved: number; // first-attempt correct recalls on opening drills
+  openingMastered: number; // opening drills mastered
+  bookDepthGames: number; // games still in theory at move 10 (stayedInBookThrough)
+  learnChapters: number; // distinct Learn chapters completed
+  endgamePlayouts: number; // /endgames play-outs finished (every attempt)
+  endgameSolved: number; // endgame reviews won/held: scenario passes + endgame drills solved first try
+  endgameMastered: number; // endgame scenarios + endgame drills through the whole ladder
 }
 
 export const EMPTY_METRICS: AchievementMetrics = {
@@ -70,6 +87,17 @@ export const EMPTY_METRICS: AchievementMetrics = {
   usedTrainingFilter: 0,
   followedInstagram: 0,
   sharesCount: 0,
+  referralsCount: 0,
+  minutesTrained: 0,
+  activeDays: 0,
+  openingReviewsOpened: 0,
+  openingSolved: 0,
+  openingMastered: 0,
+  bookDepthGames: 0,
+  learnChapters: 0,
+  endgamePlayouts: 0,
+  endgameSolved: 0,
+  endgameMastered: 0,
 };
 
 export const INSTAGRAM_URL = 'https://www.instagram.com/patternchess/';
@@ -82,9 +110,13 @@ export interface AchievementDef {
   /** Which metric this milestone is measured against, and the value to reach. */
   metric: keyof AchievementMetrics;
   threshold: number;
-  /** Optional call-to-action rendered on the tile while unearned (external link). */
+  /** Optional call-to-action rendered on the tile while unearned (link; external when absolute). */
   action?: { label: string; href: string };
+  /** Tile icon; the trophy when omitted. */
+  icon?: AchievementIcon;
 }
+
+export type AchievementIcon = 'trophy' | 'opening' | 'endgame' | 'learn' | 'clock' | 'calendar';
 
 export const ACHIEVEMENTS: readonly AchievementDef[] = [
   // Getting set up — link an account so we have games to analyze.
@@ -98,6 +130,11 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { id: 'streak-14', title: 'Fortnight', description: 'Reach a 14-day training streak.', category: 'consistency', metric: 'longestStreakDays', threshold: 14 },
   { id: 'streak-30', title: 'Unstoppable', description: 'Reach a 30-day training streak.', category: 'consistency', metric: 'longestStreakDays', threshold: 30 },
   { id: 'streak-100', title: 'Centennial', description: 'Reach a 100-day training streak.', category: 'consistency', metric: 'longestStreakDays', threshold: 100 },
+  // Lifetime totals — reward showing up over time, not only unbroken streaks.
+  { id: 'active-days-30', title: 'Showing Up', description: 'Train on 30 different days.', category: 'consistency', metric: 'activeDays', threshold: 30, icon: 'calendar' },
+  { id: 'active-days-100', title: 'Clockwork', description: 'Train on 100 different days.', category: 'consistency', metric: 'activeDays', threshold: 100, icon: 'calendar' },
+  { id: 'time-10h', title: 'Committed', description: 'Put 10 hours into training.', category: 'consistency', metric: 'minutesTrained', threshold: 600, icon: 'clock' },
+  { id: 'time-50h', title: 'Grinder', description: 'Put 50 hours into training.', category: 'consistency', metric: 'minutesTrained', threshold: 3000, icon: 'clock' },
 
   // Mastery — positions taken all the way through the spaced-repetition ladder.
   { id: 'master-1', title: 'First Mastery', description: 'Master your first position.', category: 'mastery', metric: 'mastered', threshold: 1 },
@@ -116,14 +153,36 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { id: 'review-1000', title: 'Woodpecker', description: 'Recall 1,000 positions.', category: 'practice', metric: 'reviewed', threshold: 1000 },
   { id: 'review-2500', title: 'Relentless', description: 'Recall 2,500 positions.', category: 'practice', metric: 'reviewed', threshold: 2500 },
 
-  // Discovery — nudges toward the endgame trainer and the training-focus picker.
-  { id: 'endgame-rescue-1', title: 'First Rescue', description: 'Rescue a dropped point in the endgame trainer.', category: 'discovery', metric: 'endgamesRescued', threshold: 1 },
-  { id: 'endgame-rescue-5', title: 'Endgame Medic', description: 'Rescue 5 dropped points in the endgame trainer.', category: 'discovery', metric: 'endgamesRescued', threshold: 5 },
-  { id: 'endgame-rescue-15', title: 'Point Guard', description: 'Rescue 15 dropped points in the endgame trainer.', category: 'discovery', metric: 'endgamesRescued', threshold: 15 },
+  // Openings — the /openings theory-exit review, opening drills and /learn.
+  { id: 'opening-review-1', title: 'First Look', description: 'Open one of your opening exits and replay it against the database.', category: 'openings', metric: 'openingReviewsOpened', threshold: 1, icon: 'opening', action: { label: 'See your openings', href: '/openings' } },
+  { id: 'opening-review-10', title: 'Case Study', description: 'Review 10 opening exits.', category: 'openings', metric: 'openingReviewsOpened', threshold: 10, icon: 'opening' },
+  { id: 'opening-drill-1', title: 'Back in Book', description: 'Solve an opening drill on the first try.', category: 'openings', metric: 'openingSolved', threshold: 1, icon: 'opening' },
+  { id: 'opening-drill-25', title: 'Theory Student', description: 'Solve 25 opening drills.', category: 'openings', metric: 'openingSolved', threshold: 25, icon: 'opening' },
+  { id: 'opening-drill-100', title: 'Repertoire Builder', description: 'Solve 100 opening drills.', category: 'openings', metric: 'openingSolved', threshold: 100, icon: 'opening' },
+  { id: 'opening-master-10', title: 'Well Prepared', description: 'Master 10 opening positions.', category: 'openings', metric: 'openingMastered', threshold: 10, icon: 'opening' },
+  { id: 'book-deep-10', title: 'Booked Up', description: 'Still be in theory at move 10 in 10 games.', category: 'openings', metric: 'bookDepthGames', threshold: 10, icon: 'opening' },
+  { id: 'book-deep-50', title: 'Deep Prep', description: 'Still be in theory at move 10 in 50 games.', category: 'openings', metric: 'bookDepthGames', threshold: 50, icon: 'opening' },
+  { id: 'learn-chapter-1', title: 'Study Hall', description: 'Finish a chapter in the Learn library.', category: 'openings', metric: 'learnChapters', threshold: 1, icon: 'learn', action: { label: 'Open Learn', href: '/learn' } },
+  { id: 'learn-chapter-10', title: 'Bookworm', description: 'Finish 10 Learn chapters.', category: 'openings', metric: 'learnChapters', threshold: 10, icon: 'learn' },
+
+  // Endgames — /endgames play-outs (on the SR ladder) and logged endgame drills.
+  // The rescue ids predate the category; flair unlocks reference them, so keep them.
+  { id: 'endgame-rescue-1', title: 'First Rescue', description: 'Rescue a dropped point in the endgame trainer.', category: 'endgames', metric: 'endgamesRescued', threshold: 1, icon: 'endgame', action: { label: 'Open endgames', href: '/endgames' } },
+  { id: 'endgame-rescue-5', title: 'Endgame Medic', description: 'Rescue 5 dropped points in the endgame trainer.', category: 'endgames', metric: 'endgamesRescued', threshold: 5, icon: 'endgame' },
+  { id: 'endgame-rescue-15', title: 'Point Guard', description: 'Rescue 15 dropped points in the endgame trainer.', category: 'endgames', metric: 'endgamesRescued', threshold: 15, icon: 'endgame' },
+  { id: 'endgame-playout-10', title: 'Endgame Regular', description: 'Finish 10 endgame play-outs.', category: 'endgames', metric: 'endgamePlayouts', threshold: 10, icon: 'endgame' },
+  { id: 'endgame-playout-50', title: 'Technique Grinder', description: 'Finish 50 endgame play-outs.', category: 'endgames', metric: 'endgamePlayouts', threshold: 50, icon: 'endgame' },
+  { id: 'endgame-solved-25', title: 'Converter', description: 'Win or hold 25 endgame reviews.', category: 'endgames', metric: 'endgameSolved', threshold: 25, icon: 'endgame' },
+  { id: 'endgame-master-1', title: 'Clean Technique', description: 'Master an endgame: clear every review on the ladder.', category: 'endgames', metric: 'endgameMastered', threshold: 1, icon: 'endgame' },
+  { id: 'endgame-master-10', title: 'Endgame Technician', description: 'Master 10 endgames.', category: 'endgames', metric: 'endgameMastered', threshold: 10, icon: 'endgame' },
+
+  // Discovery — nudges toward the training-focus picker and sharing.
   { id: 'filtered-training-1', title: 'Focused Training', description: 'Train a specific focus — an opening, pattern, phase, or situation — from the training picker.', category: 'discovery', metric: 'usedTrainingFilter', threshold: 1 },
-  { id: 'share-1', title: 'First Share', description: 'Share a position from your games.', category: 'discovery', metric: 'sharesCount', threshold: 1 },
-  { id: 'share-5', title: 'Spreading the Word', description: 'Share 5 positions.', category: 'discovery', metric: 'sharesCount', threshold: 5 },
-  { id: 'share-25', title: 'Ambassador', description: 'Share 25 positions.', category: 'discovery', metric: 'sharesCount', threshold: 25 },
+  { id: 'share-1', title: 'First Share', description: 'Share a puzzle, GIF or achievement from PatternChess.', category: 'discovery', metric: 'sharesCount', threshold: 1 },
+  { id: 'share-5', title: 'Spreading the Word', description: 'Share 5 times from PatternChess.', category: 'discovery', metric: 'sharesCount', threshold: 5 },
+  { id: 'share-25', title: 'Ambassador', description: 'Share 25 times from PatternChess.', category: 'discovery', metric: 'sharesCount', threshold: 25 },
+  { id: 'invite-1', title: 'Recruiter', description: 'Get a friend to join PatternChess with your invite link.', category: 'discovery', metric: 'referralsCount', threshold: 1, action: { label: 'Invite a friend', href: '/leaderboards' } },
+  { id: 'invite-5', title: 'Club Captain', description: 'Bring 5 friends to PatternChess.', category: 'discovery', metric: 'referralsCount', threshold: 5 },
 
   // Library — building up the material to train against.
   { id: 'games-10', title: 'Building a Vault', description: 'Analyze 10 games.', category: 'library', metric: 'gamesAnalyzed', threshold: 10 },

@@ -5,6 +5,8 @@ import { useDrillsToday } from '../../hooks/useTrainingActivity';
 import { useAchievements } from '../../hooks/useAchievements';
 import { useDueBlunders } from '../../hooks/useDueBlunders';
 import { useEndgameScenarios } from '../../hooks/useEndgameScenarios';
+import { useDrillsOfKind } from '../../hooks/useDrillsOfKind';
+import { isScenarioDue } from '../../models/endgameScenario';
 import { DAILY_GOAL } from '../../lib/dailyGoal';
 import { nearestAchievement } from '../../lib/achievements';
 import { detectTimezone, localDate } from '../../services/streakService';
@@ -12,10 +14,13 @@ import { CheckIcon } from '../icons/CheckIcon';
 import { TrophyIcon } from '../icons/TrophyIcon';
 import { EndgameIcon } from '../icons/EndgameIcon';
 import { TrainIcon } from '../icons/TrainIcon';
+import { OpeningIcon } from '../icons/OpeningIcon';
 import { Skeleton } from '../Skeleton';
 
 /** Endgame play-outs the plan asks for per day (the list may hold many more). */
 export const PLAYOUTS_PER_DAY = 2;
+/** Opening reviews the plan asks for per day, when any are due. */
+export const OPENINGS_PER_DAY = 3;
 
 function PlanStep({
   icon,
@@ -55,12 +60,12 @@ function PlanStep({
         <span className={clsx('block text-sm', complete ? 'text-text-secondary line-through' : 'text-text-primary')}>
           {title}
         </span>
-        {detail && <span className="block text-xs text-text-secondary truncate">{detail}</span>}
+        {detail && <span className="block text-xs text-text-primary truncate">{detail}</span>}
       </span>
       {loading ? (
         <Skeleton className="h-4 w-10" />
       ) : (
-        <span className="font-mono text-sm tabular-nums text-text-secondary shrink-0">
+        <span className="font-mono text-sm tabular-nums text-text-primary shrink-0">
           {Math.min(done, goal)}/{goal}
         </span>
       )}
@@ -103,6 +108,7 @@ export function DailyHabitCard() {
   const drillsQuery = useDrillsToday();
   const dueQuery = useDueBlunders();
   const scenariosQuery = useEndgameScenarios();
+  const openingDrillsQuery = useDrillsOfKind('opening');
   const { achievements } = useAchievements();
 
   const tz = profile?.timezone ?? detectTimezone();
@@ -129,13 +135,24 @@ export function DailyHabitCard() {
   const playoutsToday = scenarios.filter(
     (s) => s.lastPlayedAt && localDate(tz, s.lastPlayedAt) === today,
   ).length;
-  const playoutsWaiting = scenarios.filter((s) => s.status !== 'passed').length;
-  const showEndgames = playoutsWaiting > 0 || playoutsToday > 0;
+  const playoutsDue = scenarios.filter((s) => isScenarioDue(s)).length;
+  const showEndgames = playoutsDue > 0 || playoutsToday > 0;
+
+  // Openings: drills done today vs due now. The goal counts today's work in,
+  // so it doesn't shrink as you clear the due ones.
+  const openingDrills = [...(openingDrillsQuery.data?.values() ?? [])];
+  const openingsToday = openingDrills.filter(
+    (b) => b.lastDrilledAt && localDate(tz, b.lastDrilledAt) === today,
+  ).length;
+  const openingsDue = (dueQuery.data ?? []).filter((b) => b.kind === 'opening').length;
+  const openingsGoal = Math.min(OPENINGS_PER_DAY, openingsDue + openingsToday);
+  const showOpenings = openingsGoal > 0;
   const drillsToday = drillsQuery.data ?? 0;
   const dueCount = dueQuery.data?.length ?? 0;
 
   const steps = [
     { done: drillsToday, goal: DAILY_GOAL },
+    ...(showOpenings ? [{ done: openingsToday, goal: openingsGoal }] : []),
     ...(showEndgames ? [{ done: playoutsToday, goal: PLAYOUTS_PER_DAY }] : []),
   ];
   const stepsDone = steps.filter((s) => s.done >= s.goal).length;
@@ -177,6 +194,17 @@ export function DailyHabitCard() {
           action="Train"
           onAction={() => navigate('/training')}
         />
+        {showOpenings && (
+          <PlanStep
+            icon={<OpeningIcon className="h-4 w-4" />}
+            title={`Review ${openingsGoal} ${openingsGoal === 1 ? 'opening' : 'openings'}`}
+            detail={openingsDue > 0 ? `${openingsDue} due` : null}
+            done={openingsToday}
+            goal={openingsGoal}
+            action="Review"
+            onAction={() => navigate('/training', { state: { kindFilter: 'opening' } })}
+          />
+        )}
         {scenariosPending ? (
           <PlanStepSkeleton />
         ) : (
@@ -184,7 +212,7 @@ export function DailyHabitCard() {
             <PlanStep
               icon={<EndgameIcon className="h-4 w-4" />}
               title={`Play ${PLAYOUTS_PER_DAY} endgames`}
-              detail={`${playoutsWaiting} play-out${playoutsWaiting === 1 ? '' : 's'} waiting`}
+              detail={playoutsDue > 0 ? `${playoutsDue} due for review` : null}
               done={playoutsToday}
               goal={PLAYOUTS_PER_DAY}
               action="Play"

@@ -137,6 +137,12 @@ describe('attachSeverity', () => {
       createdAt: new Date('2026-01-02'),
       verifiedAt: null,
       retiredAt: null,
+      cycleNumber: 0,
+      timesCorrect: 0,
+      timesAttempted: 0,
+      lastDrillFailed: false,
+      lastDrilledAt: null,
+      nextDrillAt: null,
       ...overrides,
     };
   }

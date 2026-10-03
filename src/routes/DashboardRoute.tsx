@@ -5,6 +5,7 @@ import { useGames } from '../hooks/useGames';
 import { startBlunderMaintenance } from '../services/blunderEnrichmentBackfill';
 import { startEndgameScenarioVerification } from '../services/endgameScenarioVerifier';
 import { startOpeningBackfill } from '../services/openingClassificationService';
+import { startOpeningDeviationScan } from '../services/openingDeviationService';
 import { DailyHabitCard } from '../components/insights/DailyHabitCard';
 import { CycleTimelineCard } from '../components/insights/CycleTimelineCard';
 import { HowTrainingWorksCard } from '../components/insights/HowTrainingWorksCard';
@@ -38,6 +39,9 @@ export function DashboardRoute() {
   // Classify openings on games that predate the position-based classifier.
   // Pure CPU (no engine), so it runs alongside the two workers above.
   useEffect(() => startOpeningBackfill(), []);
+  // Walk games through the opening book for /openings (network), then score
+  // the exits on the engine — yielding to the two engine workers above.
+  useEffect(() => startOpeningDeviationScan(), []);
 
   const gamesLoading = gamesQuery.isPending;
   const gamesCount = gamesQuery.data?.length ?? 0;

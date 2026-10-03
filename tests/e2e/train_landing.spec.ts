@@ -1,8 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 
 // The /training landing/picker screen (train everything, or filter by
-// opening/phase/pattern/situation first) and the repeat-miss refutation
-// autoplay (profile toggle: autoplay_refutation).
+// opening/phase/pattern/situation first), plus the post-miss drill-feedback
+// prefs: autoplay (autoplay_refutation) and show-the-answer
+// (show_answer_on_miss), both also toggled from the board's gear.
 
 const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
 
@@ -23,7 +24,7 @@ const FAKE_SESSION = {
   },
 };
 
-function makeProfile(autoplayRefutation: boolean) {
+function makeProfile(autoplayRefutation: boolean, showAnswerOnMiss = false) {
   return {
     id: 'e2e-user',
     display_name: 'E2E User',
@@ -43,6 +44,7 @@ function makeProfile(autoplayRefutation: boolean) {
     show_engine_evals: false,
     reveal_before_solve: false,
     autoplay_refutation: autoplayRefutation,
+    show_answer_on_miss: showAnswerOnMiss,
   };
 }
 
@@ -103,11 +105,16 @@ const GAME = {
 
 async function stubTrainingAuth(
   page: Page,
-  opts: { autoplayRefutation: boolean; blunders: Record<string, unknown>[] },
+  opts: {
+    autoplayRefutation: boolean;
+    showAnswerOnMiss?: boolean;
+    blunders: Record<string, unknown>[];
+  },
 ) {
   await page.addInitScript(
     ({ session, project, profile, blunders, game }) => {
       const origFetch = window.fetch.bind(window);
+      (window as any).__patches = [];
       window.fetch = (input: any, init?: any) => {
         const url = typeof input === 'string' ? input : input?.url ?? '';
         if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
@@ -129,6 +136,10 @@ async function stubTrainingAuth(
               new Response(null, { status: 200, headers: { 'content-range': '*/3' } }),
             );
           }
+          if (method === 'PATCH' && url.includes('/rest/v1/profiles')) {
+            (window as any).__patches.push(String(init?.body ?? ''));
+            return json([]);
+          }
           if (url.includes('/rest/v1/profiles')) return json(profile);
           if (url.includes('/rest/v1/blunders')) return json(blunders);
           if (url.includes('/rest/v1/games')) return json(game);
@@ -141,7 +152,7 @@ async function stubTrainingAuth(
     {
       session: FAKE_SESSION,
       project: SUPABASE_PROJECT,
-      profile: makeProfile(opts.autoplayRefutation),
+      profile: makeProfile(opts.autoplayRefutation, opts.showAnswerOnMiss ?? false),
       blunders: opts.blunders,
       game: GAME,
     },
@@ -181,7 +192,7 @@ test('the training landing screen offers a focus before starting', async ({ page
 
   // Picking a phase chip filters straight into the queue.
   await page.getByRole('button', { name: 'Opening', exact: true }).click();
-  await expect(page.getByText(/Opening · \d+ blunder/)).toBeVisible();
+  await expect(page.getByText(/Opening · \d+ position/)).toBeVisible();
   await expect(page.getByText('White to play')).toBeVisible();
 
   // "Change focus" returns to the picker.
@@ -214,52 +225,78 @@ test('finishing the review queue offers to keep training instead of a dead end',
   await expect(page.getByRole('heading', { name: 'Cycle complete' })).toHaveCount(0);
 });
 
-test('autoplay (default on): a repeat wrong attempt steps the refutation without a click', async ({
+async function startAndMiss(page: Page) {
+  await page.goto('/training');
+  await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
+  await expect(page.getByText('White to play')).toBeVisible();
+  await playWrongMove(page);
+  await expect(page.getByText(/That's a (blunder|mistake)|Incorrect/)).toBeVisible({
+    timeout: 60_000,
+  });
+}
+
+test('autoplay (default on): the first wrong attempt steps the refutation without a click', async ({
   page,
 }) => {
   await stubTrainingAuth(page, { autoplayRefutation: true, blunders: [makeBlunder()] });
-  await page.goto('/training');
-  await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
-
-  await expect(page.getByText('White to play')).toBeVisible();
-  await playWrongMove(page);
-  await expect(page.getByText(/That's a (blunder|mistake)|Incorrect/)).toBeVisible({
-    timeout: 60_000,
-  });
-  // First wrong attempt: static reveal, no autoplay — starts at the first ply.
-  await expect(page.locator('[data-key="r0"]')).toHaveClass(/bg-accent/, { timeout: 60_000 });
-
-  // Continue — the only item in the queue comes right back around.
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByText('White to play')).toBeVisible();
-  await playWrongMove(page);
-  await expect(page.getByText(/That's a (blunder|mistake)|Incorrect/)).toBeVisible({
-    timeout: 60_000,
-  });
-
-  // Repeat wrong attempt: autoplay steps past r0 on its own within a couple
-  // of seconds, with no click.
+  await startAndMiss(page);
+  // Autoplay steps past r0 on its own within a couple of seconds, no click.
   await expect(page.locator('[data-key="r1"]')).toHaveClass(/bg-accent/, { timeout: 5_000 });
+  // Show-answer is off by default: no Solution tab.
+  await expect(page.getByRole('button', { name: /^Solution:/ })).toHaveCount(0);
 });
 
-test('autoplay off: a repeat wrong attempt stays static', async ({ page }) => {
+test('autoplay off: a wrong attempt stays static', async ({ page }) => {
   await stubTrainingAuth(page, { autoplayRefutation: false, blunders: [makeBlunder()] });
-  await page.goto('/training');
-  await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
-
-  await expect(page.getByText('White to play')).toBeVisible();
-  await playWrongMove(page);
-  await expect(page.getByText(/That's a (blunder|mistake)|Incorrect/)).toBeVisible({
-    timeout: 60_000,
-  });
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByText('White to play')).toBeVisible();
-  await playWrongMove(page);
-  await expect(page.getByText(/That's a (blunder|mistake)|Incorrect/)).toBeVisible({
-    timeout: 60_000,
-  });
-
+  await startAndMiss(page);
   // No autoplay: stays on r0 well past the ~700ms step interval.
   await page.waitForTimeout(2_500);
   await expect(page.locator('[data-key="r0"]')).toHaveClass(/bg-accent/);
+});
+
+test('show the answer: a miss opens on the solution line', async ({ page }) => {
+  await stubTrainingAuth(page, {
+    autoplayRefutation: false,
+    showAnswerOnMiss: true,
+    blunders: [makeBlunder()],
+  });
+  await startAndMiss(page);
+  const solutionTab = page.getByRole('button', { name: 'Solution: gxh5' });
+  await expect(solutionTab).toBeVisible();
+  await expect(solutionTab).toHaveClass(/border-accent/);
+  await expect(page.getByText('BEST', { exact: true })).toBeVisible();
+});
+
+test('show the answer + autoplay: the refutation plays, then the solution', async ({ page }) => {
+  await stubTrainingAuth(page, {
+    autoplayRefutation: true,
+    showAnswerOnMiss: true,
+    blunders: [makeBlunder()],
+  });
+  await startAndMiss(page);
+  await expect(page.getByRole('button', { name: 'Solution: gxh5' })).toHaveClass(/border-accent/, {
+    timeout: 20_000,
+  });
+});
+
+test('the board gear toggles the drill-feedback prefs', async ({ page }) => {
+  await stubTrainingAuth(page, { autoplayRefutation: true, blunders: [makeBlunder()] });
+  await page.goto('/training');
+  await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
+  await expect(page.getByText('White to play')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Drill settings' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Drill settings' });
+  await dialog.getByLabel(/Show the answer/).check();
+  await dialog.getByLabel(/Autoplay the lines/).uncheck();
+  await expect
+    .poll(async () => page.evaluate(() => (window as any).__patches as string[]))
+    .toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('"show_answer_on_miss":true'),
+        expect.stringContaining('"autoplay_refutation":false'),
+      ]),
+    );
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
 });

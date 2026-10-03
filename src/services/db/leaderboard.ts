@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase';
 
-export type LeaderboardMetric = 'solved' | 'mastered' | 'elo' | 'streak';
+export type LeaderboardMetric = 'solved' | 'mastered' | 'openings' | 'endgames' | 'elo' | 'streak';
 export type LeaderboardWindow = 'all' | 'week';
 
 export interface LeaderboardRow {
@@ -9,6 +9,8 @@ export interface LeaderboardRow {
   label: string;
   value: number;
   isMe: boolean;
+  /** Chosen flair id (src/lib/flair.ts); null when none. Unknown ids render nothing. */
+  flair: string | null;
 }
 
 export interface Leaderboard {
@@ -27,11 +29,12 @@ function rowFromJson(j: any): LeaderboardRow {
     label: String(j.label ?? 'Player'),
     value: Number(j.value ?? 0),
     isMe: Boolean(j.isMe),
+    flair: typeof j.flair === 'string' && j.flair ? j.flair : null,
   };
 }
 
 /**
- * `leaderboard` RPC (security definer, migration 20260915140000): top-N
+ * `leaderboard` RPC (security definer, migrations 20260915140000 + 20260927120000 for flair): top-N
  * plus the caller's own rank for one metric × window. Opted-out users are
  * excluded server-side.
  */

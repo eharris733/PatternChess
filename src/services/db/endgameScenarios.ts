@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase';
 import type { TablesInsert } from '../../lib/database.types';
 import { EndgameScenario, endgameScenarioFromJson, ScenarioStatus } from '../../models/endgameScenario';
+import { nextDrillDate } from '../../models/blunder';
 import { currentUserId } from './currentUser';
 
 export async function getEndgameScenarios(): Promise<EndgameScenario[]> {
@@ -92,5 +93,24 @@ export async function updateEndgameScenarioResult(
       last_played_at: new Date().toISOString(),
     })
     .eq('id', id);
+  if (error) throw error;
+}
+
+/** Persist a play-out result on the SR ladder (see applyScenarioResult). */
+export async function updateEndgameScenarioSr(s: EndgameScenario): Promise<void> {
+  const { error } = await supabase
+    .from('endgame_scenarios')
+    .update({
+      status: s.status,
+      attempts: s.attempts,
+      last_played_at: (s.lastPlayedAt ?? new Date()).toISOString(),
+      cycle_number: s.cycleNumber,
+      times_correct: s.timesCorrect,
+      times_attempted: s.timesAttempted,
+      last_drill_failed: s.lastDrillFailed,
+      last_drilled_at: (s.lastDrilledAt ?? new Date()).toISOString(),
+      next_drill_at: nextDrillDate(s).toISOString(),
+    })
+    .eq('id', s.id);
   if (error) throw error;
 }

@@ -151,7 +151,16 @@ export function EndgameDrillView({
           paused={paused}
           overlay={
             overlay.enabled &&
-            (training.phase === 'correct' || training.phase === 'incorrect') && (
+            (training.phase === 'correct' || training.phase === 'incorrect') &&
+              (slipViewer.autoplayActive ? (
+                // Let the lines play out visibly first; a tap jumps to the end.
+                <button
+                  type="button"
+                  aria-label="Skip autoplay"
+                  onClick={slipViewer.skipAutoplay}
+                  className="absolute inset-0 z-10 bg-transparent"
+                />
+              ) : (
               <BoardActionOverlay
                 message={
                   training.phase === 'correct'
@@ -169,7 +178,7 @@ export function EndgameDrillView({
                 }
                 onDismiss={overlay.dismiss}
               />
-            )
+            ))
           }
         >
           <BoardPanel
@@ -177,7 +186,7 @@ export function EndgameDrillView({
             orientation={userColor}
             movableFor={playout.phase === 'solving' && !paused ? userColor : null}
             lastMove={preview ? preview.lastMove : playout.lastMove}
-            shapes={hint.shapes}
+            shapes={preview?.shapes ?? hint.shapes}
             onMove={(m) => void playout.processMove(m)}
           />
         </BoardStage>
@@ -286,6 +295,7 @@ export function EndgameDrillView({
               <SlipReport
                 slip={playout.slip}
                 target={target}
+                userColor={userColor}
                 logStatus={playout.slipLog}
                 onLog={() => void playout.logSlip()}
                 viewer={slipViewer}

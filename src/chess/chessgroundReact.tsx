@@ -35,7 +35,19 @@ export function ChessgroundReact({ config, contained = true, className, onReady 
     const redraw = () => apiRef.current?.redrawAll();
     let trailingId: number | null = null;
     let leadingRaf: number | null = null;
-    const observer = new ResizeObserver(() => {
+    // Only a real size change needs a redraw: redrawAll rebuilds the board's
+    // DOM, so firing it for a no-op observation (or a sub-pixel jitter)
+    // snaps any piece animation in flight — the "twitch" during autoplay.
+    // Seeded with the size at construction: the observer's first callback
+    // reports that same size, and the rAF redraw above already covers settling.
+    const sizeKey = (w: number, h: number) => `${Math.round(w)}x${Math.round(h)}`;
+    const initial = el.getBoundingClientRect();
+    let lastSize = sizeKey(initial.width, initial.height);
+    const observer = new ResizeObserver((entries) => {
+      const rect = entries[entries.length - 1]?.contentRect;
+      const size = rect ? sizeKey(rect.width, rect.height) : '';
+      if (size === lastSize) return;
+      lastSize = size;
       // Next frame, not synchronously: a redraw inside the observer callback
       // trips "ResizeObserver loop completed with undelivered notifications".
       if (leadingRaf === null) {

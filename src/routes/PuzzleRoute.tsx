@@ -237,7 +237,12 @@ function SharedPuzzlePlayer({ puzzle }: { puzzle: SharedPuzzle }) {
         )}
 
         {phase !== 'solving' && (
-          <WinningChancesDisplay evalBefore={puzzle.eb} evalAfter={puzzle.ea} />
+          <WinningChancesDisplay
+            evalBefore={puzzle.eb}
+            evalAfter={puzzle.ea}
+            mover={puzzle.stm}
+            label={`In the game: ${playedSan}`}
+          />
         )}
 
         <div className="flex flex-col gap-2">

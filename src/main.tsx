@@ -5,7 +5,10 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import { queryClient } from './lib/queryClient';
 import { AuthProvider } from './auth/AuthProvider';
+import { captureReferralFromUrl } from './lib/referral';
 import './index.css';
+
+captureReferralFromUrl();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

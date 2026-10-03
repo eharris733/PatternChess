@@ -1,0 +1,69 @@
+{
+  "$comment": "PatternChess-approved study library. Edit, then run `npm run learn:sync`. An entry can only be enabled once `permission` records how reuse was licensed (author-granted | patternchess | cc-by | cc0) — Lichess study text is the author's copyright. Studies with export disabled (403) cannot be imported. openingFamilies must match games.opening_family (e.g. \"Sicilian Defense\").",
+  "studies": [
+    {
+      "slug": "rook-endgames-101",
+      "studyId": "7UUxD0rK",
+      "title": "Rook Endgames 101",
+      "category": "endgames",
+      "level": "intermediate",
+      "author": "HSGM",
+      "description": "Lucena, Philidor, Vancura and the principles of active rooks, king activity, cut-offs and simplification.",
+      "permission": null,
+      "enabled": false,
+      "$note": "Export is disabled by the author (403 on 2026-09-25) — needs the author to allow export."
+    },
+    {
+      "slug": "rook-endgames-you-must-know",
+      "studyId": "bnboDhFM",
+      "title": "Rook Endgames You Must Know",
+      "category": "endgames",
+      "level": "beginner",
+      "author": "",
+      "permission": null,
+      "enabled": false
+    },
+    {
+      "slug": "beginner-endgames",
+      "studyId": "wukLYIXj",
+      "title": "Beginner Endgames You Must Know",
+      "category": "endgames",
+      "level": "beginner",
+      "author": "",
+      "permission": null,
+      "enabled": false
+    },
+    {
+      "slug": "pawn-structures",
+      "studyId": "B5upGe9A",
+      "title": "Pawn Structures",
+      "category": "strategy",
+      "level": "intermediate",
+      "author": "",
+      "permission": null,
+      "enabled": false
+    },
+    {
+      "slug": "strategy-basic-concepts",
+      "studyId": "7OC73Bt9",
+      "title": "Mastering Chess Strategy: Basic Concepts",
+      "category": "strategy",
+      "level": "beginner",
+      "author": "",
+      "permission": null,
+      "enabled": false
+    },
+    {
+      "slug": "caro-kann-for-black",
+      "studyId": "PDVt7Kbh",
+      "title": "Caro-Kann Repertoire for Black",
+      "category": "openings",
+      "openingFamilies": ["Caro-Kann Defense"],
+      "color": "black",
+      "level": "intermediate",
+      "author": "",
+      "permission": null,
+      "enabled": false
+    }
+  ]
+}

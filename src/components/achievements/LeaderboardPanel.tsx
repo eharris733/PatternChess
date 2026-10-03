@@ -9,10 +9,13 @@ import type {
   LeaderboardWindow,
 } from '../../services/db/leaderboard';
 import { Skeleton } from '../Skeleton';
+import { FlairBadge } from '../FlairBadge';
 
 const METRICS: Array<{ id: LeaderboardMetric; label: string; hint: string }> = [
   { id: 'solved', label: 'Solved', hint: 'Positions recalled correctly on the first try' },
   { id: 'mastered', label: 'Mastered', hint: 'Positions taken through the whole spaced-repetition ladder' },
+  { id: 'openings', label: 'Openings', hint: 'Opening drills solved' },
+  { id: 'endgames', label: 'Endgames', hint: 'Endgame reviews won or held' },
   { id: 'elo', label: 'Elo gained', hint: 'Rating points gained since joining, across time controls' },
   { id: 'streak', label: 'Streak', hint: 'Consecutive days trained' },
 ];
@@ -171,9 +174,10 @@ function Row({ row, metric }: { row: LeaderboardRow; metric: LeaderboardMetric }
       >
         {row.rank}
       </span>
-      <span className="min-w-0 flex-1 truncate text-text-primary">
-        {row.label}
-        {row.isMe && <span className="ml-2 text-xs text-text-secondary">(you)</span>}
+      <span className="min-w-0 flex-1 flex items-center gap-2 text-text-primary">
+        <span className="truncate">{row.label}</span>
+        <FlairBadge flair={row.flair} className="shrink-0 hidden sm:inline-flex" />
+        {row.isMe && <span className="shrink-0 text-xs text-text-secondary">(you)</span>}
       </span>
       <span className="shrink-0 font-mono tabular-nums text-text-primary">
         {formatValue(metric, row.value)}

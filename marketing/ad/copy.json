@@ -1,0 +1,56 @@
+{
+  "_note": "Fill in every empty string. Empty slots render on screen as [slot.name] so nothing ships blank by accident. Durations are seconds per scene.",
+  "hook": {
+    "headline": "PatternChess",
+    "sub": "Recognize the patterns in your blunders"
+  },
+  "captions": {
+    "dashboard": "One comprehensive training plan backed by statistical insights from your games",
+    "training": "Spaced repetition training on the blunders that hold your Elo back",
+    "openings": "Find the exact move where you left opening theory",
+    "openingsReview": "10.5 million games by elite players",
+    "endgames": "Study the endgames where you failed to win or hold",
+    "leaderboard": "Compare your training against other serious chess players"
+  },
+  "stats": {
+    "eloLabel": "Elo gained by PatternChess users",
+    "retentionLabel": "come back to train",
+    "solvedLabel": "positions solved"
+  },
+  "testimonials": [
+    {
+      "quote": "I’ve been playing good chess for the first time in months",
+      "name": "DrG00se",
+      "detail": "2091 chess.com"
+    },
+    {
+      "quote": "How could it not work? Every blunder you don’t make anymore is a step in the right direction",
+      "name": "Chess dad",
+      "detail": "600 Elo"
+    },
+    {
+      "quote": "Being able to drill opening blunders is actually really awesome",
+      "name": "FaceInterfacer",
+      "detail": "862 chess.com"
+    }
+  ],
+  "cta": {
+    "headline": "Learn from your patterns",
+    "button": "Sign up free",
+    "url": "patternchess.com"
+  },
+  "durations": {
+    "hook": 2.2,
+    "dashboard": 4,
+    "training": 6.2,
+    "drill2": 4.0,
+    "openings": 3.5,
+    "openingsReview": 3.5,
+    "endgames": 3.5,
+    "stats": 4,
+    "testimonials": 8.2,
+    "leaderboard": 3.5,
+    "achievements": 2.5,
+    "cta": 3.2
+  }
+}

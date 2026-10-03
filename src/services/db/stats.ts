@@ -452,6 +452,14 @@ export interface BlunderStats {
   /** Mastered positions whose last drill was within the past 7 days — the "+N this week" cue. */
   masteredRecently: number;
   totalBlunders: number;
+  /** First-attempt correct recalls on kind='opening' drills. */
+  openingSolved: number;
+  /** kind='opening' drills mastered (same rule as `mastered`). */
+  openingMastered: number;
+  /** First-attempt correct recalls on kind='endgame' drills (logged play-out slips). */
+  endgameSolved: number;
+  /** kind='endgame' drills mastered (same rule as `mastered`). */
+  endgameMastered: number;
 }
 
 const RECENT_WINDOW_MS = 7 * 86_400_000;
@@ -464,10 +472,22 @@ const MASTERY_RECALL_THRESHOLD = 0.8;
 
 export async function getBlunderStats(): Promise<BlunderStats> {
   const userId = await currentUserId();
-  if (!userId) return { reviewed: 0, attempted: 0, mastered: 0, masteredRecently: 0, totalBlunders: 0 };
+  if (!userId) {
+    return {
+      reviewed: 0,
+      attempted: 0,
+      mastered: 0,
+      masteredRecently: 0,
+      totalBlunders: 0,
+      openingSolved: 0,
+      openingMastered: 0,
+      endgameSolved: 0,
+      endgameMastered: 0,
+    };
+  }
   const { data, error } = await supabase
     .from('blunders')
-    .select('cycle_number, times_correct, times_attempted, last_drilled_at')
+    .select('kind, cycle_number, times_correct, times_attempted, last_drilled_at')
     .eq('user_id', userId);
   if (error) throw error;
   const recentSince = Date.now() - RECENT_WINDOW_MS;
@@ -476,7 +496,12 @@ export async function getBlunderStats(): Promise<BlunderStats> {
   let mastered = 0;
   let masteredRecently = 0;
   let totalBlunders = 0;
+  let openingSolved = 0;
+  let openingMastered = 0;
+  let endgameSolved = 0;
+  let endgameMastered = 0;
   for (const row of (data ?? []) as Array<{
+    kind: string | null;
     cycle_number: number | null;
     times_correct: number | null;
     times_attempted: number | null;
@@ -485,16 +510,32 @@ export async function getBlunderStats(): Promise<BlunderStats> {
     const c = row.times_correct ?? 0;
     const a = row.times_attempted ?? 0;
     const cycle = row.cycle_number ?? 0;
+    const opening = row.kind === 'opening';
     reviewed += c;
     attempted += a;
     totalBlunders++;
+    const endgame = row.kind === 'endgame';
+    if (opening) openingSolved += c;
+    if (endgame) endgameSolved += c;
     if (cycle >= MASTERY_CYCLE_THRESHOLD && a > 0 && c / a >= MASTERY_RECALL_THRESHOLD) {
       mastered++;
+      if (opening) openingMastered++;
+      if (endgame) endgameMastered++;
       const last = row.last_drilled_at ? Date.parse(row.last_drilled_at) : NaN;
       if (Number.isFinite(last) && last >= recentSince) masteredRecently++;
     }
   }
-  return { reviewed, attempted, mastered, masteredRecently, totalBlunders };
+  return {
+    reviewed,
+    attempted,
+    mastered,
+    masteredRecently,
+    totalBlunders,
+    openingSolved,
+    openingMastered,
+    endgameSolved,
+    endgameMastered,
+  };
 }
 
 // --- Landing page social proof (global, cross-user) ---

@@ -83,6 +83,32 @@ export async function getDueBlunders(opts?: { userId?: string }): Promise<Blunde
   return sortDueQueue((data ?? []).map(blunderFromJson));
 }
 
+/**
+ * Every live (not retired) drill of one kind, with its SR state — for the
+ * mastery views on /openings. Not filtered by due date.
+ */
+export async function getDrillsOfKind(kind: 'opening' | 'endgame'): Promise<Blunder[]> {
+  const { data, error } = await supabase
+    .from('blunders')
+    .select()
+    .eq('kind', kind)
+    .is('retired_at', null);
+  if (error) throw error;
+  return (data ?? []).map(blunderFromJson);
+}
+
+/**
+ * Specific drills for an on-demand session ("Drill these 5", "Train"),
+ * whether or not they are due, in the canonical queue order. Drilling one
+ * early still goes through the normal SR rules.
+ */
+export async function getBlundersByIds(ids: string[]): Promise<Blunder[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase.from('blunders').select().in('id', ids).is('retired_at', null);
+  if (error) throw error;
+  return sortDueQueue((data ?? []).map(blunderFromJson));
+}
+
 export async function getDueTomorrowCount(opts?: { userId?: string }): Promise<number> {
   const now = new Date();
   const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -246,8 +272,15 @@ export async function getUnenrichedBlunders(opts: { limit: number }): Promise<Bl
   return (data ?? []).map(blunderFromJson);
 }
 
+// Opening items are deduped across every game that reaches the same position
+// but keep only one game_id, so re-analyzing that one game must not wipe an
+// item (and its SR progress) the other games share.
 export async function deleteBlundersForGame(gameId: string): Promise<void> {
-  const { error } = await supabase.from('blunders').delete().eq('game_id', gameId);
+  const { error } = await supabase
+    .from('blunders')
+    .delete()
+    .eq('game_id', gameId)
+    .neq('kind', 'opening');
   if (error) throw error;
 }
 

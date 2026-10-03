@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { HintIcon } from './icons/HintIcon';
 import { ChevronIcon } from './icons/ChevronIcon';
 import { UndoIcon } from './icons/UndoIcon';
+import { DrillSettingsMenu } from './training/DrillSettingsMenu';
 
 interface BoardActionBarProps {
   /** Resets the timer when this changes (e.g. blunder index advances). */
@@ -155,6 +156,8 @@ export function BoardActionBar({
           Analyze ↗
         </a>
       )}
+
+      <DrillSettingsMenu />
     </div>
   );
 }

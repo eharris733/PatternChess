@@ -117,6 +117,12 @@ test('profile training card saves the two preferences on toggle', async ({ page 
   await expect
     .poll(async () => page.evaluate(() => (window as any).__patches as string[]))
     .toContainEqual(expect.stringContaining('"show_engine_evals":true'));
+
+  // Drill-feedback prefs (shared with the board gear via useDrillFeedbackPrefs).
+  await page.getByText('Show the answer after a miss').click();
+  await expect
+    .poll(async () => page.evaluate(() => (window as any).__patches as string[]))
+    .toContainEqual(expect.stringContaining('"show_answer_on_miss":true'));
 });
 
 test('training toggles flip optimistically while the PATCH is in flight', async ({ page }) => {

@@ -3,16 +3,21 @@ import { Chess } from 'chess.js';
 import type { DrawShape } from 'chessground/draw';
 import { MoveSequencePanel } from '../MoveSequencePanel';
 import { buildLineMoves, buildRefutationPairs } from '../../chess/refutationLines';
-import { parseUciMove } from '../../chess/moveUtils';
+import { parseUciMove, toKey } from '../../chess/moveUtils';
 import { formatEval } from '../../chess/formatEval';
+import { WinningChancesDisplay } from '../WinningChancesDisplay';
 import { DRAW_ACCEPT_CP, DRAW_ACCEPT_QUIET_PLIES, RESIGN_CP } from '../../chess/adjudication';
 import { halfmoveClock } from '../../chess/material';
 import type { PlayoutSlip, SlipLogStatus } from '../../state/endgamePlayoutStore';
+import { useDrillFeedbackPrefs } from '../../hooks/useDrillFeedbackPrefs';
+import { useLineAutoplay } from '../../hooks/useLineAutoplay';
 
 /** Board override while the user steps through the refutation line. */
 export interface SlipPreview {
   fen: string;
-  lastMove: [string, string];
+  lastMove: [string, string] | null;
+  /** Board arrows for the previewed position (the solution line draws green). */
+  shapes?: DrawShape[];
 }
 
 /**
@@ -93,21 +98,46 @@ export function HeldMeter({
   );
 }
 
+// Stable per-slip ids, so each new slip gets exactly one autoplay run.
+const slipIds = new WeakMap<PlayoutSlip, number>();
+let nextSlipId = 1;
+function slipId(slip: PlayoutSlip): number {
+  let id = slipIds.get(slip);
+  if (id === undefined) {
+    id = nextSlipId++;
+    slipIds.set(slip, id);
+  }
+  return id;
+}
+
 export type SlipLineViewer = {
   line: ReturnType<typeof buildRefutationPairs> | null;
-  activeKey: string;
+  /** The move that held (best move + engine PV from the slip position); null when show-answer is off. */
+  solutionLine: ReturnType<typeof buildRefutationPairs> | null;
+  /** Active refutation move key (`r<i>`), or null while the solution line is on the board. */
+  activeKey: string | null;
+  /** Active solution move key (`r<i>`), or null (including the best-move-arrow start). */
+  activeSolutionKey: string | null;
   selectMove: (key: string) => void;
+  selectSolutionMove: (key: string) => void;
   /** Steps the active move (arrow keys / tap arrows); null when there is no line to step. */
   stepLine: ((dir: 1 | -1) => void) | null;
+  /** True while the post-slip lines are autoplaying (overlays should wait). */
+  autoplayActive: boolean;
+  skipAutoplay: () => void;
 };
 
 /**
- * Browsing state for a slip's engine refutation line: which move is active,
- * click/step selection that walks the board via onPreview, and the arrow-key
- * handler. Lifted out of SlipReport so the host screen can surface the step
- * controls near the board (mobile action bar) while SlipReport renders the
- * line itself. `active` gates keyboard + stepping to the failed/incorrect
- * phase so a stale slip can't hijack the board mid-solve.
+ * Browsing state for a slip's lines: the engine refutation of the played
+ * move and — when the drill-feedback "show the answer" pref is on — the
+ * solution (the move that held, then the engine PV). Click/step selection
+ * walks the board via onPreview; the arrow keys step whichever line is on the
+ * board. After each new slip it applies the drill-feedback prefs: autoplay
+ * steps the refutation then the solution (useLineAutoplay); show-answer alone
+ * parks the board on the slip position with the best move drawn. Lifted out
+ * of SlipReport so the host screen can surface the step controls near the
+ * board (mobile action bar). `active` gates all of it to the failed phase so
+ * a stale slip can't hijack the board mid-solve.
  */
 export function useSlipLineViewer({
   slip,
@@ -122,8 +152,14 @@ export function useSlipLineViewer({
   active: boolean;
   onPreview: (preview: SlipPreview | null) => void;
 }): SlipLineViewer {
-  // r0 = the slip itself, already on the board when the fail panel appears.
-  const [activeKey, setActiveKey] = useState('r0');
+  const { showAnswer, autoplay } = useDrillFeedbackPrefs();
+  // Which line is on the board, and the index within it. r0 = the slip itself,
+  // already on the board when the fail panel appears. Solution index -1 = the
+  // slip position with the best-move arrow.
+  const [cursor, setCursor] = useState<{ line: 'refutation' | 'solution'; idx: number }>({
+    line: 'refutation',
+    idx: 0,
+  });
 
   const line = useMemo(() => {
     if (!slip) return null;
@@ -147,12 +183,23 @@ export function useSlipLineViewer({
     });
   }, [slip, target, userColor]);
 
-  // New slip → back to the played move, and drop any stale board preview.
-  useEffect(() => {
-    setActiveKey('r0');
-    onPreview(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slip]);
+  const fullSolution = useMemo(() => {
+    if (!slip?.bestUci) return null;
+    const pv = slip.refEvalAtSlip?.principalVariation ?? [];
+    const moves = buildLineMoves(slip.fenBefore, pv[0] === slip.bestUci ? pv : [slip.bestUci]);
+    const first = moves[0];
+    if (!first) return null;
+    return buildRefutationPairs({
+      fen: slip.fenBefore,
+      moveNumber: slip.moveNumber,
+      sideToMove: userColor,
+      firstSan: first.san,
+      firstUci: first.uci,
+      tag: target === 'win' ? 'Keeps the win' : 'Holds the draw',
+      pvMoves: moves.slice(1),
+    });
+  }, [slip, target, userColor]);
+  const solutionLine = showAnswer ? fullSolution : null;
 
   const selectMove = (key: string) => {
     if (!line) return;
@@ -163,26 +210,99 @@ export function useSlipLineViewer({
       const chess = new Chess(move.fenBefore);
       const m = parseUciMove(move.uci);
       chess.move({ from: m.from, to: m.to, promotion: m.promotion });
-      setActiveKey(key);
+      setCursor({ line: 'refutation', idx });
       onPreview({ fen: chess.fen(), lastMove: [m.from, m.to] });
     } catch {
       // Corrupt PV entry — leave the board where it is.
     }
   };
 
-  const canStep = active && !!line && line.movesPlusFirst.length > 0;
+  const selectSolutionIndex = (idx: number) => {
+    const moves = fullSolution?.movesPlusFirst;
+    if (!moves || idx < -1 || idx >= moves.length) return;
+    if (idx === -1) {
+      const m = parseUciMove(moves[0].uci);
+      setCursor({ line: 'solution', idx: -1 });
+      onPreview({
+        fen: moves[0].fenBefore,
+        lastMove: null,
+        shapes: [{ orig: toKey(m.from), dest: toKey(m.to), brush: 'green' }],
+      });
+      return;
+    }
+    const move = moves[idx];
+    try {
+      const chess = new Chess(move.fenBefore);
+      const m = parseUciMove(move.uci);
+      chess.move({ from: m.from, to: m.to, promotion: m.promotion });
+      setCursor({ line: 'solution', idx });
+      onPreview({
+        fen: chess.fen(),
+        lastMove: [m.from, m.to],
+        shapes: [{ orig: toKey(m.from), dest: toKey(m.to), brush: 'green' }],
+      });
+    } catch {
+      // Corrupt PV entry — leave the board where it is.
+    }
+  };
+
+  // New slip → back to the played move, and drop any stale board preview.
+  // Declared before the autoplay hook so a fresh run isn't clobbered.
+  useEffect(() => {
+    setCursor({ line: 'refutation', idx: 0 });
+    onPreview(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slip]);
+
+  // Post-slip autoplay: the refutation, then the solution when it's shown.
+  const slipSeq = slip ? slipId(slip) : 0;
+  const autoplayRun = useLineAutoplay({
+    runKey: active && autoplay && slip ? `slip:${slipSeq}` : null,
+    segments: [
+      { length: line?.movesPlusFirst.length ?? 0, select: (i) => selectMove(`r${i}`) },
+      ...(solutionLine
+        ? [
+            {
+              length: solutionLine.movesPlusFirst.length + 1,
+              select: (i: number) => selectSolutionIndex(i - 1),
+            },
+          ]
+        : []),
+    ],
+  });
+
+  // Show-answer without autoplay: open on the answer instead of the slip.
+  useEffect(() => {
+    if (!active || autoplay || !solutionLine) return;
+    selectSolutionIndex(-1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, autoplay, !!solutionLine, slipSeq]);
+
+  const onSolution = cursor.line === 'solution' && !!solutionLine;
+  const canStep =
+    active &&
+    (onSolution ? true : !!line && line.movesPlusFirst.length > 0);
 
   // Tap equivalent of the arrow keys.
   const stepLine = canStep
     ? (dir: 1 | -1) => {
+        autoplayRun.stop();
+        if (onSolution && solutionLine) {
+          const next = Math.min(
+            Math.max(cursor.idx + dir, -1),
+            solutionLine.movesPlusFirst.length - 1,
+          );
+          if (next !== cursor.idx) selectSolutionIndex(next);
+          return;
+        }
         if (!line) return;
-        const cur = Number.parseInt(activeKey.slice(1), 10) || 0;
+        const cur = cursor.line === 'refutation' ? cursor.idx : 0;
         const next = Math.min(Math.max(cur + dir, 0), line.movesPlusFirst.length - 1);
         if (next !== cur) selectMove(`r${next}`);
       }
     : null;
 
-  // Arrow keys step through the refutation line, same as the training shell.
+  // Arrow keys step the line on the board, same as the training shell.
   useEffect(() => {
     if (!canStep) return;
     const onKey = (e: KeyboardEvent) => {
@@ -195,9 +315,26 @@ export function useSlipLineViewer({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canStep, line, activeKey]);
+  }, [canStep, line, solutionLine, cursor]);
 
-  return { line, activeKey, selectMove, stepLine };
+  return {
+    line,
+    solutionLine,
+    activeKey: cursor.line === 'refutation' ? `r${cursor.idx}` : null,
+    activeSolutionKey: onSolution && cursor.idx >= 0 ? `r${cursor.idx}` : null,
+    selectMove: (key) => {
+      autoplayRun.stop();
+      selectMove(key);
+    },
+    selectSolutionMove: (key) => {
+      autoplayRun.stop();
+      const idx = Number.parseInt(key.slice(1), 10);
+      if (!Number.isNaN(idx)) selectSolutionIndex(idx);
+    },
+    stepLine,
+    autoplayActive: autoplayRun.active,
+    skipAutoplay: autoplayRun.skip,
+  };
 }
 
 /**
@@ -208,17 +345,21 @@ export function useSlipLineViewer({
 export function SlipReport({
   slip,
   target,
+  userColor,
   logStatus,
   onLog,
   viewer,
 }: {
   slip: PlayoutSlip;
+  /** The side the user plays (the swing bar's mover). */
+  userColor: 'white' | 'black';
   target: 'win' | 'draw';
   logStatus: SlipLogStatus;
   onLog: () => void;
   viewer: SlipLineViewer;
 }) {
-  const { line, activeKey, selectMove, stepLine } = viewer;
+  const { line, solutionLine, activeKey, activeSolutionKey, selectMove, selectSolutionMove, stepLine } =
+    viewer;
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm">
@@ -234,6 +375,15 @@ export function SlipReport({
         )}
       </p>
 
+      {slip.refEvalAtSlip && slip.evalAfterSlip != null && (
+        <WinningChancesDisplay
+          evalBefore={slip.refEvalAtSlip.scoreCp}
+          evalAfter={slip.evalAfterSlip}
+          mover={userColor}
+          label={`Your move: ${slip.playedSan ?? slip.playedUci}`}
+        />
+      )}
+
       {line && slip.refutationPv.length > 0 && (
         <div className="flex flex-col gap-1">
           <span className="label">{target === 'win' ? 'Why the win is gone' : 'Why the draw is gone'}</span>
@@ -241,9 +391,23 @@ export function SlipReport({
             pairs={line.pairs}
             activeKey={activeKey}
             onSelect={selectMove}
-            onStep={stepLine ?? undefined}
+            onStep={activeKey !== null ? (stepLine ?? undefined) : undefined}
             stepArrowsDesktopOnly
             className="border-2 border-text-primary/20"
+          />
+        </div>
+      )}
+
+      {solutionLine && (
+        <div className="flex flex-col gap-1">
+          <span className="label">What holds</span>
+          <MoveSequencePanel
+            pairs={solutionLine.pairs}
+            activeKey={activeSolutionKey}
+            onSelect={selectSolutionMove}
+            onStep={activeKey === null ? (stepLine ?? undefined) : undefined}
+            stepArrowsDesktopOnly
+            className="border-2 border-correct/40"
           />
         </div>
       )}

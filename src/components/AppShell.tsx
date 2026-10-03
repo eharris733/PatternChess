@@ -75,7 +75,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <MenuIcon className="h-6 w-6" />
           </button>
         </header>
-        <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
+        <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]">
           <div className="p-4 sm:p-6 lg:p-10 max-w-[1400px] mx-auto">
             <ErrorBoundary>{children}</ErrorBoundary>
           </div>

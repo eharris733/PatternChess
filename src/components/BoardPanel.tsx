@@ -76,6 +76,7 @@ export function BoardPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fen]);
 
+  const lastMoveKey = lastMove ? lastMove.join('-') : '';
   const config = useMemo<Config>(() => {
     const cgDests = new Map<Key, Key[]>();
     for (const [k, v] of dests) cgDests.set(toKey(k), v.map(toKey));
@@ -112,7 +113,10 @@ export function BoardPanel({
         shapes: shapes ?? [],
       },
     };
-  }, [fen, orientation, turn, inCheck, lastMove, movableFor, onMove, shapes, dests, viewOnly, coordinates]);
+    // lastMove by value: callers often rebuild the tuple every render, and a
+    // new config re-`set`s the whole board.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fen, orientation, turn, inCheck, lastMoveKey, movableFor, onMove, shapes, dests, viewOnly, coordinates]);
 
   return (
     <div className={clsx('relative aspect-square w-full max-w-[min(640px,calc(100vh-5rem))] mx-auto', className)}>

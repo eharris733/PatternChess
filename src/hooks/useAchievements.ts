@@ -4,7 +4,9 @@ import { playSound } from '../lib/sounds';
 import { useBlunderStats } from './useBlunderStats';
 import { useGames } from './useGames';
 import { useEndgameScenarios } from './useEndgameScenarios';
+import { useBookDepthGames, useTrainingTotals } from './useTrainingTotals';
 import { ratingProgressFromGames } from './useRatingProgress';
+import { srBucket } from '../models/blunder';
 import {
   AchievementMetrics,
   EMPTY_METRICS,
@@ -28,6 +30,8 @@ export function useAchievements(): {
   const statsQuery = useBlunderStats();
   const gamesQuery = useGames();
   const scenariosQuery = useEndgameScenarios();
+  const totalsQuery = useTrainingTotals();
+  const bookDepthQuery = useBookDepthGames();
 
   // Stable key for the preferred-time-controls array so the memo below doesn't
   // re-run on every render (arrays are referentially unstable).
@@ -51,8 +55,13 @@ export function useAchievements(): {
       }
     }
 
-    const endgamesRescued =
-      scenariosQuery.data?.filter((s) => s.status === 'passed').length ?? 0;
+    const scenarios = scenariosQuery.data ?? [];
+    const endgamesRescued = scenarios.filter((s) => s.status === 'passed').length;
+    const endgamePlayouts = scenarios.reduce((n, s) => n + s.attempts, 0);
+    const scenarioSolved = scenarios.reduce((n, s) => n + s.timesCorrect, 0);
+    // Scenarios have no recall floor (a play-out is pass/fail): mastered =
+    // through the whole ladder, i.e. srBucket(s) === 'mastered'.
+    const scenarioMastered = scenarios.filter((s) => srBucket(s) === 'mastered').length;
 
     return {
       reviewed: stats.reviewed,
@@ -68,12 +77,27 @@ export function useAchievements(): {
       usedTrainingFilter: profile?.usedTrainingFilter ? 1 : 0,
       followedInstagram: profile?.followedInstagram ? 1 : 0,
       sharesCount: profile?.sharesCount ?? 0,
+      referralsCount: profile?.referralsCount ?? 0,
+      minutesTrained: totalsQuery.data?.minutes ?? 0,
+      activeDays: totalsQuery.data?.activeDays ?? 0,
+      openingReviewsOpened: profile?.openingReviewsOpened ?? 0,
+      openingSolved: stats.openingSolved,
+      openingMastered: stats.openingMastered,
+      bookDepthGames: bookDepthQuery.data ?? 0,
+      learnChapters: profile?.learnChaptersDone.length ?? 0,
+      endgamePlayouts,
+      endgameSolved: scenarioSolved + stats.endgameSolved,
+      endgameMastered: scenarioMastered + stats.endgameMastered,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     statsQuery.data,
     gamesQuery.data,
     scenariosQuery.data,
+    totalsQuery.data,
+    bookDepthQuery.data,
+    profile?.openingReviewsOpened,
+    profile?.learnChaptersDone,
     profile?.currentStreakDays,
     profile?.longestStreakDays,
     profile?.lichessUsername,
@@ -82,6 +106,7 @@ export function useAchievements(): {
     profile?.usedTrainingFilter,
     profile?.followedInstagram,
     profile?.sharesCount,
+    profile?.referralsCount,
     prefKey,
   ]);
 
@@ -91,12 +116,14 @@ export function useAchievements(): {
   // Unlock cue: achievements are derived, not stored, so remember which ids
   // this browser has already seen earned and chime for anything new. The
   // first evaluation for a user just seeds the set (no fanfare for history).
+  // The set only grows, so a metric that loads late (or a query that fails)
+  // can't make an old unlock chime again on the next visit.
   const earnedKey = achievements
     .filter((a) => a.earned)
     .map((a) => a.id)
     .join(',');
   useEffect(() => {
-    if (!profile?.id || statsQuery.isPending) return;
+    if (!profile?.id || statsQuery.isPending || totalsQuery.isPending || bookDepthQuery.isPending) return;
     const storageKey = `pc:ach-seen:${profile.id}`;
     let seen: string[] | null = null;
     try {
@@ -108,11 +135,11 @@ export function useAchievements(): {
     const now = earnedKey ? earnedKey.split(',') : [];
     if (seen !== null && now.some((id) => !seen!.includes(id))) playSound('achievement');
     try {
-      localStorage.setItem(storageKey, JSON.stringify(now));
+      localStorage.setItem(storageKey, JSON.stringify([...new Set([...(seen ?? []), ...now])]));
     } catch {
       /* private mode etc. */
     }
-  }, [earnedKey, profile?.id, statsQuery.isPending]);
+  }, [earnedKey, profile?.id, statsQuery.isPending, totalsQuery.isPending, bookDepthQuery.isPending]);
 
   return {
     metrics,

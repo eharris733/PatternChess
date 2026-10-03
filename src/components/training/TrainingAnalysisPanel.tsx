@@ -6,6 +6,8 @@ import { FeedbackBadge } from '../FeedbackBadge';
 import { WinningChancesDisplay } from '../WinningChancesDisplay';
 import { PositionSrState } from './PositionSrState';
 import { BlunderContextBadges } from './BlunderContextBadges';
+import { OpeningTheoryNote } from './OpeningTheoryNote';
+import { OpeningVerdictPanel } from './OpeningVerdictPanel';
 import { ShareIcon } from '../icons/ShareIcon';
 import { TrashIcon } from '../icons/TrashIcon';
 import { orderedPlayers } from '../../models/gameRecord';
@@ -24,7 +26,12 @@ interface TrainingAnalysisPanelProps {
   stepRefutation: (dir: 1 | -1) => void;
   stepPostCorrect: (dir: 1 | -1) => void;
   stepPlayedRefutation: (dir: 1 | -1) => void;
+  stepSolution: (dir: 1 | -1) => void;
+  /** Drill-feedback pref: add the Solution tab after a miss. */
+  showAnswer: boolean;
   stopAutoplay: () => void;
+  /** Opening intro: jump straight to the prompt. */
+  onSkipIntro: () => void;
   paused: boolean;
   deleting: boolean;
   onShareClick: () => void;
@@ -50,14 +57,26 @@ export function TrainingAnalysisPanel({
   stepRefutation,
   stepPostCorrect,
   stepPlayedRefutation,
+  stepSolution,
+  showAnswer,
   stopAutoplay,
+  onSkipIntro,
   paused,
   deleting,
   onShareClick,
   onDeleteClick,
 }: TrainingAnalysisPanelProps) {
+  const solutionVisible = showAnswer && state.solutionMoves.length > 0;
+  // Opening drills reveal their kind through the intro, so they can be named
+  // throughout; tactics and endgames stay concealed until the first move.
+  const openingData =
+    blunder?.kind === 'opening' && blunder.drillData && 'theoryMoves' in blunder.drillData
+      ? blunder.drillData
+      : null;
+  const isOpening = blunder?.kind === 'opening';
+  const sideName = blunder?.sideToMove === 'white' ? 'White' : 'Black';
   return (
-    <aside className="card flex flex-col gap-4 sticky top-6 self-start max-h-[calc(100vh-3rem)] overflow-y-auto">
+    <aside className="card flex flex-col gap-4 sticky top-6 self-start max-h-[calc(100vh-3rem)] overflow-y-auto [&_.btn-primary]:mr-[3px] [&_.btn-primary]:mb-[3px]">
       <header className="flex items-center justify-between">
         <span className="label">
           {state.game && blunder
@@ -88,28 +107,50 @@ export function TrainingAnalysisPanel({
         <PositionSrState
           blunder={blunder}
           showTryAgainLabel={state.pendingTryAgain}
-          showNextReview={state.phase === 'reviewing' || state.phase === 'solving'}
+          showNextReview={
+            state.phase === 'reviewing' || state.phase === 'solving' || state.phase === 'introducing'
+          }
         />
+      )}
+
+      {isOpening && (openingData?.openingName || openingData?.openingFamily) && (
+        <p className="text-text-primary font-semibold" data-testid="opening-drill-name">
+          {openingData.openingName ?? openingData.openingFamily}
+        </p>
+      )}
+
+      {state.phase === 'introducing' && (
+        <>
+          <p className="text-text-primary">Your game, up to the move you missed.</p>
+          <button type="button" className="btn-outline self-start" onClick={onSkipIntro} data-testid="skip-intro">
+            Skip to the position
+          </button>
+        </>
       )}
 
       {state.currentContext && <BlunderContextBadges context={state.currentContext} />}
 
-      {blunder && (revealBeforeSolve || state.phase !== 'solving') && (
-        <WinningChancesDisplay
-          // "Your try" (the default view of a wrong-answer toggle) shows the
-          // swing for the move just played, not the original blunder's swing.
-          evalBefore={
-            activeTab !== 'refutation' && state.livePlayedEval
-              ? state.livePlayedEval.before
-              : blunder.evalBefore
-          }
-          evalAfter={
-            activeTab !== 'refutation' && state.livePlayedEval
-              ? state.livePlayedEval.after
-              : blunder.evalAfter
-          }
-          showEngineEvals={showEngineEvals}
-        />
+      {blunder && state.phase !== 'introducing' && (revealBeforeSolve || state.phase !== 'solving') && (
+        (() => {
+          // "Your try" (the default view after an attempt) shows the swing of
+          // the move just played; otherwise the move from the user's game.
+          const live = activeTab !== 'refutation' ? state.livePlayedEval : null;
+          return (
+            <WinningChancesDisplay
+              evalBefore={live ? live.before : blunder.evalBefore}
+              evalAfter={live ? live.after : blunder.evalAfter}
+              mover={blunder.sideToMove === 'white' ? 'white' : 'black'}
+              label={
+                live
+                  ? `Your move${live.san ? `: ${live.san}` : ''}`
+                  : state.blunderSan
+                    ? `Your game: ${state.blunderSan}`
+                    : null
+              }
+              showEngineEvals={showEngineEvals}
+            />
+          );
+        })()
       )}
 
       {state.phase === 'reviewing' && blunder && (
@@ -155,8 +196,8 @@ export function TrainingAnalysisPanel({
                 blunder.sideToMove === 'white' ? 'bg-surface' : 'bg-black',
               )}
             />
-            <span className="font-medium">
-              {blunder.sideToMove === 'white' ? 'White' : 'Black'} to play
+            <span className="font-medium" data-testid="drill-prompt">
+              {isOpening ? `Play the move for ${sideName}` : `${sideName} to play`}
             </span>
             {state.userMovesRequired > 1 && (
               <span className="ml-auto font-mono uppercase text-[10px] tracking-tight text-text-secondary">
@@ -199,7 +240,14 @@ export function TrainingAnalysisPanel({
 
       {state.phase === 'correct' && (
         <>
-          <FeedbackBadge tone="success">Solution correct</FeedbackBadge>
+          {blunder && state.openingVerdict ? (
+            <OpeningVerdictPanel blunder={blunder} verdict={state.openingVerdict} />
+          ) : (
+            <>
+              <FeedbackBadge tone="success">Solution correct</FeedbackBadge>
+              {blunder && <OpeningTheoryNote blunder={blunder} />}
+            </>
+          )}
           <LineTabs
             tabs={[
               { key: 'continuation', label: 'Continuation' },
@@ -275,6 +323,9 @@ export function TrainingAnalysisPanel({
           <FeedbackBadge tone={state.incorrectFeedback.tone}>
             {state.incorrectFeedback.message}
           </FeedbackBadge>
+          {/* Names the answer, so it follows the show-answer pref and never
+              appears on a retry-in-place. */}
+          {blunder && showAnswer && state.incorrectRequeue && <OpeningTheoryNote blunder={blunder} />}
           {state.incorrectRequeue ? (
             <>
               <LineTabs
@@ -283,12 +334,46 @@ export function TrainingAnalysisPanel({
                     key: 'playedRefutation',
                     label: triedSan ? `Your try: ${triedSan}` : 'Your try',
                   },
+                  ...(solutionVisible
+                    ? [
+                        {
+                          key: 'solution' as const,
+                          label: `Solution: ${state.solutionMoves[0].san}`,
+                        },
+                      ]
+                    : []),
                   { key: 'refutation', label: `Your game: ${state.blunderSan}` },
                 ]}
-                active={activeTab === 'refutation' ? 'refutation' : 'playedRefutation'}
-                onSelect={setActiveTab}
+                active={
+                  activeTab === 'refutation' || (activeTab === 'solution' && solutionVisible)
+                    ? activeTab
+                    : 'playedRefutation'
+                }
+                onSelect={(key) => {
+                  stopAutoplay();
+                  setActiveTab(key);
+                  if (key === 'solution') state.selectSolutionIndex(-1);
+                }}
               />
-              {activeTab !== 'refutation' ? (
+              {activeTab === 'solution' && solutionVisible ? (
+                <MoveSequencePanel
+                  pairs={state.solutionPairs}
+                  onStep={stepSolution}
+                  stepArrowsDesktopOnly
+                  activeKey={
+                    state.activeSolutionIndex !== null && state.activeSolutionIndex >= 0
+                      ? `r${state.activeSolutionIndex}`
+                      : null
+                  }
+                  onSelect={(key) => {
+                    const i = Number.parseInt(key.slice(1), 10);
+                    if (!Number.isNaN(i)) {
+                      stopAutoplay();
+                      state.selectSolutionIndex(i);
+                    }
+                  }}
+                />
+              ) : activeTab !== 'refutation' ? (
                 state.playedRefutationPairs.length > 0 ? (
                   <MoveSequencePanel
                     pairs={state.playedRefutationPairs}
@@ -338,13 +423,13 @@ export function TrainingAnalysisPanel({
           <button
             className="btn-primary mt-auto"
             onClick={() =>
-              state.incorrectRequeue ? state.requeueAndAdvance() : state.retry()
+              state.incorrectRequeue && !isOpening ? state.requeueAndAdvance() : state.retry()
             }
           >
-            {state.incorrectRequeue ? 'Continue' : 'Try again'}
+            {state.incorrectRequeue && !isOpening ? 'Continue' : 'Try again'}
             <span className="hidden lg:inline ml-1.5"> (Space)</span>
           </button>
-          {state.incorrectRequeue && (
+          {state.incorrectRequeue && !isOpening && (
             <p className="text-text-secondary text-xs text-center -mt-1">
               Comes back later this session
             </p>

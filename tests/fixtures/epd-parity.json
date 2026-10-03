@@ -1,0 +1,93 @@
+[
+ {
+  "name": "startpos",
+  "moves": [],
+  "epd": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -"
+ },
+ {
+  "name": "e4",
+  "moves": [
+   "e4"
+  ],
+  "epd": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq -"
+ },
+ {
+  "name": "epCapturable",
+  "moves": [
+   "e4",
+   "Nf6",
+   "e5",
+   "d5"
+  ],
+  "epd": "rnbqkb1r/ppp1pppp/5n2/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
+ },
+ {
+  "name": "epNotCapturable",
+  "moves": [
+   "e4",
+   "e6",
+   "e5",
+   "d5",
+   "d4"
+  ],
+  "epd": "rnbqkbnr/ppp2ppp/4p3/3pP3/3P4/8/PPP2PPP/RNBQKBNR b KQkq -"
+ },
+ {
+  "name": "castleLost",
+  "moves": [
+   "e4",
+   "e5",
+   "Ke2",
+   "Ke7"
+  ],
+  "epd": "rnbq1bnr/ppppkppp/8/4p3/4P3/8/PPPPKPPP/RNBQ1BNR w - -"
+ },
+ {
+  "name": "rookMovedK",
+  "moves": [
+   "Nf3",
+   "Nf6",
+   "Rg1",
+   "Rg8"
+  ],
+  "epd": "rnbqkbr1/pppppppp/5n2/8/8/5N2/PPPPPPPP/RNBQKBR1 w Qq -"
+ },
+ {
+  "name": "castled",
+  "moves": [
+   "e4",
+   "e5",
+   "Nf3",
+   "Nc6",
+   "Bc4",
+   "Bc5",
+   "O-O",
+   "Nf6"
+  ],
+  "epd": "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 w kq -"
+ },
+ {
+  "name": "promotion",
+  "moves": [
+   "a4",
+   "h5",
+   "a5",
+   "h4",
+   "a6",
+   "h3",
+   "axb7",
+   "hxg2",
+   "bxa8=Q",
+   "gxh1=N"
+  ],
+  "epd": "Qnbqkbnr/p1ppppp1/8/8/8/8/1PPPPP1P/RNBQKBNn w Qk -"
+ },
+ {
+  "name": "epPinned",
+  "startFen": "8/2p5/8/KP5r/8/8/8/4k3 b - - 0 1",
+  "moves": [
+   "c5"
+  ],
+  "epd": "8/8/8/KPp4r/8/8/8/4k3 w - -"
+ }
+]

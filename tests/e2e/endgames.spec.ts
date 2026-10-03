@@ -42,6 +42,10 @@ const PROFILE = {
   board_theme: 'default',
   show_engine_evals: false,
   reveal_before_solve: false,
+  // Drill-feedback prefs pinned so the slip-viewer tests stay static; the
+  // show-the-answer test below overrides them.
+  autoplay_refutation: false,
+  show_answer_on_miss: false,
 };
 
 const PAST = new Date(Date.now() - 86_400_000).toISOString();
@@ -116,7 +120,11 @@ const SCENARIO = {
 
 async function stubEndgameAuth(
   page: Page,
-  opts: { blunders: Record<string, unknown>[]; scenarios: Record<string, unknown>[] },
+  opts: {
+    blunders: Record<string, unknown>[];
+    scenarios: Record<string, unknown>[];
+    profile?: Record<string, unknown>;
+  },
 ) {
   await page.addInitScript(
     ({ session, project, profile, blunders, scenarios, game }) => {
@@ -159,7 +167,7 @@ async function stubEndgameAuth(
     {
       session: FAKE_SESSION,
       project: SUPABASE_PROJECT,
-      profile: PROFILE,
+      profile: { ...PROFILE, ...opts.profile },
       blunders: opts.blunders,
       scenarios: opts.scenarios,
       game: GAME,
@@ -379,4 +387,24 @@ test('a slip in the endgames tab is logged only on request, then retried', async
   await waitForSolving(page);
   await dragMove(page, { file: 6, rank: 5 }, { file: 6, rank: 7 });
   await expect(page.getByText(/point rescued/)).toBeVisible({ timeout: 60_000 });
+});
+
+test('show the answer: a slip opens on the move that holds', async ({ page }) => {
+  await stubEndgameAuth(page, {
+    blunders: [],
+    scenarios: [DRAW_SCENARIO],
+    profile: { show_answer_on_miss: true },
+  });
+  await page.goto('/endgames');
+  await expect(page.getByText('Rook endgames')).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await waitForSolving(page);
+
+  // Rb8+?? — hangs the rook.
+  await dragMove(page, { file: 1, rank: 1 }, { file: 1, rank: 8 });
+  await expect(page.getByText(/That move gives up the draw/)).toBeVisible({ timeout: 60_000 });
+
+  await expect(page.getByText('Why the draw is gone')).toBeVisible();
+  await expect(page.getByText('What holds')).toBeVisible();
+  await expect(page.getByText('Holds the draw', { exact: true })).toBeVisible();
 });
