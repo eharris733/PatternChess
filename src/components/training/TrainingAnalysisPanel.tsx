@@ -123,7 +123,7 @@ export function TrainingAnalysisPanel({
         <>
           <p className="text-text-primary">Your game, up to the move you missed.</p>
           <button type="button" className="btn-outline self-start" onClick={onSkipIntro} data-testid="skip-intro">
-            Skip to the position
+            Skip to the position<span className="hidden lg:inline ml-1.5"> (Space)</span>
           </button>
         </>
       )}

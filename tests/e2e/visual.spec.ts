@@ -84,7 +84,9 @@ const ROUTES: Array<{ path: string; name: string; expect: (p: import('@playwrigh
     path: '/vault',
     name: 'vault',
     expect: async (p) => {
-      // empty state
+      // Blunders tab by default; empty state.
+      await expect(p.getByTestId('vault-blunders-empty')).toBeVisible();
+      await p.getByTestId('vault-tab-games').click();
       await expect(p.getByText(/No games yet/i)).toBeVisible();
     },
   },
@@ -117,7 +119,8 @@ const ROUTES: Array<{ path: string; name: string; expect: (p: import('@playwrigh
     name: 'openings',
     expect: async (p) => {
       await expect(p.getByRole('heading', { name: /Where you leave theory/i })).toBeVisible();
-      await expect(p.getByTestId('openings-empty')).toBeVisible();
+      // The stub reports 3 unanalyzed games: the report is still being built.
+      await expect(p.getByTestId('openings-building')).toBeVisible();
     },
   },
   {

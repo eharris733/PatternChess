@@ -143,9 +143,36 @@ const BLUNDERS = [
   }),
 ];
 
+// Solved on every rung of the ladder: the Mastered tab's only position.
+const MASTERED = blunderRow({
+  id: 'blunder-3',
+  game_id: 'game-c',
+  fen: 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2',
+  move_number: 2,
+  played_move: 'f7f6',
+  correct_moves: [{ move: 'b8c6', eval: -30 }],
+  motifs: [],
+  cycle_number: 4,
+  times_attempted: 4,
+  times_correct: 4,
+  last_drilled_at: NOW,
+});
+
+const REPERTOIRE = [
+  {
+    id: 'rep-1',
+    user_id: 'e2e-user',
+    color: 'white',
+    epd: 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq -',
+    uci: 'g1f3',
+    san: 'Nf3',
+    created_at: NOW,
+  },
+];
+
 async function stubVault(page: Page) {
   await page.addInitScript(
-    ({ session, project, profile, games, blunders }) => {
+    ({ session, project, profile, games, blunders, repertoire }) => {
       const origFetch = window.fetch.bind(window);
       window.fetch = (input: any, init?: any) => {
         const url = typeof input === 'string' ? input : (input?.url ?? '');
@@ -182,8 +209,10 @@ async function stubVault(page: Page) {
                 blunders.filter((b: any) => url.includes(b.game_id)),
               );
             }
-            return json([]);
+            // getAllLiveBlunders: every live position (the Blunders / Mastered tabs).
+            return json(blunders);
           }
+          if (url.includes('/rest/v1/repertoire_moves')) return json(repertoire);
           return json([]);
         }
         return origFetch(input, init);
@@ -195,14 +224,52 @@ async function stubVault(page: Page) {
       project: SUPABASE_PROJECT,
       profile: PROFILE,
       games: GAMES,
-      blunders: BLUNDERS,
+      blunders: [...BLUNDERS, MASTERED],
+      repertoire: REPERTOIRE,
     },
   );
 }
 
-test('vault filter pills, search, and sort narrow the game list', async ({ page }) => {
+test('vault tabs list blunders, mastered positions and the repertoire, each shareable', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (err) => errors.push(String(err)));
   await stubVault(page);
   await page.goto('/vault');
+
+  // Blunders is the default tab: every tactic, whatever its progress.
+  await expect(page.getByTestId('vault-tab-blunders')).toHaveAttribute('aria-selected', 'true');
+  const cards = page.getByTestId('vault-position');
+  await expect(cards).toHaveCount(3);
+  await page.getByRole('group', { name: 'Filter by progress' }).getByRole('button', { name: /Mastered/ }).click();
+  await expect(cards).toHaveCount(1);
+
+  // Share opens the one puzzle dialog with a playable link.
+  await cards.first().getByRole('button', { name: 'Share' }).click();
+  const share = page.getByRole('dialog', { name: 'Share this puzzle' });
+  await expect(share.getByLabel('Share link')).toHaveValue(/\/p\?d=/);
+  await share.getByRole('button', { name: 'Close' }).click();
+
+  // Mastered: only the position solved on every rung.
+  await page.getByTestId('vault-tab-mastered').click();
+  await expect(page).toHaveURL(/tab=mastered/);
+  await expect(cards).toHaveCount(1);
+  await expect(cards.first()).toContainText('Move 2 · f6?');
+
+  // Repertoire: the saved move, shareable as an image.
+  await page.getByTestId('vault-tab-repertoire').click();
+  const move = page.getByTestId('vault-repertoire-move');
+  await expect(move).toHaveCount(1);
+  await expect(move).toContainText('You play Nf3');
+  await move.getByRole('button', { name: 'Share' }).click();
+  const repShare = page.getByRole('dialog', { name: 'Share this repertoire move' });
+  await expect(repShare.getByTestId('share-download')).toBeEnabled({ timeout: 15_000 });
+
+  expect(errors).toEqual([]);
+});
+
+test('vault filter pills, search, and sort narrow the game list', async ({ page }) => {
+  await stubVault(page);
+  await page.goto('/vault?tab=games');
 
   // All three games render with their blunder labels.
   await expect(page.getByText('MagnusFan')).toBeVisible();
@@ -247,7 +314,7 @@ test('expanding a game shows blunder thumbnails and a position preview modal', a
   const errors: string[] = [];
   page.on('pageerror', (err) => errors.push(String(err)));
   await stubVault(page);
-  await page.goto('/vault');
+  await page.goto('/vault?tab=games');
 
   await page.getByRole('button', { name: /2 blunders/ }).click();
 

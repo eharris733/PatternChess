@@ -104,6 +104,13 @@ export interface TrainingStateShape {
   currentIndex: number;
   totalCorrect: number;
   totalAttempted: number;
+  /**
+   * First attempts that count toward the daily "Train N positions" goal —
+   * every kind except openings, which have their own daily step. These are
+   * what `training_sessions` persists; `total*` stay for the session summary.
+   */
+  goalCorrect: number;
+  goalAttempted: number;
   attemptedBlunderIds: Set<string>;
   fen: string;
   orientation: 'white' | 'black';
@@ -283,6 +290,8 @@ function makeInitial(): InitialShape {
     currentIndex: 0,
     totalCorrect: 0,
     totalAttempted: 0,
+    goalCorrect: 0,
+    goalAttempted: 0,
     attemptedBlunderIds: new Set<string>(),
     fen: new Chess().fen(),
     orientation: 'white',
@@ -421,13 +430,28 @@ function notePersistFailure(label: string, err: unknown): void {
   useTrainingStore.setState({ persistError: PERSIST_ERROR_MESSAGE });
 }
 
+/** Opening drills have their own daily step; they never fill "Train N positions". */
+function countsTowardGoal(blunder: Blunder): boolean {
+  return blunder.kind !== 'opening';
+}
+
+function goalCounts(
+  s: Pick<TrainingStateShape, 'goalAttempted' | 'goalCorrect'>,
+  blunder: Blunder,
+  isFirstAttempt: boolean,
+  credited: boolean,
+): Pick<TrainingStateShape, 'goalAttempted' | 'goalCorrect'> {
+  if (!isFirstAttempt || !countsTowardGoal(blunder)) return { goalAttempted: s.goalAttempted, goalCorrect: s.goalCorrect };
+  return { goalAttempted: s.goalAttempted + 1, goalCorrect: s.goalCorrect + (credited ? 1 : 0) };
+}
+
 function endActiveSession(state: TrainingStateShape): void {
   if (!state.sessionId) return;
-  if (state.totalAttempted === 0) return;
+  if (state.goalAttempted === 0) return;
   void supabaseService
     .updateTrainingSession(state.sessionId, {
-      blundersAttempted: state.totalAttempted,
-      blundersCorrect: state.totalCorrect,
+      blundersAttempted: state.goalAttempted,
+      blundersCorrect: state.goalCorrect,
       endedAt: new Date(),
     })
     .catch((err) => notePersistFailure('endActiveSession', err));
@@ -645,6 +669,8 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       currentIndex: 0,
       totalCorrect: 0,
       totalAttempted: 0,
+      goalCorrect: 0,
+      goalAttempted: 0,
       attemptedBlunderIds: new Set<string>(),
       phase: 'loading',
     });
@@ -1125,6 +1151,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
           totalCorrect: isFirstAttempt && firstAttemptRecalled ? s.totalCorrect + 1 : s.totalCorrect,
           totalAttempted: isFirstAttempt ? s.totalAttempted + 1 : s.totalAttempted,
+          ...goalCounts(s, blunder, isFirstAttempt, firstAttemptRecalled),
           attemptedBlunderIds: nextAttempted,
           shapes: [{ orig: toKey(move.from), dest: toKey(move.to), brush: 'green' }],
           incorrectFeedback: null,
@@ -1145,8 +1172,8 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       if (afterCorrect.sessionId) {
         void supabaseService
           .updateTrainingSession(afterCorrect.sessionId, {
-            blundersAttempted: afterCorrect.totalAttempted,
-            blundersCorrect: afterCorrect.totalCorrect,
+            blundersAttempted: afterCorrect.goalAttempted,
+            blundersCorrect: afterCorrect.goalCorrect,
           })
           .catch((err) => notePersistFailure('updateTrainingSession (correct)', err));
       }
@@ -1238,11 +1265,11 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       });
 
       const afterIncorrect = get();
-      if (afterIncorrect.sessionId && isFirstAttempt) {
+      if (afterIncorrect.sessionId && isFirstAttempt && countsTowardGoal(blunder)) {
         void supabaseService
           .updateTrainingSession(afterIncorrect.sessionId, {
-            blundersAttempted: afterIncorrect.totalAttempted + 1,
-            blundersCorrect: afterIncorrect.totalCorrect + (firstAttemptRecalled ? 1 : 0),
+            blundersAttempted: afterIncorrect.goalAttempted + 1,
+            blundersCorrect: afterIncorrect.goalCorrect + (firstAttemptRecalled ? 1 : 0),
           })
           .catch((err) => notePersistFailure('updateTrainingSession (incorrect)', err));
       }
@@ -1257,6 +1284,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
           interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
           totalCorrect: isFirstAttempt && firstAttemptRecalled ? s.totalCorrect + 1 : s.totalCorrect,
           totalAttempted: isFirstAttempt ? s.totalAttempted + 1 : s.totalAttempted,
+          ...goalCounts(s, blunder, isFirstAttempt, firstAttemptRecalled),
           attemptedBlunderIds: nextAttempted,
           shapes: [],
           incorrectRequeue: true,
@@ -1303,6 +1331,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
         totalCorrect: isFirstAttempt && opts.success ? s.totalCorrect + 1 : s.totalCorrect,
         totalAttempted: isFirstAttempt ? s.totalAttempted + 1 : s.totalAttempted,
+        ...goalCounts(s, blunder, isFirstAttempt, opts.success),
         attemptedBlunderIds: nextAttempted,
         shapes: [],
         incorrectRequeue: true,
@@ -1319,8 +1348,8 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     if (after.sessionId) {
       void supabaseService
         .updateTrainingSession(after.sessionId, {
-          blundersAttempted: after.totalAttempted,
-          blundersCorrect: after.totalCorrect,
+          blundersAttempted: after.goalAttempted,
+          blundersCorrect: after.goalCorrect,
         })
         .catch((err) => notePersistFailure('updateTrainingSession (external)', err));
     }
@@ -1337,6 +1366,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     if (!blunder || state.attemptedBlunderIds.has(blunder.id)) return;
     set((s) => ({
       totalAttempted: s.totalAttempted + 1,
+      ...goalCounts(s, blunder, true, false),
       attemptedBlunderIds: new Set(s.attemptedBlunderIds).add(blunder.id),
     }));
   },
@@ -1464,6 +1494,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         ...(isFirstAttempt
           ? {
               totalAttempted: s.totalAttempted + 1,
+              ...goalCounts(s, b, true, false),
               attemptedBlunderIds: new Set(s.attemptedBlunderIds).add(b.id),
             }
           : {}),

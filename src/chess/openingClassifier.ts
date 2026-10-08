@@ -92,6 +92,12 @@ export function classifyMoves(
   return best ? parseEntry(best) : null;
 }
 
+/** The book's name for exactly this position (no move history), or null. */
+export function classifyPosition(book: OpeningBook, fen: string): ClassifiedOpening | null {
+  const hit = book.entries[epdOf(fen)];
+  return hit ? parseEntry(hit) : null;
+}
+
 /** SAN move list for a PGN, or null when it can't be replayed. */
 export function movesFromPgn(pgn: string): string[] | null {
   const board = new Chess();

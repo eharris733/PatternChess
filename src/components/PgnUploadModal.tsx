@@ -154,7 +154,7 @@ export function PgnUploadModal() {
 
   const onContinue = () => {
     closeModal();
-    navigate('/vault');
+    navigate('/vault?tab=games');
   };
 
   if (!open) return null;

@@ -125,7 +125,7 @@ export function OnboardingImport() {
   );
 }
 
-function StepMarker({ done, active }: { done: boolean; active: boolean }) {
+export function StepMarker({ done, active }: { done: boolean; active: boolean }) {
   const cls = done ? 'text-correct' : active ? 'text-gold-dark' : 'text-text-secondary opacity-50';
   return (
     <svg

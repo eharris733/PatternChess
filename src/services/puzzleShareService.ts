@@ -1,4 +1,7 @@
 import { Chess } from 'chess.js';
+import { formatOpeningDisplay, resolveOpeningName } from '../chess/openingNames';
+import type { Blunder } from '../models/blunder';
+import { orderedPlayers, type GameRecord } from '../models/gameRecord';
 
 /**
  * A puzzle shared as a self-contained link: the whole payload travels in the
@@ -111,4 +114,33 @@ export function decodeSharedPuzzle(encoded: string): SharedPuzzle | null {
     ...(typeof raw.lbl === 'string' && raw.lbl.length > 0 ? { lbl: raw.lbl.slice(0, 120) } : {}),
     ...(typeof raw.op === 'string' && raw.op.length > 0 ? { op: raw.op.slice(0, 120) } : {}),
   };
+}
+
+/** "White vs Black" for a share card, in board order for the side to move. */
+export function sharePlayersLabelFor(blunder: Blunder, game: GameRecord | null | undefined): string | null {
+  if (!game) return null;
+  return orderedPlayers(game.username, game.opponent, blunder.sideToMove === 'white' ? 'white' : 'black').join(
+    ' vs ',
+  );
+}
+
+export function shareOpeningLabelFor(game: GameRecord | null | undefined): string | null {
+  return game ? formatOpeningDisplay(resolveOpeningName(game.eco, game.openingName)) : null;
+}
+
+/** The public /p?d= link for a drill position. */
+export function buildPuzzleShareUrl(
+  blunder: Blunder,
+  labels: { players: string | null; opening: string | null; anonymous: boolean },
+): string {
+  return `${window.location.origin}/p?d=${encodeSharedPuzzle({
+    fen: blunder.fen,
+    pm: blunder.playedMove,
+    cm: blunder.correctMoves.map((c) => ({ m: c.move, e: c.eval })),
+    eb: blunder.evalBefore,
+    ea: blunder.evalAfter,
+    stm: blunder.sideToMove === 'white' ? 'white' : 'black',
+    lbl: labels.anonymous ? undefined : (labels.players ?? undefined),
+    op: labels.opening ?? undefined,
+  })}`;
 }

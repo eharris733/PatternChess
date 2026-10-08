@@ -97,6 +97,17 @@ export async function getDrillsOfKind(kind: 'opening' | 'endgame'): Promise<Blun
 }
 
 /**
+ * Every live (not retired) trainable position of every kind, newest first —
+ * the Vault's position lists (blunders, mastered).
+ */
+export async function getAllLiveBlunders(): Promise<Blunder[]> {
+  const rows = await fetchAllRows(() =>
+    supabase.from('blunders').select().is('retired_at', null).order('created_at', { ascending: false }).order('id'),
+  );
+  return rows.map(blunderFromJson);
+}
+
+/**
  * Specific drills for an on-demand session ("Drill these 5", "Train"),
  * whether or not they are due, in the canonical queue order. Drilling one
  * early still goes through the normal SR rules.
