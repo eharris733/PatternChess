@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { uciToSan, fenSideToMove } from '../../chess/moveUtils';
 import { orderedPlayers } from '../../models/gameRecord';
 import type { GameRecord } from '../../models/gameRecord';
@@ -5,6 +6,8 @@ import type { Blunder } from '../../models/blunder';
 import { MOTIF_LABEL } from '../../chess/motifs';
 import { MiniBoard } from '../MiniBoard';
 import { CloseIcon } from '../icons/CloseIcon';
+import { ShareIcon } from '../icons/ShareIcon';
+import { PositionShareModal } from '../share/PositionShareModal';
 import { blunderOrientation } from './vaultHelpers';
 
 export function PositionPreviewModal({
@@ -13,13 +16,16 @@ export function PositionPreviewModal({
   onClose,
 }: {
   blunder: Blunder;
-  game: GameRecord;
+  game: GameRecord | null;
   onClose: () => void;
 }) {
+  // Share replaces this dialog rather than stacking a second one.
+  const [sharing, setSharing] = useState(false);
   const played = uciToSan(blunder.fen, blunder.playedMove) ?? blunder.playedMove;
   const bestUci = blunder.correctMoves[0]?.move;
   const best = bestUci ? (uciToSan(blunder.fen, bestUci) ?? bestUci) : null;
   const sideToMove = fenSideToMove(blunder.fen);
+  if (sharing) return <PositionShareModal blunder={blunder} game={game} onClose={onClose} />;
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 backdrop-blur-sm p-4"
@@ -36,8 +42,8 @@ export function PositionPreviewModal({
           <div>
             <h2 className="heading-md">Move {blunder.moveNumber}</h2>
             <p className="text-xs text-text-secondary mt-0.5">
-              {sideToMove === 'white' ? 'White' : 'Black'} to move ·{' '}
-              {orderedPlayers(game.username, game.opponent, game.userColor).join(' vs ')}
+              {sideToMove === 'white' ? 'White' : 'Black'} to move
+              {game && ` · ${orderedPlayers(game.username, game.opponent, game.userColor).join(' vs ')}`}
             </p>
           </div>
           <button
@@ -51,7 +57,7 @@ export function PositionPreviewModal({
         </header>
         <MiniBoard
           fen={blunder.fen}
-          orientation={blunderOrientation(game, blunder)}
+          orientation={game ? blunderOrientation(game, blunder) : sideToMove}
           className="w-full"
         />
         <div className="flex flex-col gap-1.5 text-sm">
@@ -81,6 +87,14 @@ export function PositionPreviewModal({
             </div>
           )}
         </div>
+        <button
+          type="button"
+          className="btn-outline self-start inline-flex items-center gap-1.5"
+          onClick={() => setSharing(true)}
+        >
+          <ShareIcon className="h-4 w-4" />
+          Share
+        </button>
       </div>
     </div>
   );

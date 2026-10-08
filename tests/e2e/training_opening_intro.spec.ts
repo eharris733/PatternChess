@@ -114,6 +114,7 @@ async function stub(page: Page, repertoire: Record<string, unknown>[] = []) {
     ({ session, project, profile, blunders, game, repertoire }) => {
       const origFetch = window.fetch.bind(window);
       (window as any).__repertoireWrites = [] as unknown[];
+      (window as any).__sessionWrites = [] as unknown[];
       window.fetch = (input: any, init?: any) => {
         const url = typeof input === 'string' ? input : input?.url ?? '';
         if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
@@ -133,6 +134,14 @@ async function stub(page: Page, repertoire: Record<string, unknown>[] = []) {
               return json({ id: 'r-new', created_at: new Date().toISOString(), ...row });
             }
             return json(repertoire);
+          }
+          if (url.includes('/rest/v1/training_sessions')) {
+            if (method === 'POST') {
+              const row = JSON.parse(init.body);
+              return json({ id: 's1', started_at: new Date().toISOString(), ended_at: null, ...row });
+            }
+            if (method === 'PATCH') (window as any).__sessionWrites.push(JSON.parse(init.body));
+            return json([]);
           }
           if (url.includes('/rest/v1/profiles')) return json(profile);
           if (url.includes('/rest/v1/blunders')) return json(blunders);
@@ -198,4 +207,20 @@ test('with a repertoire move saved, another book move is a nudge toward it', asy
 
   await dragMove(page, { file: 6, rank: 1 }, { file: 5, rank: 3 });
   await expect(page.getByText('Good move, but your repertoire move is Bc4').first()).toBeVisible();
+});
+
+test('Space skips the intro, and an opening drill never fills the daily "Train" goal', async ({ page }) => {
+  await stub(page);
+  await page.goto('/training');
+  await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
+  await expect(page.getByTestId('skip-intro')).toBeVisible();
+  await page.keyboard.press('Space');
+  // Well under the ~2.5s the full replay takes.
+  await expect(page.getByTestId('drill-prompt')).toHaveText('Play the move for White', { timeout: 1500 });
+
+  await dragMove(page, { file: 6, rank: 1 }, { file: 5, rank: 3 });
+  await expect(page.getByTestId('opening-verdict')).toContainText('Great! Nf3 is book.');
+  // training_sessions feeds "Train N positions"; openings have their own step.
+  const writes = await page.evaluate(() => (window as any).__sessionWrites as Array<Record<string, number>>);
+  for (const w of writes) expect(w.blunders_attempted ?? 0).toBe(0);
 });

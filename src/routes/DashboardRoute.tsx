@@ -91,7 +91,7 @@ export function DashboardRoute() {
       {!isFirstRun && (
         <button
           className="card text-left hover:border-accent transition"
-          onClick={() => navigate('/vault')}
+          onClick={() => navigate('/vault?tab=games')}
         >
           <span className="label">Vault</span>
           {gamesLoading ? (

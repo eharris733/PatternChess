@@ -93,9 +93,14 @@ const ROWS = [
   }),
 ];
 
-async function stubAuth(page: Page, deviations: unknown[]) {
+async function stubAuth(
+  page: Page,
+  deviations: unknown[],
+  opts: { unanalyzed?: number; reportReady?: boolean } = {},
+) {
   await page.addInitScript(
-    ({ session, project, deviations }) => {
+    ({ session, project, deviations, unanalyzed, reportReady }) => {
+      if (reportReady) localStorage.setItem(`pc:openings-ready:${session.user.id}`, '1');
       const origFetch = window.fetch.bind(window);
       window.fetch = (input: any, init?: any) => {
         const url = typeof input === 'string' ? input : input?.url ?? '';
@@ -106,7 +111,12 @@ async function stubAuth(page: Page, deviations: unknown[]) {
           }
           if (method === 'HEAD') {
             // Nothing left to walk or score: the scan exits without touching the engine.
-            const n = url.includes('/games') && !url.includes('opening_deviation_version') ? 3 : 0;
+            // `analyzed_at=is.null` is the unanalyzed-games count the report waits on.
+            const n = !url.includes('/games') || url.includes('opening_deviation_version')
+              ? 0
+              : url.includes('analyzed_at=is.null')
+                ? ((window as any).__unanalyzed ?? unanalyzed)
+                : 3;
             return Promise.resolve(new Response(null, { status: 200, headers: { 'content-range': `*/${n}` } }));
           }
           // The King's Pawn exit has an opening drill (b1), one rung up and due.
@@ -134,7 +144,13 @@ async function stubAuth(page: Page, deviations: unknown[]) {
       };
       localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
     },
-    { session: FAKE_SESSION, project: SUPABASE_PROJECT, deviations },
+    {
+      session: FAKE_SESSION,
+      project: SUPABASE_PROJECT,
+      deviations,
+      unanalyzed: opts.unanalyzed ?? 0,
+      reportReady: opts.reportReady ?? false,
+    },
   );
 }
 
@@ -201,4 +217,32 @@ test('empty state points at the dashboard', async ({ page }) => {
   await page.goto('/openings');
   await expect(page.getByTestId('openings-empty')).toBeVisible();
   await expect(page.getByRole('link', { name: /Go to dashboard/i })).toBeVisible();
+});
+
+test('holds the report behind a progress checklist until every game is analyzed', async ({ page }) => {
+  await stubAuth(page, ROWS, { unanalyzed: 3 });
+  await page.goto('/openings');
+  const panel = page.getByTestId('openings-building');
+  await expect(panel).toContainText('Building your openings report');
+  await expect(panel).toContainText('3 games are waiting to be analyzed');
+  await expect(panel).toContainText('Starts once every game is analyzed');
+  // No partial results, and never a "Paused" that reads like it stopped.
+  await expect(page.getByTestId('opening-section')).toHaveCount(0);
+  await expect(page.getByTestId('openings-hero')).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText('Paused');
+
+  // Sync analysis finishes: the scan resumes by itself and the report appears, no reload.
+  await page.evaluate(() => ((window as any).__unanalyzed = 0));
+  await expect(page.getByTestId('opening-section')).toHaveCount(3, { timeout: 20_000 });
+  await expect(panel).toHaveCount(0);
+});
+
+test('after the first report, new games show a banner instead of hiding it', async ({ page }) => {
+  await stubAuth(page, ROWS, { unanalyzed: 2, reportReady: true });
+  await page.goto('/openings');
+  await expect(page.getByTestId('opening-section')).toHaveCount(3);
+  await expect(page.getByTestId('openings-updating')).toContainText(
+    '2 new games are waiting to be analyzed before joining this report.',
+  );
+  await expect(page.getByTestId('openings-building')).toHaveCount(0);
 });

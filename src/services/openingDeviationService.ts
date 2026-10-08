@@ -25,17 +25,7 @@ import { isMaintenanceRunning } from './blunderEnrichmentBackfill';
 import { isEndgameVerificationRunning } from './endgameScenarioVerifier';
 import { fetchBook, positionGames, type BookPosition } from './openingBookService';
 import { supabaseService } from './supabaseService';
-
-export interface DeviationScanProgress {
-  /** Games still waiting for their theory walk. */
-  unwalked: number;
-  /** User exits still waiting for the engine. */
-  unscored: number;
-  /** Games whose opening past the book still needs the engine scan. */
-  pastBook: number;
-  /** False once the pass has stopped (done, yielded the engine, or failed). */
-  active: boolean;
-}
+import { useOpeningScanStore, type OpeningScanPhase } from '../state/openingScanStore';
 
 const WALK_BATCH = 25;
 const EVAL_BATCH = 5;
@@ -61,6 +51,8 @@ const MAX_WALK_FAILURES = 3;
 export const OPENING_DEVIATIONS_QUERY_KEY = ['openings', 'deviations'] as const;
 
 let running = false;
+/** Id of the pass that owns `running`; a stopped pass never clears a newer one's flag. */
+let currentRun = 0;
 /** The orphan-drill sweep runs once per page load, after a full drain. */
 let orphanSweepDone = false;
 
@@ -69,6 +61,11 @@ export function isOpeningDeviationRunning(): boolean {
 }
 
 type Engine = Awaited<ReturnType<typeof getAnalysisStockfish>>;
+
+/** While waiting on sync analysis, re-check the engine this often. */
+const ENGINE_WAIT_MS = 5000;
+/** After MAX_WALK_FAILURES book failures in a row, retry the walk after this pause. */
+const BOOK_RETRY_MS = 30_000;
 
 /**
  * Background pass that fills opening_deviations in three stages:
@@ -90,20 +87,26 @@ type Engine = Awaited<ReturnType<typeof getAnalysisStockfish>>;
  * Once everything is drained, opening drills no deviation row points at any
  * more (left behind by a rule change) are retired.
  * B and C yield the analysis engine to sync analysis, blunder maintenance
- * and the endgame verifier.
+ * and the endgame verifier: the pass *waits* (phase 'waiting') and resumes
+ * by itself, recounting its queues so games sync adds meanwhile are picked
+ * up. Progress is published to `useOpeningScanStore`.
  *
  * Mounted on the dashboard and /openings; stops when they unmount. Never part
  * of initial sync analysis.
  */
-export function startOpeningDeviationScan(
-  onProgress?: (p: DeviationScanProgress) => void,
-): () => void {
+export function startOpeningDeviationScan(): () => void {
   if (running) return () => {};
   running = true;
+  const runId = ++currentRun;
+  // A previous pass's 'done' is stale until this one has recounted.
+  useOpeningScanStore.setState({ phase: 'idle' });
   let stopped = false;
   const stop = () => {
     stopped = true;
-    running = false;
+    if (currentRun === runId) {
+      running = false;
+      if (useOpeningScanStore.getState().phase !== 'done') useOpeningScanStore.setState({ phase: 'stopped' });
+    }
   };
 
   const invalidate = () =>
@@ -112,29 +115,37 @@ export function startOpeningDeviationScan(
   let unwalked = 0;
   let unscored = 0;
   let pastBook = 0;
-  const report = () =>
-    onProgress?.({ unwalked, unscored, pastBook, active: running && !stopped });
+  let unanalyzed = 0;
+  let bookUnavailable = false;
+  const report = (phase: OpeningScanPhase) => {
+    if (stopped) return;
+    useOpeningScanStore.setState({ phase, unwalked, unscored, pastBook, unanalyzed, bookUnavailable });
+  };
+  const recount = async () => {
+    unwalked = await supabaseService.countUncheckedDeviationGames();
+    unscored = await supabaseService.countPendingDeviationEvals();
+    pastBook = await supabaseService.countPastBookQueue();
+    unanalyzed = await supabaseService.countUnanalyzedGames();
+  };
+  const pause = (ms: number) =>
+    new Promise<void>((resolve) => {
+      const started = Date.now();
+      const tick = () => (stopped || Date.now() - started >= ms ? resolve() : setTimeout(tick, 250));
+      tick();
+    });
 
   void (async () => {
     try {
-      unwalked = await supabaseService.countUncheckedDeviationGames();
-      unscored = await supabaseService.countPendingDeviationEvals();
-      pastBook = await supabaseService.countPastBookQueue();
-      report();
-      if (unwalked === 0 && unscored === 0 && pastBook === 0) {
-        await sweepOrphanDrills();
-        return;
-      }
+      await recount();
+      if (stopped) return;
+      report('checking');
 
-      const engineBusy = async () =>
-        isMaintenanceRunning() ||
-        isEndgameVerificationRunning() ||
-        (await supabaseService.countUnanalyzedGames()) > 0;
       let sf: Engine | null = null;
       const walkSkip = new Set<string>();
       const evalSkip = new Set<string>();
       const pastSkip = new Set<string>();
       let failures = 0;
+      let recheckedAfterDrain = false;
 
       while (!stopped) {
         let progressed = false;
@@ -154,18 +165,25 @@ export function startOpeningDeviationScan(
               continue;
             }
             failures = 0;
+            bookUnavailable = false;
             progressed = true;
             unwalked = Math.max(0, unwalked - 1);
             if (outcome === 'user_left') unscored++;
-            if (outcome === 'theory_end' || outcome === 'opponent_left') pastBook++;
-            report();
+            report('checking');
           }
+          // Theory-end / opponent-left rows join the past-book queue only once
+          // their game is analyzed, so take the queue's own count.
+          if (progressed) pastBook = await supabaseService.countPastBookQueue();
+          bookUnavailable = failures >= MAX_WALK_FAILURES;
+          report('checking');
           invalidate();
           // Walks are cheap: finish them before spending engine time.
           if (progressed && unwalked > 0) continue;
         }
 
-        if ((unscored > 0 || pastBook > 0) && !(await engineBusy())) {
+        unanalyzed = await supabaseService.countUnanalyzedGames();
+        const engineBusy = isMaintenanceRunning() || isEndgameVerificationRunning() || unanalyzed > 0;
+        if ((unscored > 0 || pastBook > 0) && !engineBusy) {
           sf ??= await getAnalysisStockfish();
 
           // Stage B — score pending book exits.
@@ -184,7 +202,7 @@ export function startOpeningDeviationScan(
                 evalSkip.add(dev.id);
               }
               unscored = Math.max(0, unscored - 1);
-              report();
+              report('checking');
               await new Promise((r) => setTimeout(r, EVAL_ROW_DELAY_MS));
             }
           }
@@ -205,28 +223,75 @@ export function startOpeningDeviationScan(
                 pastSkip.add(dev.id);
               }
               pastBook = Math.max(0, pastBook - 1);
-              report();
+              report('checking');
             }
           }
           invalidate();
           void queryClient.invalidateQueries({ queryKey: ['blunders', 'due'] });
         }
 
-        // Done, or stuck (book failing and the engine busy): pick up on the
-        // next visit.
-        if (!progressed) {
-          if (unwalked === 0 && unscored === 0 && pastBook === 0) await sweepOrphanDrills();
-          break;
+        if (progressed) {
+          recheckedAfterDrain = false;
+          continue;
         }
+
+        // Games still being analyzed (or engine work waiting on the engine):
+        // wait for sync analysis, then recount — it may have added games.
+        if (unanalyzed > 0 || (engineBusy && (unscored > 0 || pastBook > 0))) {
+          report('waiting');
+          // Local flags first (no queries while maintenance holds the engine);
+          // return early when sync has inserted games the walk can take now.
+          while (!stopped) {
+            await pause(ENGINE_WAIT_MS);
+            if (stopped || isMaintenanceRunning() || isEndgameVerificationRunning()) continue;
+            unanalyzed = await supabaseService.countUnanalyzedGames();
+            unwalked = await supabaseService.countUncheckedDeviationGames();
+            report('waiting');
+            if (unanalyzed === 0 || (unwalked > walkSkip.size && failures < MAX_WALK_FAILURES)) break;
+          }
+          if (stopped) return;
+          await recount();
+          recheckedAfterDrain = false;
+          report('checking');
+          continue;
+        }
+
+        // The book kept failing: try the walk again after a pause.
+        if (unwalked > 0 && failures >= MAX_WALK_FAILURES) {
+          report('checking');
+          await pause(BOOK_RETRY_MS);
+          if (stopped) return;
+          failures = 0;
+          walkSkip.clear();
+          continue;
+        }
+
+        // Drained. Recount once: sync may have added games meanwhile. Rows
+        // skipped after a failure are retried on the next visit and don't
+        // hold the report back.
+        await recount();
+        if (stopped) return;
+        const fresh =
+          unanalyzed > 0 ||
+          unwalked > walkSkip.size ||
+          unscored > evalSkip.size ||
+          pastBook > pastSkip.size;
+        if (fresh && !recheckedAfterDrain) {
+          recheckedAfterDrain = true;
+          continue;
+        }
+        report('done');
+        if (unwalked + unscored + pastBook + unanalyzed === 0) await sweepOrphanDrills();
+        break;
       }
     } catch (err) {
       // A stolen auth lock aborts the in-flight request; nothing is lost —
       // unstamped games are picked up on the next mount.
       if (err instanceof Error && err.name === 'AbortError') console.debug('[openings] deviation scan interrupted', err);
       else console.warn('[openings] deviation scan stopped', err);
+      report('stopped');
     } finally {
-      running = false;
-      report();
+      if (currentRun === runId) running = false;
     }
   })();
 

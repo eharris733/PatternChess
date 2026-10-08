@@ -120,7 +120,7 @@ export function ReviewRoute() {
     return (
       <div className="card text-center max-w-md mx-auto flex flex-col gap-3">
         <p className="text-incorrect">{r.error}</p>
-        <button className="btn-outline" onClick={() => navigate('/vault')}>
+        <button className="btn-outline" onClick={() => navigate('/vault?tab=games')}>
           Back to vault
         </button>
       </div>

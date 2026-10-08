@@ -148,7 +148,8 @@ export function DailyHabitCard() {
   const openingsGoal = Math.min(OPENINGS_PER_DAY, openingsDue + openingsToday);
   const showOpenings = openingsGoal > 0;
   const drillsToday = drillsQuery.data ?? 0;
-  const dueCount = dueQuery.data?.length ?? 0;
+  // Openings have their own step; the train step's "due" excludes them.
+  const dueCount = (dueQuery.data ?? []).filter((b) => b.kind !== 'opening').length;
 
   const steps = [
     { done: drillsToday, goal: DAILY_GOAL },

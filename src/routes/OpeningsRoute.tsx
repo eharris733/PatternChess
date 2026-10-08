@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { playersHeading } from '../components/openings/TheoryMovesLine';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
@@ -25,10 +25,10 @@ import { recordOpeningReview } from '../lib/openingReviews';
 import { studiesForOpening } from '../learn/catalog';
 import { srBucket, type Blunder } from '../models/blunder';
 import { repertoireMoveFor, type RepertoireMap } from '../models/repertoire';
-import {
-  startOpeningDeviationScan,
-  type DeviationScanProgress,
-} from '../services/openingDeviationService';
+import { startOpeningDeviationScan } from '../services/openingDeviationService';
+import { scanItemsLeft, useOpeningScanStore } from '../state/openingScanStore';
+import { useLibraryProgress, type LibraryProgress } from '../hooks/useLibraryProgress';
+import { OpeningsBuildingPanel } from '../components/openings/OpeningsBuildingPanel';
 
 type ColorTab = 'all' | 'white' | 'black';
 
@@ -293,8 +293,70 @@ function OpeningPatternCard({
   );
 }
 
+const REPORT_READY_KEY = 'pc:openings-ready:';
+
+/** Per-user "the first full report has been built" flag (localStorage; best effort). */
+function useReportReady(uid: string | null): [boolean, () => void] {
+  const read = () => {
+    if (!uid) return false;
+    try {
+      return window.localStorage.getItem(REPORT_READY_KEY + uid) === '1';
+    } catch {
+      return false;
+    }
+  };
+  const [ready, setReady] = useState(read);
+  const [forUid, setForUid] = useState(uid);
+  if (forUid !== uid) {
+    setForUid(uid);
+    setReady(read());
+  }
+  const markReady = useCallback(() => {
+    setReady(true);
+    if (!uid) return;
+    try {
+      window.localStorage.setItem(REPORT_READY_KEY + uid, '1');
+    } catch {
+      // Storage blocked: the flag lasts for this visit only.
+    }
+  }, [uid]);
+  return [ready, markReady];
+}
+
+/** Once the report exists, new games join it in the background — say so, never block it. */
+function ReportUpdatingBanner({
+  library,
+  scan,
+}: {
+  library: LibraryProgress;
+  scan: ReturnType<typeof useOpeningScanStore.getState>;
+}) {
+  const left = scanItemsLeft(scan);
+  let text: string | null = null;
+  if (library.phase === 'importing') {
+    text = 'Importing your new games. They will be added to this report once they are analyzed.';
+  } else if (library.phase === 'analyzing') {
+    text = `Analyzing new games (${library.analyzed} / ${library.analyzeTotal}). They will be added to this report when done.`;
+  } else if ((scan.phase === 'checking' || scan.phase === 'waiting') && (left > 0 || scan.unanalyzed > 0)) {
+    text =
+      scan.unanalyzed > 0
+        ? `${scan.unanalyzed} new ${scan.unanalyzed === 1 ? 'game is' : 'games are'} waiting to be analyzed before joining this report.`
+        : `Adding new games to this report: ${left} ${left === 1 ? 'item' : 'items'} left to check against theory.`;
+  }
+  if (!text) return null;
+  return (
+    <p
+      className="text-text-primary text-sm border-2 border-text-primary/20 px-3 py-2"
+      data-testid="openings-updating"
+      aria-live="polite"
+    >
+      {text}
+    </p>
+  );
+}
+
 export function OpeningsRoute() {
-  const { refreshProfile } = useAuth();
+  const { refreshProfile, user } = useAuth();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const colorParam = params.get('color');
@@ -306,8 +368,23 @@ export function OpeningsRoute() {
     setParams(p, { replace: true });
   };
 
-  const [progress, setProgress] = useState<DeviationScanProgress | null>(null);
-  useEffect(() => startOpeningDeviationScan(setProgress), []);
+  const scan = useOpeningScanStore();
+  const library = useLibraryProgress();
+  useEffect(() => startOpeningDeviationScan(), []);
+  // A finished pass doesn't see games sync adds later: start another when
+  // sync moves on (import → analysis → idle).
+  useEffect(() => {
+    const phase = useOpeningScanStore.getState().phase;
+    if (phase === 'done' || phase === 'stopped') return startOpeningDeviationScan();
+  }, [library.phase]);
+
+  // The report stays behind the building panel until it is complete once.
+  const [ready, markReady] = useReportReady(user?.id ?? null);
+  const syncBusy = library.phase === 'importing' || library.phase === 'analyzing';
+  const complete = scan.phase === 'done' && scan.unanalyzed === 0 && !syncBusy;
+  useEffect(() => {
+    if (complete && !ready) markReady();
+  }, [complete, ready, markReady]);
 
   const [expanded, setExpanded] = useState<string | null>(null);
   const query = useOpeningDeviations();
@@ -336,8 +413,21 @@ export function OpeningsRoute() {
     navigate('/training', { state: { blunderIds: ids, focusLabel: label } });
   };
 
-  const left = progress ? progress.unwalked + progress.unscored + progress.pastBook : 0;
-  const scanning = left > 0 && !!progress?.active;
+  if (!ready) {
+    return (
+      <div className="max-w-3xl mx-auto flex flex-col gap-6">
+        <header className="flex flex-col gap-1">
+          <span className="label">Openings</span>
+          <h1 className="heading-xl">Where you leave theory</h1>
+        </header>
+        {scan.phase === 'idle' ? (
+          <Skeleton className="h-64 w-full" />
+        ) : (
+          <OpeningsBuildingPanel library={library} scan={scan} onShowPartial={markReady} />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto flex flex-col gap-6">
@@ -367,12 +457,7 @@ export function OpeningsRoute() {
         )}
       </header>
 
-      {left > 0 && (
-        <p className="text-text-primary text-sm" data-testid="deviation-scan-progress">
-          {scanning ? 'Checking your games' : 'Paused'}: {left} {left === 1 ? 'game' : 'games'} left.
-          {!scanning && ' Picks up next time this page or the dashboard is open.'}
-        </p>
-      )}
+      <ReportUpdatingBanner library={library} scan={scan} />
 
       {hero && <OpeningsHero summary={hero} drills={heroDrills} onDrill={() => drill(heroDrills.map((d) => d.id), familyName(hero))} />}
 
@@ -409,15 +494,11 @@ export function OpeningsRoute() {
         <div className="card flex flex-col gap-2" data-testid="openings-empty">
           <h2 className="heading-md">Nothing to show yet</h2>
           <p className="text-text-primary text-sm">
-            {scanning
-              ? 'Your games are being checked. Results appear here as they come in.'
-              : 'Sync your Lichess or Chess.com games from the dashboard and they will be checked here.'}
+            Sync your Lichess or Chess.com games from the dashboard and they will be checked here.
           </p>
-          {!scanning && (
-            <Link to="/dashboard" className="pill self-start">
-              Go to dashboard
-            </Link>
-          )}
+          <Link to="/dashboard" className="pill self-start">
+            Go to dashboard
+          </Link>
         </div>
       ) : (
         <div className="flex flex-col gap-3">

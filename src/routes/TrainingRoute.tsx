@@ -32,14 +32,16 @@ import {
   type DrillKind,
 } from '../models/blunder';
 import { MOTIF_LABEL, type Motif } from '../chess/motifs';
-import { orderedPlayers } from '../models/gameRecord';
 import {
   externalAnalysisUrl,
   resolvePlatform,
 } from '../services/externalAnalysisUrlService';
-import { encodeSharedPuzzle } from '../services/puzzleShareService';
+import {
+  buildPuzzleShareUrl,
+  shareOpeningLabelFor,
+  sharePlayersLabelFor,
+} from '../services/puzzleShareService';
 import { playSound } from '../lib/sounds';
-import { formatOpeningDisplay, resolveOpeningName } from '../chess/openingNames';
 
 /** Opening intro pace, and the pause on the final position before the prompt. */
 const INTRO_STEP_MS = 400;
@@ -373,7 +375,8 @@ export function TrainingRoute() {
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
       if (e.code === 'Space') {
         e.preventDefault();
-        if (state.phase === 'reviewing') state.proceedFromReview();
+        if (state.phase === 'introducing') skipIntro();
+        else if (state.phase === 'reviewing') state.proceedFromReview();
         else if (state.phase === 'correct') state.advance();
         else if (state.phase === 'incorrect') {
           // Opening misses retry in place: find the move, then move on.
@@ -537,30 +540,14 @@ export function TrainingRoute() {
     state.currentContext?.gameState === 'missedWin' ? 'Engine line' : 'Why it loses';
   const triedSan = state.playedRefutationMoves[0]?.san ?? null;
 
-  const sharePlayersLabel =
-    state.game && blunder
-      ? orderedPlayers(
-          state.game.username,
-          state.game.opponent,
-          blunder.sideToMove === 'white' ? 'white' : 'black',
-        ).join(' vs ')
-      : null;
-  const shareOpeningLabel = state.game
-    ? formatOpeningDisplay(resolveOpeningName(state.game.eco, state.game.openingName))
-    : null;
-  // Plain computation (no useMemo): this sits below the loading early-returns,
-  // and encoding a few hundred bytes per render is negligible.
+  const sharePlayersLabel = blunder ? sharePlayersLabelFor(blunder, state.game) : null;
+  const shareOpeningLabel = shareOpeningLabelFor(state.game);
   const shareUrl = blunder
-    ? `${window.location.origin}/p?d=${encodeSharedPuzzle({
-        fen: blunder.fen,
-        pm: blunder.playedMove,
-        cm: blunder.correctMoves.map((c) => ({ m: c.move, e: c.eval })),
-        eb: blunder.evalBefore,
-        ea: blunder.evalAfter,
-        stm: blunder.sideToMove === 'white' ? 'white' : 'black',
-        lbl: shareAnonymous ? undefined : (sharePlayersLabel ?? undefined),
-        op: shareOpeningLabel ?? undefined,
-      })}`
+    ? buildPuzzleShareUrl(blunder, {
+        players: sharePlayersLabel,
+        opening: shareOpeningLabel,
+        anonymous: shareAnonymous,
+      })
     : null;
 
   const onCopyShareLink = async () => {
