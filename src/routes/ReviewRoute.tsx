@@ -7,7 +7,7 @@ import { WinningChancesDisplay } from '../components/WinningChancesDisplay';
 import { FeedbackBadge } from '../components/FeedbackBadge';
 import { MoveSequencePanel, type MovePair } from '../components/MoveSequencePanel';
 import { classifySwing, useReviewStore } from '../state/reviewStore';
-import { cpLoss } from '../chess/winningChances';
+import { formatMoveCost, moveCost } from '../chess/formatEval';
 import { annotationKey } from '../models/gameAnnotation';
 import { orderedPlayers } from '../models/gameRecord';
 import {
@@ -285,7 +285,7 @@ export function ReviewRoute() {
                     ? 'Engine agrees — this is the best move.'
                     : swing.classification === 'good'
                       ? 'Solid move; not the engine\'s top pick.'
-                      : `Engine flags this as a ${swing.classification} (−${Math.round(Math.abs(cpLoss(ev.before, ev.after)))}cp).`}
+                      : `Engine flags this as a ${swing.classification} (${formatMoveCost(moveCost(ev.before, ev.after))}).`}
                 </FeedbackBadge>
               </div>
             )}
