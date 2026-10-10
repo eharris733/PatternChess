@@ -3,7 +3,7 @@ import clsx from 'clsx';
 import { useAuth } from '../../auth/useAuth';
 import { useDrillsToday } from '../../hooks/useTrainingActivity';
 import { useAchievements } from '../../hooks/useAchievements';
-import { useDueBlunders } from '../../hooks/useDueBlunders';
+import { useDueCount } from '../../hooks/useDueCount';
 import { useEndgameScenarios } from '../../hooks/useEndgameScenarios';
 import { useDrillsOfKind } from '../../hooks/useDrillsOfKind';
 import { isScenarioDue } from '../../models/endgameScenario';
@@ -106,7 +106,9 @@ export function DailyHabitCard() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const drillsQuery = useDrillsToday();
-  const dueQuery = useDueBlunders();
+  // Count only: the full due list (solution lines, drill data) was downloaded
+  // here just to show its length.
+  const dueQuery = useDueCount({ excludeKind: 'opening' });
   const scenariosQuery = useEndgameScenarios();
   const openingDrillsQuery = useDrillsOfKind('opening');
   const { achievements } = useAchievements();
@@ -140,16 +142,23 @@ export function DailyHabitCard() {
 
   // Openings: drills done today vs due now. The goal counts today's work in,
   // so it doesn't shrink as you clear the due ones.
-  const openingDrills = [...(openingDrillsQuery.data?.values() ?? [])];
+  const openingDrills = [...(openingDrillsQuery.data?.values() ?? [])].filter(
+    (b) => b.kind === 'opening',
+  );
   const openingsToday = openingDrills.filter(
     (b) => b.lastDrilledAt && localDate(tz, b.lastDrilledAt) === today,
   ).length;
-  const openingsDue = (dueQuery.data ?? []).filter((b) => b.kind === 'opening').length;
+  const now = Date.now();
+  // Same rule as the due queue: next_drill_at <= now (retired rows are
+  // already excluded by useDrillsOfKind).
+  const openingsDue = openingDrills.filter(
+    (b) => b.nextDrillAt && b.nextDrillAt.getTime() <= now,
+  ).length;
   const openingsGoal = Math.min(OPENINGS_PER_DAY, openingsDue + openingsToday);
   const showOpenings = openingsGoal > 0;
   const drillsToday = drillsQuery.data ?? 0;
   // Openings have their own step; the train step's "due" excludes them.
-  const dueCount = (dueQuery.data ?? []).filter((b) => b.kind !== 'opening').length;
+  const dueCount = dueQuery.data ?? 0;
 
   const steps = [
     { done: drillsToday, goal: DAILY_GOAL },

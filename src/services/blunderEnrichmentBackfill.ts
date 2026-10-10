@@ -48,6 +48,9 @@ const DEEPEN_ROW_DELAY_MS = 4000;
 const RETIRE_THRESHOLD = 10;
 
 let running = false;
+// The live run; an older run's `finally` (unwinding after a quick remount)
+// must not clear the flag of the run that replaced it.
+let runToken: object | null = null;
 
 /** True while the maintenance worker holds the analysis engine. */
 export function isMaintenanceRunning(): boolean {
@@ -75,6 +78,8 @@ export function startBlunderMaintenance(
 ): () => void {
   if (running) return () => {};
   running = true;
+  const token = {};
+  runToken = token;
   let stopped = false;
 
   const stop = () => {
@@ -160,7 +165,10 @@ export function startBlunderMaintenance(
     } catch (err) {
       console.warn('[maintenance] worker stopped', err);
     } finally {
-      running = false;
+      if (runToken === token) {
+        running = false;
+        runToken = null;
+      }
     }
   })();
 

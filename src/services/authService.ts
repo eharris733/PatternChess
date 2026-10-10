@@ -1,3 +1,4 @@
+import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { getAnonId } from '../lib/anonId';
 import type { TablesUpdate } from '../lib/database.types';
@@ -50,9 +51,13 @@ export const authService = {
     return userProfileFromJson(data);
   },
 
-  async getOrCreateProfile(): Promise<UserProfile> {
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData.user;
+  /**
+   * Pass the session's user when you have it: getUser() is a network round
+   * trip held under the gotrue lock, and RLS verifies auth.uid() server-side
+   * anyway.
+   */
+  async getOrCreateProfile(sessionUser?: User): Promise<UserProfile> {
+    const user = sessionUser ?? (await supabase.auth.getUser()).data.user;
     if (!user) throw new Error('Not authenticated');
 
     const { data: existing } = await supabase
@@ -232,9 +237,9 @@ export const authService = {
   },
 
   async claimAnonymousData(username: string): Promise<void> {
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData.user;
-    if (!user) return;
+    const userId = await currentUserId();
+    if (!userId) return;
+    const user = { id: userId };
 
     await supabase
       .from('games')
