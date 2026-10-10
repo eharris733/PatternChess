@@ -1,0 +1,51 @@
+{
+  "since": "2026-10-03T20:18:41.177822+00:00",
+  "computedAt": "2026-10-10T20:18:41.177822+00:00",
+  "rows": [
+    {
+      "rank": 1,
+      "label": "L8ff",
+      "platform": "lichess",
+      "rating": 1540,
+      "ratingCategory": "blitz",
+      "value": 163,
+      "flair": null
+    },
+    {
+      "rank": 2,
+      "label": "DrGoose",
+      "platform": "lichess",
+      "rating": 2084,
+      "ratingCategory": "rapid",
+      "value": 81,
+      "flair": "endgame-medic"
+    },
+    {
+      "rank": 3,
+      "label": "xybris",
+      "platform": "chesscom",
+      "rating": 1234,
+      "ratingCategory": "blitz",
+      "value": 53,
+      "flair": null
+    },
+    {
+      "rank": 4,
+      "label": "eharris733",
+      "platform": "chesscom",
+      "rating": 2118,
+      "ratingCategory": "blitz",
+      "value": 41,
+      "flair": "pattern-master"
+    },
+    {
+      "rank": 5,
+      "label": "Jkday16",
+      "platform": "chesscom",
+      "rating": 1025,
+      "ratingCategory": "rapid",
+      "value": 35,
+      "flair": null
+    }
+  ]
+}

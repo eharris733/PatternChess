@@ -10,14 +10,10 @@ import { createClient } from '@supabase/supabase-js';
 import { mintSession } from './session.ts';
 import { installReadOnlyGuard, blockedWrites } from './readOnlyGuard.ts';
 import { BASE_URL, loadEnv } from './env.ts';
-import { SCENES, type Ratio, type SceneCtx } from './scenes.ts';
+import { PROJECTS, SCENES, type Ratio, type SceneCtx } from './scenes.ts';
 
 const here = (p: string) => new URL(p, import.meta.url).pathname;
 
-export const PROJECTS: Record<Ratio, { width: number; height: number; dpr: number; outW: number; outH: number }> = {
-  landscape: { width: 1280, height: 720, dpr: 1.5, outW: 1920, outH: 1080 },
-  vertical: { width: 540, height: 960, dpr: 2, outW: 1080, outH: 1920 },
-};
 const FPS = 30;
 
 function arg(name: string): string | undefined {
@@ -60,6 +56,8 @@ for (const ratio of ratios) {
     // Brand look regardless of the account's theme: a device-stored theme wins
     // over the profile's (themeStore), and the sync-up write is blocked.
     localStorage.setItem('patternchess.boardTheme', 'default');
+    // Skip /openings' first-build checklist; the account's report is built.
+    localStorage.setItem(`pc:openings-ready:${s.user.id}`, '1');
   }, { k: storageKey, s: session });
   await context.addInitScript({ path: here('./overlay.js') });
 

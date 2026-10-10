@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { LandingTopBar } from '../components/landing/LandingTopBar';
@@ -9,9 +10,12 @@ import { SocialProofBadge } from '../components/landing/SocialProofBadge';
 import { WhyYouAreStuck } from '../components/landing/WhyYouAreStuck';
 import { HowItWorks, HOW_IT_WORKS_STEPS } from '../components/landing/HowItWorks';
 import { AboutCreator } from '../components/landing/AboutCreator';
+import { Testimonials } from '../components/landing/Testimonials';
+import { WeeklyLeaderboard } from '../components/landing/WeeklyLeaderboard';
 import { useDemoAnalysis } from '../hooks/useDemoAnalysis';
 import { useLandingView } from '../hooks/useLandingView';
-import { trackDemoSubmit } from '../services/funnelService';
+import { trackDemoSubmit, trackLeadReturn } from '../services/funnelService';
+import { readWinBackParams, stripWinBackParams } from '../lib/winBack';
 import { useForceDefaultTheme } from '../state/themeStore';
 import { useHead } from '../seo/useHead';
 import { SITE_DESCRIPTION } from '../seo/siteMeta';
@@ -46,6 +50,25 @@ export function LandingRoute() {
   // since they're redirected away, and it only fires once per browser session.
   useLandingView();
 
+  // Win-back link (`?u=&p=&src=`, see src/lib/winBack.ts): prefill the
+  // username and re-run the demo so the returning lead lands on their own
+  // blunders. Deferred a tick and cancelled on cleanup so StrictMode's
+  // mount/unmount/mount runs it once (the demo hook aborts on unmount).
+  const [winBack] = useState(() =>
+    typeof window === 'undefined' ? null : readWinBackParams(window.location.search),
+  );
+  const runDemo = demo.run;
+  useEffect(() => {
+    if (!winBack || loading || session) return;
+    const t = window.setTimeout(() => {
+      stripWinBackParams();
+      trackLeadReturn(winBack.source, winBack.platform, winBack.username);
+      trackDemoSubmit(winBack.platform, winBack.username);
+      runDemo({ platform: winBack.platform, username: winBack.username });
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [winBack, loading, session, runDemo]);
+
   if (loading) return null;
   if (session) return <Navigate to="/dashboard" replace />;
 
@@ -57,6 +80,8 @@ export function LandingRoute() {
           <div className="flex flex-col gap-8 max-w-3xl">
             <UsernameInput
               loading={demo.status === 'loading'}
+              initialPlatform={winBack?.platform}
+              initialUsername={winBack?.username}
               onSubmit={(platform, username) => {
                 trackDemoSubmit(platform, username);
                 demo.run({ platform, username });
@@ -66,6 +91,8 @@ export function LandingRoute() {
           </div>
         </LandingHero>
         <SocialProofBadge />
+        <Testimonials />
+        <WeeklyLeaderboard />
         <HowItWorks />
         <WhyYouAreStuck />
         <AboutCreator />

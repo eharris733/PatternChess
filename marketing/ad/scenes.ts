@@ -5,6 +5,11 @@ import type { Page } from 'playwright';
 
 export type Ratio = 'landscape' | 'vertical';
 
+export const PROJECTS: Record<Ratio, { width: number; height: number; dpr: number; outW: number; outH: number }> = {
+  landscape: { width: 1280, height: 720, dpr: 1.5, outW: 1920, outH: 1080 },
+  vertical: { width: 540, height: 960, dpr: 2, outW: 1080, outH: 1920 },
+};
+
 export interface SceneCtx {
   page: Page;
   ratio: Ratio;
@@ -43,13 +48,6 @@ async function settle(page: Page) {
   await sleep(600);
 }
 
-function caption(ctx: SceneCtx, key: string, pos: 'bottom' | 'right' = 'bottom') {
-  return ctx.page.evaluate(
-    ([text, ratio, slot, p]) => (window as any).__ad.caption(text, ratio, slot, p),
-    [ctx.copy.captions[key], ctx.ratio, `captions.${key}`, pos],
-  );
-}
-
 function card(ctx: SceneCtx, name: string) {
   return ctx.page.evaluate(
     ([n, data]) => (window as any).__ad.card(n, data),
@@ -76,15 +74,32 @@ async function center(page: Page, selector: string) {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
+/**
+ * Moves a virtual camera over the app: an eased CSS transform on #root.
+ * Bounding boxes and the mouse follow the transform, so glides still land.
+ */
+async function camera(page: Page, transform: string, origin: string, ms: number) {
+  await page.evaluate(
+    ([transform, origin, ms]) => {
+      const root = document.getElementById('root')!;
+      root.style.transformOrigin = origin;
+      root.style.transition = `transform ${ms}ms cubic-bezier(.45,0,.2,1)`;
+      root.style.transform = transform;
+    },
+    [transform, origin, ms] as const,
+  );
+}
+
 /** Smooth scroll of whichever element scrolls the page content. */
 async function smoothScroll(page: Page, dy: number, ms: number) {
   await page.evaluate(
     ([dy, ms]) =>
       new Promise<void>((done) => {
-        const candidates = [document.scrollingElement, ...document.querySelectorAll('main, main *')] as Element[];
+        // The app scrolls inside <main>; scrolling the document drags the sidebar off-screen.
         const el =
-          candidates.find((c) => c && c.scrollHeight > c.clientHeight + 40 && getComputedStyle(c).overflowY !== 'hidden' &&
-            (c === document.scrollingElement || /auto|scroll/.test(getComputedStyle(c).overflowY))) ?? document.scrollingElement!;
+          ([...document.querySelectorAll('main, main *')] as Element[]).find(
+            (c) => c.scrollHeight > c.clientHeight + 40 && /auto|scroll/.test(getComputedStyle(c).overflowY),
+          ) ?? document.scrollingElement!;
         const start = el.scrollTop;
         const t0 = performance.now();
         const tick = (now: number) => {
@@ -126,7 +141,6 @@ async function dragMove(page: Page, from: string, to: string, ms = 520) {
 function drillScene(
   id: string,
   blunderId: string,
-  captionKey: string | null,
   opts: { glideMs?: number; preplay?: number } = {},
 ): Scene {
   const glideMs = opts.glideMs ?? 520;
@@ -152,7 +166,6 @@ function drillScene(
         await playUserMoves(ctx.page, row.solution_line?.pv ?? [], 0, opts.preplay, 300);
         await sleep(500);
       }
-      if (captionKey) await caption(ctx, captionKey, 'right');
       await ctx.page.evaluate(() => (window as any).__ad.cursor(true));
     },
     async act(ctx) {
@@ -202,70 +215,28 @@ export const SCENES: Scene[] = [
     kind: 'app',
     async prepare(ctx) {
       await open(ctx, '/dashboard');
-      await caption(ctx, 'dashboard');
     },
     async act(ctx) {
+      // Plan → spaced-repetition ladder → dropped endgames → rating charts.
       await sleep(1300);
-      await smoothScroll(ctx.page, ctx.ratio === 'vertical' ? 620 : 520, 2000);
+      await smoothScroll(ctx.page, ctx.ratio === 'vertical' ? 700 : 560, 2600);
+      await sleep(900);
+      await smoothScroll(ctx.page, ctx.ratio === 'vertical' ? 800 : 640, 2800);
     },
   },
 
-  drillScene('training', '00d1e5e6-238e-49b8-b0ba-0b7dcac79fd9', 'training'), // Qh7+! Kxh7 Rh3#
-  drillScene('drill2', '409b8541-1a9d-4c51-9571-65626f1b22f8', null, { glideMs: 360, preplay: 1 }), // (Qxc6 Qxc6) Ne7+ fork, Nxc6
+  drillScene('training', '00d1e5e6-238e-49b8-b0ba-0b7dcac79fd9', { glideMs: 460 }), // Qh7+! Kxh7 Rh3#
 
   {
     id: 'openings',
     kind: 'app',
     async prepare(ctx) {
       await open(ctx, '/openings');
-      await caption(ctx, 'openings');
     },
     async act(ctx) {
-      await sleep(500);
-      await smoothScroll(ctx.page, ctx.ratio === 'vertical' ? 560 : 360, 1600);
+      await sleep(700);
+      await smoothScroll(ctx.page, ctx.ratio === 'vertical' ? 560 : 360, 2000);
     },
-  },
-
-  {
-    id: 'openingsReview',
-    kind: 'app',
-    async prepare(ctx) {
-      await open(ctx, '/openings');
-      const href = await ctx.page.locator('a[href*="/openings/review/"]').first().getAttribute('href');
-      if (!href) throw new Error('no opening review link');
-      await open(ctx, href);
-      // Time the autoplay once, then replay and start recording near its end
-      // so the clip shows the last few moves and the theory/played arrows.
-      const replay = ctx.page.getByRole('button', { name: 'Replay' });
-      await replay.waitFor({ timeout: 30_000 });
-      await caption(ctx, 'openingsReview', 'right');
-      // The move list scrolls its active move into view, which drags the
-      // board off-screen on camera; pin the page at the top instead.
-      await ctx.page.evaluate(() => {
-        Element.prototype.scrollIntoView = function () {};
-        window.scrollTo(0, 0);
-        const pin = () => {
-          if (window.scrollY) window.scrollTo(0, 0);
-          for (const el of document.querySelectorAll('main, main *')) if (el.scrollTop && !el.closest('nav, ol, ul, table')) el.scrollTop = 0;
-          requestAnimationFrame(pin);
-        };
-        pin();
-      });
-      // Time one dry replay, then replay again and start recording so the
-      // clip ends on the exit with the theory/played arrows.
-      // Replay and "Skip to the exit" swap while autoplay runs.
-      const skip = ctx.page.getByTestId('skip-replay');
-      await replay.click();
-      await skip.waitFor();
-      const t1 = Date.now();
-      await skip.waitFor({ state: 'detached', timeout: 30_000 });
-      const replayMs = Date.now() - t1;
-      console.log(`  replay takes ${(replayMs / 1000).toFixed(1)}s`);
-      await replay.click();
-      await skip.waitFor();
-      await sleep(Math.max(0, replayMs - (ctx.seconds - 1.4) * 1000));
-    },
-    async act() {},
   },
 
   {
@@ -273,13 +244,12 @@ export const SCENES: Scene[] = [
     kind: 'app',
     async prepare(ctx) {
       await open(ctx, '/endgames');
-      await caption(ctx, 'endgames');
       await ctx.page.evaluate(() => (window as any).__ad.cursor(true));
     },
     async act(ctx) {
       await sleep(400);
-      const rescued = ctx.page.getByRole('button', { name: /Rescued/i }).first();
-      const box = await rescued.boundingBox();
+      const due = ctx.page.getByRole('button', { name: /^Due\b/i }).first();
+      const box = await due.boundingBox({ timeout: 2000 }).catch(() => null);
       if (box) {
         await glide(ctx.page, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, 800);
         await sleep(150);
@@ -291,22 +261,79 @@ export const SCENES: Scene[] = [
     },
   },
 
-  cardScene('stats', 'stats'),
-  cardScene('testimonials', 'testimonials'),
+  drillScene('drill2', '409b8541-1a9d-4c51-9571-65626f1b22f8', { glideMs: 360, preplay: 1 }), // (Qxc6 Qxc6) Ne7+ fork, Nxc6
 
   {
-    id: 'leaderboard',
+    // The /training landing's motif filters: push in on the "By pattern" card,
+    // sweep a few chips, then pick one and pull back out to its drill.
+    id: 'motifs',
     kind: 'app',
     async prepare(ctx) {
-      await open(ctx, '/achievements?tab=leaderboards');
-      await ctx.page.locator('[data-testid="leaderboard-me"]').waitFor({ timeout: 10_000 }).catch(() => {});
-      await caption(ctx, 'leaderboard');
+      await open(ctx, '/training');
+      // Warm-up off camera: open the back-rank drill once so its data and the
+      // board chunk are cached, then return to the landing in-app (no reload).
+      await ctx.page.getByRole('button', { name: 'Back-rank weakness' }).first().click();
+      await ctx.page.locator('cg-board').first().waitFor({ timeout: 15_000 });
+      await settle(ctx.page);
+      for (const path of ['/dashboard', '/training']) {
+        await ctx.page.evaluate((to) => {
+          history.pushState({}, '', to);
+          dispatchEvent(new PopStateEvent('popstate'));
+        }, path);
+        await sleep(400);
+      }
+      await settle(ctx.page);
+      const card = ctx.page.locator('section', { hasText: 'By pattern' }).first();
+      await card.waitFor({ timeout: 10_000 });
+      await card.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await sleep(300);
+      await ctx.page.evaluate(() => (window as any).__ad.cursor(true));
     },
     async act(ctx) {
-      await sleep(600);
-      await smoothScroll(ctx.page, ctx.ratio === 'vertical' ? 200 : 120, 1200);
+      const { page, ratio } = ctx;
+      const card = page.locator('section', { hasText: 'By pattern' }).first();
+      const box = (await card.boundingBox())!;
+      const vp = page.viewportSize()!;
+      // Scale so the card fills most of the frame, centred above the caption strip.
+      const scale = Math.min((vp.width * 0.86) / box.width, (vp.height * 0.6) / box.height, 2.4);
+      const cx = box.x + box.width / 2;
+      const cy = box.y + box.height / 2;
+      const ty = vp.height * (ratio === 'vertical' ? 0.4 : 0.42) - cy;
+      await camera(page, `translate(${vp.width / 2 - cx}px, ${ty}px) scale(${scale})`, `${cx}px ${cy}px`, 1100);
+      await sleep(1150);
+      // Hover in step with the read: back-rank, then hanging pieces.
+      for (const name of ['Back-rank weakness', 'Missed hanging piece']) {
+        const chip = await page.getByRole('button', { name }).first().boundingBox();
+        if (!chip) continue;
+        await glide(page, { x: chip.x + chip.width / 2, y: chip.y + chip.height / 2 }, 600);
+        await sleep(300);
+      }
+      // Pull back before picking: Chessground measures the board when it mounts,
+      // so it must not mount under the camera's scale (pieces come out giant).
+      await camera(page, 'none', `${cx}px ${cy}px`, 700);
+      await sleep(720);
+      const pick = await page.getByRole('button', { name: 'Back-rank weakness' }).first().boundingBox();
+      if (pick) {
+        await glide(page, { x: pick.x + pick.width / 2, y: pick.y + pick.height / 2 }, 450);
+        await sleep(120);
+        await page.mouse.down();
+        await page.mouse.up();
+        // The drill opens at the landing's scroll position; bring its board into frame.
+        await page.locator('cg-board').first().waitFor({ timeout: 2500 }).catch(() => {});
+        await page.evaluate(() => {
+          const board = document.querySelector('cg-board');
+          // scrollIntoView is stubbed by other scenes' habits; scroll each scrolling ancestor.
+          for (let el = board?.parentElement; el; el = el.parentElement) {
+            if (el.scrollHeight > el.clientHeight) el.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+          document.scrollingElement?.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      }
     },
   },
+
+  cardScene('stats', 'stats'),
+  cardScene('testimonials', 'testimonials'),
 
   {
     id: 'achievements',
@@ -320,9 +347,22 @@ export const SCENES: Scene[] = [
         const sounds = await import('/src/lib/sounds.ts' as string);
         sounds.playSound('achievement');
       });
-      await sleep(300);
+      await sleep(600);
       // Landscape shows the earned grid as-is; scrolling there moves the sidebar too.
-      if (ctx.ratio === 'vertical') await smoothScroll(ctx.page, 600, 1800);
+      if (ctx.ratio === 'vertical') await smoothScroll(ctx.page, 700, 3000);
+    },
+  },
+
+  {
+    id: 'leaderboard',
+    kind: 'app',
+    async prepare(ctx) {
+      await open(ctx, '/leaderboards');
+      await ctx.page.locator('[data-testid="leaderboard-me"]').waitFor({ timeout: 10_000 }).catch(() => {});
+    },
+    async act(ctx) {
+      await sleep(600);
+      await smoothScroll(ctx.page, ctx.ratio === 'vertical' ? 200 : 120, 1200);
     },
   },
 

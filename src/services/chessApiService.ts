@@ -219,7 +219,7 @@ export async function fetchLichessGames(
       opponent: isWhite ? black : white,
       pgn,
       time_control: headers.TimeControl ?? null,
-      rated: (headers.Event ?? '').includes('Rated'),
+      rated: isLichessRated(headers),
       result: headers.Result ?? null,
       played_at:
         headers.UTCDate && headers.UTCTime
@@ -229,6 +229,17 @@ export async function fetchLichessGames(
     });
   }
   return out;
+}
+
+/**
+ * Lichess PGN has no `Rated` header. Its Event reads "rated blitz game" /
+ * "casual blitz game" (lowercase) for ordinary games, but arena games carry the
+ * tournament name instead, so a `*RatingDiff` header (written only for rated
+ * games) is the fallback signal.
+ */
+export function isLichessRated(headers: Record<string, string>): boolean {
+  if (/^rated\b/i.test(headers.Event ?? '')) return true;
+  return headers.WhiteRatingDiff !== undefined || headers.BlackRatingDiff !== undefined;
 }
 
 /**

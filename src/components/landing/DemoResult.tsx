@@ -3,6 +3,7 @@ import type { UseDemoAnalysisReturn } from '../../hooks/useDemoAnalysis';
 import { BlunderPreview } from './BlunderPreview';
 import { DemoProgressPanel } from './DemoProgressPanel';
 import { DemoStatsCard } from './DemoStatsCard';
+import { trackCtaClick } from '../../services/funnelService';
 
 interface Props {
   demo: UseDemoAnalysisReturn;
@@ -62,7 +63,7 @@ export function DemoResult({ demo }: Props) {
             {r.gamesAnalyzed === 1 ? '' : 's'}. Try a different username, or sign up to
             analyze your full history.
           </p>
-          <SignUpCta>Sign up free</SignUpCta>
+          <SignUpCta source="demo_clean">Sign up free</SignUpCta>
         </div>
       </div>
     );
@@ -93,16 +94,17 @@ export function DemoResult({ demo }: Props) {
             Sign up free and drill every mistake until it's gone.
           </div>
         </div>
-        <SignUpCta>Sign up free →</SignUpCta>
+        <SignUpCta source="demo_result">Sign up free →</SignUpCta>
       </div>
     </div>
   );
 }
 
-function SignUpCta({ children }: { children: React.ReactNode }) {
+function SignUpCta({ children, source }: { children: React.ReactNode; source: string }) {
   return (
     <Link
       to="/login"
+      onClick={() => trackCtaClick(source)}
       className="self-start font-mono uppercase tracking-tight text-sm border-2 border-bg bg-gold-dark text-bg px-6 py-3 rounded-none shadow-[3px_3px_0_#F4F4F0] hover:shadow-[1px_1px_0_#F4F4F0] hover:translate-x-[2px] hover:translate-y-[2px] transition-all whitespace-nowrap"
     >
       {children}
