@@ -50,6 +50,9 @@ export function toUserPov(fen: string, userColor: 'white' | 'black', scoreCp: nu
 }
 
 let running = false;
+// The live run; an older run's `finally` (unwinding after a quick remount)
+// must not clear the flag of the run that replaced it.
+let runToken: object | null = null;
 
 /** True while the verifier holds the analysis engine. */
 export function isEndgameVerificationRunning(): boolean {
@@ -59,12 +62,17 @@ export function isEndgameVerificationRunning(): boolean {
 export function startEndgameScenarioVerification(): () => void {
   if (running) return () => {};
   running = true;
+  const token = {};
+  runToken = token;
   let stopped = false;
   const stop = () => {
     stopped = true;
     running = false;
   };
 
+  // Refresh the scenario list once when the run ends, not after every batch:
+  // each refresh re-ran the whole scenario query (~every 20s on the dashboard).
+  let touched = false;
   void (async () => {
     try {
       const engineBusy = async () =>
@@ -74,7 +82,6 @@ export function startEndgameScenarioVerification(): () => void {
 
       const sf = await getAnalysisStockfish();
       const skip = new Set<string>();
-      let touched = false;
 
       while (!stopped) {
         const batch = (
@@ -93,15 +100,16 @@ export function startEndgameScenarioVerification(): () => void {
           }
           await new Promise((r) => setTimeout(r, ROW_DELAY_MS));
         }
-        if (touched) {
-          void queryClient.invalidateQueries({ queryKey: ['endgameScenarios'] });
-        }
         if (await engineBusy()) return;
       }
     } catch (err) {
       console.warn('[endgame-verify] worker stopped', err);
     } finally {
-      running = false;
+      if (runToken === token) {
+        running = false;
+        runToken = null;
+      }
+      if (touched) void queryClient.invalidateQueries({ queryKey: ['endgameScenarios'] });
     }
   })();
 

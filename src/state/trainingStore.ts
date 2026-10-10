@@ -50,7 +50,10 @@ async function flushDrillWritesAndRefreshDue(): Promise<void> {
   }
   queryClient.removeQueries({ queryKey: ['blunders', 'due'] });
   queryClient.removeQueries({ queryKey: ['blunders', 'forGames'] });
-  void queryClient.invalidateQueries({ queryKey: ['blunders'], refetchType: 'all' });
+  // Active queries refetch now; inactive ones (dashboard stats, vault) are
+  // marked stale and refetch when next mounted, instead of all firing at once
+  // the moment you leave training.
+  void queryClient.invalidateQueries({ queryKey: ['blunders'] });
 }
 
 export type TrainingPhase =

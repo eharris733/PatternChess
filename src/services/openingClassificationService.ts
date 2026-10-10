@@ -27,6 +27,9 @@ const BATCH_SIZE = 100;
 const BATCH_DELAY_MS = 300;
 
 let running = false;
+// The live run; an older run's `finally` (unwinding after a quick remount)
+// must not clear the flag of the run that replaced it.
+let runToken: object | null = null;
 
 /** True while the opening backfill is walking the user's games. */
 export function isOpeningBackfillRunning(): boolean {
@@ -54,16 +57,29 @@ export async function classifyGameRowsForInsert(
     return rows;
   }
   const classifiedAt = new Date().toISOString();
-  return rows.map((row) => {
+  const out: InsertableGame[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    if (i > 0 && i % YIELD_EVERY === 0) await yieldToMain();
+    const row = rows[i];
     const open = classifyPgnWithBook(book, row.pgn);
-    return {
+    out.push({
       ...row,
       eco: open?.eco ?? row.eco ?? null,
       opening_name: open?.name ?? row.opening_name ?? null,
       opening_family: open?.family ?? null,
       opening_classified_at: classifiedAt,
-    };
-  });
+    });
+  }
+  return out;
+}
+
+// Each classification is a full chess.js PGN replay (~5-20ms); a batch of 100
+// in one synchronous map froze the UI for a second or more. Yield to the event
+// loop every few games so input and rendering stay responsive.
+const YIELD_EVERY = 8;
+
+function yieldToMain(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function sleep(ms: number): Promise<void> {
@@ -84,6 +100,8 @@ export function startOpeningBackfill(
 ): () => void {
   if (running) return () => {};
   running = true;
+  const token = {};
+  runToken = token;
   let stopped = false;
 
   const stop = () => {
@@ -104,15 +122,19 @@ export function startOpeningBackfill(
         const batch = await supabaseService.getUnclassifiedOpeningGames({ limit: BATCH_SIZE });
         if (batch.length === 0) break;
 
-        const patches = batch.map((game) => {
+        const patches = [];
+        for (let i = 0; i < batch.length; i++) {
+          if (i > 0 && i % YIELD_EVERY === 0) await yieldToMain();
+          if (stopped) return;
+          const game = batch[i];
           const open = classifyPgnWithBook(book, game.pgn);
-          return {
+          patches.push({
             id: game.id,
             eco: open?.eco ?? null,
             opening_name: open?.name ?? null,
             opening_family: open?.family ?? null,
-          };
-        });
+          });
+        }
 
         const written = await supabaseService.applyGameOpenings(patches);
         // A zero-row write means the RPC isn't taking our updates (RLS, a
@@ -135,7 +157,10 @@ export function startOpeningBackfill(
     } catch (err) {
       console.warn('[openings] backfill stopped', err);
     } finally {
-      running = false;
+      if (runToken === token) {
+        running = false;
+        runToken = null;
+      }
     }
   })();
 
