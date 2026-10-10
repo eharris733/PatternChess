@@ -8,13 +8,14 @@ import {
   type AdminKpis,
   type AdminKpiSignup,
   type AdminLandingFunnel,
-  type AdminLead,
   type AdminTrainingAnalytics,
 } from '../hooks/useAdminKpis';
 import type { AdminUserCategory } from '../hooks/useAdminUserList';
 import { SignupsChart } from '../components/analytics/SignupsChart';
 import { Skeleton } from '../components/Skeleton';
 import { UserListModal } from '../components/admin/UserListModal';
+import { WinBackPanel } from '../components/admin/WinBackPanel';
+import { LandingCtasCard } from '../components/admin/LandingCtasCard';
 import {
   chesscomProfileUrl,
   lichessProfileUrl,
@@ -65,6 +66,7 @@ function AnalyticsContent() {
           <TotalsTiles data={data} onDrilldown={setDrilldown} />
 
           {data.landingFunnel && <LandingFunnelCard funnel={data.landingFunnel} />}
+          <LandingCtasCard />
 
           <section className="card flex flex-col gap-4">
             <header className="flex items-baseline justify-between">
@@ -85,7 +87,7 @@ function AnalyticsContent() {
             />
           )}
           <PlatformsCard data={data} />
-          {data.leads && data.leads.length > 0 && <LeadsCard rows={data.leads} />}
+          <WinBackPanel />
           <RecentSignupsCard rows={data.recentSignups} />
         </>
       )}
@@ -255,69 +257,6 @@ function LandingFunnelCard({ funnel }: { funnel: AdminLandingFunnel }) {
         Bots filtered by user-agent and a human-interaction signal — approximate. A visitor is
         counted as converted when their browser later created an account.
       </p>
-    </section>
-  );
-}
-
-function LeadsCard({ rows }: { rows: AdminLead[] }) {
-  return (
-    <section className="card flex flex-col gap-3">
-      <header className="flex items-baseline justify-between">
-        <span className="label">Entered accounts (leads)</span>
-        <span className="text-text-secondary text-xs">latest {rows.length}</span>
-      </header>
-      <div className="flex flex-col divide-y-2 divide-text-primary/10">
-        {rows.map((r, i) => {
-          const handle =
-            r.platform === 'lichess'
-              ? `lichess.org/@/${r.username}`
-              : r.platform === 'chesscom'
-                ? `chess.com/member/${r.username}`
-                : r.username;
-          const href =
-            r.platform === 'lichess'
-              ? lichessProfileUrl(r.username)
-              : r.platform === 'chesscom'
-                ? chesscomProfileUrl(r.username)
-                : null;
-          return (
-            <div
-              key={`${r.platform ?? '?'}-${r.username}-${i}`}
-              className="flex items-center justify-between gap-2 py-2.5 first:pt-0"
-            >
-              <div className="flex flex-col min-w-0">
-                <span className="text-text-primary text-sm truncate">{r.username}</span>
-                {href ? (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-text-secondary text-[10px] truncate hover:text-text-primary underline-offset-2 hover:underline"
-                  >
-                    {handle}
-                  </a>
-                ) : (
-                  <span className="text-text-secondary text-[10px] truncate">{handle}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {r.attempts > 1 && (
-                  <span className="text-text-secondary text-[10px] tabular-nums">
-                    ×{r.attempts}
-                  </span>
-                )}
-                <StageBadge on={r.converted} label={r.converted ? 'Signed up' : 'No account'} />
-                <span className="text-text-secondary text-xs tabular-nums">
-                  {new Date(r.lastSeen).toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </section>
   );
 }

@@ -1,12 +1,11 @@
 // Injected into every recorded page (addInitScript). Exposes window.__ad:
-//   caption(text, ratio, slot, pos) — caption over app footage
 //   card(name, data)                — full-screen motion card (hook / stats / testimonials / cta)
 //   play()                          — starts the animations (called when recording starts)
 //   stopAudio()                     — returns the captured app audio for this page
 // plus a drawn cursor (headless has none), "vs Opponent" masking of game opponents,
 // and a tap on the page's AudioContext so the site's own Web Audio sounds
 // (src/lib/sounds.ts) are recorded alongside the video.
-// Cards and captions follow brand-kit/: charcoal #1A1A1A, brand gold #C49B2A,
+// Cards follow brand-kit/: charcoal #1A1A1A, brand gold #C49B2A,
 // deep gold #8B6914, light ink #E8E8E8, Georgia wordmark with italic "Chess".
 (() => {
   // ---- Audio tap -----------------------------------------------------------
@@ -44,24 +43,12 @@
   .ad-serif { font-family: Georgia, 'Times New Roman', serif; }
   .ad-track { text-transform: uppercase; letter-spacing: 0.22em; font-weight: 500; }
 
-  /* Caption over app footage: charcoal panel, gold rule, light ink */
-  .ad-cap { position: absolute; left: 50%; transform: translate(-50%, 24px); opacity: 0;
-    width: max-content; max-width: min(86%, 900px); background: rgba(26,26,26,0.94); border-radius: 14px;
-    padding: 20px 30px 20px 26px; display: flex; align-items: center; gap: 18px;
-    box-shadow: 0 18px 50px rgba(0,0,0,0.28); }
-  .ad-cap::before { content: ''; flex: none; width: 4px; align-self: stretch; border-radius: 2px; background: var(--gold); }
-  .ad-cap span { font-family: Georgia, 'Times New Roman', serif; font-size: 32px; line-height: 1.22; color: var(--ink); }
-  .ad-landscape .ad-cap { bottom: 44px; }
-  .ad-vertical .ad-cap { bottom: 52px; max-width: calc(100% - 40px); padding: 16px 22px 16px 18px; }
-  .ad-vertical .ad-cap span { font-size: 23px; }
-  .ad-play .ad-cap { animation: ad-cap-in .55s cubic-bezier(.2,.8,.2,1) .15s forwards; }
-  .ad-landscape .ad-cap.ad-right { left: auto; right: 36px; bottom: 36px; max-width: 31%; transform: translateY(24px); }
-  .ad-landscape.ad-play .ad-cap.ad-right { animation-name: ad-in; }
-  .ad-landscape .ad-cap.ad-right span { font-size: 25px; }
-
   /* Full-screen cards, styled after brand-kit/logos/social-card-example.png */
   .ad-card { position: absolute; inset: 0; background: var(--char); overflow: hidden; display: flex;
     flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6%; gap: 30px; }
+  /* Keep the running-caption strip (captions.ts) clear of card content. */
+  .ad-landscape .ad-card { padding-bottom: calc(6% + 70px); }
+  .ad-vertical .ad-card { padding-bottom: calc(6% + 150px); }
   .ad-sq { position: absolute; width: var(--s); height: var(--s); background: #211F1A; }
   .ad-in { opacity: 0; transform: translateY(26px); }
   .ad-play .ad-in { animation: ad-in .7s cubic-bezier(.2,.8,.2,1) forwards; animation-delay: var(--d, 0s); }
@@ -72,10 +59,8 @@
   .ad-lockup .ad-mark { width: 150px; height: 150px; }
   .ad-wordmark { font-family: Georgia, 'Times New Roman', serif; font-size: 96px; line-height: 1; color: var(--ink); letter-spacing: -0.01em; }
   .ad-wordmark i { color: var(--gold); }
-  .ad-tagline { font-size: 22px; color: rgba(232,232,232,0.62); }
   .ad-vertical .ad-wordmark { font-size: 64px; }
   .ad-vertical .ad-lockup .ad-mark { width: 120px; height: 120px; }
-  .ad-vertical .ad-tagline { font-size: 17px; letter-spacing: 0.16em; max-width: 90%; line-height: 1.6; }
 
   .ad-boxes { display: flex; gap: 26px; }
   .ad-vertical .ad-boxes { flex-direction: column; gap: 20px; width: 84%; }
@@ -109,7 +94,6 @@
     transform: translate(-100px, -100px); transition: opacity .2s; filter: drop-shadow(2px 3px 2px rgba(0,0,0,.35)); }
 
 
-  @keyframes ad-cap-in { to { opacity: 1; transform: translate(-50%, 0); } }
   @keyframes ad-in { to { opacity: 1; transform: none; } }
   @keyframes ad-fade { to { opacity: 1; } }
   @keyframes ad-quote { 0% { opacity: 0; transform: translateY(22px); } 12% { opacity: 1; transform: none; }
@@ -166,7 +150,6 @@
           <div class="ad-in" style="--d:0s">${MARK}</div>
           <div class="ad-wordmark ad-in" style="--d:.3s">${wordmark(d.copy.hook.headline, 'hook.headline')}</div>
         </div>
-        <div class="ad-tagline ad-track ad-in" style="--d:.8s">${txt(d.copy.hook.sub, 'hook.sub')}</div>
       </div>`,
     stats: (d) => {
       const items = [
@@ -264,10 +247,6 @@
   });
 
   window.__ad = {
-    caption(text, ratio, slot, pos) {
-      const r = root(ratio);
-      r.innerHTML = `<div class="ad-cap${pos === 'right' ? ' ad-right' : ''}"><span>${txt(text, slot)}</span></div>`;
-    },
     card(name, data) {
       const r = root(data.ratio);
       r.innerHTML = CARDS[name](data);

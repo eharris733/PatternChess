@@ -82,3 +82,37 @@ test('anon_id is stable across the two events', async ({ page }) => {
   const ids = new Set(inserts.map((e) => e.anon_id));
   expect(ids.size).toBe(1);
 });
+
+test('win-back link prefills the username, re-runs the demo once and cleans the URL', async ({ page }) => {
+  const inserts = captureFunnelInserts(page);
+  await stubFunnelEndpoint(page);
+
+  await page.goto('/?u=player1&p=chesscom&src=wb');
+  await expect(page.locator('#demo-username')).toHaveValue('player1');
+  await expect.poll(() => inserts.some((e) => e.type === 'demo_submit')).toBe(true);
+  await expect.poll(() => new URL(page.url()).search).toBe('');
+
+  const ret = inserts.filter((e) => e.type === 'lead_return');
+  expect(ret).toHaveLength(1);
+  expect(ret[0]).toMatchObject({ source: 'wb', platform: 'chesscom', username: 'player1' });
+  expect(inserts.filter((e) => e.type === 'demo_submit')).toHaveLength(1);
+});
+
+test('landing sign-up CTAs record cta_click with their section', async ({ page }) => {
+  const inserts = captureFunnelInserts(page);
+  await stubFunnelEndpoint(page);
+
+  await page.goto('/');
+  await page.getByRole('banner').getByRole('link', { name: 'Sign up' }).click();
+  await expect(page).toHaveURL(/\/login/);
+  await expect
+    .poll(() => inserts.find((e) => e.type === 'cta_click')?.source)
+    .toBe('topbar_signup');
+});
+
+test('testimonials are on the landing page', async ({ page }) => {
+  await stubFunnelEndpoint(page);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'What players say' })).toBeVisible();
+  await expect(page.getByText('DrG00se')).toBeVisible();
+});

@@ -363,7 +363,8 @@ export function ProfileRoute() {
         <h2 className="heading-md">Community</h2>
         <p className="text-text-secondary text-sm -mt-2">
           Leaderboards show your Lichess or Chess.com username (or your display name) next to
-          positions solved, mastered, Elo gained and streak. Never your email.
+          positions solved, mastered, Elo gained and streak. Never your email. The weekly top 5
+          also appears on the public homepage, by chess username only.
         </p>
         <label className="flex items-start gap-2 select-none">
           <input
@@ -375,8 +376,8 @@ export function ProfileRoute() {
           <span>
             Show me on leaderboards
             <span className="block text-text-secondary text-xs">
-              Untick to drop off every board immediately. Your own stats and achievements are
-              unaffected.
+              Untick to drop off every board (the homepage one within an hour). Your own stats
+              and achievements are unaffected.
             </span>
           </span>
         </label>

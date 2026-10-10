@@ -19,3 +19,13 @@ export function chessProfileLink(
   }
   return null;
 }
+
+/** The platform's "new message to <username>" page (the admin win-back queue opens it). */
+export function chessDmUrl(platform: 'lichess' | 'chesscom' | string | null, username: string): string | null {
+  if (!username) return null;
+  if (platform === 'lichess') return `https://lichess.org/inbox/${encodeURIComponent(username)}`;
+  if (platform === 'chesscom') {
+    return `https://www.chess.com/messages/compose/${encodeURIComponent(username)}`;
+  }
+  return null;
+}

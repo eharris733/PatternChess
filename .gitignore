@@ -43,3 +43,7 @@ supabase/.temp
 
 # Ad recordings (marketing/ad)
 marketing/ad/out/
+
+# Forum drafter output (marketing/forum)
+marketing/forum/out/
+marketing/forum/seen.json

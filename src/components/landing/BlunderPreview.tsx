@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { Key } from 'chessground/types';
 import { LazyChessgroundReact } from '../../chess/LazyChessgroundReact';
 import { isUciMove, uciToSan } from '../../chess/moveUtils';
-import { cpLoss } from '../../chess/winningChances';
+import { mateInPhrase, moveCost } from '../../chess/formatEval';
 import type { BlunderCandidate } from '../../stockfish/stockfishWorkerClient';
 
 interface Props {
@@ -22,6 +22,8 @@ export function BlunderPreview({ blunder, moveLabel }: Props) {
     () => (bestUci ? uciToSan(blunder.fen, bestUci) ?? bestUci : '—'),
     [blunder.fen, bestUci],
   );
+
+  const cost = moveCost(blunder.evalBefore, blunder.evalAfter);
 
   const playedMoveSquares = {
     [blunder.playedMove.slice(0, 2)]: 'last-move',
@@ -75,11 +77,24 @@ export function BlunderPreview({ blunder, moveLabel }: Props) {
             You played{' '}
             <span className="font-bold">{playedSan}</span>.
             <br />
-            <span className="text-gold-dark">{bestSan}</span> was{' '}
-            <span className="text-gold-dark font-bold">
-              {Math.round(Math.abs(cpLoss(blunder.evalBefore, blunder.evalAfter)))}cp
-            </span>{' '}
-            stronger.
+            {cost.kind === 'allowsMate' ? (
+              <>
+                That allows{' '}
+                <span className="text-gold-dark font-bold">{mateInPhrase(cost.moves)}</span>.{' '}
+                <span className="text-gold-dark">{bestSan}</span> was safe.
+              </>
+            ) : cost.kind === 'missedMate' ? (
+              <>
+                <span className="text-gold-dark">{bestSan}</span> was{' '}
+                <span className="text-gold-dark font-bold">{mateInPhrase(cost.moves)}</span>.
+              </>
+            ) : (
+              <>
+                <span className="text-gold-dark">{bestSan}</span> was{' '}
+                <span className="text-gold-dark font-bold">{Math.round(Math.abs(cost.cp))}cp</span>{' '}
+                stronger.
+              </>
+            )}
           </div>
           <div className="mt-auto pt-4 border-t-2 border-text-primary/10">
             <div className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">

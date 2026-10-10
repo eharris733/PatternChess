@@ -227,6 +227,7 @@ export type Database = {
           id: string
           platform: string | null
           referrer: string | null
+          source: string | null
           type: string
           user_agent: string | null
           username: string | null
@@ -237,6 +238,7 @@ export type Database = {
           id?: string
           platform?: string | null
           referrer?: string | null
+          source?: string | null
           type: string
           user_agent?: string | null
           username?: string | null
@@ -247,6 +249,7 @@ export type Database = {
           id?: string
           platform?: string | null
           referrer?: string | null
+          source?: string | null
           type?: string
           user_agent?: string | null
           username?: string | null
@@ -532,6 +535,7 @@ export type Database = {
           preferred_time_controls: string[]
           reveal_before_solve: boolean
           shares_count: number
+          signup_source: string | null
           show_answer_on_miss: boolean
           show_engine_evals: boolean
           sounds_enabled: boolean
@@ -565,6 +569,7 @@ export type Database = {
           preferred_time_controls?: string[]
           reveal_before_solve?: boolean
           shares_count?: number
+          signup_source?: string | null
           show_answer_on_miss?: boolean
           show_engine_evals?: boolean
           sounds_enabled?: boolean
@@ -598,6 +603,7 @@ export type Database = {
           preferred_time_controls?: string[]
           reveal_before_solve?: boolean
           shares_count?: number
+          signup_source?: string | null
           show_answer_on_miss?: boolean
           show_engine_evals?: boolean
           sounds_enabled?: boolean
@@ -676,10 +682,18 @@ export type Database = {
     Functions: {
       admin_kpis: { Args: never; Returns: Json }
       admin_user_list: { Args: { category: string }; Returns: Json }
+      admin_landing_ctas: { Args: { days?: number }; Returns: Json }
+      admin_outreach_leads: { Args: { segment: string }; Returns: Json }
+      admin_mark_contacted: {
+        Args: { lead_key: string; segment: string; note?: string }
+        Returns: undefined
+      }
+      admin_unmark_contacted: { Args: { lead_key: string }; Returns: undefined }
       apply_game_openings: { Args: { p_rows: Json }; Returns: number }
       get_blunder_motif_counts: { Args: never; Returns: Json }
       increment_opening_reviews: { Args: never; Returns: number }
       claim_referral: { Args: { code: string }; Returns: boolean }
+      claim_signup_source: { Args: { source: string }; Returns: boolean }
       increment_shares_count: { Args: never; Returns: number }
       landing_stats: { Args: never; Returns: Json }
       leaderboard: {
@@ -687,6 +701,7 @@ export type Database = {
         Returns: Json
       }
       mark_learn_chapter_done: { Args: { key: string }; Returns: number }
+      public_leaderboard: { Args: never; Returns: Json }
       training_totals: { Args: never; Returns: Json }
     }
     Enums: {

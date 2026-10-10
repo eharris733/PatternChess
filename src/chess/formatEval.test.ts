@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatEval } from './formatEval';
+import { formatEval, formatMoveCost, mateInPhrase, moveCost } from './formatEval';
 
 describe('formatEval — normal scores', () => {
   it('formats centipawns as signed pawns with the requested precision', () => {
@@ -38,5 +38,36 @@ describe('formatEval — mate scores (±(10000 - N) encoding)', () => {
     expect(formatEval(-1248768)).toBe('-M');
     expect(formatEval(1248768)).toBe('M');
     expect(formatEval(-1248768)).not.toMatch(/\d/);
+  });
+});
+
+describe('moveCost / formatMoveCost', () => {
+  it('reports plain centipawn losses', () => {
+    const cost = moveCost(80, 240); // +0.8 before, opponent +2.4 after
+    expect(cost).toEqual({ kind: 'cp', cp: 320 });
+    expect(formatMoveCost(cost)).toBe('−320cp');
+  });
+
+  it('reports a move that allows mate instead of ~9900cp', () => {
+    // 1.e4 f6 2.Bc4 g5?? 3.Qh5#
+    const cost = moveCost(-94, 9999);
+    expect(cost).toEqual({ kind: 'allowsMate', moves: 1 });
+    expect(formatMoveCost(cost)).toBe('allows M1');
+    expect(mateInPhrase(1)).toBe('mate in 1');
+  });
+
+  it('reports a missed forced mate', () => {
+    const cost = moveCost(9997, 150); // had mate in 3, now opponent only +1.5
+    expect(cost).toEqual({ kind: 'missedMate', moves: 3 });
+    expect(formatMoveCost(cost)).toBe('missed M3');
+  });
+
+  it('treats a slower mate as a small cp difference', () => {
+    expect(moveCost(9997, -9995)).toEqual({ kind: 'cp', cp: 2 });
+  });
+
+  it('falls back to an uncounted mate for out-of-scale scores', () => {
+    expect(moveCost(0, 1248768)).toEqual({ kind: 'allowsMate', moves: null });
+    expect(mateInPhrase(null)).toBe('a forced mate');
   });
 });
