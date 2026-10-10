@@ -230,6 +230,12 @@ export const authService = {
   },
 
   /** Credit the friend whose invite link brought this user here (no-op if not eligible). */
+  async claimSignupSource(source: string): Promise<boolean> {
+    const { data, error } = await supabase.rpc('claim_signup_source', { source });
+    if (error) throw error;
+    return data === true;
+  },
+
   async claimReferral(code: string): Promise<boolean> {
     const { data, error } = await supabase.rpc('claim_referral', { code });
     if (error) throw error;

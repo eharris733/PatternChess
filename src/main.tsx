@@ -6,9 +6,11 @@ import App from './App';
 import { queryClient } from './lib/queryClient';
 import { AuthProvider } from './auth/AuthProvider';
 import { captureReferralFromUrl } from './lib/referral';
+import { captureSignupSourceFromUrl } from './lib/signupSource';
 import './index.css';
 
 captureReferralFromUrl();
+captureSignupSourceFromUrl();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
