@@ -1,17 +1,22 @@
 {
-  "_note": "Fill in every empty string. Empty slots render on screen as [slot.name] so nothing ships blank by accident. Durations are seconds per scene.",
+  "_note": "Fill in every empty string. Empty slots render on screen as [slot.name] so nothing ships blank by accident. Durations are seconds per scene. `script` is the voiceover, captioned word by word over the scene it names (scenes in cut order). The testimonials card shows the quotes itself, so its lines are not captioned. `\"position\": \"side\"` keeps a drill's caption off the board in 16:9.",
   "hook": {
-    "headline": "PatternChess",
-    "sub": "Recognize the patterns in your blunders"
+    "headline": "PatternChess"
   },
-  "captions": {
-    "dashboard": "One comprehensive training plan backed by statistical insights from your games",
-    "training": "Spaced repetition training on the blunders that hold your Elo back",
-    "openings": "Find the exact move where you left opening theory",
-    "openingsReview": "10.5 million games by elite players",
-    "endgames": "Study the endgames where you failed to win or hold",
-    "leaderboard": "Compare your training against other serious chess players"
-  },
+  "script": [
+    { "scene": "hook", "text": "With PatternChess," },
+    { "scene": "dashboard", "text": "you get a comprehensive training plan backed by statistics from your games, referencing a pool of 10.5 million matches by elite players." },
+    { "scene": "training", "position": "side", "text": "You get repetition training on the blunders that destroy your Elo." },
+    { "scene": "openings", "text": "You get to find the exact move where you left opening theory," },
+    { "scene": "endgames", "text": "and recover the endgames you failed to win or hold." },
+    { "scene": "drill2", "position": "side", "text": "Checkmates, forks, discovered attacks," },
+    { "scene": "motifs", "text": "back rank weaknesses, and hanging pieces, are all personalized, filterable and at your fingertips." },
+    { "scene": "stats", "text": "Too good to be true? Well, what do users think?" },
+    { "scene": "testimonials", "caption": false, "text": "DrG00se says, I’ve been playing chess for the first time in months. Chess dad says, every blunder you don’t make is a step in the right direction. FaceInterfacer says, being able to drill opening blunders is actually really awesome." },
+    { "scene": "achievements", "text": "PatternChess is easy to use, completely in your browser, and completely for free." },
+    { "scene": "leaderboard", "text": "Create an account in 30 seconds, and join our leaderboard" },
+    { "scene": "cta", "text": "of serious chess players today." }
+  ],
   "stats": {
     "eloLabel": "Elo gained by PatternChess users",
     "retentionLabel": "come back to train",
@@ -40,17 +45,17 @@
     "url": "patternchess.com"
   },
   "durations": {
-    "hook": 2.2,
-    "dashboard": 4,
-    "training": 6.2,
-    "drill2": 4.0,
-    "openings": 3.5,
-    "openingsReview": 3.5,
-    "endgames": 3.5,
-    "stats": 4,
-    "testimonials": 8.2,
-    "leaderboard": 3.5,
-    "achievements": 2.5,
-    "cta": 3.2
+    "hook": 1.6,
+    "dashboard": 9,
+    "training": 6,
+    "openings": 4.6,
+    "endgames": 4,
+    "drill2": 3.4,
+    "motifs": 6.8,
+    "stats": 4.4,
+    "testimonials": 15.5,
+    "achievements": 5.2,
+    "leaderboard": 4.8,
+    "cta": 3.4
   }
 }

@@ -19,7 +19,8 @@
     "smoke": "playwright test tests/e2e/headers.spec.ts tests/e2e/engine.spec.ts",
     "ad:stats": "node marketing/ad/stats.ts",
     "ad:record": "node marketing/ad/record.ts",
-    "ad:render": "node marketing/ad/stitch.ts"
+    "ad:render": "node marketing/ad/stitch.ts",
+    "forum:find": "node marketing/forum/run.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
