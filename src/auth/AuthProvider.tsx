@@ -3,6 +3,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { authService } from '../services/authService';
 import { takeStoredReferral } from '../lib/referral';
+import { takeStoredSignupSource } from '../lib/signupSource';
 import type { UserProfile } from '../models/userProfile';
 import { useSyncStore } from '../state/syncStore';
 import { useOnboardingStore } from '../state/onboardingStore';
@@ -87,6 +88,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               void authService
                 .claimReferral(ref)
                 .catch((err) => console.warn('[auth] claim_referral failed', err));
+            }
+            const source = takeStoredSignupSource();
+            if (source) {
+              void authService
+                .claimSignupSource(source)
+                .catch((err) => console.warn('[auth] claim_signup_source failed', err));
             }
           })
           .catch((err) => console.warn('[auth] getOrCreateProfile failed', err));
