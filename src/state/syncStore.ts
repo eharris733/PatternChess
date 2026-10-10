@@ -52,6 +52,31 @@ function fingerprint(p: UserProfile): string {
   ].join('|');
 }
 
+// The store lives in memory, so every reload used to start a fresh sync.
+// Remember the last completed automatic sync per fingerprint for this tab
+// session; a reload within the window skips it ("Sync now" never does).
+const AUTO_SYNC_KEY = 'pc:last-auto-sync';
+const AUTO_SYNC_WINDOW_MS = 5 * 60_000;
+
+function recentlyAutoSynced(fp: string): boolean {
+  try {
+    const raw = sessionStorage.getItem(AUTO_SYNC_KEY);
+    if (!raw) return false;
+    const { fp: storedFp, at } = JSON.parse(raw) as { fp?: string; at?: number };
+    return storedFp === fp && typeof at === 'number' && Date.now() - at < AUTO_SYNC_WINDOW_MS;
+  } catch {
+    return false;
+  }
+}
+
+function markAutoSynced(fp: string): void {
+  try {
+    sessionStorage.setItem(AUTO_SYNC_KEY, JSON.stringify({ fp, at: Date.now() }));
+  } catch {
+    // storage unavailable — just sync next time
+  }
+}
+
 function filtersFor(profile: UserProfile): SyncFilters {
   return {
     ratedOnly: profile.preferredRatedOnly,
@@ -127,11 +152,15 @@ async function runOneUnlocked(
         console.error('Failed to persist last_synced timestamp', e);
       }
     }
-    // Always invalidate after a successful sync — analyzed_at on existing games
-    // changes even when no new games were inserted and no blunders were found.
-    // refetchType: 'all' covers cases where Vault has unmounted mid-sync.
-    void queryClient.invalidateQueries({ queryKey: ['games'], refetchType: 'all' });
-    void queryClient.invalidateQueries({ queryKey: ['blunders'], refetchType: 'all' });
+    // Invalidate only when this run changed something: new games, or analysis
+    // (which stamps analyzed_at even when it finds no blunders). A no-op sync —
+    // every reload of a caught-up account — used to refetch every games and
+    // blunders query on the dashboard a second time. Inactive queries (e.g.
+    // Vault unmounted mid-sync) are still marked stale and refetch on mount.
+    if (result.inserted.length > 0 || result.analyzedCount > 0) {
+      void queryClient.invalidateQueries({ queryKey: ['games'] });
+      void queryClient.invalidateQueries({ queryKey: ['blunders'] });
+    }
   } catch (e) {
     // syncProvider already emitted an error progress event
     console.error(`[sync] ${platform} failed`, e);
@@ -174,26 +203,21 @@ async function buildTasks(
   const lichessUsername = profile.lichessUsername?.trim() ?? '';
   const chesscomUsername = profile.chesscomUsername?.trim() ?? '';
 
-  if (lichessUsername) {
-    const cur = providers.lichess;
-    if (!isSyncInFlight('lichess') && !isBusy(cur)) {
-      const since =
-        forceSince === 'profile'
-          ? await resolveSince('lichess', lichessUsername, profile.lastSyncedLichessAt)
-          : forceSince;
-      tasks.push(runOne('lichess', lichessUsername, since, filters, set));
-    }
-  }
-  if (chesscomUsername) {
-    const cur = providers.chesscom;
-    if (!isSyncInFlight('chess.com') && !isBusy(cur)) {
-      const since =
-        forceSince === 'profile'
-          ? await resolveSince('chess.com', chesscomUsername, profile.lastSyncedChesscomAt)
-          : forceSince;
-      tasks.push(runOne('chess.com', chesscomUsername, since, filters, set));
-    }
-  }
+  const runLichess =
+    !!lichessUsername && !isSyncInFlight('lichess') && !isBusy(providers.lichess);
+  const runChesscom =
+    !!chesscomUsername && !isSyncInFlight('chess.com') && !isBusy(providers.chesscom);
+  // Resolve both start points in parallel (each may be a count round trip).
+  const [lichessSince, chesscomSince] = await Promise.all([
+    runLichess && forceSince === 'profile'
+      ? resolveSince('lichess', lichessUsername, profile.lastSyncedLichessAt)
+      : forceSince === 'profile' ? null : forceSince,
+    runChesscom && forceSince === 'profile'
+      ? resolveSince('chess.com', chesscomUsername, profile.lastSyncedChesscomAt)
+      : forceSince === 'profile' ? null : forceSince,
+  ]);
+  if (runLichess) tasks.push(runOne('lichess', lichessUsername, lichessSince, filters, set));
+  if (runChesscom) tasks.push(runOne('chess.com', chesscomUsername, chesscomSince, filters, set));
   return tasks;
 }
 
@@ -210,6 +234,10 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   startForProfile: async (profile) => {
     const fp = fingerprint(profile);
     if (get().lastTriggeredFor === fp) return;
+    if (recentlyAutoSynced(fp)) {
+      set({ lastTriggeredFor: fp });
+      return;
+    }
     // Claim the fingerprint synchronously — buildTasks awaits (resolveSince),
     // and two callers racing through that await would both pass the check.
     const prev = get().lastTriggeredFor;
@@ -221,13 +249,16 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       return;
     }
     await Promise.allSettled(tasks);
+    markAutoSynced(fp);
   },
 
   triggerNow: async (profile) => {
     const tasks = await buildTasks(profile, get().providers, set, 'profile');
     if (tasks.length === 0) return;
-    set({ lastTriggeredFor: fingerprint(profile) });
+    const fp = fingerprint(profile);
+    set({ lastTriggeredFor: fp });
     await Promise.allSettled(tasks);
+    markAutoSynced(fp);
   },
 }));
 

@@ -23,25 +23,43 @@ import { StatStrip } from '../components/insights/StatStrip';
 import { useBlunderStats } from '../hooks/useBlunderStats';
 import { Skeleton } from '../components/Skeleton';
 
+// Background jobs wait this long after the dashboard mounts.
+const JOB_START_DELAY_MS = 3_000;
+
+/** Start a background job after a delay; the returned cleanup cancels or stops it. */
+function deferJob(start: () => () => void): () => void {
+  let stop: (() => void) | null = null;
+  const timer = setTimeout(() => {
+    stop = start();
+  }, JOB_START_DELAY_MS);
+  return () => {
+    clearTimeout(timer);
+    stop?.();
+  };
+}
+
 export function DashboardRoute() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const gamesQuery = useGames();
   const statsQuery = useBlunderStats();
 
+  // All four jobs start a few seconds after mount (deferJob) so their count
+  // queries, engine boot and CPU work don't compete with the dashboard's own
+  // first load.
   // Quietly enrich legacy blunders and deepen shallow first-pass analyses
   // (timed re-analysis of evals + solution PVs) while the user is here; stops
   // on unmount so training/review get the engine to themselves.
-  useEffect(() => startBlunderMaintenance(), []);
+  useEffect(() => deferJob(startBlunderMaintenance), []);
   // Deep re-check of newly derived endgame scenarios; yields to the worker
   // above (same engine) and picks up on the next visit if it had to.
-  useEffect(() => startEndgameScenarioVerification(), []);
+  useEffect(() => deferJob(startEndgameScenarioVerification), []);
   // Classify openings on games that predate the position-based classifier.
   // Pure CPU (no engine), so it runs alongside the two workers above.
-  useEffect(() => startOpeningBackfill(), []);
+  useEffect(() => deferJob(startOpeningBackfill), []);
   // Walk games through the opening book for /openings (network), then score
   // the exits on the engine — yielding to the two engine workers above.
-  useEffect(() => startOpeningDeviationScan(), []);
+  useEffect(() => deferJob(startOpeningDeviationScan), []);
 
   const gamesLoading = gamesQuery.isPending;
   const gamesCount = gamesQuery.data?.length ?? 0;

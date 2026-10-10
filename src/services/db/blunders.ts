@@ -90,8 +90,17 @@ export async function getDueBlunders(opts?: { userId?: string }): Promise<Blunde
  * mastery views on /openings. Not filtered by due date.
  */
 export async function getDrillsOfKind(kind: 'opening' | 'endgame'): Promise<Blunder[]> {
+  // Explicit user_id (RLS scopes it anyway) so the (user_id, kind) index is used.
+  const userId = await currentUserId();
+  if (!userId) return [];
   const rows = await fetchAllRows(() =>
-    supabase.from('blunders').select().eq('kind', kind).is('retired_at', null).order('id'),
+    supabase
+      .from('blunders')
+      .select()
+      .eq('user_id', userId)
+      .eq('kind', kind)
+      .is('retired_at', null)
+      .order('id'),
   );
   return rows.map(blunderFromJson);
 }
@@ -119,6 +128,23 @@ export async function getBlundersByIds(ids: string[]): Promise<Blunder[]> {
     return data ?? [];
   });
   return sortDueQueue(rows.map(blunderFromJson));
+}
+
+/** How many positions are due now (same filter as getDueBlunders), without downloading them. */
+export async function getDueCount(opts?: {
+  userId?: string;
+  excludeKind?: 'opening' | 'endgame' | 'tactic';
+}): Promise<number> {
+  let q = supabase
+    .from('blunders')
+    .select('id', { count: 'exact', head: true })
+    .lte('next_drill_at', new Date().toISOString())
+    .is('retired_at', null);
+  if (opts?.userId) q = q.eq('user_id', opts.userId);
+  if (opts?.excludeKind) q = q.neq('kind', opts.excludeKind);
+  const { count, error } = await q;
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export async function getDueTomorrowCount(opts?: { userId?: string }): Promise<number> {

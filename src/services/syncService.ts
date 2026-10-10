@@ -31,6 +31,8 @@ export interface SyncResult {
   inserted: GameRecord[];
   latestPlayedAt: Date | null;
   blundersFound: number;
+  /** Games this run analysed (new or healed legacy rows). */
+  analyzedCount: number;
 }
 
 export interface SyncFilters {
@@ -235,5 +237,5 @@ export async function syncProvider(
     blundersFound,
   });
 
-  return { inserted, latestPlayedAt: latest, blundersFound };
+  return { inserted, latestPlayedAt: latest, blundersFound, analyzedCount: unanalyzed.length };
 }

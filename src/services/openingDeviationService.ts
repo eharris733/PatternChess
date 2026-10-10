@@ -27,6 +27,8 @@ import { fetchBook, positionGames, type BookPosition } from './openingBookServic
 import { supabaseService } from './supabaseService';
 import { useOpeningScanStore, type OpeningScanPhase } from '../state/openingScanStore';
 
+/** Minimum gap between /openings list refreshes while the scan runs. */
+const DEVIATIONS_REFRESH_MS = 30_000;
 const WALK_BATCH = 25;
 const EVAL_BATCH = 5;
 const PAST_BOOK_BATCH = 2;
@@ -53,6 +55,9 @@ export const OPENING_DEVIATIONS_QUERY_KEY = ['openings', 'deviations'] as const;
 let running = false;
 /** Id of the pass that owns `running`; a stopped pass never clears a newer one's flag. */
 let currentRun = 0;
+// Set when a drill is created (or found, which can un-retire it), so the due
+// queue is only refetched when it can actually have changed.
+let drillsChanged = false;
 /** The orphan-drill sweep runs once per page load, after a full drain. */
 let orphanSweepDone = false;
 
@@ -109,8 +114,22 @@ export function startOpeningDeviationScan(): () => void {
     }
   };
 
-  const invalidate = () =>
+  // Throttled: each refresh re-pages every deviation row, and the scan calls
+  // this after every batch. The `finally` below always sends a last one.
+  let lastInvalidate = 0;
+  const invalidate = (force = false) => {
+    if (!force && Date.now() - lastInvalidate < DEVIATIONS_REFRESH_MS) return;
+    lastInvalidate = Date.now();
     void queryClient.invalidateQueries({ queryKey: OPENING_DEVIATIONS_QUERY_KEY });
+  };
+  const refreshDueIfChanged = () => {
+    if (!drillsChanged) return;
+    drillsChanged = false;
+    void queryClient.invalidateQueries({ queryKey: ['blunders', 'due'] });
+    void queryClient.invalidateQueries({ queryKey: ['blunders', 'dueCount'] });
+    void queryClient.invalidateQueries({ queryKey: ['blunders', 'kind', 'opening'] });
+  };
+  let anyProgress = false;
 
   let unwalked = 0;
   let unscored = 0;
@@ -227,10 +246,11 @@ export function startOpeningDeviationScan(): () => void {
             }
           }
           invalidate();
-          void queryClient.invalidateQueries({ queryKey: ['blunders', 'due'] });
+          refreshDueIfChanged();
         }
 
         if (progressed) {
+          anyProgress = true;
           recheckedAfterDrain = false;
           continue;
         }
@@ -292,6 +312,8 @@ export function startOpeningDeviationScan(): () => void {
       report('stopped');
     } finally {
       if (currentRun === runId) running = false;
+      if (anyProgress) invalidate(true);
+      refreshDueIfChanged();
     }
   })();
 
@@ -607,6 +629,7 @@ async function ensureOpeningDrill(
 ): Promise<string | null> {
   if (d.theoryMoves.length === 0) return null;
   const existing = await supabaseService.findDrillForPosition(epdOf(d.fen));
+  drillsChanged = true;
   if (existing) return existing;
   const drillData: OpeningDrillData = {
     openingFamily: dev.openingFamily,

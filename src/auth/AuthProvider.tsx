@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useEffect, useState } from 'react';
+import { createContext, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { authService } from '../services/authService';
@@ -46,43 +46,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     try {
       const p = await authService.getProfile();
       setProfile(p);
     } catch {
       setProfile(null);
     }
-  };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
+    // The user whose profile is loaded (or loading). supabase-js emits
+    // SIGNED_IN on every boot and every tab refocus (_recoverAndRefresh), not
+    // just on a real sign-in, so profile/referral work is keyed on the user id
+    // changing rather than on the event.
+    let loadedUserId: string | null = null;
 
-    supabase.auth
-      .getSession()
-      .then(({ data }) => {
-        if (cancelled) return;
-        setCachedUserId(data.session?.user?.id ?? null);
-        setSession(data.session ?? null);
-        scrubAuthFromUrl();
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      setCachedUserId(nextSession?.user?.id ?? null);
-      setSession(nextSession ?? null);
-      scrubAuthFromUrl();
-      if (event === 'SIGNED_IN' && nextSession) {
+    const adoptSession = (next: Session | null) => {
+      setCachedUserId(next?.user?.id ?? null);
+      // Keep the old object when nothing meaningful changed, so the context
+      // (and its ~60 consumers) don't re-render on every auth event.
+      setSession((prev) =>
+        prev?.user?.id === next?.user?.id && prev?.access_token === next?.access_token
+          ? prev
+          : next,
+      );
+      const nextUser = next?.user ?? null;
+      if (!nextUser) {
+        loadedUserId = null;
+        setProfile(null);
+        return;
+      }
+      if (nextUser.id === loadedUserId) return;
+      loadedUserId = nextUser.id;
+      // Deferred out of the auth callback: supabase calls started inside it
+      // queue behind the gotrue lock the callback runs under.
+      setTimeout(() => {
         void authService
-          .getOrCreateProfile()
+          .getOrCreateProfile(nextUser)
           .then((p) => {
+            if (cancelled || loadedUserId !== p.id) return;
             setProfile(p);
-            void useSyncStore.getState().startForProfile(p);
             const ref = takeStoredReferral();
             if (ref && ref !== p.referralCode) {
               void authService
@@ -96,10 +101,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 .catch((err) => console.warn('[auth] claim_signup_source failed', err));
             }
           })
-          .catch((err) => console.warn('[auth] getOrCreateProfile failed', err));
-      }
+          .catch((err) => {
+            console.warn('[auth] getOrCreateProfile failed', err);
+            // Let the next auth event retry.
+            if (loadedUserId === nextUser.id) loadedUserId = null;
+          });
+      }, 0);
+    };
+
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (cancelled) return;
+        adoptSession(data.session ?? null);
+        scrubAuthFromUrl();
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (cancelled) return;
+      adoptSession(nextSession ?? null);
+      scrubAuthFromUrl();
       if (event === 'SIGNED_OUT') {
-        setProfile(null);
         useSyncStore.getState().reset();
         useOnboardingStore.getState().reset();
       }
@@ -110,14 +138,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
-
-  useEffect(() => {
-    if (session?.user) {
-      void refreshProfile();
-    } else {
-      setProfile(null);
-    }
-  }, [session?.user?.id]);
 
   const timeControlsKey = profile
     ? [...profile.preferredTimeControls].sort().join(',')
@@ -149,24 +169,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (profile.boardTheme !== localTheme) {
+      const next = { ...profile, boardTheme: localTheme };
+      setProfile(next);
       void authService
-        .updateProfile({ ...profile, boardTheme: localTheme })
-        .then(() => refreshProfile())
+        .updateProfile(next)
         .catch((err) => console.warn('[auth] sync boardTheme failed', err));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
 
+  const value = useMemo<AuthContextValue>(
+    () => ({ session, user: session?.user ?? null, profile, loading, refreshProfile }),
+    [session, profile, loading, refreshProfile],
+  );
+
   return (
-    <AuthContext.Provider
-      value={{
-        session,
-        user: session?.user ?? null,
-        profile,
-        loading,
-        refreshProfile,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
