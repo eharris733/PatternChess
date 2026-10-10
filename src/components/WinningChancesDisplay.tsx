@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import clsx from 'clsx';
-import { winPercent, cpLoss } from '../chess/winningChances';
-import { formatEval } from '../chess/formatEval';
+import { winPercent } from '../chess/winningChances';
+import { formatEval, formatMoveCost, moveCost } from '../chess/formatEval';
 import { InfoTip } from './InfoTip';
 
 /** One-decimal, bare `#` mate — the compact engine-swing presentation. */
@@ -54,7 +54,7 @@ export function WinningChancesDisplay({
   const moverBefore = winPercent(evalBefore);
   const moverAfter = winPercent(-evalAfter);
   const lost = moverBefore - moverAfter;
-  const swing = cpLoss(evalBefore, evalAfter);
+  const cost = moveCost(evalBefore, evalAfter);
   const tone = toneFor(lost);
 
   // Left side's share of the bar, before and after the move.
@@ -80,13 +80,12 @@ export function WinningChancesDisplay({
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <span className={clsx('font-mono font-semibold tabular-nums', tone.text)}>
-            {swing > 0 ? '−' : '+'}
-            {Math.round(Math.abs(swing))}cp
+            {formatMoveCost(cost)}
           </span>
           <InfoTip label="What does this mean?">
             An evaluation bar: White's winning chances fill from one end, Black's from the other.
             The coloured stretch is what this move changed. The number is the swing in centipawns
-            (100cp ≈ one pawn).
+            (100cp ≈ one pawn), or the forced mate the move allowed or missed.
           </InfoTip>
         </span>
       </div>
