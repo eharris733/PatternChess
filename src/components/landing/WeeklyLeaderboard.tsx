@@ -2,14 +2,28 @@ import { Link } from 'react-router-dom';
 import { FlairBadge } from '../FlairBadge';
 import { PUBLIC_LEADERBOARD_SNAPSHOT, usePublicLeaderboard } from '../../hooks/usePublicLeaderboard';
 import { trackCtaClick } from '../../services/funnelService';
+import type { PublicLeaderboardRow } from '../../services/db/leaderboard';
 
 const numberFormat = new Intl.NumberFormat('en-US');
 
 /** Fewer rows than this reads as an empty gym; hide the section instead. */
 const MIN_ROWS = 3;
 
+const PLATFORM_LABEL = { lichess: 'Lichess', chesscom: 'Chess.com' } as const;
+
+/** "Lichess · 1540 Blitz"; whichever parts are known. */
+function playerDetail(r: PublicLeaderboardRow): string | null {
+  const parts: string[] = [];
+  if (r.platform) parts.push(PLATFORM_LABEL[r.platform]);
+  if (r.rating) {
+    const cat = r.ratingCategory ? ` ${r.ratingCategory[0].toUpperCase()}${r.ratingCategory.slice(1)}` : '';
+    parts.push(`${r.rating}${cat}`);
+  }
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
 /**
- * Top 5 trainers by positions solved over the last 7 days. Renders from the
+ * Top 5 trainers by blunders reviewed over the last 7 days. Renders from the
  * build-time snapshot on first paint (prerendered HTML), then updates in place
  * from the anon `public_leaderboard` RPC.
  */
@@ -26,38 +40,55 @@ export function WeeklyLeaderboard() {
             Top trainers this week
           </h2>
           <span className="font-mono uppercase text-[10px] tracking-[0.12em] text-text-secondary">
-            Positions solved · last 7 days
+            Ranked by blunders reviewed in the last 7 days
           </span>
         </div>
         <div className="grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-6 items-start">
-          <ol className="m-0 p-0 list-none border-2 border-text-primary bg-surface divide-y-2 divide-text-primary">
-            {data.rows.map((r) => (
-              <li key={`${r.rank}-${r.label}`} className="flex items-center gap-4 px-5 py-3.5">
-                <span
-                  className={
-                    'font-mono tabular-nums text-lg w-6 shrink-0 ' +
-                    (r.rank === 1 ? 'text-gold-dark' : 'text-text-secondary')
-                  }
-                >
-                  {r.rank}
-                </span>
-                <span className="flex-1 min-w-0 flex items-center gap-2">
-                  <span className="truncate text-text-primary">{r.label}</span>
-                  <FlairBadge flair={r.flair} className="hidden sm:inline-flex" />
-                </span>
-                <span className="font-mono tabular-nums text-text-primary">
-                  {numberFormat.format(r.value)}
-                </span>
-              </li>
-            ))}
-          </ol>
+          <div className="border-2 border-text-primary bg-surface">
+            <div className="flex items-center gap-4 px-5 py-2 border-b-2 border-text-primary font-mono uppercase text-[10px] tracking-[0.12em] text-text-secondary">
+              <span className="w-6 shrink-0">#</span>
+              <span className="flex-1">Player</span>
+              <span>Blunders reviewed</span>
+            </div>
+            <ol className="m-0 p-0 list-none divide-y-2 divide-text-primary">
+              {data.rows.map((r) => {
+                const detail = playerDetail(r);
+                return (
+                  <li key={`${r.rank}-${r.label}`} className="flex items-center gap-4 px-5 py-3">
+                    <span
+                      className={
+                        'font-mono tabular-nums text-lg w-6 shrink-0 ' +
+                        (r.rank === 1 ? 'text-gold-dark' : 'text-text-secondary')
+                      }
+                    >
+                      {r.rank}
+                    </span>
+                    <span className="flex-1 min-w-0 flex flex-col">
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="truncate text-text-primary">{r.label}</span>
+                        <FlairBadge flair={r.flair} className="hidden sm:inline-flex" />
+                      </span>
+                      {detail && (
+                        <span className="font-mono uppercase text-[10px] tracking-[0.08em] text-text-secondary truncate">
+                          {detail}
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-mono tabular-nums text-lg text-text-primary">
+                      {numberFormat.format(r.value)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
           <div className="border-2 border-text-primary bg-text-primary text-bg p-6 flex flex-col gap-4">
             <div>
               <div className="font-mono uppercase tracking-tight text-sm sm:text-base">
                 Your name could be here.
               </div>
               <div className="font-sans text-bg/70 text-sm mt-1">
-                Every position you solve from your own games counts toward the weekly board.
+                Every blunder from your own games that you review counts toward the weekly board.
               </div>
             </div>
             <Link

@@ -71,6 +71,9 @@ async function fetchLeaderboard(url, key) {
     rows: data.rows.slice(0, 5).map((r) => ({
       rank: Number(r.rank),
       label: String(r.label),
+      platform: r.platform === 'lichess' || r.platform === 'chesscom' ? r.platform : null,
+      rating: typeof r.rating === 'number' ? r.rating : null,
+      ratingCategory: typeof r.ratingCategory === 'string' ? r.ratingCategory : null,
       value: Number(r.value),
       flair: typeof r.flair === 'string' && r.flair ? r.flair : null,
     })),

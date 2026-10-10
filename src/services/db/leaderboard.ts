@@ -55,13 +55,23 @@ export async function getLeaderboard(
   };
 }
 
+export type RatingCategory = 'bullet' | 'blitz' | 'rapid' | 'classical';
+
 export interface PublicLeaderboardRow {
   rank: number;
   /** Chess handle (lichess → chess.com) or "Player". Never a display name, email or id. */
   label: string;
+  /** Platform of `label`; null when the player has no handle. */
+  platform: 'lichess' | 'chesscom' | null;
+  /** Current rating on `platform` in their most-played time control; null when unknown. */
+  rating: number | null;
+  ratingCategory: RatingCategory | null;
+  /** Blunders reviewed (solved on the first attempt) over the last 7 days. */
   value: number;
   flair: string | null;
 }
+
+const RATING_CATEGORIES: ReadonlySet<string> = new Set(['bullet', 'blitz', 'rapid', 'classical']);
 
 export interface PublicLeaderboard {
   /** Start of the rolling 7-day window (ISO). */
@@ -78,6 +88,11 @@ export function publicLeaderboardFromJson(j: any): PublicLeaderboard {
       ? j.rows.map((r: any) => ({
           rank: Number(r.rank ?? 0),
           label: String(r.label ?? 'Player'),
+          platform: r.platform === 'lichess' || r.platform === 'chesscom' ? r.platform : null,
+          rating: typeof r.rating === 'number' && r.rating > 0 ? r.rating : null,
+          ratingCategory: RATING_CATEGORIES.has(r.ratingCategory)
+            ? (r.ratingCategory as RatingCategory)
+            : null,
           value: Number(r.value ?? 0),
           flair: typeof r.flair === 'string' && r.flair ? r.flair : null,
         }))
@@ -86,8 +101,9 @@ export function publicLeaderboardFromJson(j: any): PublicLeaderboard {
 }
 
 /**
- * `public_leaderboard` RPC (anon-callable, migration 20261010150000): top 5 by
- * positions solved over the last 7 days for the landing page. Server-cached
+ * `public_leaderboard` RPC (anon-callable, migrations 20261010150000 +
+ * 20261010170000): top 5 by blunders reviewed over the last 7 days, with each
+ * player's platform and current rating for the landing page. Server-cached
  * for an hour; opted-out users are excluded.
  */
 export async function getPublicLeaderboard(): Promise<PublicLeaderboard> {
