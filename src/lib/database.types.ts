@@ -532,6 +532,7 @@ export type Database = {
           preferred_time_controls: string[]
           reveal_before_solve: boolean
           shares_count: number
+          signup_source: string | null
           show_answer_on_miss: boolean
           show_engine_evals: boolean
           sounds_enabled: boolean
@@ -565,6 +566,7 @@ export type Database = {
           preferred_time_controls?: string[]
           reveal_before_solve?: boolean
           shares_count?: number
+          signup_source?: string | null
           show_answer_on_miss?: boolean
           show_engine_evals?: boolean
           sounds_enabled?: boolean
@@ -598,6 +600,7 @@ export type Database = {
           preferred_time_controls?: string[]
           reveal_before_solve?: boolean
           shares_count?: number
+          signup_source?: string | null
           show_answer_on_miss?: boolean
           show_engine_evals?: boolean
           sounds_enabled?: boolean
@@ -680,6 +683,7 @@ export type Database = {
       get_blunder_motif_counts: { Args: never; Returns: Json }
       increment_opening_reviews: { Args: never; Returns: number }
       claim_referral: { Args: { code: string }; Returns: boolean }
+      claim_signup_source: { Args: { source: string }; Returns: boolean }
       increment_shares_count: { Args: never; Returns: number }
       landing_stats: { Args: never; Returns: Json }
       leaderboard: {
