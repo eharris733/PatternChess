@@ -227,6 +227,7 @@ export type Database = {
           id: string
           platform: string | null
           referrer: string | null
+          source: string | null
           type: string
           user_agent: string | null
           username: string | null
@@ -237,6 +238,7 @@ export type Database = {
           id?: string
           platform?: string | null
           referrer?: string | null
+          source?: string | null
           type: string
           user_agent?: string | null
           username?: string | null
@@ -247,6 +249,7 @@ export type Database = {
           id?: string
           platform?: string | null
           referrer?: string | null
+          source?: string | null
           type?: string
           user_agent?: string | null
           username?: string | null
@@ -676,6 +679,13 @@ export type Database = {
     Functions: {
       admin_kpis: { Args: never; Returns: Json }
       admin_user_list: { Args: { category: string }; Returns: Json }
+      admin_landing_ctas: { Args: { days?: number }; Returns: Json }
+      admin_outreach_leads: { Args: { segment: string }; Returns: Json }
+      admin_mark_contacted: {
+        Args: { lead_key: string; segment: string; note?: string }
+        Returns: undefined
+      }
+      admin_unmark_contacted: { Args: { lead_key: string }; Returns: undefined }
       apply_game_openings: { Args: { p_rows: Json }; Returns: number }
       get_blunder_motif_counts: { Args: never; Returns: Json }
       increment_opening_reviews: { Args: never; Returns: number }
@@ -687,6 +697,7 @@ export type Database = {
         Returns: Json
       }
       mark_learn_chapter_done: { Args: { key: string }; Returns: number }
+      public_leaderboard: { Args: never; Returns: Json }
       training_totals: { Args: never; Returns: Json }
     }
     Enums: {

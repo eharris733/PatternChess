@@ -1,0 +1,36 @@
+{
+  "since": "2026-10-03T20:08:51.013634+00:00",
+  "computedAt": "2026-10-10T20:08:51.013634+00:00",
+  "rows": [
+    {
+      "rank": 1,
+      "label": "L8ff",
+      "value": 163,
+      "flair": null
+    },
+    {
+      "rank": 2,
+      "label": "DrGoose",
+      "value": 81,
+      "flair": "endgame-medic"
+    },
+    {
+      "rank": 3,
+      "label": "xybris",
+      "value": 53,
+      "flair": null
+    },
+    {
+      "rank": 4,
+      "label": "eharris733",
+      "value": 41,
+      "flair": "pattern-master"
+    },
+    {
+      "rank": 5,
+      "label": "Jkday16",
+      "value": 35,
+      "flair": null
+    }
+  ]
+}

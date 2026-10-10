@@ -54,3 +54,44 @@ export async function getLeaderboard(
     me: j.me ? rowFromJson(j.me) : null,
   };
 }
+
+export interface PublicLeaderboardRow {
+  rank: number;
+  /** Chess handle (lichess → chess.com) or "Player". Never a display name, email or id. */
+  label: string;
+  value: number;
+  flair: string | null;
+}
+
+export interface PublicLeaderboard {
+  /** Start of the rolling 7-day window (ISO). */
+  since: string | null;
+  computedAt: string;
+  rows: PublicLeaderboardRow[];
+}
+
+export function publicLeaderboardFromJson(j: any): PublicLeaderboard {
+  return {
+    since: typeof j?.since === 'string' ? j.since : null,
+    computedAt: String(j?.computedAt ?? ''),
+    rows: Array.isArray(j?.rows)
+      ? j.rows.map((r: any) => ({
+          rank: Number(r.rank ?? 0),
+          label: String(r.label ?? 'Player'),
+          value: Number(r.value ?? 0),
+          flair: typeof r.flair === 'string' && r.flair ? r.flair : null,
+        }))
+      : [],
+  };
+}
+
+/**
+ * `public_leaderboard` RPC (anon-callable, migration 20261010150000): top 5 by
+ * positions solved over the last 7 days for the landing page. Server-cached
+ * for an hour; opted-out users are excluded.
+ */
+export async function getPublicLeaderboard(): Promise<PublicLeaderboard> {
+  const { data, error } = await supabase.rpc('public_leaderboard');
+  if (error) throw error;
+  return publicLeaderboardFromJson(data);
+}

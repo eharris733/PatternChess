@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { useAuth } from '../auth/useAuth';
 import { BrandLockup } from '../components/BrandLogo';
 import { useForceDefaultTheme } from '../state/themeStore';
 import { useHead } from '../seo/useHead';
+import { trackLeadReturn } from '../services/funnelService';
+import { readSourceParam, stripWinBackParams } from '../lib/winBack';
 
 export function LoginRoute() {
   const { session, loading } = useAuth();
@@ -21,6 +23,18 @@ export function LoginRoute() {
     canonical: '/login',
     robots: 'noindex,follow',
   });
+
+  // Win-back link for leads who already have an account (`/login?src=wb`).
+  // Deferred + cancelled on cleanup so StrictMode counts it once.
+  useEffect(() => {
+    const source = readSourceParam(window.location.search);
+    if (!source) return;
+    const t = window.setTimeout(() => {
+      stripWinBackParams();
+      trackLeadReturn(source, null, null);
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, []);
 
   if (loading) {
     return (

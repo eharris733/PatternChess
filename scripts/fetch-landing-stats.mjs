@@ -5,6 +5,9 @@
 // numbers once the RPC resolves — so the card no longer pops into the layout
 // ~1.3 s after paint (that insertion alone was a 0.20 CLS on mobile).
 //
+// Also snapshots `public_leaderboard` (weekly top 5) into
+// src/generated/landingLeaderboard.json for the same reason.
+//
 // Never fails the build: on any error the committed snapshot is kept.
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -14,6 +17,7 @@ import { dirname, join } from 'node:path';
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 const outPath = join(root, 'src', 'generated', 'landingStats.json');
+const leaderboardOutPath = join(root, 'src', 'generated', 'landingLeaderboard.json');
 
 function loadEnv() {
   const env = { ...process.env };
@@ -35,14 +39,48 @@ async function main() {
     console.warn('fetch-landing-stats: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY not set, keeping snapshot');
     return;
   }
-  const res = await fetch(`${url}/rest/v1/rpc/landing_stats`, {
+  await Promise.all([
+    fetchStats(url, key).catch((err) =>
+      console.warn(`fetch-landing-stats: ${err.message} — keeping existing snapshot`),
+    ),
+    fetchLeaderboard(url, key).catch((err) =>
+      console.warn(`fetch-landing-stats: leaderboard ${err.message} — keeping existing snapshot`),
+    ),
+  ]);
+}
+
+async function rpc(url, key, name) {
+  const res = await fetch(`${url}/rest/v1/rpc/${name}`, {
     method: 'POST',
     headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: '{}',
     signal: AbortSignal.timeout(10000),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
+  return res.json();
+}
+
+async function fetchLeaderboard(url, key) {
+  const data = await rpc(url, key, 'public_leaderboard');
+  if (!Array.isArray(data?.rows)) {
+    throw new Error(`unexpected payload ${JSON.stringify(data).slice(0, 200)}`);
+  }
+  const snapshot = {
+    since: typeof data.since === 'string' ? data.since : null,
+    computedAt: String(data.computedAt ?? new Date().toISOString()),
+    rows: data.rows.slice(0, 5).map((r) => ({
+      rank: Number(r.rank),
+      label: String(r.label),
+      value: Number(r.value),
+      flair: typeof r.flair === 'string' && r.flair ? r.flair : null,
+    })),
+  };
+  writeFileSync(leaderboardOutPath, JSON.stringify(snapshot, null, 2) + '\n');
+  console.log(`fetch-landing-stats: leaderboard ${snapshot.rows.length} rows`);
+}
+
+async function fetchStats(url, key) {
+  const data = await rpc(url, key, 'landing_stats');
   if (typeof data?.positionsReviewed !== 'number' || typeof data?.eloGained !== 'number') {
     throw new Error(`unexpected payload ${JSON.stringify(data).slice(0, 200)}`);
   }

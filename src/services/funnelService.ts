@@ -6,7 +6,7 @@ import { getAnonId } from '../lib/anonId';
 // inserts (see the landing_funnel migration); only the admin_kpis() RPC reads
 // it back. Bot filtering happens at read time (user-agent) plus the human-signal
 // gating in useLandingView.
-type FunnelType = 'landing_view' | 'demo_submit';
+type FunnelType = 'landing_view' | 'demo_submit' | 'cta_click' | 'lead_return';
 
 async function track(type: FunnelType, fields: Record<string, unknown>): Promise<void> {
   const anonId = getAnonId();
@@ -30,4 +30,17 @@ export function trackLandingView(): void {
 
 export function trackDemoSubmit(platform: string, username: string): void {
   void track('demo_submit', { platform, username });
+}
+
+/** A sign-up / log-in click on the landing page; `source` names the section. */
+export function trackCtaClick(source: string): void {
+  void track('cta_click', { source });
+}
+
+/**
+ * A visitor arrived through a win-back link (`?u=&p=&src=`) from the admin
+ * outreach queue. Carries the handle so the admin view can tie it to the lead.
+ */
+export function trackLeadReturn(source: string, platform: string | null, username: string | null): void {
+  void track('lead_return', { source, platform, username });
 }

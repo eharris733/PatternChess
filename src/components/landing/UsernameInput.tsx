@@ -11,11 +11,19 @@ export type DemoPlatform = 'lichess' | 'chesscom';
 interface Props {
   onSubmit: (platform: DemoPlatform, username: string) => void;
   loading?: boolean;
+  /** Prefill from a win-back link (`?u=&p=`); read once on mount. */
+  initialPlatform?: DemoPlatform;
+  initialUsername?: string;
 }
 
-export function UsernameInput({ onSubmit, loading = false }: Props) {
-  const [platform, setPlatform] = useState<DemoPlatform>('lichess');
-  const [username, setUsername] = useState('');
+export function UsernameInput({
+  onSubmit,
+  loading = false,
+  initialPlatform = 'lichess',
+  initialUsername = '',
+}: Props) {
+  const [platform, setPlatform] = useState<DemoPlatform>(initialPlatform);
+  const [username, setUsername] = useState(initialUsername);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // The landing page's one job is to get a username typed in, so the field takes
