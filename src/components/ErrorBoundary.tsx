@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { isChunkLoadError, isReloadingForStaleChunk, reloadForStaleChunk } from '../lib/staleChunkReload';
 
 interface Props {
   children: ReactNode;
@@ -16,6 +17,11 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    // A route chunk from the previous deploy: reload into the new build.
+    if (isChunkLoadError(error) && reloadForStaleChunk()) {
+      this.forceUpdate(); // swap the error card for the "loading" note
+      return;
+    }
     console.error('[ErrorBoundary] caught render error', error, info.componentStack);
   }
 
@@ -24,6 +30,14 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     const { error } = this.state;
     if (!error) return this.props.children;
+
+    if (isChunkLoadError(error) && isReloadingForStaleChunk()) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-bg text-text-primary p-6">
+          <p className="text-sm">Loading the latest version…</p>
+        </div>
+      );
+    }
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg text-text-primary p-6">
