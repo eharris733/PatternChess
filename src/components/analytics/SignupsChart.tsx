@@ -19,6 +19,26 @@ function formatTick(date: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+/**
+ * One row per calendar day from the first date through today (UTC, matching the
+ * server's day buckets), with 0 for days the RPC omits. The axis is categorical,
+ * so a missing day would otherwise collapse and squash the timeline.
+ */
+function fillDays(data: AdminKpiSignupDay[]): AdminKpiSignupDay[] {
+  if (data.length === 0) return [];
+  const counts = new Map(data.map((d) => [d.date, d.count]));
+  const sorted = [...counts.keys()].sort();
+  const today = new Date().toISOString().slice(0, 10);
+  const last = sorted[sorted.length - 1] > today ? sorted[sorted.length - 1] : today;
+  const rows: AdminKpiSignupDay[] = [];
+  for (const d = new Date(`${sorted[0]}T00:00:00Z`); ; d.setUTCDate(d.getUTCDate() + 1)) {
+    const date = d.toISOString().slice(0, 10);
+    rows.push({ date, count: counts.get(date) ?? 0 });
+    if (date >= last) break;
+  }
+  return rows;
+}
+
 /** Daily bar chart over `{date, count}` rows. Mirrors RatingProgressCard's recharts styling. */
 export function SignupsChart({
   data,
@@ -29,10 +49,7 @@ export function SignupsChart({
   valueLabel?: string;
   emptyLabel?: string;
 }) {
-  const rows = useMemo(
-    () => [...data].sort((a, b) => a.date.localeCompare(b.date)),
-    [data],
-  );
+  const rows = useMemo(() => fillDays(data), [data]);
   if (rows.length === 0) {
     return <p className="text-text-secondary text-sm">{emptyLabel}</p>;
   }
@@ -47,6 +64,7 @@ export function SignupsChart({
             tick={{ fill: MUTED, fontSize: 11 }}
             tickLine={{ stroke: MUTED }}
             axisLine={{ stroke: MUTED }}
+            interval="preserveStartEnd"
             minTickGap={24}
           />
           <YAxis
