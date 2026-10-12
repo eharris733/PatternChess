@@ -73,6 +73,28 @@ const KPIS = {
   },
 };
 
+// admin_outreach_leads payload for the win-back panel's default `demo_only` tab.
+const OUTREACH = {
+  segment: 'demo_only',
+  counts: { demo_only: 1 },
+  rows: [
+    {
+      leadKey: 'lichess:magnus',
+      platform: 'lichess',
+      username: 'magnus',
+      email: null,
+      since: '2026-05-29T08:00:00Z',
+      lastSeen: '2026-05-30T11:00:00Z',
+      attempts: 2,
+      blunders: null,
+      contactedAt: null,
+      note: null,
+      signedUp: false,
+      trainedSinceContact: false,
+    },
+  ],
+};
+
 function b64url(obj: unknown): string {
   return Buffer.from(JSON.stringify(obj)).toString('base64url');
 }
@@ -109,12 +131,18 @@ function makeSession(email: string) {
 async function stub(
   page: Page,
   email: string,
-  opts: { gameCount?: number; kpis?: unknown; userList?: unknown } = {},
+  opts: {
+    gameCount?: number;
+    kpis?: unknown;
+    userList?: unknown;
+    retention?: unknown;
+    outreach?: unknown;
+  } = {},
 ): Promise<void> {
   const session = makeSession(email);
-  const { gameCount = 3, kpis = null, userList = null } = opts;
+  const { gameCount = 3, kpis = null, userList = null, retention = null, outreach = null } = opts;
   await page.addInitScript(
-    ({ session, project, gameCount, kpis, userList }) => {
+    ({ session, project, gameCount, kpis, userList, retention, outreach }) => {
       const origFetch = window.fetch.bind(window);
       window.fetch = (input: any, init?: any) => {
         const url = typeof input === 'string' ? input : input?.url ?? '';
@@ -135,6 +163,22 @@ async function stub(
           if (url.includes('/rest/v1/rpc/admin_kpis')) {
             return Promise.resolve(
               new Response(JSON.stringify(kpis), {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+              }),
+            );
+          }
+          if (url.includes('/rest/v1/rpc/admin_retention')) {
+            return Promise.resolve(
+              new Response(JSON.stringify(retention), {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+              }),
+            );
+          }
+          if (url.includes('/rest/v1/rpc/admin_outreach_leads')) {
+            return Promise.resolve(
+              new Response(JSON.stringify(outreach), {
                 status: 200,
                 headers: { 'content-type': 'application/json' },
               }),
@@ -164,9 +208,82 @@ async function stub(
       };
       localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
     },
-    { session, project: PROJECT, gameCount, kpis, userList },
+    { session, project: PROJECT, gameCount, kpis, userList, retention, outreach },
   );
 }
+
+const RETENTION = {
+  cohorts: [
+    {
+      cohort: 'all',
+      signups: 92,
+      trained: 72,
+      trained2Days: 32,
+      trained5Days: 11,
+      curve: [
+        { day: 1, eligible: 89, retained: 35 },
+        { day: 7, eligible: 60, retained: 20 },
+        { day: 14, eligible: 45, retained: 12 },
+        { day: 30, eligible: 30, retained: 7 },
+        { day: 60, eligible: 23, retained: 4 },
+      ],
+    },
+    {
+      cohort: '2026-10',
+      signups: 45,
+      trained: 35,
+      trained2Days: 14,
+      trained5Days: 1,
+      curve: [
+        { day: 1, eligible: 42, retained: 16 },
+        { day: 7, eligible: 13, retained: 3 },
+        { day: 14, eligible: 0, retained: 0 },
+        { day: 30, eligible: 0, retained: 0 },
+        { day: 60, eligible: 0, retained: 0 },
+      ],
+    },
+    {
+      cohort: '2026-09',
+      signups: 22,
+      trained: 18,
+      trained2Days: 8,
+      trained5Days: 5,
+      curve: [
+        { day: 1, eligible: 22, retained: 8 },
+        { day: 7, eligible: 22, retained: 6 },
+        { day: 14, eligible: 20, retained: 4 },
+        { day: 30, eligible: 5, retained: 1 },
+        { day: 60, eligible: 0, retained: 0 },
+      ],
+    },
+  ],
+  weeks: [
+    { week: '2026-09-28', active: 17, returning: 5 },
+    { week: '2026-10-05', active: 31, returning: 7 },
+  ],
+};
+
+test('admin sees signup-cohort retention at /analytics', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(m.text());
+  });
+
+  await stub(page, ADMIN_EMAIL, { kpis: KPIS, retention: RETENTION });
+  await page.goto('/analytics');
+  await expect(page.getByRole('heading', { name: 'Analytics' })).toBeVisible({ timeout: 20_000 });
+
+  const card = page.locator('section', { has: page.getByText('Retention', { exact: true }) });
+  await expect(card).toBeVisible();
+  await expect(card.getByText('D30 retention')).toBeVisible();
+  // 7 of 30 → 23%, over the 20% bar with n ≥ 20.
+  await expect(card.getByText('target ≥ 20% · n = 30')).toBeVisible();
+  await expect(card.getByRole('cell', { name: /^All users$/ })).toBeVisible();
+  await expect(card.getByTitle('7 of 30 users')).toContainText('23%');
+  await expect(card.getByText('7 + 24 new')).toBeVisible();
+
+  expect(errors, errors.join('\n')).toHaveLength(0);
+});
 
 test('admin sees the KPI dashboard at /analytics', async ({ page }) => {
   const errors: string[] = [];
@@ -174,7 +291,7 @@ test('admin sees the KPI dashboard at /analytics', async ({ page }) => {
     if (m.type() === 'error') errors.push(m.text());
   });
 
-  await stub(page, ADMIN_EMAIL, { kpis: KPIS });
+  await stub(page, ADMIN_EMAIL, { kpis: KPIS, outreach: OUTREACH });
   await page.goto('/analytics');
 
   await expect(page).toHaveURL(/\/analytics$/);
@@ -183,10 +300,11 @@ test('admin sees the KPI dashboard at /analytics', async ({ page }) => {
   await expect(page.getByText('Find-your-blunders funnel', { exact: true })).toBeVisible();
   await expect(page.getByText('player@example.com')).toBeVisible();
   await expect(page.getByRole('link', { name: /analytics/i })).toBeVisible();
-  // landing funnel + leads (from the landing_funnel migration)
+  // landing funnel (from the landing_funnel migration)
   await expect(page.getByText('Landing funnel', { exact: true })).toBeVisible();
-  await expect(page.getByText('Entered a username')).toBeVisible();
-  await expect(page.getByText('Entered accounts (leads)')).toBeVisible();
+  await expect(page.getByText('Entered a username', { exact: true })).toBeVisible();
+  // win-back queue (replaced the leads card in the lead_outreach migration)
+  await expect(page.getByText('Win-back', { exact: true })).toBeVisible();
   await expect(page.getByText('magnus', { exact: true })).toBeVisible();
   // training engagement card (from the admin_drilldown migration)
   await expect(page.getByText('Training engagement', { exact: true })).toBeVisible();
@@ -222,7 +340,7 @@ test('clicking a KPI tile opens a drill-down with hyperlinked handles', async ({
     },
   ];
 
-  await stub(page, ADMIN_EMAIL, { kpis: KPIS, userList });
+  await stub(page, ADMIN_EMAIL, { kpis: KPIS, userList, outreach: OUTREACH });
   await page.goto('/analytics');
   await expect(page.getByRole('heading', { name: 'Analytics' })).toBeVisible({ timeout: 20_000 });
 
@@ -254,7 +372,7 @@ test('clicking a KPI tile opens a drill-down with hyperlinked handles', async ({
     page.getByRole('link', { name: 'lichess.org/@/playerlich' }),
   ).toHaveAttribute('href', 'https://lichess.org/@/playerlich');
 
-  // Leads-card handle is now a link.
+  // Win-back lead handle is a link.
   await expect(
     page.getByRole('link', { name: 'lichess.org/@/magnus' }),
   ).toHaveAttribute('href', 'https://lichess.org/@/magnus');

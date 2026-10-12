@@ -16,6 +16,7 @@ import { Skeleton } from '../components/Skeleton';
 import { UserListModal } from '../components/admin/UserListModal';
 import { WinBackPanel } from '../components/admin/WinBackPanel';
 import { LandingCtasCard } from '../components/admin/LandingCtasCard';
+import { RetentionCard } from '../components/admin/RetentionCard';
 import {
   chesscomProfileUrl,
   lichessProfileUrl,
@@ -80,6 +81,7 @@ function AnalyticsContent() {
 
           <FunnelCard data={data} onDrilldown={setDrilldown} />
           <ActivityCard data={data} onDrilldown={setDrilldown} />
+          <RetentionCard />
           {data.trainingAnalytics && (
             <TrainingAnalyticsCard
               analytics={data.trainingAnalytics}
