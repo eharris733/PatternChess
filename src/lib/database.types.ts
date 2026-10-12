@@ -684,6 +684,7 @@ export type Database = {
       admin_user_list: { Args: { category: string }; Returns: Json }
       admin_landing_ctas: { Args: { days?: number }; Returns: Json }
       admin_outreach_leads: { Args: { segment: string }; Returns: Json }
+      admin_retention: { Args: never; Returns: Json }
       admin_mark_contacted: {
         Args: { lead_key: string; segment: string; note?: string }
         Returns: undefined
