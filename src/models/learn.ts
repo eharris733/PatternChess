@@ -33,6 +33,8 @@ export interface LearnNode {
   shapes?: DrawShape[];
   /** Numeric Annotation Glyphs ($1 = !, $2 = ?, ...). */
   nags?: number[];
+  /** Seconds into the source video this moment comes from (`[%ts m:ss]`). */
+  ts?: number;
   children: LearnNode[];
 }
 
@@ -47,6 +49,8 @@ export interface LearnChapter {
   /** Comment/shapes on the starting position, before any move. */
   intro?: string;
   introShapes?: DrawShape[];
+  /** Source-video timestamp (seconds) of the intro. */
+  introTs?: number;
   /** Interactive "gamebook" chapter on Lichess. */
   gamebook: boolean;
   /** First moves from the start position; `[0]` is the main line. */
@@ -70,6 +74,14 @@ export interface LearnStudyMeta {
   /** Short human note on how reuse was licensed (shown with the credit). */
   permissionNote: string;
   chapters: Array<{ id: string; name: string }>;
+  /** Set for courses we built from a creator's video (unlisted /c/<slug> demos). */
+  source?: {
+    kind: 'youtube';
+    url: string;
+    channel: string;
+    channelUrl: string;
+    title: string;
+  };
 }
 
 export interface LearnStudy extends LearnStudyMeta {

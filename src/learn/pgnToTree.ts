@@ -16,6 +16,8 @@ export interface ParsedDiag {
   comment?: string;
   colorArrows?: string[];
   colorFields?: string[];
+  /** `[%ts m:ss]` — our own command: where in the source video this moment is. */
+  ts?: string;
 }
 
 export interface ParsedMove {
@@ -63,6 +65,15 @@ export function cleanComment(raw: string | null | undefined): string | undefined
   return text.length > 0 ? text : undefined;
 }
 
+/** "4:12" / "1:02:03" → seconds. */
+export function parseTimestamp(raw: string | null | undefined): number | undefined {
+  if (!raw || !/^\d+(:\d{1,2}){1,2}$/.test(raw.trim())) return undefined;
+  return raw
+    .trim()
+    .split(':')
+    .reduce((acc, part) => acc * 60 + Number(part), 0);
+}
+
 function nagsOf(nag: string[] | null | undefined): number[] | undefined {
   // "?!" and "$6" on the same move both parse to $6.
   const out = [
@@ -108,6 +119,8 @@ function buildAlternatives(
   if (shapes.length > 0) node.shapes = shapes;
   const nags = nagsOf(m.nag);
   if (nags) node.nags = nags;
+  const ts = parseTimestamp(m.commentDiag?.ts);
+  if (ts != null) node.ts = ts;
   node.children = buildAlternatives(moves, idx + 1, node.fen, nextId);
 
   const alts: LearnNode[] = [node];
@@ -153,6 +166,8 @@ export function chapterFromGame(game: ParsedGame, fallbackIndex: number): LearnC
   if (intro) chapter.intro = intro;
   const introShapes = shapesFromDiag(game.gameComment);
   if (introShapes.length > 0) chapter.introShapes = introShapes;
+  const introTs = parseTimestamp(game.gameComment?.ts);
+  if (introTs != null) chapter.introTs = introTs;
   return chapter;
 }
 

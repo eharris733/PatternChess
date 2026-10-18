@@ -9,10 +9,33 @@ import { BAD_MOVE_NAGS, type LearnChapter, type LearnNode } from '../models/lear
  * line. Accepted: the main-line move, or any sideline the author didn't mark
  * ? / ?? / ?! (then we note the main move). A wrong move snaps back with a red
  * arrow; the second miss at the same position shows the main move as a hint.
+ * A sideline the author left unmarked but gave no continuation is a "good
+ * move, find the main one" nudge: retry in place, not counted as a miss.
+ *
+ * Explanations are beats: the chapter intro, a comment on an opponent move,
+ * or a comment on the learner's correct move pause in phase `explain` until
+ * `next()` (the Continue button), so the text is read before play goes on.
  * No SR — progress is a localStorage "completed" flag per chapter.
  */
 
-export type LearnDrillPhase = 'idle' | 'yourMove' | 'opponent' | 'done';
+export type LearnDrillPhase = 'idle' | 'explain' | 'yourMove' | 'opponent' | 'done';
+
+/**
+ * Interactive moments along a chapter's main line: the intro, every learner
+ * move, and every commented opponent move. `momentsDone` counts the same way.
+ */
+export function countMoments(chapter: LearnChapter): number {
+  let n = chapter.intro ? 1 : 0;
+  let nodes = chapter.moves;
+  let fen = chapter.startFen;
+  while (nodes.length > 0) {
+    const main = nodes[0];
+    if (sideToMove(fen) === chapter.orientation || main.comment) n++;
+    fen = main.fen;
+    nodes = main.children;
+  }
+  return n;
+}
 
 const OPPONENT_DELAY_MS = 450;
 
@@ -34,9 +57,15 @@ interface LearnDrillState {
   totalMisses: number;
   shapes: DrawShape[];
   message: string | null;
+  /** Source-video timestamp (seconds) of the moment `message` explains. */
+  messageTs: number | null;
+  /** Moments completed so far (see countMoments). */
+  momentsDone: number;
   start: (chapter: LearnChapter) => void;
   reset: () => void;
   play: (uci: string) => void;
+  /** Leave an `explain` beat. */
+  next: () => void;
 }
 
 let opponentTimer: ReturnType<typeof setTimeout> | null = null;
@@ -74,7 +103,19 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
       opponentTimer = null;
       const cur = get();
       if (cur.phase !== 'opponent') return;
-      set({ path: [...cur.path, childrenAt(cur)[0]], shapes: [] });
+      const reply = childrenAt(cur)[0];
+      if (reply.comment) {
+        // A beat: show the author's note on the opponent's move and wait.
+        set({
+          path: [...cur.path, reply],
+          shapes: reply.shapes ?? [],
+          message: reply.comment,
+          messageTs: reply.ts ?? null,
+          phase: 'explain',
+        });
+        return;
+      }
+      set({ path: [...cur.path, reply], shapes: [] });
       advance();
     }, OPPONENT_DELAY_MS);
   };
@@ -87,6 +128,8 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
     totalMisses: 0,
     shapes: [],
     message: null,
+    messageTs: null,
+    momentsDone: 0,
 
     start: (chapter) => {
       clearTimer();
@@ -98,13 +141,35 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
         totalMisses: 0,
         shapes: [],
         message: null,
+        messageTs: null,
+        momentsDone: 0,
       });
+      if (chapter.intro) {
+        set({
+          phase: 'explain',
+          message: chapter.intro,
+          messageTs: chapter.introTs ?? null,
+          shapes: chapter.introShapes ?? [],
+        });
+        return;
+      }
       advance();
     },
 
     reset: () => {
       clearTimer();
-      set({ chapter: null, path: [], phase: 'idle', shapes: [], message: null });
+      set({ chapter: null, path: [], phase: 'idle', shapes: [], message: null, messageTs: null, momentsDone: 0 });
+    },
+
+    next: () => {
+      const s = get();
+      if (s.phase !== 'explain') return;
+      // Intro and opponent beats are moments of their own; the note after
+      // the learner's move was already counted with the move.
+      const last = s.path.at(-1);
+      const learnerNote = last != null && sideToMove(drillFen(s)) !== s.chapter?.orientation;
+      set({ momentsDone: s.momentsDone + (learnerNote ? 0 : 1) });
+      advance();
     },
 
     play: (uci) => {
@@ -116,6 +181,16 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
       const acceptable =
         hit && (hit === main || !(hit.nags ?? []).some((n) => BAD_MOVE_NAGS.has(n)));
 
+      if (hit && acceptable && hit !== main && hit.children.length === 0) {
+        // Sound, but the author only commented on it: find the main move.
+        set({
+          shapes: [],
+          message: `${hit.comment ? `${hit.comment} ` : ''}Good move. Now find the main move.`,
+          messageTs: hit.ts ?? null,
+        });
+        return;
+      }
+
       if (!hit || !acceptable) {
         const misses = s.missesHere + 1;
         set({
@@ -124,22 +199,31 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
           // Always a fresh array: re-sets the board so the wrong move snaps back.
           shapes: [arrow(uci, 'red'), ...(misses >= 2 && main ? [arrow(main.uci, 'green')] : [])],
           message: hit?.comment
-            ? hit.comment
+            ? `${hit.comment}${misses >= 2 ? ` Try ${main?.san}.` : ''}`
             : misses >= 2
               ? `Try ${main?.san}.`
               : 'Not the move the study recommends. Try again.',
+          messageTs: hit?.ts ?? null,
         });
         return;
       }
 
+      const message =
+        hit === main
+          ? (hit.comment ?? null)
+          : `Also good. The study's main move is ${main.san}.${hit.comment ? ` ${hit.comment}` : ''}`;
       set({
         path: [...s.path, hit],
         shapes: hit.shapes ?? [],
-        message:
-          hit === main
-            ? (hit.comment ?? null)
-            : `Also good. The study's main move is ${main.san}.${hit.comment ? ` ${hit.comment}` : ''}`,
+        message,
+        messageTs: hit.ts ?? null,
+        momentsDone: s.momentsDone + 1,
       });
+      // A note on the learner's move is read before the reply comes in.
+      if (hit.comment && hit.children.length > 0) {
+        set({ phase: 'explain' });
+        return;
+      }
       advance();
     },
   };

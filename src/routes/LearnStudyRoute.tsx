@@ -149,7 +149,9 @@ function DrillView({
         : `Line complete with ${drill.totalMisses} ${drill.totalMisses === 1 ? 'miss' : 'misses'}.`
       : drill.phase === 'opponent'
         ? 'Opponent is replying…'
-        : `Your move as ${chapter.orientation === 'white' ? 'White' : 'Black'}.`;
+        : drill.phase === 'explain'
+          ? 'Read the note, then continue.'
+          : `Your move as ${chapter.orientation === 'white' ? 'White' : 'Black'}.`;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4">
@@ -174,6 +176,11 @@ function DrillView({
           )}
         </div>
         <div className="flex gap-2">
+          {drill.phase === 'explain' && (
+            <button type="button" className="btn-primary flex-1" onClick={drill.next} data-testid="learn-drill-continue">
+              Continue
+            </button>
+          )}
           <button type="button" className="pill flex-1" onClick={() => drill.start(chapter)}>
             Restart
           </button>

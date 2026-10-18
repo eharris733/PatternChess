@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parse } from '@mliebelt/pgn-parser';
-import { chapterFromGame, cleanComment, isStandardChapter, type ParsedGame } from './pgnToTree';
+import { chapterFromGame, cleanComment, isStandardChapter, parseTimestamp, type ParsedGame } from './pgnToTree';
 
 const pgn = readFileSync(new URL('./__fixtures__/sample-study.pgn', import.meta.url), 'utf8');
 const games = parse(pgn, { startRule: 'games' }) as unknown as ParsedGame[];
@@ -59,5 +59,26 @@ describe('cleanComment', () => {
   it('strips Lichess commands', () => {
     expect(cleanComment('[%clk 0:05:00] Nice [%eval 0.3] move')).toBe('Nice move');
     expect(cleanComment('[%anno "x", x]')).toBeUndefined();
+  });
+});
+
+describe('[%ts] video timestamps', () => {
+  it('parses m:ss on moves and the intro, and keeps it out of the prose', () => {
+    const [game] = parse(
+      '[Event "x"]\n{ [%ts 0:09] Intro. } 1. e4 { [%ts 4:12] [%cal Ge2e4] Centre. } e5 { [%ts 1:02:03] Late. } *',
+      { startRule: 'games' },
+    ) as unknown as ParsedGame[];
+    const ch = chapterFromGame(game, 0);
+    expect(ch.intro).toBe('Intro.');
+    expect(ch.introTs).toBe(9);
+    expect(ch.moves[0].ts).toBe(252);
+    expect(ch.moves[0].comment).toBe('Centre.');
+    expect(ch.moves[0].children[0].ts).toBe(3723);
+  });
+
+  it('ignores malformed timestamps', () => {
+    expect(parseTimestamp('soon')).toBeUndefined();
+    expect(parseTimestamp('4:7:')).toBeUndefined();
+    expect(parseTimestamp('12:05')).toBe(725);
   });
 });

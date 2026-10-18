@@ -44,6 +44,9 @@ supabase/.temp
 # Ad recordings (marketing/ad)
 marketing/ad/out/
 
+# Creator-course demo recordings (marketing/course-demo)
+marketing/course-demo/out/
+
 # Forum drafter output (marketing/forum)
 marketing/forum/out/
 marketing/forum/seen.json

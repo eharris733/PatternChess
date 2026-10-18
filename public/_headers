@@ -16,3 +16,9 @@
   Cache-Control: public, max-age=0, must-revalidate
 /
   Cache-Control: public, max-age=0, must-revalidate
+# Unlisted creator-course demos (/c/<slug>) stay out of search.
+/c/*
+  X-Robots-Tag: noindex, nofollow
+  # The course embeds the creator's YouTube video, which COEP require-corp
+  # blocks outside Chrome's credentialless iframes. No engine runs here.
+  ! Cross-Origin-Embedder-Policy

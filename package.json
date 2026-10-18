@@ -20,6 +20,8 @@
     "ad:stats": "node marketing/ad/stats.ts",
     "ad:record": "node marketing/ad/record.ts",
     "ad:render": "node marketing/ad/stitch.ts",
+    "course:check": "node scripts/check-course.ts",
+    "course:record": "node marketing/course-demo/record.ts",
     "forum:find": "node marketing/forum/run.ts"
   },
   "dependencies": {
