@@ -145,11 +145,40 @@ function annotatorName(raw: string | null): string | null {
   return m ? m[1] : raw;
 }
 
+/** EPD (placement, side, castling, en passant) for comparing positions. */
+const epd = (fen: string) => fen.split(' ').slice(0, 4).join(' ');
+
+/**
+ * `[LeadIn "1.e4 c5 2.Nf3"]` → the moves from the initial position. They must
+ * reach the chapter's start position (when the chapter sets one).
+ */
+function leadInFromTag(raw: string, startFen: string | null): NonNullable<LearnChapter['leadIn']> {
+  const chess = new Chess();
+  const out: NonNullable<LearnChapter['leadIn']> = [];
+  for (const token of raw.split(/\s+/)) {
+    const san = token.replace(/^\d+\.+/, '');
+    if (!san || san === '*') continue;
+    let played;
+    try {
+      played = chess.move(san);
+    } catch {
+      throw new StudyMoveError(`illegal lead-in move ${token} at ${chess.fen()}`);
+    }
+    out.push({ san: played.san, uci: `${played.from}${played.to}${played.promotion ?? ''}`, fen: chess.fen() });
+  }
+  if (startFen && epd(chess.fen()) !== epd(startFen)) {
+    throw new StudyMoveError(`lead-in "${raw}" reaches ${chess.fen()}, not the chapter start ${startFen}`);
+  }
+  return out;
+}
+
 /** One parsed study game → chapter. Throws StudyMoveError on an illegal move. */
 export function chapterFromGame(game: ParsedGame, fallbackIndex: number): LearnChapter {
   const url = tag(game, 'ChapterURL') ?? '';
   const id = url.split('/').filter(Boolean).pop() ?? `chapter-${fallbackIndex + 1}`;
-  const startFen = tag(game, 'FEN') ?? STANDARD_FEN;
+  const leadInTag = tag(game, 'LeadIn');
+  const leadIn = leadInTag ? leadInFromTag(leadInTag, tag(game, 'FEN')) : undefined;
+  const startFen = tag(game, 'FEN') ?? leadIn?.at(-1)?.fen ?? STANDARD_FEN;
   let n = 0;
   const nextId = () => `n${n++}`;
   const chapter: LearnChapter = {
@@ -168,6 +197,7 @@ export function chapterFromGame(game: ParsedGame, fallbackIndex: number): LearnC
   if (introShapes.length > 0) chapter.introShapes = introShapes;
   const introTs = parseTimestamp(game.gameComment?.ts);
   if (introTs != null) chapter.introTs = introTs;
+  if (leadIn && leadIn.length > 0) chapter.leadIn = leadIn;
   return chapter;
 }
 

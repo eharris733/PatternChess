@@ -82,3 +82,25 @@ describe('[%ts] video timestamps', () => {
     expect(parseTimestamp('12:05')).toBe(725);
   });
 });
+
+describe('LeadIn tag', () => {
+  const one = (src: string) => (parse(src, { startRule: 'games' }) as unknown as ParsedGame[])[0];
+
+  it('replays the lead-in to the chapter start', () => {
+    const ch = chapterFromGame(
+      one('[LeadIn "1.e4 c5 2.Nf3"]\n[SetUp "1"]\n[FEN "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2"]\n\n2... d6 *'),
+      0,
+    );
+    expect(ch.leadIn?.map((m) => m.san)).toEqual(['e4', 'c5', 'Nf3']);
+    expect(ch.moves[0].san).toBe('d6');
+  });
+
+  it('rejects a lead-in that misses the start position', () => {
+    expect(() =>
+      chapterFromGame(
+        one('[LeadIn "1.e4 c5 2.Nc3"]\n[SetUp "1"]\n[FEN "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2"]\n\n2... d6 *'),
+        0,
+      ),
+    ).toThrow(/lead-in/);
+  });
+});

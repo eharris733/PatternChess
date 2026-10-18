@@ -59,6 +59,8 @@ interface LearnDrillState {
   message: string | null;
   /** Source-video timestamp (seconds) of the moment `message` explains. */
   messageTs: number | null;
+  /** Position `message` is about (after the commented move), for move lines quoted in it. */
+  messageFen: string | null;
   /** Moments completed so far (see countMoments). */
   momentsDone: number;
   start: (chapter: LearnChapter) => void;
@@ -111,6 +113,7 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
           shapes: reply.shapes ?? [],
           message: reply.comment,
           messageTs: reply.ts ?? null,
+          messageFen: reply.fen,
           phase: 'explain',
         });
         return;
@@ -129,6 +132,7 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
     shapes: [],
     message: null,
     messageTs: null,
+    messageFen: null,
     momentsDone: 0,
 
     start: (chapter) => {
@@ -142,6 +146,7 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
         shapes: [],
         message: null,
         messageTs: null,
+        messageFen: null,
         momentsDone: 0,
       });
       if (chapter.intro) {
@@ -149,6 +154,7 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
           phase: 'explain',
           message: chapter.intro,
           messageTs: chapter.introTs ?? null,
+          messageFen: chapter.startFen,
           shapes: chapter.introShapes ?? [],
         });
         return;
@@ -158,7 +164,7 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
 
     reset: () => {
       clearTimer();
-      set({ chapter: null, path: [], phase: 'idle', shapes: [], message: null, messageTs: null, momentsDone: 0 });
+      set({ chapter: null, path: [], phase: 'idle', shapes: [], message: null, messageTs: null, messageFen: null, momentsDone: 0 });
     },
 
     next: () => {
@@ -187,6 +193,7 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
           shapes: [],
           message: `${hit.comment ? `${hit.comment} ` : ''}Good move. Now find the main move.`,
           messageTs: hit.ts ?? null,
+          messageFen: hit.fen,
         });
         return;
       }
@@ -204,6 +211,7 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
               ? `Try ${main?.san}.`
               : 'Not the move the study recommends. Try again.',
           messageTs: hit?.ts ?? null,
+          messageFen: hit?.fen ?? null,
         });
         return;
       }
@@ -217,6 +225,7 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
         shapes: hit.shapes ?? [],
         message,
         messageTs: hit.ts ?? null,
+        messageFen: hit.fen,
         momentsDone: s.momentsDone + 1,
       });
       // A note on the learner's move is read before the reply comes in.

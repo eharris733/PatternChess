@@ -7,6 +7,7 @@ import { BrandLockup } from '../components/BrandLogo';
 import { Skeleton } from '../components/Skeleton';
 import { parseUciMove } from '../chess/moveUtils';
 import type { LearnNode, LearnStudy } from '../models/learn';
+import { splitCommentLines, type CommentLine } from '../learn/commentLines';
 import { countMoments, drillFen, useLearnDrillStore } from '../state/learnDrillStore';
 import { useForceDefaultTheme } from '../state/themeStore';
 import { useHead } from '../seo/useHead';
@@ -97,7 +98,7 @@ export function CourseDemoRoute() {
           <BrandLockup size="sm" />
         </Link>
       </header>
-      <main className="flex-1 p-4 md:p-6 w-full max-w-6xl mx-auto">
+      <main className="flex-1 p-4 md:p-6 w-full max-w-7xl mx-auto">
         {query.isPending ? (
           <Skeleton className="h-[32rem] w-full" />
         ) : !query.data ? (
@@ -118,28 +119,120 @@ export function CourseDemoRoute() {
   );
 }
 
+const STANDARD_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+const LEAD_IN_MS = 380;
+const LINE_STEP_MS = 650;
+
+/** "1.e4 c5 2.Nf3" — moves numbered from `fen`'s move counter and side to move. */
+function numbered(fen: string, sans: string[]): string {
+  const [, side, , , , full] = fen.split(' ');
+  let move = Number(full) || 1;
+  let black = side === 'b';
+  return sans
+    .map((san, i) => {
+      const prefix = !black ? `${move}.` : i === 0 ? `${move}...` : '';
+      if (black) move++;
+      black = !black;
+      return `${prefix}${san}`;
+    })
+    .join(' ');
+}
+
+function uciPair(uci: string): [string, string] {
+  const m = parseUciMove(uci);
+  return [m.from, m.to];
+}
+
+/** A move line from a comment, stepping on the board. */
+interface LinePreview {
+  line: CommentLine;
+  ply: number;
+}
+
 function CoursePlayer({ course }: { course: LearnStudy }) {
   const chapters = course.chapterData;
   const [index, setIndex] = useState(0);
   const [finished, setFinished] = useState(false);
+  // Plies of the chapter's lead-in shown so far; null once the drill runs.
+  const [leadPly, setLeadPly] = useState<number | null>(null);
+  const [preview, setPreview] = useState<LinePreview | null>(null);
   const chapter = chapters[index];
+  const leadIn = chapter.leadIn ?? [];
   const drill = useLearnDrillStore();
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    useLearnDrillStore.getState().start(chapter);
+    setPreview(null);
+    if (chapter.leadIn?.length) {
+      useLearnDrillStore.getState().reset();
+      setLeadPly(0);
+    } else {
+      setLeadPly(null);
+      useLearnDrillStore.getState().start(chapter);
+    }
     return () => useLearnDrillStore.getState().reset();
   }, [chapter]);
 
-  // Space / Enter continues past an explanation.
+  // Autoplay the moves that reach the chapter's position, then start the drill.
+  useEffect(() => {
+    if (leadPly == null) return;
+    if (leadPly >= leadIn.length) {
+      setLeadPly(null);
+      useLearnDrillStore.getState().start(chapter);
+      return;
+    }
+    const t = setTimeout(() => setLeadPly(leadPly + 1), leadPly === 0 ? 700 : LEAD_IN_MS);
+    return () => clearTimeout(t);
+  }, [leadPly, leadIn.length, chapter]);
+
+  // Step a clicked line, then hold its final position.
+  useEffect(() => {
+    if (!preview || preview.ply >= preview.line.moves.length) return;
+    const t = setTimeout(
+      () => setPreview((p) => (p ? { ...p, ply: p.ply + 1 } : p)),
+      preview.ply === 0 ? 400 : LINE_STEP_MS,
+    );
+    return () => clearTimeout(t);
+  }, [preview]);
+
+  // A new message or move ends any line being shown.
+  useEffect(() => setPreview(null), [drill.message, drill.path]);
+
+  const isLast = index + 1 >= chapters.length;
+  const skipLeadIn = () => setLeadPly(leadIn.length);
+  const nextChapter = () => (isLast ? setFinished(true) : setIndex(index + 1));
+
+  // Space / Enter does whatever the main button would: skip the setup, close
+  // a shown line, continue past a note, go to the next chapter.
+  const primary = useRef<() => void>(() => {});
+  primary.current = () => {
+    if (leadPly != null) skipLeadIn();
+    else if (preview) setPreview(null);
+    else if (drill.phase === 'explain') drill.next();
+    else if (drill.phase === 'done') nextChapter();
+  };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.key === ' ' || e.key === 'Enter') && useLearnDrillStore.getState().phase === 'explain') {
-        e.preventDefault();
-        useLearnDrillStore.getState().next();
-      }
+      if (e.key !== ' ' && e.key !== 'Enter') return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+      e.preventDefault();
+      // Drop focus so the keyup doesn't also click whichever button had it.
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      primary.current();
     };
+    // Clicking the video moves keyboard focus into the YouTube frame, where
+    // our Space handler can't hear it. Take focus back after the click lands.
+    const onBlur = () =>
+      setTimeout(() => {
+        if (document.activeElement?.tagName === 'IFRAME') rootRef.current?.focus({ preventScroll: true });
+      }, 0);
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('blur', onBlur);
+    };
   }, []);
 
   const perChapter = useMemo(() => chapters.map(countMoments), [chapters]);
@@ -150,20 +243,52 @@ function CoursePlayer({ course }: { course: LearnStudy }) {
     : before + Math.min(perChapter[index] ?? 0, drill.chapter?.id === chapter.id ? drill.momentsDone : 0);
   const source = course.source;
   const side = chapter.orientation === 'white' ? 'White' : 'Black';
-  const isLast = index + 1 >= chapters.length;
   const video = useVideoPlayer(source ? youtubeId(source.url) : null, chapters[0]?.introTs ?? 0);
 
+  // Positions a quoted line may start from, most specific first.
+  const lineStarts = useMemo(
+    () => [
+      ...(drill.messageFen ? [drill.messageFen] : []),
+      drillFen(drill) || chapter.startFen,
+      ...drill.path.map((n) => n.fen).reverse(),
+      chapter.startFen,
+      ...leadIn.map((m) => m.fen).reverse(),
+      STANDARD_FEN,
+    ],
+    [drill, chapter, leadIn],
+  );
+  const segments = useMemo(
+    () => (drill.message ? splitCommentLines(drill.message, lineStarts) : []),
+    [drill.message, lineStarts],
+  );
+
+  let boardFen: string;
+  let boardLastMove: [string, string] | null;
+  if (leadPly != null) {
+    boardFen = leadPly === 0 ? STANDARD_FEN : leadIn[leadPly - 1].fen;
+    boardLastMove = leadPly === 0 ? null : uciPair(leadIn[leadPly - 1].uci);
+  } else if (preview) {
+    const m = preview.line.moves[preview.ply - 1];
+    boardFen = m?.fen ?? preview.line.fen;
+    boardLastMove = m ? uciPair(m.uci) : null;
+  } else {
+    boardFen = drillFen(drill) || chapter.startFen;
+    boardLastMove = lastMoveOf(drill.path.at(-1));
+  }
+
   const status =
-    drill.phase === 'done'
-      ? 'Chapter complete.'
-      : drill.phase === 'opponent'
-        ? 'Opponent is replying…'
-        : drill.phase === 'explain'
-          ? null
-          : `Your move as ${side}.`;
+    leadIn.length > 0 && leadPly != null
+      ? 'Setting up the position'
+      : drill.phase === 'done'
+        ? 'Chapter complete.'
+        : drill.phase === 'opponent'
+          ? 'Opponent is replying…'
+          : drill.phase === 'explain'
+            ? null
+            : `Your move as ${side}.`;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div ref={rootRef} tabIndex={-1} className="flex flex-col gap-5 outline-none">
       <header className="flex flex-col gap-2">
         <span className="label">Interactive course preview</span>
         <h1 className="heading-lg">{course.title}</h1>
@@ -200,24 +325,37 @@ function CoursePlayer({ course }: { course: LearnStudy }) {
       {finished ? (
         <CourseComplete course={course} onRestart={() => (setFinished(false), setIndex(0))} />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(360px,500px)] gap-4">
           {/* Keep the whole board above the fold: header + progress take ~230px. */}
           <div className="w-full mx-auto" style={{ maxWidth: 'max(320px, calc(100vh - 240px))' }}>
             <BoardPanel
-              fen={drillFen(drill) || chapter.startFen}
+              fen={boardFen}
               orientation={chapter.orientation}
-              movableFor={drill.phase === 'yourMove' ? chapter.orientation : null}
-              lastMove={lastMoveOf(drill.path.at(-1))}
-              shapes={drill.shapes}
+              movableFor={leadPly == null && !preview && drill.phase === 'yourMove' ? chapter.orientation : null}
+              lastMove={boardLastMove}
+              shapes={leadPly != null || preview ? [] : drill.shapes}
               onMove={(m) => drill.play(`${m.from}${m.to}${m.promotion ?? ''}`)}
             />
           </div>
           <div className="flex flex-col gap-3 min-w-0">
-            <div className="card !p-4 flex flex-col gap-1">
-              <span className="label">
-                Chapter {index + 1} of {chapters.length}
-              </span>
-              <h2 className="text-base font-semibold text-text-primary">{chapter.name}</h2>
+            <div className="card !p-4 flex items-start justify-between gap-3">
+              <div className="flex flex-col gap-1 min-w-0">
+                <span className="label">
+                  Chapter {index + 1} of {chapters.length}
+                </span>
+                <h2 className="text-base font-semibold text-text-primary">{chapter.name}</h2>
+              </div>
+              <button
+                type="button"
+                className="pill shrink-0"
+                onClick={() => {
+                  setPreview(null);
+                  setLeadPly(leadIn.length > 0 ? 0 : null);
+                  if (leadIn.length === 0) drill.start(chapter);
+                }}
+              >
+                Restart
+              </button>
             </div>
             <div className="card !p-4 flex flex-col gap-3" data-testid="course-coach">
               {status && (
@@ -231,45 +369,90 @@ function CoursePlayer({ course }: { course: LearnStudy }) {
                   {status}
                 </p>
               )}
-              {drill.message && (
-                <p className="text-sm text-text-primary leading-relaxed" data-testid="course-message">
-                  {drill.message}
-                </p>
-              )}
-              {video.src && drill.messageTs != null && drill.message && (
-                <button
-                  type="button"
-                  onClick={() => video.seek(drill.messageTs!)}
-                  className="text-xs font-mono uppercase tracking-tight underline underline-offset-2 self-start"
-                  data-testid="course-watch"
-                >
-                  Watch this moment ({clock(drill.messageTs)})
-                </button>
-              )}
-              {drill.phase === 'explain' && (
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={drill.next}
-                  data-testid="course-continue"
-                >
-                  Continue
-                </button>
-              )}
-              {drill.phase === 'done' && (
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={() => (isLast ? setFinished(true) : setIndex(index + 1))}
-                  data-testid="course-next"
-                >
-                  {isLast ? 'Finish' : 'Next chapter'}
-                </button>
+              {leadPly != null ? (
+                <>
+                  <p className="text-sm font-mono text-text-primary leading-relaxed" data-testid="course-leadin">
+                    {numbered(STANDARD_FEN, leadIn.slice(0, Math.max(1, leadPly)).map((m) => m.san))}
+                  </p>
+                  <button type="button" className="btn-outline self-start" onClick={skipLeadIn}>
+                    Skip <SpaceHint />
+                  </button>
+                </>
+              ) : (
+                <>
+                  {drill.message && (
+                    <p className="text-sm text-text-primary leading-relaxed" data-testid="course-message">
+                      {segments.map((seg, i) =>
+                        seg.line ? (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setPreview({ line: seg.line!, ply: 0 })}
+                            className={clsx(
+                              'font-semibold underline decoration-dotted underline-offset-2 hover:text-accent',
+                              preview?.line === seg.line && 'text-accent',
+                            )}
+                            data-testid="course-line"
+                          >
+                            {seg.text}
+                          </button>
+                        ) : (
+                          <span key={i}>{seg.text}</span>
+                        ),
+                      )}
+                    </p>
+                  )}
+                  {preview && (
+                    <div
+                      className="flex flex-wrap items-center gap-2 border-t border-text-primary/20 pt-3"
+                      data-testid="course-line-preview"
+                    >
+                      <span className="text-sm font-mono text-text-primary">
+                        {numbered(
+                          preview.line.fen,
+                          preview.line.moves.map((m) => m.san),
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        className="pill"
+                        onClick={() => setPreview({ line: preview.line, ply: 0 })}
+                      >
+                        Replay
+                      </button>
+                      <button type="button" className="pill" onClick={() => setPreview(null)}>
+                        Back to the lesson <SpaceHint />
+                      </button>
+                    </div>
+                  )}
+                  {video.src && drill.messageTs != null && drill.message && (
+                    <button
+                      type="button"
+                      onClick={() => video.seek(drill.messageTs!)}
+                      className="text-xs font-mono uppercase tracking-tight underline underline-offset-2 self-start"
+                      data-testid="course-watch"
+                    >
+                      Watch this moment ({clock(drill.messageTs)})
+                    </button>
+                  )}
+                  {!preview && drill.phase === 'explain' && (
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={drill.next}
+                      data-testid="course-continue"
+                    >
+                      Continue <SpaceHint />
+                    </button>
+                  )}
+                  {!preview && drill.phase === 'done' && (
+                    <button type="button" className="btn-primary" onClick={nextChapter} data-testid="course-next">
+                      {isLast ? 'Finish' : 'Next chapter'} <SpaceHint />
+                    </button>
+                  )}
+                </>
               )}
             </div>
-            <button type="button" className="pill self-start" onClick={() => drill.start(chapter)}>
-              Restart chapter
-            </button>
             {video.src && source && (
               <div className="card !p-3 flex flex-col gap-2" data-testid="course-video">
                 <span className="label">Watch along</span>
@@ -291,6 +474,12 @@ function CoursePlayer({ course }: { course: LearnStudy }) {
         </div>
       )}
     </div>
+  );
+}
+
+function SpaceHint() {
+  return (
+    <kbd className="ml-1 px-1.5 py-0.5 text-[0.65rem] font-mono border border-current/40 opacity-80">Space</kbd>
   );
 }
 

@@ -51,6 +51,11 @@ export interface LearnChapter {
   introShapes?: DrawShape[];
   /** Source-video timestamp (seconds) of the intro. */
   introTs?: number;
+  /**
+   * Moves from the initial position that reach `startFen` (`[LeadIn "1.e4 c5 ..."]`),
+   * autoplayed before the chapter starts so the learner sees how the position arises.
+   */
+  leadIn?: Array<{ san: string; uci: string; fen: string }>;
   /** Interactive "gamebook" chapter on Lichess. */
   gamebook: boolean;
   /** First moves from the start position; `[0]` is the main line. */
