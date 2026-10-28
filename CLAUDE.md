@@ -163,9 +163,27 @@ If it can't be tested in a browser, say so explicitly rather than claiming succe
 
 ### Sync invariants
 
-- **Already-synced games are not re-fetched.** `syncProvider` calls
-  `getExistingGameKeys(platform, username)` and dedupes against
-  `(platform|username|opponent|played_at)` before insert.
+- **Already-synced games are not re-fetched.** `syncProvider` dedupes against
+  `getExistingExternalGameIds(platform)` (the site's game id, unique per
+  `(user_id, platform, external_game_id)`). Lichess game ids come from the PGN
+  `Site` header via `extractLichessGameId`, which must accept both
+  `lichess.org/<id>` and `lichess.org/game/<id>` (Lichess switched on
+  2026-10-22; the old regex silently skipped every game for a week). If every
+  fetched game fails to parse, `fetchLichessGames` throws so the indicator shows
+  "Sync failed", never "Up to date".
+- **PGN uploads of the user's own games use the source id.** When the entered
+  name matches a player and `Site`/`Link` names a Lichess or chess.com game,
+  `pgnUploadService` stores it as that platform + game id (`pgnSourceGame`), so
+  a later sync (or a re-export with different headers) dedupes against it.
+  Everything else stays `platform='pgn'` keyed by a SHA-256 of the text.
+  Migration `20261028120000` converted and merged the older uploads.
+- **Leftover games get analyzed on the dashboard.** Sync only analyzes its own
+  platform + username, so `startBlunderMaintenance` first finishes any
+  `analyzed_at IS NULL` game (`getLeftoverUnanalyzedGameIds`, all platforms),
+  yielding to an in-flight sync (`isAnySyncInFlight`). `analyzeGames` stamps a
+  game that fails to analyze instead of aborting the batch.
+- **Bulk delete** (`BulkDeleteGamesModal`, Vault Games tab): played-before-date
+  or all, via `deleteGames(ids)` in 100-id chunks; FKs cascade.
 - **Already-analyzed games are not re-analyzed by sync.** `getUnanalyzedGameIds`
   filters `analyzed_at IS NULL`. Only the per-game "Re-analyze" button in
   `/vault` (which explicitly resets `analyzed_at` and deletes existing blunders)

@@ -692,6 +692,7 @@ export type Database = {
       admin_unmark_contacted: { Args: { lead_key: string }; Returns: undefined }
       apply_game_openings: { Args: { p_rows: Json }; Returns: number }
       get_blunder_motif_counts: { Args: never; Returns: Json }
+      blunder_counts_by_game: { Args: never; Returns: Json }
       increment_opening_reviews: { Args: never; Returns: number }
       claim_referral: { Args: { code: string }; Returns: boolean }
       claim_signup_source: { Args: { source: string }; Returns: boolean }

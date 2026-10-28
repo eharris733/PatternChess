@@ -106,6 +106,26 @@ export async function getUnanalyzedGameIds(opts: {
   return rows.map((row) => (row as { id: string }).id);
 }
 
+/**
+ * Unanalyzed games on every platform, newest first — the leftovers sync never
+ * revisits: PGN uploads (sync only sweeps its own platform + username), games
+ * under an old username, and runs cut short by a closed tab.
+ */
+export async function getLeftoverUnanalyzedGameIds(limit: number): Promise<string[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from('games')
+    .select('id')
+    .eq('user_id', userId)
+    .is('analyzed_at', null)
+    .order('played_at', { ascending: false, nullsFirst: false })
+    .order('id')
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.id);
+}
+
 /** User-wide unanalyzed-game count — the maintenance worker's sync guard. */
 export async function countUnanalyzedGames(): Promise<number> {
   const userId = await currentUserId();
@@ -136,6 +156,31 @@ export async function deleteGame(gameId: string): Promise<number> {
     .select('id');
   if (error) throw error;
   return data?.length ?? 0;
+}
+
+/**
+ * Bulk delete for the Vault ("Delete games…"). Blunders, endgame scenarios,
+ * opening deviations and annotations go with their games (every FK to games
+ * cascades). Chunked so the id list stays well inside URL limits. Returns the
+ * rows actually removed — fewer than asked means a policy blocked some.
+ */
+export async function deleteGames(
+  gameIds: string[],
+  onProgress?: (deleted: number) => void,
+): Promise<number> {
+  const CHUNK = 100;
+  let deleted = 0;
+  for (let i = 0; i < gameIds.length; i += CHUNK) {
+    const { data, error } = await supabase
+      .from('games')
+      .delete()
+      .in('id', gameIds.slice(i, i + CHUNK))
+      .select('id');
+    if (error) throw error;
+    deleted += data?.length ?? 0;
+    onProgress?.(deleted);
+  }
+  return deleted;
 }
 
 export async function resetGameAnalyzed(gameId: string): Promise<void> {

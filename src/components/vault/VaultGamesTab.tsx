@@ -19,6 +19,7 @@ import { VaultSelect } from './VaultSelect';
 import { ResultBadge } from './ResultBadge';
 import { GameBlunderThumbs } from './GameBlunderThumbs';
 import { PositionPreviewModal } from './PositionPreviewModal';
+import { BulkDeleteGamesModal } from './BulkDeleteGamesModal';
 import {
   BLUNDER_FILTERS,
   gameOutcome,
@@ -42,6 +43,7 @@ export function VaultGamesTab() {
   const [deleteTarget, setDeleteTarget] = useState<GameRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   const [blunderFilter, setBlunderFilter] = useState<BlunderFilter>('all');
   const [resultFilter, setResultFilter] = useState<ResultFilter>('all');
@@ -208,10 +210,20 @@ export function VaultGamesTab() {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-text-secondary text-sm">
-        {games.length} game{games.length === 1 ? '' : 's'} synced. New games
-        are added automatically each time you visit.
-      </p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-text-secondary text-sm">
+          {games.length} game{games.length === 1 ? '' : 's'} synced. New games
+          are added automatically each time you visit.
+        </p>
+        <button
+          type="button"
+          className="btn-ghost text-xs h-10 px-3 lg:h-7 lg:px-2 inline-flex items-center gap-1"
+          onClick={() => setBulkDeleteOpen(true)}
+        >
+          <TrashIcon className="h-3.5 w-3.5" />
+          Delete games…
+        </button>
+      </div>
 
       <div className="card p-4 flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter by blunders">
@@ -316,6 +328,15 @@ export function VaultGamesTab() {
           blunder={preview.blunder}
           game={preview.game}
           onClose={() => setPreview(null)}
+        />
+      )}
+
+      {bulkDeleteOpen && (
+        <BulkDeleteGamesModal
+          games={games}
+          onClose={() => setBulkDeleteOpen(false)}
+          // Everything keyed off games (stats, openings, endgames) is stale now.
+          onDeleted={() => void queryClient.invalidateQueries()}
         />
       )}
 

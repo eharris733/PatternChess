@@ -95,6 +95,11 @@ export function isSyncInFlight(platform: Platform): boolean {
   return inFlight.has(platformKey(platform));
 }
 
+/** True while any provider's sync runs in this tab (it analyzes its own games). */
+export function isAnySyncInFlight(): boolean {
+  return inFlight.size > 0;
+}
+
 function runOne(
   platform: Platform,
   username: string,
