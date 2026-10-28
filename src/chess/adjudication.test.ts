@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Chess } from 'chess.js';
 import {
+  confirmSlip,
   DRAW_ACCEPT_CP,
   DRAW_ACCEPT_MIN_DEPTH,
   DRAW_ACCEPT_QUIET_PLIES,
@@ -154,6 +155,47 @@ describe('judgeUserMove — finish mode', () => {
     expect(judgeUserMove({ target: 'win', userWinPctBefore: 90, userWinPctAfter: 55, heldStreak: 4, rules: FINISH_RULES }).verdict).toBe('fail');
     expect(judgeUserMove({ target: 'win', userWinPctBefore: 95, userWinPctAfter: 70, heldStreak: 4, rules: FINISH_RULES }).verdict).toBe('fail');
     expect(judgeUserMove({ target: 'draw', userWinPctBefore: 45, userWinPctAfter: 20, heldStreak: 2, rules: FINISH_RULES }).verdict).toBe('fail');
+  });
+});
+
+describe('confirmSlip', () => {
+  const base = {
+    rules: HOLD_RULES,
+    heldStreak: 3,
+    playedUci: 'e2e4',
+    hintUci: 'd2d4',
+    deepBestUci: 'd2d4',
+  };
+
+  it('never fails the move the hint showed', () => {
+    const r = confirmSlip({ ...base, target: 'win', hintUci: 'e2e4', userWinPctBefore: 97, userWinPctAfter: 70 });
+    expect(r.verdict).toBe('ok');
+    expect(r.heldStreak).toBe(0); // 70% is below the hold bar, so the streak resets
+  });
+
+  it("never fails the deeper search's best move", () => {
+    const r = confirmSlip({ ...base, target: 'win', deepBestUci: 'e2e4', userWinPctBefore: 90, userWinPctAfter: 80 });
+    expect(r).toEqual({ verdict: 'ok', heldStreak: 4 });
+  });
+
+  it('forgives a horizon drop: the deeper before-score agrees with the after-score', () => {
+    const r = confirmSlip({ ...base, target: 'win', userWinPctBefore: 82, userWinPctAfter: 79 });
+    expect(r).toEqual({ verdict: 'ok', heldStreak: 4 });
+  });
+
+  it('forgives a draw-floor breach when the best move was just as lost', () => {
+    const r = confirmSlip({ ...base, target: 'draw', userWinPctBefore: 22, userWinPctAfter: 20 });
+    expect(r).toEqual({ verdict: 'ok', heldStreak: 0 });
+  });
+
+  it('still fails a real blunder', () => {
+    expect(confirmSlip({ ...base, target: 'win', userWinPctBefore: 95, userWinPctAfter: 50 }).verdict).toBe('fail');
+    expect(confirmSlip({ ...base, target: 'draw', userWinPctBefore: 50, userWinPctAfter: 15 }).verdict).toBe('fail');
+  });
+
+  it('can still adjudicate success in hold mode', () => {
+    const r = confirmSlip({ ...base, target: 'win', heldStreak: HOLD_MOVES - 1, hintUci: 'e2e4', userWinPctBefore: 99, userWinPctAfter: 80 });
+    expect(r.verdict).toBe('adjudicated-success');
   });
 });
 

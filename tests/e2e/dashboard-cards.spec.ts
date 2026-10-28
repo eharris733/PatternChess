@@ -202,3 +202,66 @@ test('the train step checks off after the daily goal is met, button stays', asyn
   await expect(page.getByText('All done today')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Train', exact: true })).toBeVisible();
 });
+
+test('a reload paints the dashboard from the IndexedDB cache while the network catches up', async ({
+  page,
+}) => {
+  const games = [1, 2, 3].map((n) => ({
+    id: `g${n}`,
+    platform: 'lichess',
+    username: 'tester',
+    opponent: `rival${n}`,
+    time_control: '600+0',
+    rated: true,
+    result: '1-0',
+    played_at: PAST,
+    created_at: PAST,
+    analyzed_at: PAST,
+    eco: null,
+    opening_name: null,
+    opening_family: null,
+    opening_classified_at: PAST,
+    user_color: 'white',
+    user_rating: 1500,
+    opponent_rating: 1500,
+    total_plies: 80,
+    parsed_metadata_at: null,
+  }));
+  await stubRichAuth(page);
+  // Wraps the stub (init scripts run in order). First load serves the games;
+  // every later load leaves the games request hanging, so anything on screen
+  // must come from the persisted cache.
+  await page.addInitScript(
+    ({ project, games }) => {
+      const loads = Number(sessionStorage.getItem('pc-e2e-loads') ?? '0') + 1;
+      sessionStorage.setItem('pc-e2e-loads', String(loads));
+      const prevFetch = window.fetch;
+      window.fetch = (input: any, init?: any) => {
+        const url = typeof input === 'string' ? input : input?.url ?? '';
+        if (url.includes(`${project}.supabase.co/rest/v1/games`) && url.includes('opponent')) {
+          if (loads > 1) return new Promise(() => {});
+          return Promise.resolve(
+            new Response(JSON.stringify(games), {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            }),
+          );
+        }
+        return prevFetch(input, init);
+      };
+    },
+    { project: SUPABASE_PROJECT, games },
+  );
+
+  await page.goto('/dashboard');
+  await expect(page.getByText('3 games')).toBeVisible();
+  // Writes are throttled (1s); let the snapshot land.
+  await page.waitForTimeout(1500);
+
+  await page.reload();
+  await expect(page.getByText('3 games')).toBeVisible();
+  // Restored rows keep real Dates: the vault formats them without crashing.
+  await page.goto('/vault?tab=games');
+  await expect(page.getByText('rival1')).toBeVisible();
+  await expect(page.getByText('Something went wrong')).toHaveCount(0);
+});

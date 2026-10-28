@@ -255,7 +255,9 @@ export function EndgameDrillView({
         )}
 
         {playout.phase === 'judging' && (
-          <FeedbackBadge tone="info">Judging your move…</FeedbackBadge>
+          <FeedbackBadge tone="info">
+              {playout.confirming ? 'Double-checking with a longer search…' : 'Judging your move…'}
+            </FeedbackBadge>
         )}
         {playout.phase === 'thinking' && (
           <FeedbackBadge tone="info">Opponent thinking…</FeedbackBadge>

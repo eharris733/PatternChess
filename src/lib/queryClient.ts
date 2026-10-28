@@ -8,7 +8,9 @@ export const queryClient = new QueryClient({
       // revisit. Keep data fresh for a couple of minutes and cached for longer;
       // mutations that change it invalidate their own keys explicitly.
       staleTime: 2 * 60_000,
-      gcTime: 15 * 60_000,
+      // Long enough that queries survive in the IndexedDB snapshot between
+      // visits (lib/queryPersist.ts) — a gc'd query is dropped from it.
+      gcTime: 7 * 24 * 60 * 60_000,
       refetchOnWindowFocus: false,
       retry: 1,
     },

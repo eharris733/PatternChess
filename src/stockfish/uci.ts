@@ -3,9 +3,23 @@
 const SCORE_CP_RE = /score cp (-?\d+)/;
 const SCORE_MATE_RE = /score mate (-?\d+)/;
 
-/** Reverse-walk lines, return the most recent score in centipawns (mate mapped to ±10000-N). */
+/**
+ * Reverse-walk lines, return the most recent score in centipawns (mate mapped
+ * to ±10000-N). Exact scores win over `lowerbound`/`upperbound` ones: a search
+ * stopped on time often ends on an aspiration fail-high/low line whose score
+ * is only a bound. A bound is used only when the output has no exact score.
+ */
 export function parseEvalCp(output: string): number {
   const lines = output.split('\n').reverse();
+  const exact = scoreFromLines(lines.filter((l) => !isBoundLine(l)));
+  return exact ?? scoreFromLines(lines) ?? 0;
+}
+
+function isBoundLine(line: string): boolean {
+  return line.includes(' lowerbound') || line.includes(' upperbound');
+}
+
+function scoreFromLines(lines: string[]): number | null {
   for (const line of lines) {
     if (line.includes('score cp')) {
       const m = SCORE_CP_RE.exec(line);
@@ -19,7 +33,7 @@ export function parseEvalCp(output: string): number {
       }
     }
   }
-  return 0;
+  return null;
 }
 
 /** Best move UCI, or '' when absent — including `bestmove (none)` at terminal positions. */

@@ -10,20 +10,39 @@ interface RangeableQuery<T> {
   range(from: number, to: number): PromiseLike<{ data: T[] | null; error: unknown }>;
 }
 
+/** Pages requested at once after the first one comes back full. */
+const PARALLEL_PAGES = 4;
+
 /**
- * Read every row of a query, one 1000-row page at a time. `build` is called
- * once per page because supabase-js builders are mutable (a `.range()` on a
- * reused builder stacks). The query must have a deterministic order — add
- * `.order('id')` as a tiebreak — or pages can skip/repeat rows.
+ * Read every row of a query in 1000-row pages. The first page is fetched on
+ * its own (most queries fit in it); when it comes back full, the next pages
+ * are fetched PARALLEL_PAGES at a time. Each page costs about a second of
+ * round trip for a large account, so one page after another made a
+ * 3,500-game library take ~5s per list. A page past the end comes back
+ * empty, so reading ahead is safe. `build` is called once per page because
+ * supabase-js builders are mutable (a `.range()` on a reused builder stacks).
+ * The query must have a deterministic order — add `.order('id')` as a
+ * tiebreak — or pages can skip/repeat rows.
  */
 export async function fetchAllRows<T>(build: () => RangeableQuery<T>): Promise<T[]> {
-  const rows: T[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
+  const fetchPage = async (index: number): Promise<T[]> => {
+    const from = index * PAGE_SIZE;
     const { data, error } = await build().range(from, from + PAGE_SIZE - 1);
     if (error) throw error;
-    const page = data ?? [];
-    rows.push(...page);
-    if (page.length < PAGE_SIZE) return rows;
+    return data ?? [];
+  };
+
+  const first = await fetchPage(0);
+  if (first.length < PAGE_SIZE) return first;
+  const rows: T[] = [...first];
+  for (let next = 1; ; next += PARALLEL_PAGES) {
+    const batch = await Promise.all(
+      Array.from({ length: PARALLEL_PAGES }, (_, i) => fetchPage(next + i)),
+    );
+    for (const page of batch) {
+      rows.push(...page);
+      if (page.length < PAGE_SIZE) return rows;
+    }
   }
 }
 

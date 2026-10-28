@@ -1,7 +1,5 @@
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
-import { useGames } from './useGames';
 import {
   PhaseCounts,
   MotifCounts,
@@ -17,29 +15,6 @@ import {
   ratingBand,
 } from '../services/benchmarkService';
 
-interface RatingMean {
-  meanRating: number | null;
-  rated: boolean;
-}
-
-/**
- * Mean rating, derived from the already-cached `['games']` query rather than a
- * second full download of the games table. `isFetched` mirrors the games query
- * so callers can still gate on it.
- */
-function useUserRatingMean(): { data: RatingMean | undefined; isFetched: boolean } {
-  const gamesQuery = useGames();
-  const games = gamesQuery.data;
-  const data = useMemo<RatingMean | undefined>(() => {
-    if (!games) return undefined;
-    const rated = games.filter((g) => g.rated && typeof g.userRating === 'number');
-    if (rated.length === 0) return { meanRating: null, rated: false };
-    const sum = rated.reduce((acc, g) => acc + (g.userRating ?? 0), 0);
-    return { meanRating: Math.round(sum / rated.length), rated: true };
-  }, [games]);
-  return { data, isFetched: gamesQuery.isFetched };
-}
-
 export interface PhaseInsight {
   counts: PhaseCounts;
   benchmark: { opening: number; middlegame: number; endgame: number } | null;
@@ -50,17 +25,17 @@ export interface PhaseInsight {
 
 export function usePhaseBlunderInsight() {
   const { user } = useAuth();
-  const ratingMean = useUserRatingMean();
 
   return useQuery({
-    queryKey: ['insights', 'phase', user?.id, ratingMean.data?.meanRating],
-    enabled: !!user && ratingMean.isFetched,
+    queryKey: ['insights', 'phase', user?.id],
+    enabled: !!user,
     queryFn: async (): Promise<PhaseInsight> => {
-      const [counts, set] = await Promise.all([
+      const [counts, set, meanRating] = await Promise.all([
         supabaseService.getBlunderPhaseCounts(),
         loadBenchmarks(),
+        supabaseService.getUserRatingMean(),
       ]);
-      const band = ratingBand(ratingMean.data?.meanRating ?? null);
+      const band = ratingBand(meanRating);
       const open = lookupBenchmark(set, 'phase_blunder_rate', `opening:${band}`);
       const mid = lookupBenchmark(set, 'phase_blunder_rate', `middlegame:${band}`);
       const end = lookupBenchmark(set, 'phase_blunder_rate', `endgame:${band}`);
@@ -103,14 +78,16 @@ export const MIN_TOTAL_GAMES_FOR_OPENING = 10;
 
 export function useOpeningInsight() {
   const { user } = useAuth();
-  const ratingMean = useUserRatingMean();
 
   return useQuery({
-    queryKey: ['insights', 'opening', user?.id, ratingMean.data?.meanRating],
-    enabled: !!user && ratingMean.isFetched,
+    queryKey: ['insights', 'opening', user?.id],
+    enabled: !!user,
     queryFn: async (): Promise<OpeningInsight> => {
-      const groups = await supabaseService.getOpeningPerformance();
-      const band = ratingBand(ratingMean.data?.meanRating ?? null);
+      const [groups, meanRating] = await Promise.all([
+        supabaseService.getOpeningPerformance(),
+        supabaseService.getUserRatingMean(),
+      ]);
+      const band = ratingBand(meanRating);
       const totalGames = groups.reduce((acc, g) => acc + g.games, 0);
       // All rows — the card decides how many to show (top 3 + "show all").
       const rows: OpeningInsightRow[] = groups.map((g) => ({

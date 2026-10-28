@@ -27,11 +27,12 @@ import { supabaseService } from './supabaseService';
 export const DRAW_KEEP_ABS_CP = 150;
 export const WIN_KEEP_MIN_CP = 300;
 
+// Time-capped (the depth cap is a backstop for trivial endings) with no
+// decided-score stop, same as the play-out's reference eval: a shallow decided
+// score is where the horizon misjudges an endgame.
 const VERIFY_OPTS = {
-  movetimeMs: 3000,
-  maxDepth: 30,
-  decidedCp: 800,
-  decidedMinDepth: 16,
+  movetimeMs: 5000,
+  maxDepth: 50,
   pvMoves: 1,
 };
 const BATCH_SIZE = 5;
