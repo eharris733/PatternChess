@@ -182,6 +182,10 @@ If it can't be tested in a browser, say so explicitly rather than claiming succe
   `analyzed_at IS NULL` game (`getLeftoverUnanalyzedGameIds`, all platforms),
   yielding to an in-flight sync (`isAnySyncInFlight`). `analyzeGames` stamps a
   game that fails to analyze instead of aborting the batch.
+  `countUnanalyzedGames` (every background job's "sync busy?" gate) remembers a
+  **zero** for 30s; `insertGames` and `resetGameAnalyzed` forget it. Never
+  cache a nonzero count — waiting jobs must see it drop. Maintenance refreshes
+  the motif card at most every 2 min (`MOTIF_REFRESH_MS`) plus once at the end.
 - **Bulk delete** (`BulkDeleteGamesModal`, Vault Games tab): played-before-date
   or all, via `deleteGames(ids)` in 100-id chunks; FKs cascade.
 - **Already-analyzed games are not re-analyzed by sync.** `getUnanalyzedGameIds`
