@@ -1,4 +1,5 @@
 import { analyzeGames } from './analysisService';
+import { extractChesscomGameId, extractLichessGameId, isLichessRated } from './chessApiService';
 import { extractHeaders, parsePgnMetadata } from './pgnParserService';
 import { classifyGameRowsForInsert } from './openingClassificationService';
 import { supabaseService } from './supabaseService';
@@ -65,13 +66,33 @@ function deriveResult(headers: Record<string, string>): string | null {
   return null;
 }
 
+type GamePlatform = 'lichess' | 'chess.com' | 'pgn';
+
 interface PreparedRow {
   pgn: string;
   row: GameInsert;
+  platform: GamePlatform;
   externalId: string;
+  /** Content hash — the legacy key every upload used before source ids. */
+  pgnHash: string;
   hadHeaders: boolean;
   /** Whether the entered name matched the White/Black headers. */
   matched: boolean;
+}
+
+/**
+ * The site game a PGN was exported from, when its headers say so. Lichess
+ * writes the URL in Site; chess.com in Link.
+ */
+export function pgnSourceGame(
+  pgn: string,
+  headers: Record<string, string>,
+): { platform: 'lichess' | 'chess.com'; id: string } | null {
+  const lichessId = extractLichessGameId(headers.Site);
+  if (lichessId) return { platform: 'lichess', id: lichessId };
+  const chesscomId = extractChesscomGameId(null, pgn);
+  if (chesscomId) return { platform: 'chess.com', id: chesscomId };
+  return null;
 }
 
 /** True when the entered name matches the PGN's White or Black header. */
@@ -91,7 +112,7 @@ async function preparePgn(
   colorOverride: PgnColorOverride,
 ): Promise<PreparedRow> {
   const headers = extractHeaders(pgn);
-  const externalId = await pgnHash(pgn);
+  const hash = await pgnHash(pgn);
   const lowerName = userPgnName.trim().toLowerCase();
   const white = headers.White ?? '';
   const black = headers.Black ?? '';
@@ -116,14 +137,21 @@ async function preparePgn(
       ? 'black'
       : colorOverride;
   const playedAt = parsePgnDate(headers.UTCDate ?? headers.Date, headers.UTCTime ?? headers.StartTime);
+  // A user's own Lichess / chess.com export is stored as that site's game,
+  // keyed by its game id, so a later sync of the same account recognises it
+  // instead of importing (and analyzing) it a second time. Someone else's
+  // games (name not in the headers) stay plain uploads.
+  const source = matched ? pgnSourceGame(pgn, headers) : null;
+  const platform: GamePlatform = source?.platform ?? 'pgn';
+  const externalId = source?.id ?? hash;
 
   const row: GameInsert = {
-    platform: 'pgn',
+    platform,
     username,
     opponent: opponent || 'Unknown',
     pgn,
     time_control: headers.TimeControl ?? null,
-    rated: false,
+    rated: platform === 'lichess' ? isLichessRated(headers) : false,
     result: deriveResult(headers),
     played_at: playedAt,
     external_game_id: externalId,
@@ -133,7 +161,9 @@ async function preparePgn(
   return {
     pgn,
     row,
+    platform,
     externalId,
+    pgnHash: hash,
     hadHeaders: Object.keys(headers).length > 0,
     matched,
   };
@@ -161,12 +191,21 @@ export async function uploadPgns(args: {
   }
   const unmatched = prepared.filter((p) => !p.matched).length;
 
-  const existing = await supabaseService.getExistingExternalGameIds('pgn');
+  // Existing keys per platform the file touches. The 'pgn' hashes always
+  // load too: games uploaded before source ids existed are keyed by hash.
+  const platforms = new Set<GamePlatform>(['pgn', ...prepared.map((p) => p.platform)]);
+  const existing = new Set<string>();
+  for (const platform of platforms) {
+    for (const id of await supabaseService.getExistingExternalGameIds(platform)) {
+      existing.add(`${platform}|${id}`);
+    }
+  }
   const seenInBatch = new Set<string>();
   const fresh = prepared.filter((p) => {
-    if (existing.has(p.externalId)) return false;
-    if (seenInBatch.has(p.externalId)) return false;
-    seenInBatch.add(p.externalId);
+    const key = `${p.platform}|${p.externalId}`;
+    if (existing.has(key) || existing.has(`pgn|${p.pgnHash}`)) return false;
+    if (seenInBatch.has(key)) return false;
+    seenInBatch.add(key);
     return true;
   });
   const duplicates = prepared.length - fresh.length;

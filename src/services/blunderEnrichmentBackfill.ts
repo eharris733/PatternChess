@@ -5,7 +5,9 @@ import { winningChancesLost } from '../chess/winningChances';
 import { getAnalysisStockfish } from '../hooks/useStockfish';
 import { queryClient } from '../lib/queryClient';
 import type { Blunder, CorrectMove } from '../models/blunder';
+import { isAnySyncInFlight } from '../state/syncStore';
 import type { PositionEval } from '../stockfish/stockfishWorkerClient';
+import { analyzeGames } from './analysisService';
 import { supabaseService } from './supabaseService';
 
 export interface MaintenanceProgress {
@@ -69,7 +71,7 @@ export function isMaintenanceRunning(): boolean {
 
 /**
  * Dashboard-only background maintenance over the user's blunder rows, two
- * phases per run:
+ * phases per run (after finishing any games sync left unanalyzed):
  *
  * 1. Enrichment — legacy rows with no solution_line get PVs + motif tags.
  * 2. Deepening — every row's evals/PV started life as a fast depth-12 sync
@@ -100,7 +102,33 @@ export function startBlunderMaintenance(
   void (async () => {
     try {
       const syncBusy = async () => (await supabaseService.countUnanalyzedGames()) > 0;
-      if (await syncBusy()) return;
+
+      // Phase 0 — leftover games. Sync only analyzes its own platform and
+      // username, so PGN uploads, games under an old handle and runs cut short
+      // by a closed tab stay unanalyzed forever — and every job gated on
+      // syncBusy() below (this one, endgame verification, the openings
+      // engine stages) never runs for that user. Finish them here, a game at a
+      // time, yielding as soon as a sync in this tab wants the engine.
+      if (isAnySyncInFlight()) return;
+      if (await syncBusy()) {
+        const done = new Set<string>();
+        while (!stopped) {
+          const ids = (await supabaseService.getLeftoverUnanalyzedGameIds(BATCH_SIZE)).filter(
+            (id) => !done.has(id),
+          );
+          // Empty, or only ids we already stamped (an update that silently
+          // didn't land) — either way, nothing left to do this visit.
+          if (ids.length === 0) break;
+          for (const id of ids) {
+            if (stopped || isAnySyncInFlight()) return;
+            await analyzeGames([id], null);
+            done.add(id);
+          }
+          void queryClient.invalidateQueries({ queryKey: ['games'] });
+          void queryClient.invalidateQueries({ queryKey: ['blunders'] });
+        }
+        if (stopped || (await syncBusy())) return;
+      }
 
       let enriched = 0;
       let deepened = 0;
