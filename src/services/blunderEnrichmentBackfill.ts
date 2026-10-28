@@ -39,6 +39,16 @@ const DEEPEN_OPTS = {
   decidedMinDepth: 16,
   pvMoves: 10,
 };
+/**
+ * Endgames get a longer, purely time-capped look: no decided-score stop (a
+ * shallow "+8, done" is exactly where the horizon hides a fortress or a lost
+ * pawn race) and a depth cap high enough that only trivial endings hit it.
+ */
+const ENDGAME_DEEPEN_OPTS = { movetimeMs: 5000, maxDepth: 50, pvMoves: 10 };
+
+function deepenOptsFor(blunder: Blunder) {
+  return blunder.kind === 'endgame' || blunder.phase === 'endgame' ? ENDGAME_DEEPEN_OPTS : DEEPEN_OPTS;
+}
 /** Longer pause after deepening rows — each one costs ~2×3s of engine time. */
 const DEEPEN_ROW_DELAY_MS = 4000;
 /**
@@ -201,8 +211,9 @@ async function enrichOne(
   sf: Awaited<ReturnType<typeof getAnalysisStockfish>>,
   blunder: Blunder,
 ): Promise<void> {
-  const best = await sf.evaluateSmart(blunder.fen, DEEPEN_OPTS);
-  const played = await sf.evaluateSmart(afterPlayedFen(blunder), DEEPEN_OPTS);
+  const opts = deepenOptsFor(blunder);
+  const best = await sf.evaluateSmart(blunder.fen, opts);
+  const played = await sf.evaluateSmart(afterPlayedFen(blunder), opts);
 
   const solution_line = {
     pv: best.principalVariation,
@@ -240,11 +251,12 @@ async function deepenOne(
   sf: Awaited<ReturnType<typeof getAnalysisStockfish>>,
   blunder: Blunder,
 ): Promise<void> {
-  const best = await sf.evaluateSmart(blunder.fen, DEEPEN_OPTS);
+  const opts = deepenOptsFor(blunder);
+  const best = await sf.evaluateSmart(blunder.fen, opts);
   // A blunder position always has a legal move, so an empty bestMove means the
   // engine hiccuped — skip the row rather than storing a bogus correct move.
   if (!best.bestMove) throw new Error('engine returned no bestmove');
-  const played = await sf.evaluateSmart(afterPlayedFen(blunder), DEEPEN_OPTS);
+  const played = await sf.evaluateSmart(afterPlayedFen(blunder), opts);
   const chancesLost = winningChancesLost(best.scoreCp, played.scoreCp);
 
   await supabaseService.updateBlunderDeepening(blunder.id, {

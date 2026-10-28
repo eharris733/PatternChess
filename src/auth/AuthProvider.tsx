@@ -1,6 +1,8 @@
 import { createContext, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { queryClient } from '../lib/queryClient';
+import { clearPersistedQueries, shouldPersistQuery } from '../lib/queryPersist';
 import { authService } from '../services/authService';
 import { takeStoredReferral } from '../lib/referral';
 import { takeStoredSignupSource } from '../lib/signupSource';
@@ -128,6 +130,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       adoptSession(nextSession ?? null);
       scrubAuthFromUrl();
       if (event === 'SIGNED_OUT') {
+        // Never leave one account's cached games/stats for the next sign-in.
+        queryClient.removeQueries({ predicate: shouldPersistQuery });
+        void clearPersistedQueries();
         useSyncStore.getState().reset();
         useOnboardingStore.getState().reset();
       }

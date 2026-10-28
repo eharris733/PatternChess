@@ -11,8 +11,8 @@ vi.mock('../services/supabaseService', () => ({
   },
 }));
 
-// Scripted engine. Judging/reference evals (they carry a decided-score stop)
-// come from evalQueue in FIFO order; replies (no decided stop) from replyQueue.
+// Scripted engine. Reference / judge / confirm evals (the depth-50 time-capped
+// budgets) come from evalQueue in FIFO order; replies (shallower cap) from replyQueue.
 // Either queue may hold a promise so a test can hold an eval in flight.
 const evalQueue: Array<PositionEval | Promise<PositionEval>> = [];
 const replyQueue: string[] = [];
@@ -22,7 +22,7 @@ vi.mock('../hooks/useStockfish', () => ({
     newGame: async () => {},
     setOptions: async () => {},
     evaluateSmart: async (_fen: string, opts: SmartEvalOptions): Promise<PositionEval> => {
-      if (opts.decidedCp == null) {
+      if (opts.maxDepth !== 50) {
         const next = replyQueue.shift();
         if (next == null) throw new Error('reply queue empty');
         return { scoreCp: 0, bestMove: next, principalVariation: [next], depth: 20 };
@@ -93,6 +93,9 @@ async function playLosingMove(from: string, to: string) {
   // +500 for the side to move (the opponent) — user win% ≈ 8, below the
   // draw-target fail line of 25.
   evalQueue.push(ev(500, 'e8d8', ['e8d8', 'e1f1', 'd8c7']));
+  // Confirm pass: the deeper search agrees the position was level before.
+  evalQueue.push(ev(0)); // deep before (best move e2e4, not the played one)
+  evalQueue.push(ev(500, 'e8d8', ['e8d8', 'e1f1', 'd8c7'])); // deep after
   await getState().processMove({ from, to });
 }
 
@@ -102,6 +105,59 @@ beforeEach(() => {
   replyQueue.length = 0;
   insertBlunders.mockClear();
   stopOpponentSearch.mockClear();
+});
+
+describe('endgamePlayoutStore slip confirmation', () => {
+  async function startWin(refBest: string) {
+    evalQueue.push(ev(1000, refBest)); // shallow ref: +10, hint = refBest
+    await getState().start({
+      startFen: START_FEN,
+      userColor: 'white',
+      target: 'win',
+      sourceGameId: 'game-1',
+      rules: HOLD_RULES,
+    });
+    await awaitRef();
+  }
+
+  it('accepts the hinted move even when the judge sees a big drop', async () => {
+    await startWin('e1d1');
+    evalQueue.push(ev(-300)); // judge: user +300 (~75%), a 22-point drop from +1000
+    evalQueue.push(ev(320, 'e1f1')); // deep before: the position was only ~+3
+    evalQueue.push(ev(-300)); // deep after
+    replyQueue.push('e8d8');
+    evalQueue.push(ev(300)); // next ref
+    await getState().processMove({ from: 'e1', to: 'd1' });
+    await awaitRef();
+    expect(getState().phase).toBe('solving');
+    expect(getState().slip).toBeNull();
+    expect(getState().confirming).toBe(false);
+  });
+
+  it('forgives a horizon drop when the deeper search agrees with the after-score', async () => {
+    await startWin('e1d1');
+    evalQueue.push(ev(-300));
+    evalQueue.push(ev(320, 'e1d1')); // deep best is still another move
+    evalQueue.push(ev(-300));
+    replyQueue.push('e8d8');
+    evalQueue.push(ev(300));
+    await getState().processMove({ from: 'e1', to: 'f2' });
+    await awaitRef();
+    expect(getState().phase).toBe('solving');
+    expect(getState().userMovesPlayed).toBe(1);
+  });
+
+  it('keeps the slip when the deeper search confirms it, with the deeper best move', async () => {
+    await startWin('e1d1');
+    evalQueue.push(ev(-300));
+    evalQueue.push(ev(1000, 'e1d2', ['e1d2', 'e8d8']));
+    evalQueue.push(ev(-300, 'e8d7', ['e8d7']));
+    await getState().processMove({ from: 'e1', to: 'f2' });
+    const state = getState();
+    expect(state.phase).toBe('failed');
+    expect(state.slip?.bestUci).toBe('e1d2');
+    expect(state.slip?.refutationPv).toEqual(['e8d7']);
+  });
 });
 
 describe('endgamePlayoutStore slips', () => {

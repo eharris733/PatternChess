@@ -26,7 +26,7 @@ export interface GameRecord {
   parsedMetadataAt: Date | null;
 }
 
-function parseColor(v: unknown): 'white' | 'black' | null {
+export function parseColor(v: unknown): 'white' | 'black' | null {
   return v === 'white' || v === 'black' ? v : null;
 }
 
