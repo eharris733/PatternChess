@@ -21,6 +21,7 @@ export async function insertGames(
     })
     .select();
   if (error) throw error;
+  if ((data?.length ?? 0) > 0) forgetUnanalyzedCount();
   return (data ?? []).map(gameRecordFromJson);
 }
 
@@ -126,16 +127,40 @@ export async function getLeftoverUnanalyzedGameIds(limit: number): Promise<strin
   return (data ?? []).map((row) => row.id);
 }
 
+/**
+ * Remembers a zero from countUnanalyzedGames for a short while. Every
+ * background job (blunder maintenance, endgame verification, the openings
+ * scan) uses the count as its "is sync analysis busy?" gate, and the openings
+ * scan re-asks on every loop pass: ~120 HEAD requests per 10 minutes on an
+ * open dashboard, nearly all answering 0. Only a zero is kept — while games
+ * are waiting, the jobs poll on their own timers and must see the count drop
+ * promptly. In this tab, only inserting a game or clearing analyzed_at can
+ * make it nonzero, and both forget it; another tab's import shows within the TTL.
+ */
+const UNANALYZED_COUNT_TTL_MS = 30_000;
+let unanalyzedZero: { userId: string; at: number } | null = null;
+
+function forgetUnanalyzedCount(): void {
+  unanalyzedZero = null;
+}
+
 /** User-wide unanalyzed-game count — the maintenance worker's sync guard. */
 export async function countUnanalyzedGames(): Promise<number> {
   const userId = await currentUserId();
   if (!userId) return 0;
+  if (
+    unanalyzedZero?.userId === userId &&
+    Date.now() - unanalyzedZero.at < UNANALYZED_COUNT_TTL_MS
+  ) {
+    return 0;
+  }
   const { count, error } = await supabase
     .from('games')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
     .is('analyzed_at', null);
   if (error) throw error;
+  unanalyzedZero = (count ?? 0) === 0 ? { userId, at: Date.now() } : null;
   return count ?? 0;
 }
 
@@ -189,6 +214,7 @@ export async function resetGameAnalyzed(gameId: string): Promise<void> {
     .update({ analyzed_at: null })
     .eq('id', gameId);
   if (error) throw error;
+  forgetUnanalyzedCount();
 }
 
 export async function getExistingExternalGameIds(
