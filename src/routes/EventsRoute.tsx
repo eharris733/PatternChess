@@ -23,9 +23,9 @@ const FEATURES: { title: string; body: string; href: string; cta: string }[] = [
   },
   {
     title: 'Subscribe, never check back',
-    body: 'Free iCal feeds for any state or club drop every event straight into Google Calendar or Apple Calendar, and a free JSON API serves the same data for anything you want to build.',
+    body: 'Free iCal feeds for any state or club drop every event straight into Google Calendar or Apple Calendar.',
     href: `${EVENTS_URL}/about`,
-    cta: 'Get the feeds & API',
+    cta: 'Get the feeds',
   },
 ];
 
@@ -36,7 +36,7 @@ export function EventsRoute() {
   useHead({
     title: 'Find over-the-board chess tournaments near you',
     description:
-      'PatternChess Events is a free directory of USCF chess tournaments and club nights across all 50 states, built from real club calendars — with iCal feeds and a free JSON API.',
+      'PatternChess Events is a free directory of USCF chess tournaments and club nights across all 50 states, built from real club calendars — with free iCal feeds.',
     canonical: '/events',
     jsonLd: breadcrumbJsonLd([
       { name: 'PatternChess', url: '/' },

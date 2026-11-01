@@ -118,7 +118,7 @@ function main() {
     `- [RSS feed](${SITE_URL}/rss.xml): New posts.\n` +
     `- [Sitemap](${SITE_URL}/sitemap.xml): All indexable URLs.\n\n` +
     `## Related\n` +
-    `- [PatternChess Events](https://events.patternchess.com/): Upcoming US chess tournaments and club events, with a free JSON API, iCal feeds, and an MCP server (see https://events.patternchess.com/llms.txt).\n` +
+    `- [PatternChess Events](https://events.patternchess.com/): Upcoming US chess tournaments and club events, with iCal feeds and an MCP server (see https://events.patternchess.com/llms.txt).\n` +
     `- [Tournaments](${SITE_URL}/events): Same events data embedded on this site.\n\n` +
     `## Policies\n` +
     `- [Terms](${SITE_URL}/terms)\n` +

@@ -1,5 +1,7 @@
 // Upcoming OTB tournaments from the sibling ChessEventsData service
-// (events.patternchess.com). Public read API, no auth. The API sends
+// (events.patternchess.com). Not a public API: /api/events answers only
+// PatternChess origins (patternchess.com, *.patternchess.pages.dev,
+// localhost:5173/4173 — see web/src/lib/partnerFeed.ts there). It sends
 // Cross-Origin-Resource-Policy: cross-origin so the fetch survives this
 // app's COEP isolation.
 
