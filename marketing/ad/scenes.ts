@@ -75,18 +75,53 @@ async function center(page: Page, selector: string) {
 }
 
 /**
- * Moves a virtual camera over the app: an eased CSS transform on #root.
- * Bounding boxes and the mouse follow the transform, so glides still land.
+ * Moves a virtual camera over the app: an eased transform on #root, stepped
+ * every animation frame from script (a CSS transition runs on the compositor,
+ * where the screencast drops frames and the move shows up as a jump).
+ * Resolves when the move ends. Bounding boxes and the mouse follow the
+ * transform, so glides still land.
  */
-async function camera(page: Page, transform: string, origin: string, ms: number) {
+type Shot = { x: number; y: number; scale: number };
+const WIDE: Shot = { x: 0, y: 0, scale: 1 };
+
+async function camera(page: Page, to: Shot, origin: string, ms: number) {
   await page.evaluate(
-    ([transform, origin, ms]) => {
-      const root = document.getElementById('root')!;
-      root.style.transformOrigin = origin;
-      root.style.transition = `transform ${ms}ms cubic-bezier(.45,0,.2,1)`;
-      root.style.transform = transform;
-    },
-    [transform, origin, ms] as const,
+    ([to, origin, ms]) =>
+      new Promise<void>((done) => {
+        const root = document.getElementById('root')!;
+        const w = window as any;
+        const from: { x: number; y: number; scale: number } = w.__adShot ?? { x: 0, y: 0, scale: 1 };
+        // cubic-bezier(.45,0,.2,1): solve x(u) = t by bisection, return y(u).
+        const bez = (a: number, b: number, u: number) => 3 * a * u * (1 - u) ** 2 + 3 * b * u * u * (1 - u) + u ** 3;
+        const ease = (t: number) => {
+          let lo = 0;
+          let hi = 1;
+          for (let i = 0; i < 20; i++) {
+            const mid = (lo + hi) / 2;
+            if (bez(0.45, 0.2, mid) < t) lo = mid;
+            else hi = mid;
+          }
+          return bez(0, 1, (lo + hi) / 2);
+        };
+        root.style.transition = 'none';
+        root.style.transformOrigin = origin;
+        const t0 = performance.now();
+        const step = () => {
+          const t = Math.min(1, (performance.now() - t0) / ms);
+          const k = ease(t);
+          const x = from.x + (to.x - from.x) * k;
+          const y = from.y + (to.y - from.y) * k;
+          const scale = from.scale + (to.scale - from.scale) * k;
+          root.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+          if (t < 1) return requestAnimationFrame(step);
+          w.__adShot = to;
+          // Back at wide: drop the transform entirely so the app lays out untransformed.
+          if (to.x === 0 && to.y === 0 && to.scale === 1) root.style.transform = 'none';
+          done();
+        };
+        requestAnimationFrame(step);
+      }),
+    [to, origin, ms] as const,
   );
 }
 
@@ -261,7 +296,7 @@ export const SCENES: Scene[] = [
     },
   },
 
-  drillScene('drill2', '409b8541-1a9d-4c51-9571-65626f1b22f8', { glideMs: 360, preplay: 1 }), // (Qxc6 Qxc6) Ne7+ fork, Nxc6
+  drillScene('drill2', '409b8541-1a9d-4c51-9571-65626f1b22f8', { glideMs: 240, preplay: 1 }), // (Qxc6 Qxc6) Ne7+ fork, Nxc6
 
   {
     // The /training landing's motif filters: push in on the "By pattern" card,
@@ -299,19 +334,19 @@ export const SCENES: Scene[] = [
       const cx = box.x + box.width / 2;
       const cy = box.y + box.height / 2;
       const ty = vp.height * (ratio === 'vertical' ? 0.4 : 0.42) - cy;
-      await camera(page, `translate(${vp.width / 2 - cx}px, ${ty}px) scale(${scale})`, `${cx}px ${cy}px`, 1100);
-      await sleep(1150);
+      await camera(page, { x: vp.width / 2 - cx, y: ty, scale }, `${cx}px ${cy}px`, 800);
+      await sleep(50);
       // Hover in step with the read: back-rank, then hanging pieces.
       for (const name of ['Back-rank weakness', 'Missed hanging piece']) {
         const chip = await page.getByRole('button', { name }).first().boundingBox();
         if (!chip) continue;
-        await glide(page, { x: chip.x + chip.width / 2, y: chip.y + chip.height / 2 }, 600);
-        await sleep(300);
+        await glide(page, { x: chip.x + chip.width / 2, y: chip.y + chip.height / 2 }, 500);
+        await sleep(200);
       }
       // Pull back before picking: Chessground measures the board when it mounts,
       // so it must not mount under the camera's scale (pieces come out giant).
-      await camera(page, 'none', `${cx}px ${cy}px`, 700);
-      await sleep(720);
+      await camera(page, WIDE, `${cx}px ${cy}px`, 600);
+      await sleep(20);
       const pick = await page.getByRole('button', { name: 'Back-rank weakness' }).first().boundingBox();
       if (pick) {
         await glide(page, { x: pick.x + pick.width / 2, y: pick.y + pick.height / 2 }, 450);

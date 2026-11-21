@@ -34,6 +34,8 @@ export interface GameStatRow {
   platform: string | null;
   time_control: string | null;
   clock_per_ply: unknown;
+  rated: boolean | null;
+  user_rating: number | null;
 }
 
 // Explicit so a fresh cache entry is reused by every card mounting in the same
@@ -44,7 +46,7 @@ const BLUNDER_STAT_COLUMNS =
   'id, kind, phase, game_id, eval_before, move_number, side_to_move, cycle_number, times_correct, times_attempted, last_drilled_at, last_drill_failed';
 
 const GAME_STAT_COLUMNS =
-  'id, opening_family, opening_name, eco, user_color, result, platform, time_control, clock_per_ply';
+  'id, opening_family, opening_name, eco, user_color, result, platform, time_control, clock_per_ply, rated, user_rating';
 
 /** Every blunder row (all kinds, retired included — stats count them) for the user. */
 export function getBlunderStatRows(userId: string): Promise<BlunderStatRow[]> {

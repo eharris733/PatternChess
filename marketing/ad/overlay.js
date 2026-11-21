@@ -164,14 +164,19 @@
         .join('')}</div></div>`;
     },
     testimonials: (d) => {
-      // Each quote stays up in proportion to its length (min 2.2s).
+      // Each quote appears at its `at` (in step with the voiceover) when every
+      // quote has one, else stays up in proportion to its length (min 2.2s).
       const list = d.copy.testimonials;
+      const timed = list.every((t) => typeof t.at === 'number');
       const weights = list.map((t) => Math.max(words(t.quote) + 4, 8));
       const total = weights.reduce((a, b) => a + b, 0);
       let at = 0;
       return `<div class="ad-card">${SQUARES(d.ratio)}<div class="ad-quotes">${list
         .map((t, i) => {
-          const len = Math.max(2.2, (d.seconds * weights[i]) / total);
+          if (timed) at = list[i].at;
+          const len = timed
+            ? (list[i + 1]?.at ?? d.seconds) - list[i].at
+            : Math.max(2.2, (d.seconds * weights[i]) / total);
           const html = `<figure class="ad-quote${i === list.length - 1 ? ' ad-last' : ''}" style="--d:${at.toFixed(2)}s; --len:${len.toFixed(2)}s">
             <div class="ad-qmark">&ldquo;</div>
             <q>${txt(t.quote, `testimonials[${i}].quote`)}</q>
@@ -252,6 +257,19 @@
       r.innerHTML = CARDS[name](data);
     },
     play() {
+      // Repaint a 1px dot every frame so the screencast keeps sending frames
+      // through compositor-only animations (otherwise they show up as jumps).
+      if (!window.__adTick) {
+        const dot = document.createElement('div');
+        dot.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;pointer-events:none;z-index:2147483647';
+        document.documentElement.appendChild(dot);
+        let n = 0;
+        const tick = () => {
+          dot.style.background = `rgba(0,0,0,${(n++ % 2) * 0.01 + 0.01})`;
+          window.__adTick = requestAnimationFrame(tick);
+        };
+        tick();
+      }
       const r = document.getElementById('ad-root');
       if (r) {
         r.classList.add('ad-play');

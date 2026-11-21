@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Chess } from 'chess.js';
 import {
   AdjudicationRules,
+  confirmSlip,
   engineAcceptsDraw,
   judgeTerminal,
   judgeUserMove,
@@ -18,7 +19,8 @@ import { supabaseService } from '../services/supabaseService';
 /**
  * - `solving`: user to move. The board is live as soon as the FEN is set —
  *   the reference eval for this position may still be in flight (`refPending`).
- * - `judging`: the user's move is on the board and the engine is scoring it.
+ * - `judging`: the user's move is on the board and the engine is scoring it
+ *   (`confirming` while a would-be slip gets a longer second look).
  * - `thinking`: the move passed; the engine is choosing its reply.
  */
 export type PlayoutPhase = 'idle' | 'solving' | 'judging' | 'thinking' | 'passed' | 'failed';
@@ -104,6 +106,8 @@ interface EndgamePlayoutState {
   refEval: PositionEval | null;
   /** True while the reference eval for the current position is still running. */
   refPending: boolean;
+  /** True while a move the first judgement failed is re-checked with longer searches. */
+  confirming: boolean;
   slip: PlayoutSlip | null;
   terminal: TerminalKind | null;
   engineError: string | null;
@@ -129,24 +133,20 @@ let nextToken = 0;
 let activeToken = 0;
 let activeOpts: PlayoutStartOptions | null = null;
 
-// Smart-depth budgets. Time-based caps rather than a fixed depth: a hard depth
-// (12) stops far short of the horizon in deep endgames and the jittery evals
-// crossed the adjudication bands and produced false slips. The depth cap lets
-// simple endings (which hit depth 28 in a fraction of a second) return early,
-// and the decided-score stop skips the rest of the think once the position is
-// clearly won or lost. `decidedCp` is deliberately high for judging: ref and
-// post evals must be comparable, and at ±10 pawns a deeper look would have to
-// fall to ~4 pawns before the 15% drop rule could trip.
-const REF_EVAL_OPTS: SmartEvalOptions = {
-  movetimeMs: 2500,
-  maxDepth: 28,
-  decidedCp: 1000,
-  decidedMinDepth: 18,
-  pvMoves: 10,
-};
-const JUDGE_EVAL_OPTS = REF_EVAL_OPTS;
-// No decided-score stop for the reply: we want the engine's best move, not
-// just a confirmation that it's winning.
+// Endgame budgets are time-capped. The depth cap (50) is only a backstop that
+// lets trivial endings return early; a real endgame runs to the time limit.
+// There is no decided-score early stop: a ref search cut off at a shallow +10
+// made a deeper post-move search look like a 15% drop and failed the engine's
+// own hinted move.
+//
+// The ref eval (hint + "before" score) runs while the user thinks, so it gets
+// the longest budget. The judge blocks the board, so it is shorter; the
+// transposition table is warm from the ref search, and any fail it reports is
+// re-checked with CONFIRM_EVAL_OPTS before it counts.
+const REF_EVAL_OPTS: SmartEvalOptions = { movetimeMs: 5000, maxDepth: 50, pvMoves: 10 };
+const JUDGE_EVAL_OPTS: SmartEvalOptions = { movetimeMs: 3000, maxDepth: 50, pvMoves: 10 };
+const CONFIRM_EVAL_OPTS: SmartEvalOptions = { movetimeMs: 6000, maxDepth: 50, pvMoves: 10 };
+// We want the engine's best move for the reply, not a long think.
 const REPLY_OPTS: SmartEvalOptions = { movetimeMs: 1000, maxDepth: 24, pvMoves: 5 };
 
 function fullmoveFromFen(fen: string): number {
@@ -306,6 +306,7 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
       slipLog: 'idle',
       refEval: restoredRef,
       refPending: restoredRef === null,
+      confirming: false,
     });
     if (restoredRef === null) {
       void kickRefEval(fen, token, true);
@@ -329,6 +330,7 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
     userMovesPlayed: 0,
     refEval: null,
     refPending: false,
+    confirming: false,
     slip: null,
     terminal: null,
     engineError: null,
@@ -439,15 +441,43 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
         }
 
         const sf = await getOpponentStockfish();
-        const postEval = await sf.evaluateSmart(afterFen, JUDGE_EVAL_OPTS);
+        let postEval = await sf.evaluateSmart(afterFen, JUDGE_EVAL_OPTS);
         if (activeToken !== token) return;
 
         // refEval position has the user to move; afterFen has the opponent.
-        const userWinPctBefore = refEval
+        let userWinPctBefore = refEval
           ? winPercent(cpForColor(refEval.scoreCp, userColor, userColor))
           : winPercent(cpForColor(-postEval.scoreCp, userColor, userColor));
-        const userWinPctAfter = winPercent(-postEval.scoreCp);
-        const judged = judgeUserMove({ target, userWinPctBefore, userWinPctAfter, heldStreak, rules });
+        let userWinPctAfter = winPercent(-postEval.scoreCp);
+        let judged = judgeUserMove({ target, userWinPctBefore, userWinPctAfter, heldStreak, rules });
+        let slipRef = refEval;
+
+        if (judged.verdict === 'fail') {
+          // Second opinion before calling it a slip: search both positions
+          // longer. The engine's own best move must never "give up the win".
+          set({ confirming: true });
+          const deepBefore = await sf.evaluateSmart(preFen, CONFIRM_EVAL_OPTS);
+          if (activeToken !== token) return;
+          const deepAfter = await sf.evaluateSmart(afterFen, CONFIRM_EVAL_OPTS);
+          if (activeToken !== token) return;
+          set({ confirming: false });
+          postEval = deepAfter;
+          slipRef = deepBefore;
+          userWinPctBefore = winPercent(cpForColor(deepBefore.scoreCp, userColor, userColor));
+          userWinPctAfter = winPercent(-deepAfter.scoreCp);
+          judged = confirmSlip({
+            target,
+            rules,
+            heldStreak,
+            playedUci: uci,
+            hintUci: refEval?.bestMove || null,
+            deepBestUci: deepBefore.bestMove || null,
+            userWinPctBefore,
+            userWinPctAfter,
+          });
+          // Keep the deeper eval for take-back / retry from here.
+          entry.refEval = deepBefore;
+        }
 
         if (judged.verdict === 'fail') {
           const slip: PlayoutSlip = {
@@ -455,17 +485,17 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
             moveNumber: fullmoveFromFen(preFen),
             playedUci: uci,
             playedSan: result.san,
-            bestUci: refEval?.bestMove ?? '',
-            bestSan: refEval ? uciToSan(preFen, refEval.bestMove) : null,
+            bestUci: slipRef?.bestMove ?? '',
+            bestSan: slipRef ? uciToSan(preFen, slipRef.bestMove) : null,
             chancesLost: userWinPctBefore - userWinPctAfter,
             refutationPv: postEval.principalVariation,
             heldStreakAtSlip: heldStreak,
             userMovesPlayedAtSlip: userMovesPlayed,
-            refEvalAtSlip: refEval,
+            refEvalAtSlip: slipRef,
             evalAfterSlip: postEval.scoreCp,
             historyLenAtSlip: historyLen,
           };
-          set({ slipLog: stashSlipLog(slip, refEval, postEval) });
+          set({ slipLog: stashSlipLog(slip, slipRef, postEval) });
           finish({ success: false, slip, ending: 'slip', terminal: null });
           return;
         }
@@ -546,6 +576,7 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
           fen: preFen,
           lastMove: preLastMove,
           engineError: errorMessage(err),
+          confirming: false,
           history: get().history.filter((e) => e !== entry),
         });
       }
@@ -640,6 +671,7 @@ export const useEndgamePlayoutStore = create<EndgamePlayoutState>((set, get) => 
         userMovesPlayed: 0,
         refEval: null,
         refPending: false,
+        confirming: false,
         slip: null,
         terminal: null,
         engineError: null,

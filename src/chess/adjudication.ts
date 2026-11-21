@@ -125,9 +125,6 @@ export interface JudgeMoveResult {
  */
 export function judgeUserMove(input: JudgeMoveInput): JudgeMoveResult {
   const { target, userWinPctBefore, userWinPctAfter, heldStreak, rules } = input;
-  const adjudicate = (nextStreak: number) =>
-    rules.mode === 'hold' && nextStreak >= rules.holdMoves;
-
   if (target === 'win') {
     if (
       userWinPctAfter < WIN_FAIL_BELOW_PCT ||
@@ -135,18 +132,66 @@ export function judgeUserMove(input: JudgeMoveInput): JudgeMoveResult {
     ) {
       return { verdict: 'fail', heldStreak: 0 };
     }
-    const nextStreak = userWinPctAfter >= WIN_HOLD_PCT ? heldStreak + 1 : 0;
-    if (adjudicate(nextStreak)) return { verdict: 'adjudicated-success', heldStreak: nextStreak };
-    return { verdict: 'ok', heldStreak: nextStreak };
-  }
-
-  // target === 'draw'
-  if (userWinPctAfter < DRAW_FAIL_BELOW_PCT) {
+  } else if (userWinPctAfter < DRAW_FAIL_BELOW_PCT) {
     return { verdict: 'fail', heldStreak: 0 };
   }
-  const nextStreak = userWinPctAfter >= DRAW_HOLD_PCT ? heldStreak + 1 : 0;
-  if (adjudicate(nextStreak)) return { verdict: 'adjudicated-success', heldStreak: nextStreak };
+  return passedMove(target, userWinPctAfter, heldStreak, rules);
+}
+
+/** Streak bookkeeping for a move that didn't fail. */
+function passedMove(
+  target: PlayoutTarget,
+  userWinPctAfter: number,
+  heldStreak: number,
+  rules: AdjudicationRules,
+): JudgeMoveResult {
+  const holdPct = target === 'win' ? WIN_HOLD_PCT : DRAW_HOLD_PCT;
+  const nextStreak = userWinPctAfter >= holdPct ? heldStreak + 1 : 0;
+  if (rules.mode === 'hold' && nextStreak >= rules.holdMoves) {
+    return { verdict: 'adjudicated-success', heldStreak: nextStreak };
+  }
   return { verdict: 'ok', heldStreak: nextStreak };
+}
+
+/**
+ * A move within this many win-% points of the best move is as good as best:
+ * the same bar as the training screen's on-the-fly accept rule.
+ */
+export const CONFIRM_ACCEPT_DROP_PCT = 5;
+
+export interface ConfirmSlipInput {
+  target: PlayoutTarget;
+  rules: AdjudicationRules;
+  heldStreak: number;
+  playedUci: string;
+  /** The move the hint showed (the reference eval's best move), if any. */
+  hintUci: string | null;
+  /** Best move from the longer re-search of the position before the move. */
+  deepBestUci: string | null;
+  /** User win % before / after the move, both from the longer re-searches. */
+  userWinPctBefore: number;
+  userWinPctAfter: number;
+}
+
+/**
+ * Second opinion on a move `judgeUserMove` failed, from longer searches of the
+ * positions before and after it. The first verdict compares a search of the
+ * position before the move with a search that sees one ply further, so the
+ * horizon can make the engine's own best move look like it throws the result.
+ * A move only stays a slip when a better move existed:
+ * - the move the hint showed, or the deeper search's best move, is never a slip;
+ * - a move within `CONFIRM_ACCEPT_DROP_PCT` of the best one isn't either (the
+ *   position was already worse than the shorter search thought);
+ * - anything else is re-judged with the deeper numbers.
+ */
+export function confirmSlip(input: ConfirmSlipInput): JudgeMoveResult {
+  const { target, rules, heldStreak, playedUci, hintUci, deepBestUci } = input;
+  const { userWinPctBefore, userWinPctAfter } = input;
+  const recommended = playedUci === hintUci || playedUci === deepBestUci;
+  if (recommended || userWinPctBefore - userWinPctAfter < CONFIRM_ACCEPT_DROP_PCT) {
+    return passedMove(target, userWinPctAfter, heldStreak, rules);
+  }
+  return judgeUserMove({ target, userWinPctBefore, userWinPctAfter, heldStreak, rules });
 }
 
 function singlePiece(c: PieceCounts): 'n' | 'b' | 'r' | 'q' | null {

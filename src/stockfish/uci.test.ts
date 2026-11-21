@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseDepth, parseInfoLine, parsePrincipalVariation } from './uci';
+import { parseDepth, parseEvalCp, parseInfoLine, parsePrincipalVariation } from './uci';
 
 const SEARCH_OUTPUT = [
   'info depth 10 seldepth 14 multipv 1 score cp 31 nodes 51234 nps 812000 pv e2e4 e7e5 g1f3',
@@ -7,6 +7,30 @@ const SEARCH_OUTPUT = [
   'info depth 12 seldepth 18 multipv 1 score cp 34 nodes 130111 nps 815000 pv e2e4 e7e5 g1f3 b8c6',
   'bestmove e2e4 ponder e7e5',
 ].join('\n');
+
+describe('parseEvalCp', () => {
+  it('returns the last score', () => {
+    expect(parseEvalCp(SEARCH_OUTPUT)).toBe(34);
+  });
+
+  it('prefers the last exact score over a trailing bound line', () => {
+    const out = [
+      'info depth 24 seldepth 30 score cp 420 pv e2e4',
+      'info depth 25 seldepth 31 score cp 600 lowerbound pv e2e4',
+      'bestmove e2e4',
+    ].join('\n');
+    expect(parseEvalCp(out)).toBe(420);
+  });
+
+  it('falls back to a bound score when no exact score exists', () => {
+    expect(parseEvalCp('info depth 5 score cp -80 upperbound pv a2a3\nbestmove a2a3')).toBe(-80);
+  });
+
+  it('maps mate scores', () => {
+    expect(parseEvalCp('info depth 9 score mate 3 pv h5f7\nbestmove h5f7')).toBe(9997);
+    expect(parseEvalCp('info depth 9 score mate -2 pv a2a3\nbestmove a2a3')).toBe(-9998);
+  });
+});
 
 describe('parseDepth', () => {
   it('returns the deepest completed iteration', () => {

@@ -5,7 +5,9 @@ import { winningChancesLost } from '../chess/winningChances';
 import { getAnalysisStockfish } from '../hooks/useStockfish';
 import { queryClient } from '../lib/queryClient';
 import type { Blunder, CorrectMove } from '../models/blunder';
+import { isAnySyncInFlight } from '../state/syncStore';
 import type { PositionEval } from '../stockfish/stockfishWorkerClient';
+import { analyzeGames } from './analysisService';
 import { supabaseService } from './supabaseService';
 
 export interface MaintenanceProgress {
@@ -39,6 +41,16 @@ const DEEPEN_OPTS = {
   decidedMinDepth: 16,
   pvMoves: 10,
 };
+/**
+ * Endgames get a longer, purely time-capped look: no decided-score stop (a
+ * shallow "+8, done" is exactly where the horizon hides a fortress or a lost
+ * pawn race) and a depth cap high enough that only trivial endings hit it.
+ */
+const ENDGAME_DEEPEN_OPTS = { movetimeMs: 5000, maxDepth: 50, pvMoves: 10 };
+
+function deepenOptsFor(blunder: Blunder) {
+  return blunder.kind === 'endgame' || blunder.phase === 'endgame' ? ENDGAME_DEEPEN_OPTS : DEEPEN_OPTS;
+}
 /** Longer pause after deepening rows — each one costs ~2×3s of engine time. */
 const DEEPEN_ROW_DELAY_MS = 4000;
 /**
@@ -59,7 +71,7 @@ export function isMaintenanceRunning(): boolean {
 
 /**
  * Dashboard-only background maintenance over the user's blunder rows, two
- * phases per run:
+ * phases per run (after finishing any games sync left unanalyzed):
  *
  * 1. Enrichment — legacy rows with no solution_line get PVs + motif tags.
  * 2. Deepening — every row's evals/PV started life as a fast depth-12 sync
@@ -90,7 +102,33 @@ export function startBlunderMaintenance(
   void (async () => {
     try {
       const syncBusy = async () => (await supabaseService.countUnanalyzedGames()) > 0;
-      if (await syncBusy()) return;
+
+      // Phase 0 — leftover games. Sync only analyzes its own platform and
+      // username, so PGN uploads, games under an old handle and runs cut short
+      // by a closed tab stay unanalyzed forever — and every job gated on
+      // syncBusy() below (this one, endgame verification, the openings
+      // engine stages) never runs for that user. Finish them here, a game at a
+      // time, yielding as soon as a sync in this tab wants the engine.
+      if (isAnySyncInFlight()) return;
+      if (await syncBusy()) {
+        const done = new Set<string>();
+        while (!stopped) {
+          const ids = (await supabaseService.getLeftoverUnanalyzedGameIds(BATCH_SIZE)).filter(
+            (id) => !done.has(id),
+          );
+          // Empty, or only ids we already stamped (an update that silently
+          // didn't land) — either way, nothing left to do this visit.
+          if (ids.length === 0) break;
+          for (const id of ids) {
+            if (stopped || isAnySyncInFlight()) return;
+            await analyzeGames([id], null);
+            done.add(id);
+          }
+          void queryClient.invalidateQueries({ queryKey: ['games'] });
+          void queryClient.invalidateQueries({ queryKey: ['blunders'] });
+        }
+        if (stopped || (await syncBusy())) return;
+      }
 
       let enriched = 0;
       let deepened = 0;
@@ -201,8 +239,9 @@ async function enrichOne(
   sf: Awaited<ReturnType<typeof getAnalysisStockfish>>,
   blunder: Blunder,
 ): Promise<void> {
-  const best = await sf.evaluateSmart(blunder.fen, DEEPEN_OPTS);
-  const played = await sf.evaluateSmart(afterPlayedFen(blunder), DEEPEN_OPTS);
+  const opts = deepenOptsFor(blunder);
+  const best = await sf.evaluateSmart(blunder.fen, opts);
+  const played = await sf.evaluateSmart(afterPlayedFen(blunder), opts);
 
   const solution_line = {
     pv: best.principalVariation,
@@ -240,11 +279,12 @@ async function deepenOne(
   sf: Awaited<ReturnType<typeof getAnalysisStockfish>>,
   blunder: Blunder,
 ): Promise<void> {
-  const best = await sf.evaluateSmart(blunder.fen, DEEPEN_OPTS);
+  const opts = deepenOptsFor(blunder);
+  const best = await sf.evaluateSmart(blunder.fen, opts);
   // A blunder position always has a legal move, so an empty bestMove means the
   // engine hiccuped — skip the row rather than storing a bogus correct move.
   if (!best.bestMove) throw new Error('engine returned no bestmove');
-  const played = await sf.evaluateSmart(afterPlayedFen(blunder), DEEPEN_OPTS);
+  const played = await sf.evaluateSmart(afterPlayedFen(blunder), opts);
   const chancesLost = winningChancesLost(best.scoreCp, played.scoreCp);
 
   await supabaseService.updateBlunderDeepening(blunder.id, {

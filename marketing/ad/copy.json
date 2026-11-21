@@ -1,5 +1,6 @@
 {
-  "_note": "Fill in every empty string. Empty slots render on screen as [slot.name] so nothing ships blank by accident. Durations are seconds per scene. `script` is the voiceover, captioned word by word over the scene it names (scenes in cut order). The testimonials card shows the quotes itself, so its lines are not captioned. `\"position\": \"side\"` keeps a drill's caption off the board in 16:9.",
+  "_note": "Fill in every empty string. Empty slots render on screen as [slot.name] so nothing ships blank by accident. Durations are seconds per scene (timed to vo/words.json: each scene starts 0.25s before its line is spoken). A testimonial's `at` is when its quote appears, in seconds into the card. `script` is the voiceover, captioned word by word over the scene it names (scenes in cut order). The testimonials card shows the quotes itself, so its lines are not captioned. `\"position\": \"side\"` keeps a drill's caption off the board in 16:9.",
+  "voiceover": { "file": "vo/voiceover.m4a", "words": "vo/words.json", "offset": 0.4 },
   "hook": {
     "headline": "PatternChess"
   },
@@ -26,16 +27,19 @@
     {
       "quote": "I’ve been playing good chess for the first time in months",
       "name": "DrG00se",
+      "at": 0,
       "detail": "2091 chess.com"
     },
     {
       "quote": "How could it not work? Every blunder you don’t make anymore is a step in the right direction",
       "name": "Chess dad",
+      "at": 4.3,
       "detail": "600 Elo"
     },
     {
       "quote": "Being able to drill opening blunders is actually really awesome",
       "name": "FaceInterfacer",
+      "at": 10.85,
       "detail": "862 chess.com"
     }
   ],
@@ -46,16 +50,16 @@
   },
   "durations": {
     "hook": 1.6,
-    "dashboard": 9,
-    "training": 6,
-    "openings": 4.6,
-    "endgames": 4,
-    "drill2": 3.4,
-    "motifs": 6.8,
-    "stats": 4.4,
-    "testimonials": 15.5,
-    "achievements": 5.2,
-    "leaderboard": 4.8,
-    "cta": 3.4
+    "dashboard": 9.36,
+    "training": 4.4,
+    "openings": 3.74,
+    "endgames": 4.12,
+    "drill2": 2.6,
+    "motifs": 6.54,
+    "stats": 6.18,
+    "testimonials": 17.3,
+    "achievements": 5.1,
+    "leaderboard": 3.26,
+    "cta": 4.5
   }
 }

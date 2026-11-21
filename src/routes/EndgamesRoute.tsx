@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useGames } from '../hooks/useGames';
@@ -26,6 +26,7 @@ import {
   ENDGAME_TYPE_LABEL,
   ENDGAME_TYPE_ORDER,
   isOppositeColoredBishops,
+  type EndgameType,
 } from '../chess/endgameType';
 import { BoardPanel } from '../components/BoardPanel';
 import { BoardActionBar } from '../components/BoardActionBar';
@@ -45,6 +46,22 @@ import { Skeleton } from '../components/Skeleton';
 import { GameRecord } from '../models/gameRecord';
 
 type ListFilter = 'all' | 'due' | SrBucket;
+
+/** Cards rendered per type section before "Show more" — each card mounts a board. */
+const SECTION_PAGE = 24;
+
+function filterChipClass(active: boolean): string {
+  return clsx(
+    'px-3 py-1 rounded-none font-mono text-xs uppercase tracking-tight border-2 transition',
+    active
+      ? 'bg-text-primary text-bg border-text-primary'
+      : 'bg-surface text-text-primary border-text-primary/30 hover:border-text-primary',
+  );
+}
+
+function parseTypeParam(value: string | null): EndgameType | 'all' {
+  return ENDGAME_TYPE_ORDER.find((t) => t === value) ?? 'all';
+}
 
 /** Review order: the ones you just failed first, then the most overdue. */
 function byReviewPriority(a: EndgameScenario, z: EndgameScenario): number {
@@ -76,6 +93,36 @@ export function EndgamesRoute() {
   }, [games]);
 
   const [listFilter, setListFilter] = useState<ListFilter>('all');
+  // Endgame type lives in the URL (?type=rook) so it survives leaving the tab.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const typeFilter = parseTypeParam(searchParams.get('type'));
+  const setTypeFilter = (type: EndgameType | 'all') =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (type === 'all') next.delete('type');
+        else next.set('type', type);
+        return next;
+      },
+      { replace: true },
+    );
+
+  const typeById = useMemo(() => {
+    const m = new Map<string, EndgameType>();
+    for (const s of scenarios ?? []) m.set(s.id, classifyEndgameType(s.startFen));
+    return m;
+  }, [scenarios]);
+  const typeCounts = useMemo(() => {
+    const counts = new Map<EndgameType, number>();
+    for (const t of typeById.values()) counts.set(t, (counts.get(t) ?? 0) + 1);
+    return counts;
+  }, [typeById]);
+  // Everything below (status counts, sections, "Review N due") respects the type filter.
+  const typed = useMemo(
+    () =>
+      (scenarios ?? []).filter((s) => typeFilter === 'all' || typeById.get(s.id) === typeFilter),
+    [scenarios, typeFilter, typeById],
+  );
 
   // Grouped by endgame family (material of the start position), worst
   // chances-lost first within each group. Win/draw shows on the card headline.
@@ -83,24 +130,31 @@ export function EndgamesRoute() {
     const bySeverity = (a: EndgameScenarioWithSeverity, z: EndgameScenarioWithSeverity) =>
       (z.severity ?? -1) - (a.severity ?? -1) ||
       z.createdAt.getTime() - a.createdAt.getTime();
-    const visible = (scenarios ?? []).filter((s) =>
+    const visible = typed.filter((s) =>
       listFilter === 'all' ? true : listFilter === 'due' ? isScenarioDue(s) : srBucket(s) === listFilter,
     );
     return ENDGAME_TYPE_ORDER.map((type) => ({
       key: type,
       title: ENDGAME_TYPE_LABEL[type],
-      items: visible.filter((s) => classifyEndgameType(s.startFen) === type).sort(bySeverity),
+      items: visible.filter((s) => typeById.get(s.id) === type).sort(bySeverity),
     })).filter((sec) => sec.items.length > 0);
-  }, [scenarios, listFilter]);
+  }, [typed, listFilter, typeById]);
+  // Cards shown per section; reset whenever the filters change.
+  const [sectionShown, setSectionShown] = useState<Partial<Record<EndgameType, number>>>({});
+  useEffect(() => setSectionShown({}), [listFilter, typeFilter]);
 
+  const masteredTotal = useMemo(
+    () => (scenarios ?? []).filter((s) => srBucket(s) === 'mastered').length,
+    [scenarios],
+  );
   const bucketCounts = useMemo(() => {
     const counts: Record<SrBucket, number> = { new: 0, learning: 0, tryAgain: 0, mastered: 0 };
-    for (const s of scenarios ?? []) counts[srBucket(s)] += 1;
+    for (const s of typed) counts[srBucket(s)] += 1;
     return counts;
-  }, [scenarios]);
+  }, [typed]);
   const dueScenarios = useMemo(
-    () => (scenarios ?? []).filter((s) => isScenarioDue(s)).sort(byReviewPriority),
-    [scenarios],
+    () => typed.filter((s) => isScenarioDue(s)).sort(byReviewPriority),
+    [typed],
   );
   // "Review N due": the remaining ids of the review run, null outside one.
   const [reviewQueue, setReviewQueue] = useState<string[] | null>(null);
@@ -391,7 +445,9 @@ export function EndgamesRoute() {
 
           {settingUp && <FeedbackBadge tone="info">Setting up the position…</FeedbackBadge>}
           {playout.phase === 'judging' && (
-            <FeedbackBadge tone="info">Judging your move…</FeedbackBadge>
+            <FeedbackBadge tone="info">
+              {playout.confirming ? 'Double-checking with a longer search…' : 'Judging your move…'}
+            </FeedbackBadge>
           )}
           {playout.phase === 'thinking' && (
             <FeedbackBadge tone="info">Opponent thinking…</FeedbackBadge>
@@ -489,22 +545,49 @@ export function EndgamesRoute() {
           </p>
           {(scenarios?.length ?? 0) > 0 && (
             <p className="text-text-primary text-sm font-semibold" data-testid="endgame-stats">
-              {bucketCounts.mastered} of {scenarios?.length} mastered
+              {masteredTotal} of {scenarios?.length} mastered
             </p>
           )}
         </div>
         {dueScenarios.length > 0 && (
           <button type="button" className="btn-primary" onClick={startReview} data-testid="review-due">
             Review {dueScenarios.length} due
+            {typeFilter !== 'all' && ` · ${ENDGAME_TYPE_LABEL[typeFilter]}`}
           </button>
         )}
       </header>
+
+      {typeCounts.size > 1 && (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by endgame type">
+          <button
+            type="button"
+            onClick={() => setTypeFilter('all')}
+            aria-pressed={typeFilter === 'all'}
+            className={filterChipClass(typeFilter === 'all')}
+          >
+            All types
+            <span> · {scenarios?.length ?? 0}</span>
+          </button>
+          {ENDGAME_TYPE_ORDER.filter((t) => typeCounts.has(t)).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTypeFilter(t)}
+              aria-pressed={typeFilter === t}
+              className={filterChipClass(typeFilter === t)}
+            >
+              {ENDGAME_TYPE_LABEL[t]}
+              <span> · {typeCounts.get(t)}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {(scenarios?.length ?? 0) > 0 && (
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
           {(
             [
-              ['all', 'All', scenarios?.length ?? 0],
+              ['all', 'All', typed.length],
               ['due', 'Due', dueScenarios.length],
               ...SR_BUCKET_ORDER.map((b) => [b, SR_BUCKET_LABEL[b], bucketCounts[b]] as const),
             ] as ReadonlyArray<readonly [ListFilter, string, number]>
@@ -514,12 +597,7 @@ export function EndgamesRoute() {
               type="button"
               onClick={() => setListFilter(key)}
               aria-pressed={listFilter === key}
-              className={clsx(
-                'px-3 py-1 rounded-none font-mono text-xs uppercase tracking-tight border-2 transition',
-                listFilter === key
-                  ? 'bg-text-primary text-bg border-text-primary'
-                  : 'bg-surface text-text-primary border-text-primary/30 hover:border-text-primary',
-              )}
+              className={filterChipClass(listFilter === key)}
             >
               {label}
               <span> · {count}</span>
@@ -540,14 +618,16 @@ export function EndgamesRoute() {
           <p className="text-text-primary">Nothing here yet.</p>
         </div>
       ) : (
-        sections.map((section) => (
+        sections.map((section) => {
+          const shown = sectionShown[section.key] ?? SECTION_PAGE;
+          return (
           <section key={section.key} className="flex flex-col gap-3">
             <h2 className="font-mono uppercase tracking-tight text-sm text-text-secondary">
               {section.title}
               <span className="text-text-secondary/60"> · {section.items.length}</span>
             </h2>
             <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {section.items.map((s) => {
+              {section.items.slice(0, shown).map((s) => {
                 const game = gameById.get(s.gameId);
                 return (
                   <li key={s.id} className="card flex gap-3">
@@ -598,8 +678,20 @@ export function EndgamesRoute() {
                 );
               })}
             </ul>
+            {section.items.length > shown && (
+              <button
+                type="button"
+                className="btn-outline self-center"
+                onClick={() =>
+                  setSectionShown((prev) => ({ ...prev, [section.key]: shown + SECTION_PAGE }))
+                }
+              >
+                Show more ({section.items.length - shown} left)
+              </button>
+            )}
           </section>
-        ))
+          );
+        })
       )}
     </div>
   );

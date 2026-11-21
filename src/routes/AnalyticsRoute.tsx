@@ -231,6 +231,14 @@ function FunnelCard({
           signups={totals.signups}
           onClick={() => onDrilldown('foundBlunders')}
         />
+        {totals.openedTraining !== undefined && (
+          <FunnelBar
+            label="Opened training"
+            count={totals.openedTraining}
+            signups={totals.signups}
+            onClick={() => onDrilldown('openedTraining')}
+          />
+        )}
         <FunnelBar
           label="Trained"
           count={totals.trained}

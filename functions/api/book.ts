@@ -1,4 +1,5 @@
 import {
+  BOOK_TIER_BY_ID,
   bookEpd,
   bookKey,
   parseBookRequest,
@@ -19,7 +20,7 @@ interface Env {
  * Replaces the Lichess masters explorer proxy (rate-limited per token). The
  * data is built offline by tools/book-builder and imported with
  * scripts/book/import-d1.sh; it is read-only here, so there is nothing a
- * client can write or poison. One indexed D1 query per request.
+ * client can write or poison. One primary-key D1 query per request.
  */
 
 // Function responses don't get public/_headers — keep the page isolated.
@@ -52,12 +53,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   for (const epd of epds) keyToEpd.set(await bookKey(epd), epd);
   const keys = [...keyToEpd.keys()];
 
+  // The primary key is (tier, key): without the tier the lookup is a full scan
+  // of ~3.8M rows per request (billed as D1 rows read).
+  const tiers = Object.keys(BOOK_TIER_BY_ID).map(Number);
   const { results } = await env.BOOK.prepare(
-    `SELECT tier, key, w, d, b, cp, depth, moves FROM book_positions WHERE key IN (${keys
+    `SELECT tier, key, w, d, b, cp, depth, moves FROM book_positions WHERE tier IN (${tiers
       .map(() => '?')
-      .join(',')})`,
+      .join(',')}) AND key IN (${keys.map(() => '?').join(',')})`,
   )
-    .bind(...keys)
+    .bind(...tiers, ...keys)
     .all<BookRow & { key: number }>();
 
   const byEpd = new Map<string, BookRow[]>();

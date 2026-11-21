@@ -517,6 +517,14 @@ export type Database = {
           created_at: string | null
           current_streak_days: number
           display_name: string | null
+          contact_email: string | null
+          contact_email_verified_at: string | null
+          email_hour: number
+          email_opt_in: boolean
+          email_prompted_at: string | null
+          email_reminders: string
+          email_reports: string
+          email_unsub_token: string
           flair: string | null
           followed_instagram: boolean
           id: string
@@ -551,6 +559,14 @@ export type Database = {
           created_at?: string | null
           current_streak_days?: number
           display_name?: string | null
+          contact_email?: string | null
+          contact_email_verified_at?: string | null
+          email_hour?: number
+          email_opt_in?: boolean
+          email_prompted_at?: string | null
+          email_reminders?: string
+          email_reports?: string
+          email_unsub_token?: string
           flair?: string | null
           followed_instagram?: boolean
           id: string
@@ -585,6 +601,14 @@ export type Database = {
           created_at?: string | null
           current_streak_days?: number
           display_name?: string | null
+          contact_email?: string | null
+          contact_email_verified_at?: string | null
+          email_hour?: number
+          email_opt_in?: boolean
+          email_prompted_at?: string | null
+          email_reminders?: string
+          email_reports?: string
+          email_unsub_token?: string
           flair?: string | null
           followed_instagram?: boolean
           id?: string
@@ -680,6 +704,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_email_stats: { Args: never; Returns: Json }
       admin_kpis: { Args: never; Returns: Json }
       admin_user_list: { Args: { category: string }; Returns: Json }
       admin_landing_ctas: { Args: { days?: number }; Returns: Json }
@@ -695,6 +720,19 @@ export type Database = {
       increment_opening_reviews: { Args: never; Returns: number }
       claim_referral: { Args: { code: string }; Returns: boolean }
       claim_signup_source: { Args: { source: string }; Returns: boolean }
+      email_confirm: { Args: { p_token: string }; Returns: Json }
+      email_prefs_by_token: { Args: { p_token: string }; Returns: Json }
+      email_unsubscribe: { Args: { p_token: string }; Returns: Json }
+      email_update_prefs_by_token: {
+        Args: {
+          p_hour: number
+          p_opt_in: boolean
+          p_reminders: string
+          p_reports: string
+          p_token: string
+        }
+        Returns: Json
+      }
       increment_shares_count: { Args: never; Returns: number }
       landing_stats: { Args: never; Returns: Json }
       leaderboard: {

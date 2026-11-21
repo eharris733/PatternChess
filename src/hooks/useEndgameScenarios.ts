@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
-import { useGames } from './useGames';
 import { scanForScenarios } from '../services/endgameScenarioService';
 
 /**
@@ -10,11 +9,10 @@ import { scanForScenarios } from '../services/endgameScenarioService';
  */
 export function useEndgameScenarios() {
   const { user } = useAuth();
-  const games = useGames().data;
   return useQuery({
     queryKey: ['endgameScenarios', user?.id],
-    queryFn: () => scanForScenarios(games ?? []),
-    enabled: !!user && !!games,
+    queryFn: scanForScenarios,
+    enabled: !!user,
     staleTime: 5 * 60_000,
   });
 }

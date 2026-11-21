@@ -27,8 +27,11 @@ export interface ScenarioCandidate {
  * that's where the deserved result was still on the board. `eval_before` is
  * from the user's perspective (analysis only records the user's moves).
  */
+/** The game fields scenario derivation reads. */
+export type ScenarioGame = Pick<GameRecord, 'id' | 'platform' | 'result' | 'userColor'>;
+
 export function deriveScenarioCandidates(
-  games: GameRecord[],
+  games: ScenarioGame[],
   endgameBlunders: Blunder[],
 ): ScenarioCandidate[] {
   const byGame = new Map<string, Blunder[]>();
@@ -88,25 +91,38 @@ export function attachSeverity(
   }));
 }
 
+// Candidates already upserted this session (by source blunder). The scan
+// reruns on every invalidation (each finished play-out, each verifier batch);
+// re-sending hundreds of unchanged rows each time slowed /endgames down for
+// big libraries, so only new candidates go to the database.
+const upsertedBlunderIds = new Set<string>();
+
 /**
- * Run the scan against the given games (typically the useGames() cache),
- * persist any new scenarios (first write wins — statuses survive re-scans),
- * and return the fresh full list with severity attached.
+ * Derive scenarios from the user's endgame blunders and their games, persist
+ * any new ones (first write wins — statuses survive re-scans), and return the
+ * fresh full list with severity attached.
  */
-export async function scanForScenarios(
-  games: GameRecord[],
-): Promise<EndgameScenarioWithSeverity[]> {
+export async function scanForScenarios(): Promise<EndgameScenarioWithSeverity[]> {
   const endgameBlunders = await supabaseService.getEndgameCandidateBlunders();
-  const candidates = deriveScenarioCandidates(games, endgameBlunders);
-  await supabaseService.upsertEndgameScenarios(
-    candidates.map((c) => ({
-      game_id: c.gameId,
-      blunder_id: c.blunderId,
-      start_fen: c.startFen,
-      user_color: c.userColor,
-      deserved_result: c.deservedResult,
-      actual_result: c.actualResult,
-    })),
+  // Only the games those blunders came from — never the whole library, so the
+  // dashboard's endgame card doesn't wait on the full games list.
+  const gameIds = [...new Set(endgameBlunders.map((b) => b.gameId).filter((id): id is string => !!id))];
+  const games = await supabaseService.getScenarioGames(gameIds);
+  const candidates = deriveScenarioCandidates(games, endgameBlunders).filter(
+    (c) => !upsertedBlunderIds.has(c.blunderId),
   );
+  if (candidates.length > 0) {
+    await supabaseService.upsertEndgameScenarios(
+      candidates.map((c) => ({
+        game_id: c.gameId,
+        blunder_id: c.blunderId,
+        start_fen: c.startFen,
+        user_color: c.userColor,
+        deserved_result: c.deservedResult,
+        actual_result: c.actualResult,
+      })),
+    );
+    for (const c of candidates) upsertedBlunderIds.add(c.blunderId);
+  }
   return attachSeverity(await supabaseService.getEndgameScenarios(), endgameBlunders);
 }

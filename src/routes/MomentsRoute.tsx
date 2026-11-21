@@ -5,6 +5,7 @@ import { LandingFooter } from '../components/landing/LandingFooter';
 import { useAuth } from '../auth/useAuth';
 import { useHead } from '../seo/useHead';
 import { breadcrumbJsonLd } from '../seo/jsonLd';
+import { trackCtaClick } from '../services/funnelService';
 
 // The tool (chess.js + canvas renderer) loads after the static shell, so the
 // prerendered page stays light and indexable.
@@ -57,6 +58,7 @@ export function MomentsRoute() {
               </div>
               <Link
                 to="/login"
+                onClick={() => trackCtaClick('moments')}
                 className="inline-block shrink-0 font-mono uppercase text-xs tracking-tight border-2 border-text-primary bg-text-primary text-bg px-5 py-3 rounded-none shadow-[3px_3px_0_#8B6914] hover:shadow-[1px_1px_0_#8B6914] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
               >
                 Train your own blunders — free

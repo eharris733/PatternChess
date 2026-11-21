@@ -92,19 +92,28 @@ export async function analyzeGames(
     const game = await supabaseService.getGame(gameIds[i]);
     const username = game.username || fallbackUsername || null;
 
-    const { blunders } = await analyzePgn(sf, game.pgn, username, {
-      // The stored color is authoritative when name matching fails — it carries
-      // the upload-time override (and a header match set it at insert anyway).
-      playerSideFallback: game.userColor,
-      onProgress: (cur, total) =>
-        onProgress?.({
-          gameIndex: i,
-          gamesTotal: gameIds.length,
-          positionIndex: cur,
-          positionsTotal: total,
-          blundersFound,
-        }),
-    });
+    let blunders: Awaited<ReturnType<typeof analyzePgn>>['blunders'];
+    try {
+      ({ blunders } = await analyzePgn(sf, game.pgn, username, {
+        // The stored color is authoritative when name matching fails — it carries
+        // the upload-time override (and a header match set it at insert anyway).
+        playerSideFallback: game.userColor,
+        onProgress: (cur, total) =>
+          onProgress?.({
+            gameIndex: i,
+            gamesTotal: gameIds.length,
+            positionIndex: cur,
+            positionsTotal: total,
+            blundersFound,
+          }),
+      }));
+    } catch (err) {
+      // One unparseable game must not abort the rest of the batch, nor sit at
+      // the head of the unanalyzed queue forever: stamp it and move on.
+      // Storage errors below still throw — those deserve a retry.
+      console.warn('[analysis] skipping game that failed to analyze', game.id, err);
+      blunders = [];
+    }
 
     if (blunders.length > 0) {
       await supabaseService.insertBlunders(

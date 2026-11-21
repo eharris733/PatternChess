@@ -86,6 +86,25 @@ export async function getDueBlunders(opts?: { userId?: string }): Promise<Blunde
 }
 
 /**
+ * The oldest due tactic — the position the onboarding screen previews while
+ * analysis is still running. One row, so it can poll cheaply.
+ */
+export async function getFirstDueTactic(userId: string): Promise<Blunder | null> {
+  const { data, error } = await supabase
+    .from('blunders')
+    .select()
+    .eq('user_id', userId)
+    .eq('kind', 'tactic')
+    .lte('next_drill_at', new Date().toISOString())
+    .is('retired_at', null)
+    .order('next_drill_at', { ascending: true })
+    .order('id')
+    .limit(1);
+  if (error) throw error;
+  return data && data.length > 0 ? blunderFromJson(data[0]) : null;
+}
+
+/**
  * Every live (not retired) drill of one kind, with its SR state — for the
  * mastery views on /openings. Not filtered by due date.
  */

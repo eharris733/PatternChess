@@ -20,6 +20,24 @@ export interface PhaseCounts {
   total: number;
 }
 
+/**
+ * Mean rating over the user's rated games (null when none are rated), from
+ * the shared game stat rows — the insight cards used to wait on the full
+ * games list for this one number.
+ */
+export async function getUserRatingMean(): Promise<number | null> {
+  const userId = await currentUserId();
+  if (!userId) return null;
+  let sum = 0;
+  let n = 0;
+  for (const g of await getGameStatRows(userId)) {
+    if (!g.rated || typeof g.user_rating !== 'number') continue;
+    sum += g.user_rating;
+    n++;
+  }
+  return n > 0 ? Math.round(sum / n) : null;
+}
+
 export async function getBlunderPhaseCounts(): Promise<PhaseCounts> {
   const userId = await currentUserId();
   if (!userId) return { opening: 0, middlegame: 0, endgame: 0, total: 0 };

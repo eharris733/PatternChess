@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
@@ -30,6 +30,9 @@ import {
   type SortOrder,
 } from './vaultHelpers';
 
+/** Rows rendered per "Show more" step — thousands of rows at once made the tab sluggish. */
+const PAGE = 50;
+
 /** The synced-games list: filters, per-game blunders, delete. */
 export function VaultGamesTab() {
   const navigate = useNavigate();
@@ -43,6 +46,8 @@ export function VaultGamesTab() {
   const [blunderFilter, setBlunderFilter] = useState<BlunderFilter>('all');
   const [resultFilter, setResultFilter] = useState<ResultFilter>('all');
   const [search, setSearch] = useState('');
+  // Filtering thousands of games runs off the deferred value, so typing stays responsive.
+  const deferredSearch = useDeferredValue(search);
   const [sort, setSort] = useState<SortOrder>('newest');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ blunder: Blunder; game: GameRecord } | null>(
@@ -115,7 +120,7 @@ export function VaultGamesTab() {
   }, [games, blunderCounts]);
 
   const filteredGames = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
     const items = (games ?? []).filter((g) => {
       const count = blunderCounts?.[g.id] ?? 0;
       if (!matchesBlunderFilter(blunderFilter, g, count)) return false;
@@ -137,7 +142,25 @@ export function VaultGamesTab() {
       );
     else items.sort(byDateDesc);
     return items;
-  }, [games, blunderCounts, blunderFilter, resultFilter, search, sort]);
+  }, [games, blunderCounts, blunderFilter, resultFilter, deferredSearch, sort]);
+
+  const [shown, setShown] = useState(PAGE);
+  useEffect(() => {
+    setShown(PAGE);
+  }, [blunderFilter, resultFilter, deferredSearch, sort]);
+
+  const toggleExpanded = useCallback(
+    (gameId: string) => setExpandedId((cur) => (cur === gameId ? null : gameId)),
+    [],
+  );
+  const requestDelete = useCallback((game: GameRecord) => {
+    setDeleteError(null);
+    setDeleteTarget(game);
+  }, []);
+  const openPreview = useCallback(
+    (blunder: Blunder, game: GameRecord) => setPreview({ blunder, game }),
+    [],
+  );
 
   const filtersActive =
     blunderFilter !== 'all' || resultFilter !== 'all' || search.trim() !== '';
@@ -260,102 +283,32 @@ export function VaultGamesTab() {
           </button>
         </div>
       ) : (
-        <ul className="card divide-y divide-text-primary/15 p-0 overflow-hidden">
-          {filteredGames.map((g) => {
-            const externalUrl = platformGameUrl(g);
-            const outcome = gameOutcome(g);
-            const blunderCount = blunderCounts?.[g.id] ?? 0;
-            const blunderLabel = !g.analyzedAt
-              ? 'Not analyzed'
-              : blunderCount === 0
-                ? 'No blunders'
-                : `${blunderCount} blunder${blunderCount === 1 ? '' : 's'}`;
-            const expanded = expandedId === g.id;
-            return (
-              <li key={g.id}>
-                <div className="px-5 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-medium truncate">
-                      {orderedPlayers(g.username, g.opponent, g.userColor)[0]}{' '}
-                      <span className="text-text-secondary">vs</span>{' '}
-                      {orderedPlayers(g.username, g.opponent, g.userColor)[1]}
-                    </span>
-                    <span className="text-xs text-text-secondary mt-0.5">
-                      {g.platform} · {g.timeControl ?? '—'} ·{' '}
-                      {g.playedAt ? formatDate(g.playedAt) : 'unknown date'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    {blunderCount > 0 ? (
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 text-xs text-mistake hover:underline"
-                        aria-expanded={expanded}
-                        title={expanded ? 'Hide positions' : 'Show blunder positions'}
-                        onClick={() => setExpandedId(expanded ? null : g.id)}
-                      >
-                        {blunderLabel}
-                        <ChevronIcon
-                          className={clsx(
-                            'h-3.5 w-3.5 transition-transform',
-                            expanded && 'rotate-90',
-                          )}
-                        />
-                      </button>
-                    ) : (
-                      <span className="text-xs text-text-secondary">{blunderLabel}</span>
-                    )}
-                    <ResultBadge outcome={outcome} />
-                    {externalUrl ? (
-                      <a
-                        href={externalUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={clsx(
-                          'btn-ghost text-xs gap-1',
-                          analyzedIds.has(g.id) && 'text-text-secondary/70',
-                        )}
-                        title={`Open analysis on ${g.platform}`}
-                        onClick={() => markAnalyzed(g.id)}
-                        onAuxClick={(e) => {
-                          if (e.button === 1) markAnalyzed(g.id);
-                        }}
-                      >
-                        {analyzedIds.has(g.id) ? 'Re-analyze' : 'Analyze'}{' '}
-                        <span aria-hidden>↗</span>
-                      </a>
-                    ) : (
-                      <span
-                        className="btn-ghost text-xs gap-1 opacity-40 cursor-not-allowed"
-                        title="No external link available"
-                      >
-                        Analyze <span aria-hidden>↗</span>
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      className="btn-ghost text-xs text-text-secondary hover:text-incorrect inline-flex items-center"
-                      onClick={() => {
-                        setDeleteError(null);
-                        setDeleteTarget(g);
-                      }}
-                      title="Delete game and its blunders"
-                      aria-label="Delete game"
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-                {expanded && (
-                  <GameBlunderThumbs
-                    game={g}
-                    onPreview={(blunder) => setPreview({ blunder, game: g })}
-                  />
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          <ul className="card divide-y divide-text-primary/15 p-0 overflow-hidden">
+            {filteredGames.slice(0, shown).map((g) => (
+              <GameRow
+                key={g.id}
+                game={g}
+                blunderCount={blunderCounts?.[g.id] ?? 0}
+                expanded={expandedId === g.id}
+                analyzed={analyzedIds.has(g.id)}
+                onToggle={toggleExpanded}
+                onAnalyze={markAnalyzed}
+                onDelete={requestDelete}
+                onPreview={openPreview}
+              />
+            ))}
+          </ul>
+          {filteredGames.length > shown && (
+            <button
+              type="button"
+              className="btn-outline self-center"
+              onClick={() => setShown((n) => n + PAGE)}
+            >
+              Show more ({filteredGames.length - shown} left)
+            </button>
+          )}
+        </>
       )}
 
       {preview && (
@@ -423,3 +376,101 @@ export function VaultGamesTab() {
     </div>
   );
 }
+
+interface GameRowProps {
+  game: GameRecord;
+  blunderCount: number;
+  expanded: boolean;
+  analyzed: boolean;
+  onToggle: (gameId: string) => void;
+  onAnalyze: (gameId: string) => void;
+  onDelete: (game: GameRecord) => void;
+  onPreview: (blunder: Blunder, game: GameRecord) => void;
+}
+
+/** One game in the list. Memoized so expanding a row doesn't re-render the rest. */
+const GameRow = memo(function GameRow({
+  game: g,
+  blunderCount,
+  expanded,
+  analyzed,
+  onToggle,
+  onAnalyze,
+  onDelete,
+  onPreview,
+}: GameRowProps) {
+  const externalUrl = platformGameUrl(g);
+  const outcome = gameOutcome(g);
+  const [first, second] = orderedPlayers(g.username, g.opponent, g.userColor);
+  const blunderLabel = !g.analyzedAt
+    ? 'Not analyzed'
+    : blunderCount === 0
+      ? 'No blunders'
+      : `${blunderCount} blunder${blunderCount === 1 ? '' : 's'}`;
+  return (
+    <li>
+      <div className="px-5 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-col min-w-0">
+          <span className="text-sm font-medium truncate">
+            {first} <span className="text-text-secondary">vs</span> {second}
+          </span>
+          <span className="text-xs text-text-secondary mt-0.5">
+            {g.platform} · {g.timeControl ?? '—'} ·{' '}
+            {g.playedAt ? formatDate(g.playedAt) : 'unknown date'}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {blunderCount > 0 ? (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-xs text-mistake hover:underline"
+              aria-expanded={expanded}
+              title={expanded ? 'Hide positions' : 'Show blunder positions'}
+              onClick={() => onToggle(g.id)}
+            >
+              {blunderLabel}
+              <ChevronIcon
+                className={clsx('h-3.5 w-3.5 transition-transform', expanded && 'rotate-90')}
+              />
+            </button>
+          ) : (
+            <span className="text-xs text-text-secondary">{blunderLabel}</span>
+          )}
+          <ResultBadge outcome={outcome} />
+          {externalUrl ? (
+            <a
+              href={externalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={clsx('btn-ghost text-xs gap-1', analyzed && 'text-text-secondary/70')}
+              title={`Open analysis on ${g.platform}`}
+              onClick={() => onAnalyze(g.id)}
+              onAuxClick={(e) => {
+                if (e.button === 1) onAnalyze(g.id);
+              }}
+            >
+              {analyzed ? 'Re-analyze' : 'Analyze'} <span aria-hidden>↗</span>
+            </a>
+          ) : (
+            <span
+              className="btn-ghost text-xs gap-1 opacity-40 cursor-not-allowed"
+              title="No external link available"
+            >
+              Analyze <span aria-hidden>↗</span>
+            </span>
+          )}
+          <button
+            type="button"
+            className="btn-ghost text-xs text-text-secondary hover:text-incorrect inline-flex items-center"
+            onClick={() => onDelete(g)}
+            title="Delete game and its blunders"
+            aria-label="Delete game"
+          >
+            <TrashIcon className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      {expanded && <GameBlunderThumbs game={g} onPreview={(blunder) => onPreview(blunder, g)} />}
+    </li>
+  );
+});

@@ -1,22 +1,32 @@
 // Joins the recorded clips (out/<ratio>/NN-<scene>.mp4, in SCENES order) with
 // short crossfades, lays the running captions over the result, and writes
 // out/patternchess-ad-16x9.mp4 / -9x16.mp4 plus, per ratio, a captions .srt and
-// out/vo-timing.md — the timed script for the voiceover.
+// out/vo-timing.md — the timed script for the voiceover. With copy.json
+// `voiceover` set, the recorded read is mixed over the app sounds and the
+// captions follow its word timings (vo/words.json, from vo/transcribe.py).
 //   node marketing/ad/stitch.ts
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { PROJECTS, SCENES } from './scenes.ts';
-import { renderCaptionTrack, timeScript, toSrt, type LineTiming } from './captions.ts';
+import { renderCaptionTrack, timeScript, toSrt, type LineTiming, type VoWord } from './captions.ts';
 
 const here = (p: string) => new URL(p, import.meta.url).pathname;
 const FADE = 0.3;
 const copy = JSON.parse(readFileSync(here('./copy.json'), 'utf8'));
 const OUT = { landscape: 'patternchess-ad-16x9', vertical: 'patternchess-ad-9x16' } as const;
+const APP_SOUND_UNDER_VO = 0.35; // move/correct sounds stay audible beneath the read
+const vo: { file: string; offset: number; words: VoWord[] } | undefined = copy.voiceover && {
+  file: here(`./${copy.voiceover.file}`),
+  offset: copy.voiceover.offset ?? 0,
+  words: JSON.parse(readFileSync(here(`./${copy.voiceover.words}`), 'utf8')),
+};
 
 const timing: string[] = [
   '# PatternChess ad — voiceover script',
   '',
-  'Read each line inside its window; the on-screen captions follow the same timing.',
+  vo
+    ? 'Timed from the recorded voiceover; the on-screen captions follow the same timing.'
+    : 'Read each line inside its window; the on-screen captions follow the same timing.',
   'Lines marked (card) are shown as quotes on screen rather than captioned.',
   '',
 ];
@@ -52,7 +62,8 @@ for (const [ratio, name] of Object.entries(OUT) as [keyof typeof OUT, string][])
   const windows = Object.fromEntries(
     clips.map((c, i) => [c.id, { start: starts[i], end: i + 1 < clips.length ? starts[i + 1] + FADE : total }]),
   );
-  const lines = timeScript(copy.script, windows);
+  const lines = timeScript(copy.script, windows, vo);
+  if (vo) warnSceneDrift(lines, windows);
   const track = await renderCaptionTrack(lines, total, ratio, PROJECTS[ratio], here(`./out/${ratio}/captions`));
   writeFileSync(here(`./out/${name}.srt`), toSrt(lines));
 
@@ -60,7 +71,16 @@ for (const [ratio, name] of Object.entries(OUT) as [keyof typeof OUT, string][])
   filters.push(`[${capIn}:v]format=rgba,scale=${PROJECTS[ratio].outW}:${PROJECTS[ratio].outH}[cap]`);
   filters.push(`[vjoined][cap]overlay=0:0:format=auto:eof_action=pass[vout]`);
   const args = ['-y', '-loglevel', 'error', ...clips.flatMap((c) => ['-i', c.file]), '-f', 'concat', '-safe', '0', '-i', track];
-  args.push('-filter_complex', filters.join(';'), '-map', '[vout]', '-map', '[aout]');
+  let audio = '[aout]';
+  if (vo) {
+    const delay = Math.round(vo.offset * 1000);
+    args.push('-i', vo.file);
+    filters.push(`[aout]volume=${APP_SOUND_UNDER_VO}[bg]`);
+    filters.push(`[${capIn + 1}:a]adelay=${delay}:all=1,apad[vo]`);
+    filters.push(`[bg][vo]amix=inputs=2:duration=first:normalize=0,afade=t=out:st=${(total - 0.8).toFixed(3)}:d=0.8[amix]`);
+    audio = '[amix]';
+  }
+  args.push('-filter_complex', filters.join(';'), '-map', '[vout]', '-map', audio);
   args.push('-c:a', 'aac', '-b:a', '192k', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-r', '30', '-t', total.toFixed(3), '-movflags', '+faststart', here(`./out/${name}.mp4`));
   execFileSync('ffmpeg', args, { stdio: 'inherit' });
   console.log(`${name}.mp4: ${total.toFixed(1)}s from ${clips.length} clips`);
@@ -74,7 +94,7 @@ for (const [ratio, name] of Object.entries(OUT) as [keyof typeof OUT, string][])
 writeFileSync(here('./out/vo-timing.md'), timing.join('\n'));
 console.log('wrote out/vo-timing.md');
 
-/** When each quote is on screen in the testimonials card (overlay.js weights quotes by length, min 2.2s). */
+/** When each quote is on screen in the testimonials card (mirrors overlay.js: `at` when set, else weighted by length). */
 function testimonialCues(lines: LineTiming[], win: { start: number; end: number } | undefined) {
   if (!win || !lines.some((l) => l.scene === 'testimonials')) return '';
   const seconds = copy.durations.testimonials;
@@ -85,13 +105,25 @@ function testimonialCues(lines: LineTiming[], win: { start: number; end: number 
   return [
     'Testimonial quotes on screen:',
     '',
-    ...copy.testimonials.map((t: any, i: number) => {
-      const len = Math.max(2.2, (seconds * weights[i]) / sum);
+    ...copy.testimonials.map((t: any, i: number, all: any[]) => {
+      const timed = all.every((q) => typeof q.at === 'number');
+      if (timed) at = win.start + t.at;
+      const len = timed ? (all[i + 1]?.at ?? seconds) - t.at : Math.max(2.2, (seconds * weights[i]) / sum);
       const row = `- ${tc(at)}–${tc(at + len)} **${t.name}**: “${t.quote}”`;
       at += len;
       return row;
     }),
   ].join('\n');
+}
+
+/** Flags lines the read starts well outside their scene (the scene's clip length needs a nudge). */
+function warnSceneDrift(lines: LineTiming[], windows: Record<string, { start: number; end: number }>) {
+  for (const l of lines) {
+    const w = windows[l.scene];
+    const early = w.start - l.start;
+    if (early > 0.5) console.warn(`  [captions] "${l.scene}" line starts ${early.toFixed(1)}s before its scene — shorten the scene before it`);
+    else if (l.start - w.start > 1.5) console.warn(`  [captions] "${l.scene}" line starts ${(l.start - w.start).toFixed(1)}s into its scene`);
+  }
 }
 
 function tc(s: number) {

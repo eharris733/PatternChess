@@ -334,6 +334,27 @@ test('the dashboard summarizes dropped endgames and links to the trainer', async
 // Rook + pawn each: not textbook-drawn material, so the play-out keeps going.
 const RP_DRAW = 'r3k3/p7/8/8/8/8/P7/1R2K3 w - - 0 40';
 
+test('the endgames tab filters by endgame type and keeps it in the URL', async ({ page }) => {
+  await stubEndgameAuth(page, { blunders: [], scenarios: [SCENARIO, DRAW_SCENARIO] });
+  await page.goto('/endgames');
+
+  const types = page.getByRole('group', { name: 'Filter by endgame type' });
+  const queenHeading = page.getByRole('heading', { name: /Queen endgames/ });
+  const rookHeading = page.getByRole('heading', { name: /Rook endgames/ });
+  await expect(types).toBeVisible({ timeout: 30_000 });
+  await expect(queenHeading).toBeVisible();
+  await expect(rookHeading).toBeVisible();
+
+  await types.getByRole('button', { name: /Rook endgames/ }).click();
+  await expect(page).toHaveURL(/[?&]type=rook\b/);
+  await expect(rookHeading).toBeVisible();
+  await expect(queenHeading).toHaveCount(0);
+
+  await types.getByRole('button', { name: /All types/ }).click();
+  await expect(page).not.toHaveURL(/type=/);
+  await expect(queenHeading).toBeVisible();
+});
+
 test('take-back rewinds the user move and the engine reply', async ({ page }) => {
   await stubEndgameAuth(page, {
     blunders: [],

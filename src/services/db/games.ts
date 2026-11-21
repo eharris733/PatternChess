@@ -1,8 +1,8 @@
 import { supabase } from '../../lib/supabase';
 import type { TablesInsert, TablesUpdate } from '../../lib/database.types';
-import { GameRecord, gameRecordFromJson } from '../../models/gameRecord';
+import { GameRecord, gameRecordFromJson, parseColor } from '../../models/gameRecord';
 import { currentUserId } from './currentUser';
-import { fetchAllRows } from './paginate';
+import { fetchAllRows, fetchInChunks } from './paginate';
 
 export async function insertGames(
   games: Omit<TablesInsert<'games'>, 'user_id'>[],
@@ -49,6 +49,29 @@ export async function getGames(opts?: { userId?: string }): Promise<GameRecord[]
   return rows.map(gameRecordFromJson);
 }
 
+/**
+ * The few fields endgame-scenario derivation needs, for just the given games —
+ * so the scan never waits on the full games list.
+ */
+export async function getScenarioGames(
+  ids: readonly string[],
+): Promise<Array<Pick<GameRecord, 'id' | 'platform' | 'result' | 'userColor'>>> {
+  const rows = await fetchInChunks(ids, async (chunk) => {
+    const { data, error } = await supabase
+      .from('games')
+      .select('id, platform, result, user_color')
+      .in('id', chunk);
+    if (error) throw error;
+    return data ?? [];
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    platform: r.platform,
+    result: r.result,
+    userColor: parseColor(r.user_color),
+  }));
+}
+
 export async function getGame(id: string): Promise<GameRecord> {
   const { data, error } = await supabase.from('games').select().eq('id', id).single();
   if (error) throw error;
@@ -81,6 +104,26 @@ export async function getUnanalyzedGameIds(opts: {
     return q;
   });
   return rows.map((row) => (row as { id: string }).id);
+}
+
+/**
+ * Unanalyzed games on every platform, newest first — the leftovers sync never
+ * revisits: PGN uploads (sync only sweeps its own platform + username), games
+ * under an old username, and runs cut short by a closed tab.
+ */
+export async function getLeftoverUnanalyzedGameIds(limit: number): Promise<string[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from('games')
+    .select('id')
+    .eq('user_id', userId)
+    .is('analyzed_at', null)
+    .order('played_at', { ascending: false, nullsFirst: false })
+    .order('id')
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.id);
 }
 
 /** User-wide unanalyzed-game count — the maintenance worker's sync guard. */
