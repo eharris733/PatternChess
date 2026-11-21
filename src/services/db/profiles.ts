@@ -71,3 +71,14 @@ export async function updateDailyGoals(goals: DailyGoals): Promise<void> {
     .eq('id', userId);
   if (error) throw error;
 }
+
+/** Training reminder emails on/off (opt-out; the one switch in /profile). */
+export async function updateEmailOptIn(optIn: boolean): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) return;
+  const { error } = await supabase
+    .from('profiles')
+    .update({ email_opt_in: optIn, email_prompted_at: new Date().toISOString() })
+    .eq('id', userId);
+  if (error) throw error;
+}

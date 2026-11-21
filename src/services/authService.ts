@@ -119,6 +119,7 @@ export const authService = {
       learnChaptersDone: [],
       flair: null,
       dailyGoals: { ...DEFAULT_DAILY_GOALS },
+      emailOptIn: true,
     };
     // Stamp the landing-page visitor id (if this browser ever hit the landing
     // page) so the funnel can link anonymous view/demo events to this account.

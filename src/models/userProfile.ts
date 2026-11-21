@@ -63,6 +63,8 @@ export interface UserProfile {
   flair: string | null;
   /** Commitment level + the daily plan's position/game goals. Write via `updateDailyGoals`. */
   dailyGoals: DailyGoals;
+  /** Training reminder emails. Opt-out: on by default for new accounts (migration 20261121120000). Write via `updateEmailOptIn`. */
+  emailOptIn: boolean;
 }
 
 function parseBoardTheme(v: unknown): BoardTheme {
@@ -127,6 +129,7 @@ export function userProfileFromJson(json: any): UserProfile {
       : [],
     flair: typeof json.flair === 'string' && json.flair ? json.flair : null,
     dailyGoals: dailyGoalsFromJson(json),
+    emailOptIn: json.email_opt_in === true,
   };
 }
 

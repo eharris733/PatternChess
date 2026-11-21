@@ -186,3 +186,19 @@ test('custom numbers save on blur, not per keystroke', async ({ page }) => {
   // One save for picking Custom, one for the edit: no per-keystroke writes.
   expect((await goalPatches()).length).toBe(2);
 });
+
+test('reminder emails can be switched off in /profile', async ({ page }) => {
+  await stub(page, { profile: { email_opt_in: true } as Partial<typeof BASE_PROFILE> });
+  await page.goto('/profile');
+  const setting = page.getByTestId('email-reminders-setting');
+  const box = setting.getByRole('checkbox');
+  await expect(box).toBeChecked();
+  await box.uncheck();
+  await expect
+    .poll(async () =>
+      (await page.evaluate(() => (window as any).__patches as { url: string; body: any }[])).find(
+        (p) => p.body && 'email_opt_in' in p.body,
+      )?.body.email_opt_in,
+    )
+    .toBe(false);
+});

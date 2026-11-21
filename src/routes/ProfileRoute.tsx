@@ -22,6 +22,7 @@ import { useRecentTrainingSessions } from '../hooks/useTrainingActivity';
 import { useDrillFeedbackPrefs } from '../hooks/useDrillFeedbackPrefs';
 import { useThemeStore, type BoardTheme } from '../state/themeStore';
 import { CommitmentPicker } from '../components/CommitmentPicker';
+import { EmailRemindersSetting } from '../components/EmailRemindersSetting';
 
 export function ProfileRoute() {
   const { profile, refreshProfile, user } = useAuth();
@@ -370,6 +371,8 @@ export function ProfileRoute() {
           <p className="text-incorrect text-sm">{trainingPrefsError ?? drillPrefs.error}</p>
         )}
       </section>
+
+      <EmailRemindersSetting />
 
       <section className="card flex flex-col gap-4">
         <h2 className="heading-md">Community</h2>

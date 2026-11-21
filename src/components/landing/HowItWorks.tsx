@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { TrainingLadder } from './TrainingLadder';
 
 export const HOW_IT_WORKS_STEPS = [
@@ -22,10 +23,16 @@ export function HowItWorks() {
   return (
     <section className="border-b-2 border-text-primary">
       <div className="max-w-6xl mx-auto px-6 py-16 lg:py-24">
-        <div className="mb-12 border-b-2 border-text-primary pb-4">
+        <div className="mb-12 border-b-2 border-text-primary pb-4 flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="font-mono uppercase tracking-tight text-2xl sm:text-3xl text-text-primary">
             How it works
           </h2>
+          <Link
+            to="/watch"
+            className="font-mono uppercase text-xs tracking-tight text-text-primary underline underline-offset-4 hover:text-gold-dark"
+          >
+            Watch the 1-minute video →
+          </Link>
         </div>
 
         <div className="grid md:grid-cols-3 gap-0 border-2 border-text-primary bg-surface">

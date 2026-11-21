@@ -85,6 +85,10 @@ export function LoginRoute() {
           <button className="btn-primary" onClick={onSignIn} disabled={signingIn}>
             {signingIn ? 'Redirecting…' : 'Continue with Google'}
           </button>
+          <p className="-mt-1 text-xs text-text-primary" data-testid="google-email-notice">
+            Signing in with Google turns on training reminders by email. You can switch them off any
+            time in your profile or from any email.
+          </p>
           <button className="btn-outline" onClick={onSignInLichess} disabled={signingIn}>
             {signingIn ? 'Redirecting…' : 'Continue with Lichess'}
           </button>
@@ -95,7 +99,8 @@ export function LoginRoute() {
           </p>
         )}
         <p className="text-text-secondary text-xs">
-          We only store your chess.com / lichess username and game data — no personal info used or shared.
+          We store your chess usernames and games. Your email is used only for reminders and
+          motivation, which you can turn off any time, and we never share it.
         </p>
         <p className="text-text-secondary text-xs">
           By continuing, you agree to our{' '}
