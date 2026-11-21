@@ -53,6 +53,8 @@ function deepenOptsFor(blunder: Blunder) {
 }
 /** Longer pause after deepening rows — each one costs ~2×3s of engine time. */
 const DEEPEN_ROW_DELAY_MS = 4000;
+/** Minimum gap between motif-card refreshes while the worker runs. */
+const MOTIF_REFRESH_MS = 2 * 60_000;
 /**
  * Retire rows the deeper pass says weren't really blunders. Hysteresis below
  * the 15% trainable bar so borderline rows don't flap in and out of the queue.
@@ -93,6 +95,18 @@ export function startBlunderMaintenance(
   const token = {};
   runToken = token;
   let stopped = false;
+  // The motif card's RPC aggregates every tactic row; refreshing it after each
+  // 5-row batch re-ran it every ~40s for as long as the dashboard was open.
+  // Refresh at most every MOTIF_REFRESH_MS while rows change, plus at the end.
+  let motifsChanged = false;
+  let lastMotifRefresh = Date.now();
+  const refreshMotifs = (force = false) => {
+    if (!motifsChanged) return;
+    if (!force && Date.now() - lastMotifRefresh < MOTIF_REFRESH_MS) return;
+    lastMotifRefresh = Date.now();
+    motifsChanged = false;
+    void queryClient.invalidateQueries({ queryKey: ['insights', 'motifs'] });
+  };
 
   const stop = () => {
     stopped = true;
@@ -151,6 +165,7 @@ export function startBlunderMaintenance(
           if (stopped) return;
           try {
             await enrichOne(sf, blunder);
+            motifsChanged = true;
             enriched++;
             remaining--;
             onProgress?.({ enriched, deepened, remaining });
@@ -172,7 +187,7 @@ export function startBlunderMaintenance(
           }
           await new Promise((r) => setTimeout(r, ROW_DELAY_MS));
         }
-        void queryClient.invalidateQueries({ queryKey: ['insights', 'motifs'] });
+        refreshMotifs();
         if (await syncBusy()) return;
       }
 
@@ -187,6 +202,7 @@ export function startBlunderMaintenance(
           if (stopped) return;
           try {
             await deepenOne(sf, blunder);
+            motifsChanged = true;
             deepened++;
             remaining--;
             onProgress?.({ enriched, deepened, remaining });
@@ -197,12 +213,13 @@ export function startBlunderMaintenance(
           }
           await new Promise((r) => setTimeout(r, DEEPEN_ROW_DELAY_MS));
         }
-        void queryClient.invalidateQueries({ queryKey: ['insights', 'motifs'] });
+        refreshMotifs();
         if (await syncBusy()) return;
       }
     } catch (err) {
       console.warn('[maintenance] worker stopped', err);
     } finally {
+      refreshMotifs(true);
       if (runToken === token) {
         running = false;
         runToken = null;

@@ -150,7 +150,7 @@ export function platformGameUrl(game: GameRecord): string | null {
     const site = headers.Site;
     if (site && /^https?:\/\/lichess\.org\//i.test(site)) {
       // Bare game URLs accept a /black suffix to orient the board.
-      if (game.userColor === 'black' && /^https?:\/\/lichess\.org\/[A-Za-z0-9]+$/i.test(site)) {
+      if (game.userColor === 'black' && /^https?:\/\/lichess\.org\/(?:game\/)?[A-Za-z0-9]+$/i.test(site)) {
         return `${site}/black`;
       }
       return site;
