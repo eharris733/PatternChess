@@ -199,7 +199,9 @@ test('the train step checks off after the daily goal is met, button stays', asyn
   // 12/10 drills today — the step is complete (capped at the goal), and the
   // Train button must remain available.
   await expect(page.getByText('10/10')).toBeVisible();
-  await expect(page.getByText('All done today')).toBeVisible();
+  // The linked account adds the Play step (0/1 games today), so the plan
+  // isn't finished by drills alone.
+  await expect(page.getByText('1/2 done')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Train', exact: true })).toBeVisible();
 });
 

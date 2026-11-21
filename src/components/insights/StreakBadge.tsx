@@ -1,7 +1,8 @@
 import clsx from 'clsx';
 import { useAuth } from '../../auth/useAuth';
-import { addDays, detectTimezone, localDate } from '../../services/streakService';
+import { streakStatus } from '../../services/streakService';
 import { FlameIcon } from '../icons/FlameIcon';
+import { SnowflakeIcon } from '../icons/SnowflakeIcon';
 
 interface StreakBadgeProps {
   collapsed?: boolean;
@@ -10,19 +11,25 @@ interface StreakBadgeProps {
 /**
  * Compact streak indicator for the sidebar. Rendered inside the identity
  * cluster wrapper in SidebarNav (no standalone border/background). Visually
- * de-emphasizes if the streak has already lapsed (last drill > 1 day ago) —
- * the displayed number won't reset until the next drill.
+ * de-emphasizes if the streak has already lapsed (more missed days than banked
+ * freezes) — the displayed number won't reset until the next drill. Banked
+ * streak freezes show as snowflakes.
  */
 export function StreakBadge({ collapsed }: StreakBadgeProps) {
   const { profile } = useAuth();
   if (!profile) return null;
 
-  const tz = profile.timezone ?? detectTimezone();
-  const today = localDate(tz);
-  const yesterday = addDays(today, -1);
   const last = profile.lastDrillLocalDate;
-  const stale = !last || (last !== today && last !== yesterday);
+  const status = streakStatus({
+    currentStreakDays: profile.currentStreakDays,
+    lastDrillLocalDate: last,
+    timezone: profile.timezone,
+    streakFreezes: profile.streakFreezes,
+  });
+  const stale = !status.alive;
   const days = profile.currentStreakDays;
+  const freezes = profile.streakFreezes;
+  const freezeTitle = freezes > 0 ? ` · ${freezes} streak freeze${freezes === 1 ? '' : 's'} banked` : '';
 
   if (days === 0) return null;
 
@@ -36,7 +43,9 @@ export function StreakBadge({ collapsed }: StreakBadgeProps) {
       title={
         stale
           ? `Streak: ${days} (resets on next drill — last drill ${last ?? 'never'})`
-          : `${days}-day streak`
+          : status.freezesNeeded > 0
+            ? `${days}-day streak · train today and ${status.freezesNeeded === 1 ? 'a freeze covers' : `${status.freezesNeeded} freezes cover`} the missed ${status.freezesNeeded === 1 ? 'day' : 'days'}`
+            : `${days}-day streak${freezeTitle}`
       }
     >
       <FlameIcon className="h-4 w-4 shrink-0" />
@@ -48,6 +57,13 @@ export function StreakBadge({ collapsed }: StreakBadgeProps) {
         <span className="text-sm tabular-nums">
           <span className="font-mono font-semibold text-gold-dark">{days}</span>
           <span className="text-text-secondary"> day{days === 1 ? '' : 's'}</span>
+        </span>
+      )}
+      {!collapsed && freezes > 0 && !stale && (
+        <span className="ml-auto inline-flex items-center gap-0.5 text-accent" data-testid="streak-freezes">
+          {Array.from({ length: freezes }, (_, i) => (
+            <SnowflakeIcon key={i} className="h-3.5 w-3.5" />
+          ))}
         </span>
       )}
     </div>

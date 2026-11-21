@@ -1,6 +1,7 @@
 import type { TimeControlCategory } from '../services/chessApiService';
 import { BOARD_THEMES, type BoardTheme } from '../state/themeStore';
 import type { TablesInsert, TablesUpdate } from '../lib/database.types';
+import { dailyGoalsFromJson, type DailyGoals } from '../lib/dailyGoal';
 
 export interface UserProfile {
   id: string;
@@ -15,6 +16,8 @@ export interface UserProfile {
   createdAt: Date;
   currentStreakDays: number;
   longestStreakDays: number;
+  /** Banked streak freezes (0–2); a missed day spends one instead of resetting the streak. */
+  streakFreezes: number;
   lastDrillLocalDate: string | null;
   timezone: string | null;
   boardTheme: BoardTheme;
@@ -58,6 +61,8 @@ export interface UserProfile {
   learnChaptersDone: string[];
   /** Selected flair id (src/lib/flair.ts); null = none. Cosmetic only. */
   flair: string | null;
+  /** Commitment level + the daily plan's position/game goals. Write via `updateDailyGoals`. */
+  dailyGoals: DailyGoals;
 }
 
 function parseBoardTheme(v: unknown): BoardTheme {
@@ -100,6 +105,7 @@ export function userProfileFromJson(json: any): UserProfile {
     createdAt: new Date(json.created_at as string),
     currentStreakDays: (json.current_streak_days as number | null) ?? 0,
     longestStreakDays: (json.longest_streak_days as number | null) ?? 0,
+    streakFreezes: (json.streak_freezes as number | null) ?? 0,
     lastDrillLocalDate: (json.last_drill_local_date as string | null) ?? null,
     timezone: (json.timezone as string | null) ?? null,
     boardTheme: parseBoardTheme(json.board_theme),
@@ -120,6 +126,7 @@ export function userProfileFromJson(json: any): UserProfile {
       ? (json.learn_chapters_done as unknown[]).filter((k): k is string => typeof k === 'string')
       : [],
     flair: typeof json.flair === 'string' && json.flair ? json.flair : null,
+    dailyGoals: dailyGoalsFromJson(json),
   };
 }
 

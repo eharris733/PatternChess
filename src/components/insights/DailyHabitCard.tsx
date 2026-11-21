@@ -7,7 +7,10 @@ import { useDueCount } from '../../hooks/useDueCount';
 import { useEndgameScenarios } from '../../hooks/useEndgameScenarios';
 import { useDrillsOfKind } from '../../hooks/useDrillsOfKind';
 import { isScenarioDue } from '../../models/endgameScenario';
-import { DAILY_GOAL } from '../../lib/dailyGoal';
+import { COMMITMENT_LABEL, DEFAULT_DAILY_GOALS } from '../../lib/dailyGoal';
+import { useGamesPlayedToday } from '../../hooks/useGamesPlayedToday';
+import { useSyncStore } from '../../state/syncStore';
+import { streakNoticeText, useStreakNoticeStore } from '../../state/streakNoticeStore';
 import { nearestAchievement } from '../../lib/achievements';
 import { detectTimezone, localDate } from '../../services/streakService';
 import { CheckIcon } from '../icons/CheckIcon';
@@ -15,6 +18,9 @@ import { TrophyIcon } from '../icons/TrophyIcon';
 import { EndgameIcon } from '../icons/EndgameIcon';
 import { TrainIcon } from '../icons/TrainIcon';
 import { OpeningIcon } from '../icons/OpeningIcon';
+import { KingIcon } from '../icons/KingIcon';
+import { SnowflakeIcon } from '../icons/SnowflakeIcon';
+import { CloseIcon } from '../icons/CloseIcon';
 import { Skeleton } from '../Skeleton';
 
 /** Endgame play-outs the plan asks for per day (the list may hold many more). */
@@ -30,15 +36,18 @@ function PlanStep({
   goal,
   action,
   onAction,
+  href,
   loading,
 }: {
   icon: React.ReactNode;
   title: string;
-  detail?: string | null;
+  detail?: React.ReactNode;
   done: number;
   goal: number;
   action: string;
-  onAction: () => void;
+  onAction?: () => void;
+  /** External link (opens a new tab) instead of `onAction`. */
+  href?: string;
   loading?: boolean;
 }) {
   const complete = done >= goal;
@@ -60,7 +69,11 @@ function PlanStep({
         <span className={clsx('block text-sm', complete ? 'text-text-secondary line-through' : 'text-text-primary')}>
           {title}
         </span>
-        {detail && <span className="block text-xs text-text-primary truncate">{detail}</span>}
+        {detail && (
+          <span className={clsx('block text-xs text-text-primary', typeof detail === 'string' && 'truncate')}>
+            {detail}
+          </span>
+        )}
       </span>
       {loading ? (
         <Skeleton className="h-4 w-10" />
@@ -69,13 +82,24 @@ function PlanStep({
           {Math.min(done, goal)}/{goal}
         </span>
       )}
-      <button
-        type="button"
-        className={clsx(complete ? 'btn-outline' : 'btn-primary', 'h-9 px-4 text-xs shrink-0')}
-        onClick={onAction}
-      >
-        {action}
-      </button>
+      {href ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={clsx(complete ? 'btn-outline' : 'btn-primary', 'h-9 px-4 text-xs shrink-0')}
+        >
+          {action}
+        </a>
+      ) : (
+        <button
+          type="button"
+          className={clsx(complete ? 'btn-outline' : 'btn-primary', 'h-9 px-4 text-xs shrink-0')}
+          onClick={onAction}
+        >
+          {action}
+        </button>
+      )}
     </li>
   );
 }
@@ -97,10 +121,18 @@ function PlanStepSkeleton() {
   );
 }
 
+/** Where the Play step sends you: the platform you sync from (Lichess first). */
+function playUrl(lichess: string | null, chesscom: string | null): string | null {
+  if (lichess) return 'https://lichess.org/';
+  if (chesscom) return 'https://www.chess.com/play/online';
+  return null;
+}
+
 /**
- * Today's plan: a checklist of the two things to do — drill the SR queue and
- * play a couple of endgame play-outs — each with its own progress, check, and
- * button. (The streak lives in the sidebar badge and on the profile.)
+ * Today's plan: a checklist sized by the player's commitment level — play
+ * games (detected from sync), drill the SR queue, review openings, play
+ * endgames — each with its own progress, check, and button. (The streak lives
+ * in the sidebar badge and on the profile.)
  */
 export function DailyHabitCard() {
   const navigate = useNavigate();
@@ -112,6 +144,17 @@ export function DailyHabitCard() {
   const scenariosQuery = useEndgameScenarios();
   const openingDrillsQuery = useDrillsOfKind('opening');
   const { achievements } = useAchievements();
+  const gamesTodayQuery = useGamesPlayedToday();
+  const syncing = useSyncStore((s) =>
+    Object.values(s.providers).some((p) => p.phase === 'fetching' || p.phase === 'inserting' || p.phase === 'analyzing'),
+  );
+  const triggerSync = useSyncStore((s) => s.triggerNow);
+  const notice = useStreakNoticeStore((s) => s.notice);
+  const clearNotice = useStreakNoticeStore((s) => s.clear);
+  const goals = profile?.dailyGoals ?? DEFAULT_DAILY_GOALS;
+  const playHref = playUrl(profile?.lichessUsername ?? null, profile?.chesscomUsername ?? null);
+  // PGN-only players have nothing to sync, so the Play step can't detect games.
+  const showPlay = goals.gamesPerDay > 0 && playHref != null;
 
   const tz = profile?.timezone ?? detectTimezone();
   const today = localDate(tz);
@@ -160,8 +203,11 @@ export function DailyHabitCard() {
   // Openings have their own step; the train step's "due" excludes them.
   const dueCount = dueQuery.data ?? 0;
 
+  const gamesToday = gamesTodayQuery.data ?? 0;
+
   const steps = [
-    { done: drillsToday, goal: DAILY_GOAL },
+    ...(showPlay ? [{ done: gamesToday, goal: goals.gamesPerDay }] : []),
+    { done: drillsToday, goal: goals.positionsPerDay },
     ...(showOpenings ? [{ done: openingsToday, goal: openingsGoal }] : []),
     ...(showEndgames ? [{ done: playoutsToday, goal: PLAYOUTS_PER_DAY }] : []),
   ];
@@ -172,7 +218,18 @@ export function DailyHabitCard() {
   return (
     <section className="card flex flex-col gap-3">
       <header className="flex items-baseline justify-between">
-        <span className="label">Today's plan</span>
+        <span className="label">
+          Today's plan
+          <button
+            type="button"
+            onClick={() => navigate('/profile#commitment')}
+            className="ml-2 normal-case tracking-normal text-text-secondary underline-offset-2 hover:underline"
+            title="Change your daily commitment"
+            data-testid="commitment-level"
+          >
+            {COMMITMENT_LABEL[goals.level]}
+          </button>
+        </span>
         {scenariosPending ? (
           <Skeleton className="h-3 w-20" />
         ) : (
@@ -188,10 +245,46 @@ export function DailyHabitCard() {
         )}
       </header>
 
+      {notice && (
+        <div className="flex items-start gap-2 border-2 border-accent/40 bg-accent/10 px-3 py-2 text-sm" role="status">
+          <SnowflakeIcon className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+          <span className="flex-1 text-text-primary">{streakNoticeText(notice)}</span>
+          <button type="button" onClick={clearNotice} aria-label="Dismiss" className="shrink-0 text-text-secondary">
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <ul className="flex flex-col divide-y-2 divide-text-primary/10 border-y-2 border-text-primary/10">
+        {showPlay && playHref && profile && (
+          <PlanStep
+            icon={<KingIcon color="white" className="h-4 w-4" />}
+            title={`Play ${goals.gamesPerDay} ${goals.gamesPerDay === 1 ? 'game' : 'games'}`}
+            detail={
+              <>
+                {syncing ? 'Checking for new games…' : 'Your new blunders become tomorrow\'s training.'}{' '}
+                {!syncing && (
+                  <button
+                    type="button"
+                    className="underline underline-offset-2 hover:text-gold-dark"
+                    onClick={() => void triggerSync(profile)}
+                    data-testid="check-new-games"
+                  >
+                    Check for new games
+                  </button>
+                )}
+              </>
+            }
+            done={gamesToday}
+            goal={goals.gamesPerDay}
+            loading={gamesTodayQuery.isPending}
+            action="Play"
+            href={playHref}
+          />
+        )}
         <PlanStep
           icon={<TrainIcon className="h-4 w-4" />}
-          title={`Train ${DAILY_GOAL} positions`}
+          title={`Train ${goals.positionsPerDay} positions`}
           detail={
             dueQuery.isPending
               ? null
@@ -200,7 +293,7 @@ export function DailyHabitCard() {
                 : 'Queue is clear — drills still count'
           }
           done={drillsToday}
-          goal={DAILY_GOAL}
+          goal={goals.positionsPerDay}
           action="Train"
           onAction={() => navigate('/training')}
         />

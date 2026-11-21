@@ -204,6 +204,26 @@ export async function getGameCount(
   return count ?? 0;
 }
 
+/**
+ * `played_at` of the user's games played since `since` — the daily plan's
+ * "Play N games" step filters these to the user's local day. A rolling window
+ * (not a count) because local midnight depends on the profile timezone.
+ */
+export async function getGamesPlayedSince(since: Date): Promise<Date[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from('games')
+    .select('played_at')
+    .eq('user_id', userId)
+    .gte('played_at', since.toISOString())
+    .limit(500);
+  if (error) throw error;
+  return (data ?? [])
+    .map((r) => (r.played_at ? new Date(r.played_at) : null))
+    .filter((d): d is Date => d != null && !Number.isNaN(d.getTime()));
+}
+
 export async function getTotalGameCount(): Promise<number> {
   const userId = await currentUserId();
   if (!userId) return 0;

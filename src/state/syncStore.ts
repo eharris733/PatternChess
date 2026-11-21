@@ -26,9 +26,24 @@ const idle: ProviderProgress = {
 
 type SetState = (s: Partial<SyncState> | ((s: SyncState) => Partial<SyncState>)) => void;
 
+/**
+ * What the latest incremental sync(s) this tab found: new games and the
+ * blunders their analysis produced. Drives the dashboard FreshBlundersCard.
+ * Backlog imports (first sync / post-wipe) never set it — onboarding has its
+ * own screen for those.
+ */
+export interface FreshFinds {
+  games: number;
+  blunders: number;
+  gameIds: string[];
+  at: number;
+}
+
 interface SyncState {
   providers: Record<ProviderKey, ProviderProgress>;
   lastTriggeredFor: string | null;
+  freshFinds: FreshFinds | null;
+  clearFreshFinds: () => void;
   startForProfile: (profile: UserProfile) => Promise<void>;
   triggerNow: (profile: UserProfile) => Promise<void>;
   reset: () => void;
@@ -166,6 +181,21 @@ async function runOneUnlocked(
       void queryClient.invalidateQueries({ queryKey: ['games'] });
       void queryClient.invalidateQueries({ queryKey: ['blunders'] });
     }
+    // Only incremental syncs celebrate: `since` is null for a backlog import.
+    if (since && result.inserted.length > 0) {
+      const ids = result.inserted.map((g) => g.id);
+      set((s) => {
+        const prev = s.freshFinds;
+        return {
+          freshFinds: {
+            games: (prev?.games ?? 0) + result.inserted.length,
+            blunders: (prev?.blunders ?? 0) + result.blundersFound,
+            gameIds: [...(prev?.gameIds ?? []), ...ids],
+            at: Date.now(),
+          },
+        };
+      });
+    }
   } catch (e) {
     // syncProvider already emitted an error progress event
     console.error(`[sync] ${platform} failed`, e);
@@ -229,11 +259,15 @@ async function buildTasks(
 export const useSyncStore = create<SyncState>((set, get) => ({
   providers: { lichess: idle, chesscom: idle },
   lastTriggeredFor: null,
+  freshFinds: null,
+
+  clearFreshFinds: () => set({ freshFinds: null }),
 
   reset: () =>
     set({
       providers: { lichess: idle, chesscom: idle },
       lastTriggeredFor: null,
+      freshFinds: null,
     }),
 
   startForProfile: async (profile) => {

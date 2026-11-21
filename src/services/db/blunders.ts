@@ -86,6 +86,22 @@ export async function getDueBlunders(opts?: { userId?: string }): Promise<Blunde
 }
 
 /**
+ * Live (not retired) tactic/endgame drills from these games — the dashboard's
+ * "Train them now" for blunders found by the latest sync.
+ */
+export async function getLiveBlunderIdsForGames(gameIds: string[]): Promise<string[]> {
+  if (gameIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('blunders')
+    .select('id')
+    .in('game_id', gameIds.slice(0, 200))
+    .in('kind', ['tactic', 'endgame'])
+    .is('retired_at', null);
+  if (error) throw error;
+  return (data ?? []).map((r) => r.id as string);
+}
+
+/**
  * The oldest due tactic — the position the onboarding screen previews while
  * analysis is still running. One row, so it can poll cheaply.
  */
