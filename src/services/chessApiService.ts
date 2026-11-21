@@ -228,6 +228,11 @@ export async function fetchLichessGames(
       external_game_id: externalId,
     });
   }
+  // Every game unreadable means the export format moved under us (it did on
+  // 2026-10-22). Fail loudly: returning [] would show "Up to date".
+  if (pgns.length > 0 && out.length === 0) {
+    throw new Error(`Couldn't read any of the ${pgns.length} games Lichess returned`);
+  }
   return out;
 }
 
@@ -277,13 +282,18 @@ export async function fetchLichessStudyPgn(input: string): Promise<string> {
   return res.text();
 }
 
-function extractLichessGameId(site: string | undefined): string | null {
+/**
+ * Lichess moved game pages to `lichess.org/game/<id>` on 2026-10-22; older
+ * exports (and PGN files people saved) still say `lichess.org/<id>`. Accept
+ * both — rejecting the new form silently skipped every synced game.
+ */
+export function extractLichessGameId(site: string | undefined): string | null {
   if (!site) return null;
-  const m = /^https?:\/\/lichess\.org\/([A-Za-z0-9]{8})(?:\/|$|[^A-Za-z0-9])/.exec(site);
+  const m = /^https?:\/\/lichess\.org\/(?:game\/)?([A-Za-z0-9]{8})(?:\/|$|[^A-Za-z0-9])/.exec(site);
   return m ? m[1] : null;
 }
 
-function extractChesscomGameId(url: string | null, pgn: string): string | null {
+export function extractChesscomGameId(url: string | null, pgn: string): string | null {
   const fromUrl = url ? /\/game\/(?:live|daily)\/(\d+)/.exec(url) : null;
   if (fromUrl) return fromUrl[1];
   const linkMatch = /\[Link "https?:\/\/www\.chess\.com\/game\/(?:live|daily)\/(\d+)"\]/.exec(pgn);

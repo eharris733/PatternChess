@@ -52,6 +52,12 @@ export async function getBlundersForGames(gameIds: string[]): Promise<Blunder[]>
 export async function getBlunderCountsByGame(opts?: {
   userId?: string;
 }): Promise<Record<string, number>> {
+  // One aggregate round trip; the paged tally below is the fallback until the
+  // RPC's migration is live (and for any error it raises).
+  const { data, error } = await supabase.rpc('blunder_counts_by_game');
+  if (!error && data && typeof data === 'object' && !Array.isArray(data)) {
+    return data as Record<string, number>;
+  }
   const rows = await fetchAllRows(() => {
     let q = supabase.from('blunders').select('game_id').eq('kind', 'tactic').order('id');
     if (opts?.userId) q = q.eq('user_id', opts.userId);
