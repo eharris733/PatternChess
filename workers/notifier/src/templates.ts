@@ -106,7 +106,9 @@ function streakRow(d: EmailData): string {
       const today = i === days.length - 1;
       const bg = on ? GOLD : '#FFFFFF';
       const border = today && !on ? `2px dashed ${GOLD}` : `2px solid ${INK}`;
-      return `<td style="padding:0 3px;"><div style="width:30px;height:30px;background:${bg};border:${border};"></div></td>`;
+      // Gmail drops the "background" shorthand and sizes on divs: use a
+      // table cell with bgcolor + background-color, plus a spacer cell.
+      return `<td width="30" height="30" bgcolor="${bg}" style="width:30px;height:30px;background-color:${bg};border:${border};font-size:1px;line-height:1px;">&nbsp;</td>${i < days.length - 1 ? '<td width="6" style="width:6px;font-size:1px;">&nbsp;</td>' : ''}`;
     })
     .join('');
   const freezes =
@@ -115,7 +117,7 @@ function streakRow(d: EmailData): string {
       : '';
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 18px;">
     <tr><td style="padding-bottom:8px;font:bold 28px/1 ${SANS};color:${INK};">${d.streak}<span style="font:13px/1 ${MONO};color:${MUTED};text-transform:uppercase;letter-spacing:0.5px;">&nbsp; day streak</span></td></tr>
-    <tr><td><table role="presentation" cellpadding="0" cellspacing="0" style="margin-left:-3px;"><tr>${cells}</tr></table>${freezes}</td></tr>
+    <tr><td><table role="presentation" cellpadding="0" cellspacing="0"><tr>${cells}</tr></table>${freezes}</td></tr>
   </table>`;
 }
 
@@ -134,7 +136,7 @@ function statsTable(rows: Array<[string, string]>): string {
 
 function cta(label: string, href: string): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 20px;"><tr>
-    <td style="background:${GOLD};border:2px solid ${INK};box-shadow:3px 3px 0 ${INK};">
+    <td bgcolor="${GOLD}" style="background-color:${GOLD};border:2px solid ${INK};">
       <a href="${esc(href)}" style="display:inline-block;padding:13px 24px;font:bold 13px/1 ${MONO};letter-spacing:0.5px;text-transform:uppercase;color:#FFFFFF;text-decoration:none;">${esc(label)}</a>
     </td>
   </tr></table>`;
@@ -158,11 +160,11 @@ function layout(b: Body, d: EmailData, links: EmailLinks): RenderedEmail {
 
   const html = `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta name="color-scheme" content="light"><title>${esc(b.subject)}</title></head>
-<body style="margin:0;padding:0;background:${PAPER};">
+<body style="margin:0;padding:0;background-color:${PAPER};" bgcolor="${PAPER}">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(b.preheader)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PAPER};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${PAPER}" style="background-color:${PAPER};">
 <tr><td align="center" style="padding:28px 12px;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:540px;background:#FFFFFF;border:2px solid ${INK};box-shadow:4px 4px 0 ${INK};">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#FFFFFF" style="max-width:540px;background-color:#FFFFFF;border:2px solid ${INK};">
     <tr><td style="padding:22px 26px 0;">
       <span style="font:22px/1 ${SERIF};color:${INK};">Pattern<i style="color:${GOLD};">Chess</i></span>
     </td></tr>
