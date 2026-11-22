@@ -33,9 +33,9 @@ const data: EmailData = {
 const links: EmailLinks = {
   train: 'https://patternchess.com/training?utm_source=email',
   dashboard: 'https://patternchess.com/dashboard?utm_source=email',
-  settings: 'https://patternchess.com/email?t=preview',
-  unsubscribe: 'https://patternchess.com/email?t=preview&unsubscribe=1',
-  confirm: 'https://patternchess.com/email?confirm=preview',
+  settings: 'https://email.patternchess.com/settings?t=preview',
+  unsubscribe: 'https://email.patternchess.com/unsubscribe?t=preview',
+  confirm: 'https://email.patternchess.com/confirm?c=preview',
 };
 
 const kinds: EmailKind[] = ['welcome', 'ready', 'streak_at_risk', 'daily_plan', 'weekly_report', 'confirm'];
