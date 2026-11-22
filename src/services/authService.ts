@@ -1,5 +1,6 @@
-import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { authClient } from '../lib/authClient';
+import type { AuthUser } from '../auth/AuthProvider';
 import { getAnonId } from '../lib/anonId';
 import type { TablesUpdate } from '../lib/database.types';
 import { ALL_TIME_CONTROLS } from './chessApiService';
@@ -13,27 +14,37 @@ import {
   userProfileToUpdate,
 } from '../models/userProfile';
 
+/** A readable message for a failed sign-in redirect request. */
+function signInErrorMessage(provider: string, error: { status?: number; message?: string }): string {
+  if (error.status === 404 || /provider not found/i.test(error.message ?? '')) {
+    return `${provider} sign-in isn't available right now.`;
+  }
+  return error.message || `${provider} sign-in failed`;
+}
+
 export const authService = {
   async signInWithGoogle(): Promise<void> {
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { error } = await authClient.signIn.social({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/` },
+      callbackURL: `${window.location.origin}/`,
+      errorCallbackURL: `${window.location.origin}/login`,
     });
-    if (error) throw error;
+    if (error) throw new Error(signInErrorMessage('Google', error));
   },
 
   async signInWithLichess(): Promise<void> {
-    const { error } = await supabase.auth.signInWithOAuth({
-      // 'custom:lichess' isn't in supabase-js's Provider union yet.
-      provider: 'custom:lichess' as any,
-      options: { redirectTo: `${window.location.origin}/` },
+    // better-auth 1.7 serves genericOAuth providers through signIn.social.
+    const { error } = await authClient.signIn.social({
+      provider: 'lichess',
+      callbackURL: `${window.location.origin}/`,
+      errorCallbackURL: `${window.location.origin}/login`,
     });
-    if (error) throw error;
+    if (error) throw new Error(signInErrorMessage('Lichess', error));
   },
 
   async signOut(): Promise<void> {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    const { error } = await authClient.signOut();
+    if (error) throw new Error(error.message || 'Sign-out failed');
   },
 
   async getProfile(): Promise<UserProfile | null> {
@@ -53,13 +64,11 @@ export const authService = {
   },
 
   /**
-   * Pass the session's user when you have it: getUser() is a network round
-   * trip held under the gotrue lock, and RLS verifies auth.uid() server-side
-   * anyway.
+   * The signed-in user's profile. The server creates it when better-auth
+   * creates the user (functions/_shared/auth.ts databaseHooks), so the insert
+   * below is only a fallback.
    */
-  async getOrCreateProfile(sessionUser?: User): Promise<UserProfile> {
-    const user = sessionUser ?? (await supabase.auth.getUser()).data.user;
-    if (!user) throw new Error('Not authenticated');
+  async getOrCreateProfile(user: AuthUser): Promise<UserProfile> {
 
     const { data: existing } = await supabase
       .from('profiles')
@@ -70,8 +79,7 @@ export const authService = {
     if (existing) return userProfileFromJson(existing);
 
     const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
-    const isLichess =
-      (user.app_metadata as Record<string, unknown> | undefined)?.provider === 'custom:lichess';
+    const isLichess = user.provider === 'lichess';
     // Lichess userinfo (/api/account) carries the username under a non-standard
     // key; try the likely candidates. Confirmed against the live user object.
     const lichessUsername = isLichess

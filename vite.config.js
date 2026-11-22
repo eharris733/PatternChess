@@ -33,7 +33,16 @@ export default defineConfig(function () {
                 '@': path.resolve(__dirname, 'src'),
             },
         },
-        server: { port: 5173 },
+        server: {
+            port: 5173,
+            // Pages Functions don't run under Vite: forward auth + RPC to
+            // `wrangler pages dev` on :8788 (see CLAUDE.md). The Host header is kept
+            // (no changeOrigin) so better-auth builds localhost:5173 URLs and cookies.
+            proxy: {
+                '/api/auth': { target: 'http://localhost:8788' },
+                '/api/rpc': { target: 'http://localhost:8788' },
+            },
+        },
         preview: { port: 4173 },
         worker: { format: 'es' },
         assetsInclude: ['**/*.wasm'],
