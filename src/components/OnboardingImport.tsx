@@ -8,6 +8,7 @@ import type { ProviderProgress } from '../services/syncService';
 import { ProgressBar } from './ProgressBar';
 import { BrandLockup } from './BrandLogo';
 import { MiniBoard } from './MiniBoard';
+import { CommitmentPicker } from './CommitmentPicker';
 
 type Phase = 'fetching' | 'analyzing' | 'done' | 'error' | 'idle';
 
@@ -163,6 +164,14 @@ export function OnboardingImport() {
         New games sync automatically each time you visit — your vault stays
         current.
       </p>
+
+      <section className="mt-8 w-full text-left" aria-labelledby="commitment-heading">
+        <h2 id="commitment-heading" className="heading-md">How much will you commit each day?</h2>
+        <p className="mt-1 mb-3 text-sm text-text-primary">
+          Your daily plan follows this. Change it any time in your profile.
+        </p>
+        <CommitmentPicker compact />
+      </section>
     </div>
   );
 }

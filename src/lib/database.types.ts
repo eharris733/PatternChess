@@ -513,6 +513,9 @@ export type Database = {
           autoplay_refutation: boolean
           avatar_url: string | null
           board_theme: string
+          commitment_level: string
+          daily_games_goal: number
+          daily_positions_goal: number
           chesscom_username: string | null
           created_at: string | null
           current_streak_days: number
@@ -547,6 +550,8 @@ export type Database = {
           show_answer_on_miss: boolean
           show_engine_evals: boolean
           sounds_enabled: boolean
+          streak_freezes: number
+          streak_freezes_used: number
           timezone: string | null
           used_training_filter: boolean
         }
@@ -555,6 +560,9 @@ export type Database = {
           autoplay_refutation?: boolean
           avatar_url?: string | null
           board_theme?: string
+          commitment_level?: string
+          daily_games_goal?: number
+          daily_positions_goal?: number
           chesscom_username?: string | null
           created_at?: string | null
           current_streak_days?: number
@@ -589,6 +597,8 @@ export type Database = {
           show_answer_on_miss?: boolean
           show_engine_evals?: boolean
           sounds_enabled?: boolean
+          streak_freezes?: number
+          streak_freezes_used?: number
           timezone?: string | null
           used_training_filter?: boolean
         }
@@ -597,6 +607,9 @@ export type Database = {
           autoplay_refutation?: boolean
           avatar_url?: string | null
           board_theme?: string
+          commitment_level?: string
+          daily_games_goal?: number
+          daily_positions_goal?: number
           chesscom_username?: string | null
           created_at?: string | null
           current_streak_days?: number
@@ -631,6 +644,8 @@ export type Database = {
           show_answer_on_miss?: boolean
           show_engine_evals?: boolean
           sounds_enabled?: boolean
+          streak_freezes?: number
+          streak_freezes_used?: number
           timezone?: string | null
           used_training_filter?: boolean
         }

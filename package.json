@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "typecheck:functions": "tsc -p functions --noEmit",
+    "typecheck:notifier": "tsc -p workers/notifier --noEmit",
     "pages:dev": "npm run build && wrangler pages dev dist",
     "lint": "eslint src --ext .ts,.tsx",
     "format": "prettier --write src",

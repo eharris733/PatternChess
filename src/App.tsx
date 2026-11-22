@@ -12,6 +12,7 @@ import { AboutRoute } from './routes/AboutRoute';
 import { FaqRoute } from './routes/FaqRoute';
 import { EventsRoute } from './routes/EventsRoute';
 import { MomentsRoute } from './routes/MomentsRoute';
+import { WatchRoute } from './routes/WatchRoute';
 import { BlogIndex } from './routes/BlogIndex';
 import { BlogPost } from './routes/BlogPost';
 import { NotFoundRoute } from './routes/NotFoundRoute';
@@ -86,6 +87,7 @@ export default function App() {
       <Route path="/faq" element={<FaqRoute />} />
       <Route path="/events" element={<EventsRoute />} />
       <Route path="/moments" element={<MomentsRoute />} />
+      <Route path="/watch" element={<WatchRoute />} />
       <Route path="/blog" element={<BlogIndex />} />
       <Route path="/blog/:slug" element={<BlogPost />} />
       <Route

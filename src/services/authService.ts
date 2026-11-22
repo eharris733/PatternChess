@@ -5,6 +5,7 @@ import type { TablesUpdate } from '../lib/database.types';
 import { ALL_TIME_CONTROLS } from './chessApiService';
 import { fetchAllRows, fetchInChunks } from './db/paginate';
 import { currentUserId } from './db/currentUser';
+import { DEFAULT_DAILY_GOALS } from '../lib/dailyGoal';
 import {
   UserProfile,
   userProfileFromJson,
@@ -99,6 +100,7 @@ export const authService = {
       createdAt: new Date(),
       currentStreakDays: 0,
       longestStreakDays: 0,
+      streakFreezes: 0,
       lastDrillLocalDate: null,
       timezone: null,
       boardTheme: 'default',
@@ -116,6 +118,8 @@ export const authService = {
       openingReviewsOpened: 0,
       learnChaptersDone: [],
       flair: null,
+      dailyGoals: { ...DEFAULT_DAILY_GOALS },
+      emailOptIn: true,
     };
     // Stamp the landing-page visitor id (if this browser ever hit the landing
     // page) so the funnel can link anonymous view/demo events to this account.
