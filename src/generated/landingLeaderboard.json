@@ -1,50 +1,50 @@
 {
-  "since": "2026-10-03T20:18:41.177822+00:00",
-  "computedAt": "2026-10-10T20:18:41.177822+00:00",
+  "since": "2026-11-15T01:26:33.247844+00:00",
+  "computedAt": "2026-11-22T01:26:33.247844+00:00",
   "rows": [
     {
       "rank": 1,
-      "label": "L8ff",
+      "label": "TolisWorld",
       "platform": "lichess",
-      "rating": 1540,
-      "ratingCategory": "blitz",
-      "value": 163,
+      "rating": 1293,
+      "ratingCategory": "bullet",
+      "value": 123,
       "flair": null
     },
     {
       "rank": 2,
-      "label": "DrGoose",
+      "label": "QuinceyPMorris",
       "platform": "lichess",
-      "rating": 2084,
+      "rating": 1438,
       "ratingCategory": "rapid",
-      "value": 81,
+      "value": 118,
       "flair": "endgame-medic"
     },
     {
       "rank": 3,
-      "label": "xybris",
-      "platform": "chesscom",
-      "rating": 1234,
-      "ratingCategory": "blitz",
-      "value": 53,
-      "flair": null
-    },
-    {
-      "rank": 4,
-      "label": "eharris733",
-      "platform": "chesscom",
-      "rating": 2118,
-      "ratingCategory": "blitz",
-      "value": 41,
+      "label": "DrGoose",
+      "platform": "lichess",
+      "rating": 2060,
+      "ratingCategory": "rapid",
+      "value": 106,
       "flair": "pattern-master"
     },
     {
-      "rank": 5,
-      "label": "Jkday16",
-      "platform": "chesscom",
-      "rating": 1025,
+      "rank": 4,
+      "label": "alz59",
+      "platform": "lichess",
+      "rating": 1107,
       "ratingCategory": "rapid",
-      "value": 35,
+      "value": 30,
+      "flair": null
+    },
+    {
+      "rank": 5,
+      "label": "VerityC",
+      "platform": "lichess",
+      "rating": 1500,
+      "ratingCategory": "rapid",
+      "value": 11,
       "flair": null
     }
   ]

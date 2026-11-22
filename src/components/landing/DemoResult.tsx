@@ -56,12 +56,12 @@ export function DemoResult({ demo }: Props) {
         />
         <div className="border-2 border-text-primary bg-surface p-6">
           <div className="font-mono uppercase text-xs tracking-tight text-text-secondary mb-2">
-            Clean games
+            Suspiciously clean
           </div>
           <p className="text-text-primary mb-4">
-            We didn't find a trainable blunder in your last {r.gamesAnalyzed} game
-            {r.gamesAnalyzed === 1 ? '' : 's'}. Try a different username, or sign up to
-            analyze your full history.
+            No trainable blunders in your last {r.gamesAnalyzed} game
+            {r.gamesAnalyzed === 1 ? '' : 's'}. Either you're in form or we need more games. Sign up
+            and we'll check your full history.
           </p>
           <SignUpCta source="demo_clean">Sign up free</SignUpCta>
         </div>
@@ -88,13 +88,13 @@ export function DemoResult({ demo }: Props) {
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between border-2 border-text-primary bg-text-primary text-bg p-6">
         <div>
           <div className="font-mono uppercase tracking-tight text-sm sm:text-base">
-            Save these blunders.
+            {r.blundersFound} blunder{r.blundersFound === 1 ? '' : 's'}. That's your training plan.
           </div>
           <div className="font-sans text-bg/70 text-sm mt-1">
-            Sign up free and drill every mistake until it's gone.
+            Sign up free. We'll give you a few a day until the right move is automatic.
           </div>
         </div>
-        <SignUpCta source="demo_result">Sign up free →</SignUpCta>
+        <SignUpCta source="demo_result">Start my plan →</SignUpCta>
       </div>
     </div>
   );

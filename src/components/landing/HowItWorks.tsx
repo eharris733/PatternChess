@@ -9,15 +9,31 @@ export const HOW_IT_WORKS_STEPS = [
   },
   {
     num: '02',
-    title: 'Drill them across days',
-    body: 'A four-rep ladder over about a month, so you truly internalize your mistakes and learn from them.',
+    title: 'Train a few every day',
+    body: 'Each blunder comes back on a four-rep ladder over about a month. A few minutes a day keeps the pattern mastered for your next game.',
   },
   {
     num: '03',
     title: 'Repeat until the answer is automatic',
-    body: 'Most blunders happen from time trouble and blind spots. The answer has to be automatic if you’re going to catch it in a real game under real pressure.',
+    body: 'Blunders happen from time trouble and blind spots. The best move has to be automatic in order to find it under pressure.',
+  },
+  {
+    num: '04',
+    title: 'Keep the streak',
+    body: 'Play a game, train your positions, come back tomorrow. Your streak, the weekly board and email reminders keep you honest to your goals.',
   },
 ];
+
+// 1 column on phones, 2×2 on tablets, 4 across on desktop.
+function stepBorders(i: number, n: number): string {
+  const c = ['border-text-primary'];
+  if (i < n - 1) c.push('border-b-2');
+  if (i >= n - 2) c.push('md:border-b-0');
+  else c.push('md:border-b-2');
+  if (i % 2 === 0) c.push('md:border-r-2');
+  c.push(i < n - 1 ? 'lg:border-r-2' : 'lg:border-r-0', 'lg:border-b-0');
+  return c.join(' ');
+}
 
 export function HowItWorks() {
   return (
@@ -35,14 +51,11 @@ export function HowItWorks() {
           </Link>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-0 border-2 border-text-primary bg-surface">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-0 border-2 border-text-primary bg-surface">
           {HOW_IT_WORKS_STEPS.map((s, i) => (
             <div
               key={s.num}
-              className={
-                'p-6 lg:p-8 flex flex-col gap-3 ' +
-                (i < HOW_IT_WORKS_STEPS.length - 1 ? 'md:border-r-2 border-b-2 md:border-b-0 border-text-primary' : '')
-              }
+              className={'p-6 lg:p-8 flex flex-col gap-3 ' + stepBorders(i, HOW_IT_WORKS_STEPS.length)}
             >
               <span className="font-mono text-3xl text-gold-dark">{s.num}</span>
               <h3 className="font-mono uppercase tracking-tight text-base text-text-primary">

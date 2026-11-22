@@ -203,7 +203,7 @@ test('the training landing screen offers a focus before starting', async ({ page
 test('an empty due queue skips the picker entirely', async ({ page }) => {
   await stubTrainingAuth(page, { autoplayRefutation: true, blunders: [] });
   await page.goto('/training');
-  await expect(page.getByText(/No blunders due/i)).toBeVisible();
+  await expect(page.getByText(/You're caught up/i)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'What do you want to train?' })).toHaveCount(0);
 });
 
@@ -218,11 +218,11 @@ test('finishing the review queue offers to keep training instead of a dead end',
   await expect(page.getByText('Solution correct')).toBeVisible();
   await page.getByRole('button', { name: 'Next' }).click();
 
-  await expect(page.getByRole('heading', { name: 'Cycle complete' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Session done|Today's plan: done/ })).toBeVisible();
   await page.getByRole('button', { name: 'Keep training' }).click();
   // Back at the picker (or the empty state, if the queue is genuinely drained)
   // rather than stuck on the completion card.
-  await expect(page.getByRole('heading', { name: 'Cycle complete' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: /Session done|Today's plan: done/ })).toHaveCount(0);
 });
 
 async function startAndMiss(page: Page) {

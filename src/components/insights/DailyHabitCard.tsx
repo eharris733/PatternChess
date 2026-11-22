@@ -240,7 +240,7 @@ export function DailyHabitCard() {
             )}
           >
             {allDone && <CheckIcon className="h-3.5 w-3.5" title="Plan complete" />}
-            {allDone ? 'All done today' : `${stepsDone}/${steps.length} done`}
+            {allDone ? 'Plan done. See you tomorrow.' : `${stepsDone}/${steps.length} done`}
           </span>
         )}
       </header>
@@ -290,7 +290,7 @@ export function DailyHabitCard() {
               ? null
               : dueCount > 0
                 ? `${dueCount} due in your queue`
-                : 'Queue is clear — drills still count'
+                : "Queue's clear. Extra drills still count."
           }
           done={drillsToday}
           goal={goals.positionsPerDay}

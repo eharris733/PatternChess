@@ -11,7 +11,7 @@ author: "Elliot Harris"
 
 The Woodpecker Method is a chess-training technique where you solve the same set of tactical positions over and over, each cycle faster than the last, until the patterns become instant recognition.
 
-It comes from the book of the same name by Axel Smith and Hans Tikkanen. Tikkanen used it to score three grandmaster norms in seven weeks — not by solving more puzzles, but by solving the same puzzles repeatedly.
+It comes from the book of the same name by Axel Smith and Hans Tikkanen. Tikkanen used it to score three grandmaster norms in seven weeks by solving the same puzzles again and again.
 
 ## Why repetition beats fresh puzzles
 
@@ -36,4 +36,4 @@ The original method uses a fixed book of puzzles. They are well chosen, but they
 
 The strongest version of the Woodpecker Method drills the patterns you personally get wrong — the [blunders from your own games](/blog/how-to-stop-blundering-in-chess). Instead of a generic book, your set becomes the exact positions where you lost ground, re-solved on a [spaced-repetition](/about) schedule.
 
-That is what PatternChess does: it finds your blunders with an engine and runs them through a Woodpecker-style loop automatically. [Start with your own games](/login) — it is free.
+That is what PatternChess does: it finds your blunders with an engine and runs them through a Woodpecker-style loop, a few positions a day. [Start with your own games](/login), free.

@@ -461,13 +461,13 @@ export function TrainingRoute() {
         <h1 className="heading-lg">
           {activeFilterLabel
             ? `Nothing due in ${activeFilterLabel}`
-            : 'No blunders due'}
+            : "You're caught up"}
         </h1>
         <p className="text-text-secondary text-sm">
           {activeFilterLabel
-            ? 'Try drilling the full queue or come back after another sync.'
+            ? 'Try the full queue, or play a game and check back.'
             : hasAccount
-              ? 'Sync your latest games to fill the queue.'
+              ? "Nothing due right now. Play a game and we'll find fresh material."
               : 'Link a Lichess or Chess.com account to start.'}
         </p>
         {activeFilterLabel && (

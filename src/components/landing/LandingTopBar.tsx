@@ -26,7 +26,7 @@ export function LandingTopBar() {
             onClick={() => trackCtaClick('topbar_signup')}
             className="font-mono uppercase text-xs tracking-tight border-2 border-text-primary bg-text-primary text-bg px-4 py-2 rounded-none shadow-[3px_3px_0_#8B6914] hover:shadow-[1px_1px_0_#8B6914] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
           >
-            Sign up
+            Sign up free
           </Link>
         </nav>
       </div>

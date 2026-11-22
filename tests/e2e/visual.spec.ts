@@ -94,7 +94,7 @@ const ROUTES: Array<{ path: string; name: string; expect: (p: import('@playwrigh
     path: '/training',
     name: 'training',
     expect: async (p) => {
-      await expect(p.getByText(/No blunders due/i)).toBeVisible();
+      await expect(p.getByText(/You're caught up/i)).toBeVisible();
     },
   },
   {
@@ -155,7 +155,7 @@ test('new user with no games sees the onboarding connect step', async ({ page })
   await stubAuth(page, 0);
   await page.goto('/dashboard');
   // Onboarding preempts the dashboard for a zero-game user.
-  await expect(page.getByRole('button', { name: /Start import/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Build my plan/i })).toBeVisible();
   await expect(page.getByText(/Which games to train on/i)).toBeVisible();
   // Still inside the shell.
   await expect(page.getByRole('link', { name: /Dashboard/i })).toBeVisible();

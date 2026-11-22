@@ -88,7 +88,7 @@ export function WeeklyLeaderboard() {
                 Your name could be here.
               </div>
               <div className="font-sans text-bg/70 text-sm mt-1">
-                Every blunder from your own games that you review counts toward the weekly board.
+                Every blunder you review counts. Show up daily and watch yourself climb.
               </div>
             </div>
             <Link

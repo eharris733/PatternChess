@@ -115,7 +115,7 @@ export function VaultPositionsTab({ mode }: { mode: PositionsMode }) {
         <p className="text-text-primary text-sm">
           {mode === 'mastered'
             ? `A position is mastered once you've solved it on ${SPACED_REPETITION_DAYS.length} spaced reviews in a row. Keep training and they will collect here.`
-            : 'Blunders found in your analyzed games show up here.'}
+            : "Blunders from your analyzed games land here. Play a game; we'll find some."}
         </p>
         <button type="button" className="pill self-start" onClick={() => navigate('/training')}>
           Go to training

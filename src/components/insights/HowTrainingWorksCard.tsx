@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { SPACED_REPETITION_DAYS, SR_BUCKET_LABEL } from '../../models/blunder';
+import { MASTERED_REVIEW_DAYS, SPACED_REPETITION_DAYS, SR_BUCKET_LABEL } from '../../models/blunder';
 import { CheckIcon } from '../icons/CheckIcon';
 import { ChevronIcon } from '../icons/ChevronIcon';
 
@@ -31,9 +31,14 @@ const STEPS = [
   {
     n: 3,
     title: 'Repeat on a schedule',
-    body: `Recall a position and it returns later — after ${SPACED_REPETITION_DAYS.join(
+    body: `Solve a position and it comes back after ${SPACED_REPETITION_DAYS.slice(0, -1).join(
       ', ',
-    )} days — until it sticks. That's the woodpecker method.`,
+    )}, then ${SPACED_REPETITION_DAYS[SPACED_REPETITION_DAYS.length - 1]} days, then every ${MASTERED_REVIEW_DAYS} days to stay sharp.`,
+  },
+  {
+    n: 4,
+    title: 'Show up daily',
+    body: 'Your plan resets every day. Finish it to keep your streak.',
   },
 ];
 
@@ -105,7 +110,7 @@ export function HowTrainingWorksCard() {
           <span className="text-text-primary">{SR_BUCKET_LABEL.new}</span> — never drilled ·{' '}
           <span className="text-text-primary">{SR_BUCKET_LABEL.learning}</span> — climbing the ladder ·{' '}
           <span className="text-text-primary">{SR_BUCKET_LABEL.tryAgain}</span> — missed last time ·{' '}
-          <span className="text-text-primary">{SR_BUCKET_LABEL.mastered}</span> — graduated every cycle
+          <span className="text-text-primary">{SR_BUCKET_LABEL.mastered}</span> — passed all {SPACED_REPETITION_DAYS.length} spaced reviews
         </p>
       </div>
 
