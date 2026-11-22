@@ -20,7 +20,7 @@
     "EMAIL_URL": "https://email.patternchess.com",
     "SUPABASE_URL": "https://ydfwppthwnlgxnntzrvg.supabase.co",
     // Anything but "live" sends only to TEST_RECIPIENTS (comma-separated).
-    "SEND_MODE": "test",
+    "SEND_MODE": "live",
     "TEST_RECIPIENTS": "elliotmharris@gmail.com"
   },
   "observability": { "enabled": true }
