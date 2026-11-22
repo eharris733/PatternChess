@@ -11,8 +11,8 @@
 #   --resume-from N   skip schema.sql and data chunks before data-N.sql (after a
 #                     failed run; the staged book_positions_next is kept)
 #
-# wrangler runs from $HOME: inside the repo it picks up a stale
-# CLOUDFLARE_API_TOKEN from .env.local.
+# wrangler runs from the repo root so it reads CLOUDFLARE_ACCOUNT_ID from
+# .env.local (the OAuth login spans more than one account).
 set -euo pipefail
 DB=patternchess-book
 repo="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -35,7 +35,7 @@ run() {
   echo "→ $(basename "$1")"
   # D1 imports upload through a presigned URL that occasionally drops; retry.
   for attempt in 1 2 3 4 5 6; do
-    if (cd "$HOME" && npx --prefix "$repo" wrangler d1 execute "$DB" "$target" --yes --file "$1" >/dev/null); then
+    if (cd "$repo" && npx wrangler d1 execute "$DB" "$target" --yes --file "$1" >/dev/null); then
       return
     fi
     echo "  retrying ($attempt)…"
@@ -52,4 +52,4 @@ for f in "$dir"/data-*.sql; do
   run "$f"
 done
 run "$dir/$swap"
-(cd "$HOME" && npx --prefix "$repo" wrangler d1 execute "$DB" "$target" --command "SELECT tier, count(*) AS rows FROM book_positions GROUP BY tier; SELECT * FROM book_meta;")
+(cd "$repo" && npx wrangler d1 execute "$DB" "$target" --command "SELECT tier, count(*) AS rows FROM book_positions GROUP BY tier; SELECT * FROM book_meta;")

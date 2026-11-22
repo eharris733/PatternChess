@@ -3,8 +3,6 @@
 // Secrets (npx wrangler secret put <NAME> --config workers/notifier/wrangler.jsonc):
 //   SUPABASE_SERVICE_ROLE_KEY  service-role key (email_outbox + token RPCs)
 //   ADMIN_SECRET               bearer token for /admin/*
-// Run wrangler from a directory without .env.local (it carries a stale
-// CLOUDFLARE_API_TOKEN), e.g. `cd ~ && npx --prefix ~/PatternChess wrangler ...`.
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "patternchess-notifier",
