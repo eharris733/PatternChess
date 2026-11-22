@@ -133,7 +133,9 @@ export function buildPuzzleShareUrl(
   blunder: Blunder,
   labels: { players: string | null; opening: string | null; anonymous: boolean },
 ): string {
-  return `${window.location.origin}/p?d=${encodeSharedPuzzle({
+  // globalThis: this module is also typechecked under functions/ (no DOM lib).
+  const origin = (globalThis as unknown as { location: { origin: string } }).location.origin;
+  return `${origin}/p?d=${encodeSharedPuzzle({
     fen: blunder.fen,
     pm: blunder.playedMove,
     cm: blunder.correctMoves.map((c) => ({ m: c.move, e: c.eval })),
