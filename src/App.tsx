@@ -44,6 +44,10 @@ const AchievementsRoute = lazy(() =>
 );
 const PathRoute = lazy(() => import('./routes/PathRoute').then((m) => ({ default: m.PathRoute })));
 const ArticleRoute = lazy(() => import('./routes/ArticleRoute').then((m) => ({ default: m.ArticleRoute })));
+const CoursesRoute = lazy(() => import('./routes/CoursesRoute').then((m) => ({ default: m.CoursesRoute })));
+const CourseDayRoute = lazy(() =>
+  import('./routes/CourseDayRoute').then((m) => ({ default: m.CourseDayRoute })),
+);
 const LeaderboardsRoute = lazy(() =>
   import('./routes/LeaderboardsRoute').then((m) => ({ default: m.LeaderboardsRoute })),
 );
@@ -135,6 +139,8 @@ export default function App() {
         <Route path="/leaderboards" element={<LeaderboardsRoute />} />
         <Route path="/path" element={<PathRoute />} />
         <Route path="/path/:slug" element={<ArticleRoute />} />
+        <Route path="/courses" element={<CoursesRoute />} />
+        <Route path="/courses/:slug/:day?" element={<CourseDayRoute />} />
         <Route path="/achievements" element={<AchievementsOrLeaderboards />} />
         <Route path="/analytics" element={<AnalyticsRoute />} />
         <Route path="/__sandbox" element={<SandboxRoute />} />

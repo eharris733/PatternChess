@@ -43,6 +43,7 @@ const DISALLOW = [
   '/achievements',
   '/leaderboards',
   '/analytics',
+  '/courses',
   '/p',
   '/c/',
 ];
