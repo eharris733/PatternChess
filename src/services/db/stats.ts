@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabase';
+import { rpc } from '../../lib/api';
 import { SPACED_REPETITION_DAYS, srBucket } from '../../models/blunder';
 import { GameRecord, resolveOutcome } from '../../models/gameRecord';
 import {
@@ -62,12 +62,10 @@ export interface MotifCounts {
 }
 
 export async function getBlunderMotifCounts(): Promise<MotifCounts> {
-  // Aggregated server-side (get_blunder_motif_counts RPC) — the old client
+  // Aggregated server-side (stats.motifCounts, was get_blunder_motif_counts) — the old client
   // version downloaded solution_line + motifs for every tactic row (~180KB for
   // an active user) just to tally these few numbers.
-  const { data, error } = await supabase.rpc('get_blunder_motif_counts');
-  if (error) throw error;
-  const d = (data ?? {}) as Partial<MotifCounts>;
+  const d = ((await rpc<Partial<MotifCounts> | null>('stats.motifCounts')) ?? {}) as Partial<MotifCounts>;
   return {
     counts: (d.counts as Record<string, number>) ?? {},
     tagged: d.tagged ?? 0,
@@ -518,9 +516,14 @@ export interface LandingStats {
  * failure — the badge degrades to rendering nothing.
  */
 export async function getLandingStats(): Promise<LandingStats | null> {
-  const { data, error } = await supabase.rpc('landing_stats');
-  if (error || !data) return null;
-  const d = data as Partial<LandingStats>;
+  let data: Partial<LandingStats> | null;
+  try {
+    data = await rpc<Partial<LandingStats> | null>('landing.stats');
+  } catch {
+    return null;
+  }
+  if (!data) return null;
+  const d = data;
   if (typeof d.positionsReviewed !== 'number' || typeof d.eloGained !== 'number') return null;
   return {
     positionsReviewed: d.positionsReviewed,

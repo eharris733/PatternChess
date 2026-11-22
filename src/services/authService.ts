@@ -1,18 +1,11 @@
-import { supabase } from '../lib/supabase';
 import { authClient } from '../lib/authClient';
+import { rpc } from '../lib/api';
 import type { AuthUser } from '../auth/AuthProvider';
 import { getAnonId } from '../lib/anonId';
-import type { TablesUpdate } from '../lib/database.types';
-import { ALL_TIME_CONTROLS } from './chessApiService';
-import { fetchAllRows, fetchInChunks } from './db/paginate';
+import type { Tables, TablesUpdate } from '../lib/database.types';
 import { currentUserId } from './db/currentUser';
-import { DEFAULT_DAILY_GOALS } from '../lib/dailyGoal';
-import {
-  UserProfile,
-  userProfileFromJson,
-  userProfileToInsert,
-  userProfileToUpdate,
-} from '../models/userProfile';
+import { updateOwnProfile } from './db/profiles';
+import { UserProfile, userProfileFromJson, userProfileToUpdate } from '../models/userProfile';
 
 /** A readable message for a failed sign-in redirect request. */
 function signInErrorMessage(provider: string, error: { status?: number; message?: string }): string {
@@ -48,115 +41,33 @@ export const authService = {
   },
 
   async getProfile(): Promise<UserProfile | null> {
-    // Cached session id, not getUser(): refreshProfile runs often (flair,
-    // prefs, achievements) and getUser() is a network call held under the
-    // gotrue lock — see currentUserId. RLS scopes the read either way.
+    // Cached session id: refreshProfile runs often (flair, prefs,
+    // achievements); the server scopes the read to the session user.
     const userId = await currentUserId();
     if (!userId) return null;
-    const { data, error } = await supabase
-      .from('profiles')
-      .select()
-      .eq('id', userId)
-      .maybeSingle();
-    if (error) return null;
-    if (!data) return null;
-    return userProfileFromJson(data);
+    try {
+      const data = await rpc<Tables<'profiles'> | null>('profile.get');
+      return data ? userProfileFromJson(data) : null;
+    } catch {
+      return null;
+    }
   },
 
   /**
    * The signed-in user's profile. The server creates it when better-auth
-   * creates the user (functions/_shared/auth.ts databaseHooks), so the insert
-   * below is only a fallback.
+   * creates the user (functions/_shared/auth.ts databaseHooks) and
+   * `profile.getOrCreate` covers the case where that hook failed. Also stamps
+   * the landing-page visitor id (if this browser ever hit the landing page) so
+   * the funnel can link anonymous view/demo events to this account; anon_id is
+   * analytics metadata, never read back into the app.
    */
-  async getOrCreateProfile(user: AuthUser): Promise<UserProfile> {
-
-    const { data: existing } = await supabase
-      .from('profiles')
-      .select()
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (existing) return userProfileFromJson(existing);
-
-    const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
-    const isLichess = user.provider === 'lichess';
-    // Lichess userinfo (/api/account) carries the username under a non-standard
-    // key; try the likely candidates. Confirmed against the live user object.
-    const lichessUsername = isLichess
-      ? ((meta.preferred_username as string | undefined) ??
-          (meta.user_name as string | undefined) ??
-          (meta.username as string | undefined) ??
-          (meta.name as string | undefined) ??
-          null)
-      : null;
-    const profile: UserProfile = {
-      id: user.id,
-      displayName:
-        (meta.full_name as string | undefined) ??
-        (meta.name as string | undefined) ??
-        lichessUsername ??
-        user.email?.split('@')[0] ??
-        null,
-      avatarUrl:
-        (meta.avatar_url as string | undefined) ?? (meta.picture as string | undefined) ?? null,
-      lichessUsername,
-      chesscomUsername: null,
-      preferredRatedOnly: false,
-      preferredTimeControls: [...ALL_TIME_CONTROLS],
-      lastSyncedLichessAt: null,
-      lastSyncedChesscomAt: null,
-      createdAt: new Date(),
-      currentStreakDays: 0,
-      longestStreakDays: 0,
-      streakFreezes: 0,
-      lastDrillLocalDate: null,
-      timezone: null,
-      boardTheme: 'default',
-      showEngineEvals: false,
-      revealBeforeSolve: false,
-      autoplayRefutation: true,
-      showAnswerOnMiss: false,
-      usedTrainingFilter: false,
-      soundsEnabled: true,
-      leaderboardOptOut: false,
-      followedInstagram: false,
-      sharesCount: 0,
-      referralCode: null,
-      referralsCount: 0,
-      openingReviewsOpened: 0,
-      learnChaptersDone: [],
-      flair: null,
-      dailyGoals: { ...DEFAULT_DAILY_GOALS },
-      emailOptIn: true,
-      emailHour: 18,
-      contactEmail: null,
-      contactEmailVerifiedAt: null,
-      emailUnsubscribedAt: null,
-      appOpens: 0,
-      asks: {
-        email: { promptedAt: null, count: 0 },
-        course: { promptedAt: null, count: 0 },
-        supporter: { promptedAt: null, count: 0 },
-      },
-    };
-    // Stamp the landing-page visitor id (if this browser ever hit the landing
-    // page) so the funnel can link anonymous view/demo events to this account.
-    // anon_id lives only in the DB, not on the UserProfile model — it's
-    // analytics metadata, never read back into the app.
-    const anonId = getAnonId();
-    const { error: insertError } = await supabase
-      .from('profiles')
-      .insert({ ...userProfileToInsert(profile), anon_id: anonId || null });
-    if (insertError) throw insertError;
-    return profile;
+  async getOrCreateProfile(_user: AuthUser): Promise<UserProfile> {
+    const data = await rpc<Tables<'profiles'>>('profile.getOrCreate', { anonId: getAnonId() || null });
+    return userProfileFromJson(data);
   },
 
   async updateProfile(profile: UserProfile): Promise<void> {
-    const { error } = await supabase
-      .from('profiles')
-      .update(userProfileToUpdate(profile))
-      .eq('id', profile.id);
-    if (error) throw error;
+    await updateOwnProfile(userProfileToUpdate(profile));
   },
 
   /**
@@ -165,7 +76,7 @@ export const authService = {
    * 20260610 profiles migration is applied.
    */
   async updateTrainingPrefs(
-    userId: string,
+    _userId: string, // the server writes the session user's row
     prefs: {
       showEngineEvals?: boolean;
       revealBeforeSolve?: boolean;
@@ -183,8 +94,7 @@ export const authService = {
     if (prefs.soundsEnabled !== undefined) patch.sounds_enabled = prefs.soundsEnabled;
     if (prefs.leaderboardOptOut !== undefined) patch.leaderboard_opt_out = prefs.leaderboardOptOut;
     if (Object.keys(patch).length === 0) return;
-    const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
-    if (error) throw error;
+    await updateOwnProfile(patch);
   },
 
   /**
@@ -193,40 +103,29 @@ export const authService = {
    * Training" achievement. Fire-and-forget from the caller; safe to call
    * repeatedly since it's a flat `true` write.
    */
-  async markUsedTrainingFilter(userId: string): Promise<void> {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ used_training_filter: true })
-      .eq('id', userId);
-    if (error) throw error;
+  async markUsedTrainingFilter(_userId: string): Promise<void> {
+    await updateOwnProfile({ used_training_filter: true });
   },
 
   /** Same shape as markUsedTrainingFilter — set when the user clicks through to Instagram. */
-  async markFollowedInstagram(userId: string): Promise<void> {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ followed_instagram: true })
-      .eq('id', userId);
-    if (error) throw error;
+  async markFollowedInstagram(_userId: string): Promise<void> {
+    await updateOwnProfile({ followed_instagram: true });
   },
 
   /** Selected flair id, or null to clear. Unlock is checked by the caller (cosmetic). */
-  async setFlair(userId: string, flair: string | null): Promise<void> {
-    const { error } = await supabase.from('profiles').update({ flair }).eq('id', userId);
-    if (error) throw error;
+  async setFlair(_userId: string, flair: string | null): Promise<void> {
+    await updateOwnProfile({ flair });
   },
 
   /** Atomic bump when an /openings review is opened. Returns the new count. */
   async incrementOpeningReviews(): Promise<number> {
-    const { data, error } = await supabase.rpc('increment_opening_reviews');
-    if (error) throw error;
+    const data = await rpc<number | null>('profile.incrementOpeningReviews');
     return typeof data === 'number' ? data : 0;
   },
 
   /** Record a Learn chapter as done (idempotent server-side). Returns the distinct count. */
   async markLearnChapterDone(key: string): Promise<number> {
-    const { data, error } = await supabase.rpc('mark_learn_chapter_done', { key });
-    if (error) throw error;
+    const data = await rpc<number | null>('profile.markLearnChapterDone', { key });
     return typeof data === 'number' ? data : 0;
   },
 
@@ -235,8 +134,7 @@ export const authService = {
    * and distinct active days (≥1 correct drill).
    */
   async getTrainingTotals(): Promise<{ minutes: number; activeDays: number }> {
-    const { data, error } = await supabase.rpc('training_totals');
-    if (error) throw error;
+    const data = await rpc<unknown>('profile.trainingTotals');
     const o = (data ?? {}) as { minutes?: unknown; activeDays?: unknown };
     return {
       minutes: typeof o.minutes === 'number' ? o.minutes : 0,
@@ -246,53 +144,26 @@ export const authService = {
 
   /** Atomic server-side bump (no read-modify-write race). Returns the new count. */
   async incrementSharesCount(): Promise<number> {
-    const { data, error } = await supabase.rpc('increment_shares_count');
-    if (error) throw error;
+    const data = await rpc<number | null>('profile.incrementShares');
     return typeof data === 'number' ? data : 0;
   },
 
   /** Credit the friend whose invite link brought this user here (no-op if not eligible). */
   async claimSignupSource(source: string): Promise<boolean> {
-    const { data, error } = await supabase.rpc('claim_signup_source', { source });
-    if (error) throw error;
-    return data === true;
+    return (await rpc<boolean>('profile.claimSignupSource', { source })) === true;
   },
 
   async claimReferral(code: string): Promise<boolean> {
-    const { data, error } = await supabase.rpc('claim_referral', { code });
-    if (error) throw error;
-    return data === true;
+    return (await rpc<boolean>('profile.claimReferral', { code })) === true;
   },
 
+  /**
+   * Claim ownerless games played under `username`, then the ownerless
+   * blunders of the user's games (one server-side batch).
+   */
   async claimAnonymousData(username: string): Promise<void> {
     const userId = await currentUserId();
     if (!userId) return;
-    const user = { id: userId };
-
-    await supabase
-      .from('games')
-      .update({ user_id: user.id })
-      .eq('username', username)
-      .is('user_id', null);
-
-    // Claim blunders through the user's now-owned games. (Previously this went
-    // through a `claim_blunders_for_user` RPC, but that function isn't deployed
-    // and always 404'd straight into this path — so do it directly.)
-    // Paged + chunked: a big history overflows both the 1000-row read cap
-    // and the URL length of one `.in()` list.
-    const games = await fetchAllRows(() =>
-      supabase.from('games').select('id').eq('user_id', user.id).order('id'),
-    );
-    await fetchInChunks(
-      games.map((g) => g.id),
-      async (chunk) => {
-        await supabase
-          .from('blunders')
-          .update({ user_id: user.id })
-          .in('game_id', chunk)
-          .is('user_id', null);
-        return [];
-      },
-    );
+    await rpc('profile.claimAnonymousData', { username });
   },
 };
