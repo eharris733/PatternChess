@@ -1,3 +1,7 @@
+-- SUPABASE-ERA (Postgres). Since the move to Cloudflare D1 (2026-11-22) the
+-- same metrics come from the admin.kpis / admin.userList RPCs on /analytics
+-- (functions/_shared/rpc/admin.ts). Kept for reference; it does not run on D1.
+--
 -- PatternChess product KPIs. Supabase project: ydfwppthwnlgxnntzrvg
 --
 -- Read-only. Run in: Supabase dashboard -> SQL Editor (runs as owner, so it

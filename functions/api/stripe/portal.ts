@@ -1,8 +1,11 @@
-import { authedUser, json, stripeClient, supporterBy, type StripeEnv } from '../../_shared/supporters';
+import { getSessionUser } from '../../_shared/auth';
+import type { AppEnv } from '../../_shared/db';
+import { crossSite, json, stripeClient, supporterBy, type StripeEnv } from '../../_shared/supporters';
 
 /** POST → { url } of a Stripe Customer Portal session (update card, cancel, invoices). */
-export const onRequestPost: PagesFunction<StripeEnv> = async ({ request, env }) => {
-  const user = await authedUser(request, env);
+export const onRequestPost: PagesFunction<StripeEnv & AppEnv> = async ({ request, env }) => {
+  if (crossSite(request)) return json({ error: 'cross_site' }, 403);
+  const user = await getSessionUser(request, env);
   if (!user) return json({ error: 'sign_in_required' }, 401);
 
   const row = await supporterBy(env, 'user_id', user.id);

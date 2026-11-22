@@ -1,4 +1,11 @@
 /**
+ * RETIRED (2026-11-22, Supabase -> Cloudflare D1 move). This one-off backfill
+ * talked to Supabase PostgREST with the service key; the database is now D1
+ * and in-app maintenance (startBlunderMaintenance -> enrichment backfill,
+ * src/services/blunderEnrichmentBackfill.ts) fills solution_line + motifs on
+ * legacy rows for every user. Kept for reference; main() refuses to run. To
+ * revive it, read/write `blunders` through `wrangler d1 execute` instead.
+ *
  * One-shot blunder enrichment: fills solution_line + motifs on legacy rows for
  * the given user ids, using the same depth-12 engine settings and motif
  * detector as in-app analysis (src/chess/motifs.ts). Runs Stockfish lite
@@ -98,6 +105,9 @@ function applyMove(fen: string, uci: string): string | null {
 }
 
 async function main() {
+  if (!process.argv.includes('--i-know-it-targets-supabase')) {
+    throw new Error('scripts/enrich-blunders.ts is retired: the app database moved to Cloudflare D1 (see the header).');
+  }
   const args = process.argv.slice(2);
   const usersArg = args[args.indexOf('--users') + 1];
   if (!args.includes('--users') || !usersArg) throw new Error('--users id1,id2 is required');

@@ -1,38 +1,30 @@
-// Minimal Supabase REST client (PostgREST) with the service-role key. The
-// Worker needs four calls, so it skips @supabase/supabase-js and its bundle.
+// Tiny helpers over the app D1 database (`patternchess-app`, bound as DB).
+// Self-contained on purpose: the Worker bundles only workers/notifier/src.
+// Timestamps are ISO 8601 UTC TEXT with milliseconds (what toISOString()
+// prints), so string comparison in SQL equals time order; booleans are 0/1.
 
-export interface DbEnv {
-  SUPABASE_URL: string;
-  SUPABASE_SERVICE_ROLE_KEY: string;
+export type Param = string | number | boolean | null | undefined;
+
+function bindValue(v: Param): string | number | null {
+  if (v === undefined || v === null) return null;
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  return v;
 }
 
-async function request<T>(env: DbEnv, path: string, init: RequestInit): Promise<T> {
-  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
-    ...init,
-    headers: {
-      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-      'Content-Type': 'application/json',
-      ...(init.headers ?? {}),
-    },
-  });
-  const body = await res.text();
-  if (!res.ok) throw new Error(`supabase ${init.method ?? 'GET'} ${path.split('?')[0]} ${res.status}: ${body.slice(0, 300)}`);
-  return (body ? JSON.parse(body) : null) as T;
+export function stmt(db: D1Database, sql: string, params: readonly Param[] = []): D1PreparedStatement {
+  const s = db.prepare(sql);
+  return params.length ? s.bind(...params.map(bindValue)) : s;
 }
 
-export function rpc<T>(env: DbEnv, fn: string, args: Record<string, unknown>): Promise<T> {
-  return request<T>(env, `rpc/${fn}`, { method: 'POST', body: JSON.stringify(args) });
+export async function all<T>(db: D1Database, sql: string, params: readonly Param[] = []): Promise<T[]> {
+  const { results } = await stmt(db, sql, params).all<T>();
+  return (results ?? []) as T[];
 }
 
-export function insert<T = unknown>(env: DbEnv, table: string, rows: unknown, returning = false): Promise<T> {
-  return request<T>(env, table, {
-    method: 'POST',
-    body: JSON.stringify(rows),
-    headers: { Prefer: returning ? 'return=representation' : 'return=minimal' },
-  });
+export async function first<T>(db: D1Database, sql: string, params: readonly Param[] = []): Promise<T | null> {
+  return (await stmt(db, sql, params).first<T>()) ?? null;
 }
 
-export function remove(env: DbEnv, table: string, filter: string): Promise<unknown> {
-  return request(env, `${table}?${filter}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
+export async function run(db: D1Database, sql: string, params: readonly Param[] = []): Promise<D1Meta> {
+  return (await stmt(db, sql, params).run()).meta;
 }

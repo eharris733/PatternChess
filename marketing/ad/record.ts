@@ -1,15 +1,17 @@
 // Records each ad scene as its own H.264 clip via CDP screencast.
 //   node marketing/ad/record.ts [--project landscape|vertical|both] [--scene id,id]
 // Clips land in marketing/ad/out/<project>/<nn>-<scene>.mp4; stitch.ts joins them.
-// Runs against the dev server (npm run dev) as the real account, with every
-// Supabase write blocked (readOnlyGuard) and other players masked (overlay.js).
+// Runs against the local stack (npm run dev + scripts/dev-api.sh over the local
+// D1 copy of production) as the real account, signed in by session.ts, with
+// every write RPC blocked (readOnlyGuard) and other players masked (overlay.js).
 import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
-import { createClient } from '@supabase/supabase-js';
-import { mintSession } from './session.ts';
+import { decodeRow } from '../../functions/_shared/schema.ts';
+import { d1, sqlString } from './d1.ts';
+import { signIn } from './session.ts';
 import { installReadOnlyGuard, blockedWrites } from './readOnlyGuard.ts';
-import { BASE_URL, loadEnv } from './env.ts';
+import { BASE_URL } from './env.ts';
 import { PROJECTS, SCENES, type Ratio, type SceneCtx } from './scenes.ts';
 
 const here = (p: string) => new URL(p, import.meta.url).pathname;
@@ -30,16 +32,13 @@ const statsRaw = JSON.parse(readFileSync(here('./stats.json'), 'utf8'));
 // "Come back to train": % of users who trained on at least two different days.
 const stats = { ...statsRaw, retentionPct: statsRaw.retentionReturnPct };
 
-// Read-only lookups for scenes that feature a real blunder from the account.
-const env = loadEnv();
-const admin = createClient(env.VITE_SUPABASE_URL, env.SUPABASE_SERVICE_KEY, { auth: { persistSession: false } });
+// Read-only lookups (local D1) for scenes that feature a real blunder from the account.
 async function blunder(id: string) {
-  const { data, error } = await admin.from('blunders').select().eq('id', id).single();
-  if (error) throw error;
-  return data;
+  const [row] = d1(`SELECT * FROM blunders WHERE id = ${sqlString(id)}`);
+  if (!row) throw new Error(`blunder ${id} not found in the local D1`);
+  return decodeRow('blunders', row);
 }
 
-const { session, storageKey } = await mintSession();
 // Let the site's AudioContext run without a real user gesture.
 const browser: Browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 
@@ -51,14 +50,14 @@ for (const ratio of ratios) {
     viewport: { width: vp.width, height: vp.height },
     deviceScaleFactor: vp.dpr,
   });
-  await context.addInitScript(({ k, s }) => {
-    localStorage.setItem(k, JSON.stringify(s));
+  const { userId } = await signIn(context);
+  await context.addInitScript(({ uid }) => {
     // Brand look regardless of the account's theme: a device-stored theme wins
     // over the profile's (themeStore), and the sync-up write is blocked.
     localStorage.setItem('patternchess.boardTheme', 'default');
     // Skip /openings' first-build checklist; the account's report is built.
-    localStorage.setItem(`pc:openings-ready:${s.user.id}`, '1');
-  }, { k: storageKey, s: session });
+    localStorage.setItem(`pc:openings-ready:${uid}`, '1');
+  }, { uid: userId });
   await context.addInitScript({ path: here('./overlay.js') });
 
   for (const [index, scene] of SCENES.entries()) {
@@ -77,7 +76,7 @@ for (const ratio of ratios) {
   await context.close();
 }
 await browser.close();
-console.log(`done — ${blockedWrites.length} Supabase writes blocked`);
+console.log(`done — ${blockedWrites.length} write RPCs blocked`);
 
 /**
  * Screencasts the page while `act` runs, for exactly `seconds`. CDP only sends

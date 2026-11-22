@@ -1,7 +1,7 @@
 // No-login pages served by the Worker at email.patternchess.com: one-click
 // unsubscribe, email settings and address confirmation. Each is reached by a
 // per-user token from an email (`email_unsub_token` or an
-// `email_confirmations` token); the token RPCs from 20261012140000 do the work.
+// `email_confirmations` token); store.ts does the work against D1.
 // Plain server-rendered HTML in the email palette: no JS, no external assets.
 
 export interface Prefs {

@@ -16,7 +16,7 @@ export interface SceneCtx {
   copy: any;
   stats: any;
   seconds: number;
-  /** Fetches a blunder row by id (service key, read-only). */
+  /** Fetches a blunder row by id from the local D1 (read-only, PostgREST row shape). */
   blunder(id: string): Promise<any>;
   baseUrl: string;
 }
@@ -185,10 +185,9 @@ function drillScene(
     kind: 'app',
     async prepare(ctx) {
       row = { ...(await ctx.blunder(blunderId)), next_drill_at: new Date(Date.now() - 3600_000).toISOString() };
-      await ctx.page.route(/\/rest\/v1\/blunders\?.*next_drill_at=lte/, (route) =>
-        route.request().method() === 'GET'
-          ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([row]) })
-          : route.fallback(),
+      // The due queue is the `blunders.due` RPC (POST /api/rpc/blunders.due).
+      await ctx.page.route(/\/api\/rpc\/blunders\.due$/, (route) =>
+        route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [row] }) }),
       );
       await open(ctx, '/training');
       await ctx.page.getByRole('button', { name: /Review \d+ positions?/ }).click();
