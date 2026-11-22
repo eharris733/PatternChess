@@ -15,7 +15,8 @@ function pct(g: ReturnRateGroup): string {
 /** Email reach and whether sends bring people back. Admin-only. */
 export function EmailStatsCard() {
   const { data } = useAdminEmailStats();
-  if (!data) return null;
+  // A shape we don't recognise (an older RPC definition) hides the card instead of breaking /analytics.
+  if (!data?.returnRate?.reachable || !data.returnRate.other || !Array.isArray(data.kinds)) return null;
   const { reachable, other } = data.returnRate;
 
   return (
