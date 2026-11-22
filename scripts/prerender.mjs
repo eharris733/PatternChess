@@ -36,6 +36,7 @@ const routes = [
   '/faq',
   '/events',
   '/moments',
+  '/watch',
   '/blog',
   '/terms',
   '/privacy',

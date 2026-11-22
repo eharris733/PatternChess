@@ -21,6 +21,8 @@ import { ThemePicker } from '../components/ThemePicker';
 import { useRecentTrainingSessions } from '../hooks/useTrainingActivity';
 import { useDrillFeedbackPrefs } from '../hooks/useDrillFeedbackPrefs';
 import { useThemeStore, type BoardTheme } from '../state/themeStore';
+import { CommitmentPicker } from '../components/CommitmentPicker';
+import { EmailRemindersSetting } from '../components/EmailRemindersSetting';
 
 export function ProfileRoute() {
   const { profile, refreshProfile, user } = useAuth();
@@ -28,12 +30,15 @@ export function ProfileRoute() {
   const location = useLocation();
   const [flairOpen, setFlairOpen] = useState(false);
   const settingsRef = useRef<HTMLElement>(null);
+  const commitmentRef = useRef<HTMLElement>(null);
   // Router doesn't scroll to hashes: the sidebar / header gear links to
   // /profile#settings. Re-runs on each click (location.key changes).
   useEffect(() => {
     // Instant, not smooth: a smooth scroll is cancelled by the layout shifts
     // while the profile's cards load.
-    if (location.hash === '#settings' && profile) settingsRef.current?.scrollIntoView({ block: 'start' });
+    if (!profile) return;
+    if (location.hash === '#settings') settingsRef.current?.scrollIntoView({ block: 'start' });
+    else if (location.hash === '#commitment') commitmentRef.current?.scrollIntoView({ block: 'start' });
   }, [location.hash, location.key, profile?.id]);
 
   const activeTheme = useThemeStore((s) => s.theme);
@@ -272,6 +277,14 @@ export function ProfileRoute() {
         </div>
       </section>
 
+      <section id="commitment" ref={commitmentRef} className="card flex flex-col gap-4 scroll-mt-6">
+        <h2 className="heading-md">Daily commitment</h2>
+        <p className="text-text-secondary text-sm -mt-2">
+          Sets today's plan on the dashboard: positions to train and games to play. Changes save instantly.
+        </p>
+        <CommitmentPicker />
+      </section>
+
       <section className="card flex flex-col gap-4">
         <h2 className="heading-md">Training</h2>
         <p className="text-text-secondary text-sm -mt-2">
@@ -358,6 +371,8 @@ export function ProfileRoute() {
           <p className="text-incorrect text-sm">{trainingPrefsError ?? drillPrefs.error}</p>
         )}
       </section>
+
+      <EmailRemindersSetting />
 
       <section className="card flex flex-col gap-4">
         <h2 className="heading-md">Community</h2>

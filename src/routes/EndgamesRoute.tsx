@@ -20,6 +20,8 @@ import { SR_BUCKET_PILL } from '../components/training/PositionSrState';
 import { useEndgamePlayoutStore } from '../state/endgamePlayoutStore';
 import { FINISH_RULES } from '../chess/adjudication';
 import { playSound } from '../lib/sounds';
+import { useAuth } from '../auth/useAuth';
+import { recordStreakActivity } from '../services/streakUpdate';
 import { startEndgameScenarioVerification } from '../services/endgameScenarioVerifier';
 import {
   classifyEndgameType,
@@ -80,6 +82,7 @@ function scenarioHeadline(s: EndgameScenario): string {
 
 export function EndgamesRoute() {
   const queryClient = useQueryClient();
+  const { profile, refreshProfile } = useAuth();
   const gamesQuery = useGames();
   const games = gamesQuery.data;
 
@@ -207,6 +210,18 @@ export function EndgamesRoute() {
       onFinish: (r) => {
         const isFirstAttempt = !playedThisVisit.current.has(scenario.id);
         playedThisVisit.current.add(scenario.id);
+        // A finished play-out is training: it keeps the daily streak alive.
+        if (profile) {
+          void recordStreakActivity({
+            currentStreakDays: profile.currentStreakDays,
+            longestStreakDays: profile.longestStreakDays,
+            lastDrillLocalDate: profile.lastDrillLocalDate,
+            timezone: profile.timezone,
+            streakFreezes: profile.streakFreezes,
+          }).then((next) => {
+            if (next?.changed) void refreshProfile();
+          });
+        }
         void applyScenarioResult(scenario, { success: r.success, isFirstAttempt })
           .then(() =>
             queryClient.invalidateQueries({ queryKey: ['endgameScenarios'], refetchType: 'all' }),

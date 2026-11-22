@@ -8,6 +8,9 @@ export interface AdminKpiTotals {
   connected: number;
   synced: number;
   foundBlunders: number;
+  /** Opened /training with something due (a session row exists). */
+  openedTraining?: number;
+  /** Attempted at least one position. */
   trained: number;
 }
 

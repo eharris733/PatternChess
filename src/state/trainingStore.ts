@@ -26,7 +26,8 @@ import {
 } from '../chess/refutationLines';
 import { computeDrillLine } from '../chess/solutionLine';
 import type { MovePair } from '../components/MoveSequencePanel';
-import { computeNextStreak, detectTimezone, localDate } from '../services/streakService';
+import { detectTimezone, localDate } from '../services/streakService';
+import { recordStreakActivity } from '../services/streakUpdate';
 import { queryClient } from '../lib/queryClient';
 import { parseGame } from '../services/pgnParserService';
 import { introLineTo, type IntroLine } from '../chess/openingLine';
@@ -99,6 +100,7 @@ export interface StreakSnapshot {
   longestStreakDays: number;
   lastDrillLocalDate: string | null;
   timezone: string | null;
+  streakFreezes: number;
 }
 
 export interface TrainingStateShape {
@@ -461,23 +463,7 @@ function endActiveSession(state: TrainingStateShape): void {
 }
 
 async function applyStreakUpdate(snapshot: StreakSnapshot): Promise<void> {
-  const next = computeNextStreak({
-    currentStreakDays: snapshot.currentStreakDays,
-    longestStreakDays: snapshot.longestStreakDays,
-    lastDrillLocalDate: snapshot.lastDrillLocalDate,
-    timezone: snapshot.timezone,
-  });
-  if (!next.changed) return;
-  try {
-    await supabaseService.updateProfileStreak({
-      currentStreakDays: next.currentStreakDays,
-      longestStreakDays: next.longestStreakDays,
-      lastDrillLocalDate: next.lastDrillLocalDate,
-      timezone: next.timezone,
-    });
-  } catch {
-    /* network failures are non-fatal — streak resyncs next drill */
-  }
+  await recordStreakActivity(snapshot);
 }
 
 const gameCache = new Map<string, GameRecord>();
@@ -645,6 +631,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       longestStreakDays: profile.longestStreakDays,
       lastDrillLocalDate: profile.lastDrillLocalDate,
       timezone: profile.timezone,
+      streakFreezes: profile.streakFreezes,
     };
     set({ streakSnapshot: snapshot, streakApplied: false });
     try {

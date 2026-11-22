@@ -6,6 +6,8 @@ const SOURCE_LABEL: Record<string, string> = {
   demo_result: 'Demo result',
   demo_clean: 'Demo (no blunders)',
   leaderboard: 'Weekly leaderboard',
+  moments: 'Moments (GIF maker)',
+  puzzle: 'Shared puzzle',
   wb: 'Win-back link',
 };
 

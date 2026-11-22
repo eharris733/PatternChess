@@ -1,10 +1,14 @@
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
+import { supabaseService } from '../services/supabaseService';
 import { useSyncStore } from '../state/syncStore';
 import { useOnboardingStore } from '../state/onboardingStore';
 import type { ProviderProgress } from '../services/syncService';
 import { ProgressBar } from './ProgressBar';
 import { BrandLockup } from './BrandLogo';
+import { MiniBoard } from './MiniBoard';
+import { CommitmentPicker } from './CommitmentPicker';
 
 type Phase = 'fetching' | 'analyzing' | 'done' | 'error' | 'idle';
 
@@ -40,9 +44,22 @@ export function OnboardingImport() {
 
   const errorMsg = active.find((p) => p.error)?.error ?? null;
 
+  // Preview the first trainable position as soon as analysis finds one, so
+  // the first drill is one click away instead of after the whole import.
+  // Polls while analysis runs (one row) until a position shows up.
+  const hasBlunder = blundersFound >= 1;
+  const firstQuery = useQuery({
+    queryKey: ['blunders', 'onboardingFirst', profile?.id ?? null],
+    queryFn: () => supabaseService.getFirstDueTactic(profile!.id),
+    enabled: !!profile && hasBlunder,
+    refetchInterval: (q) => (q.state.data ? false : 4000),
+  });
+  const first = firstQuery.data ?? null;
+
   const onContinue = () => {
     dismiss();
-    navigate('/training');
+    // Non-null state skips the focus picker: straight into the due queue.
+    navigate('/training', { state: {} });
   };
 
   const onEditProfile = () => {
@@ -54,8 +71,32 @@ export function OnboardingImport() {
       <BrandLockup size="lg" className="mb-4" />
       <p className="text-text-secondary mb-8">
         We're importing your last 200 games and finding the blunders you'll
-        train against. This usually takes about five to ten minutes.
+        train against. Your first position is usually ready in a minute or two,
+        and the rest keep arriving while you train.
       </p>
+
+      {first && (
+        <section
+          className="w-full mb-6 bg-surface rounded-none p-6 border-2 border-text-primary shadow-card flex flex-col sm:flex-row gap-5 items-center text-left"
+          data-testid="onboarding-first-position"
+        >
+          <MiniBoard
+            fen={first.fen}
+            orientation={first.sideToMove === 'black' ? 'black' : 'white'}
+            className="w-40 shrink-0"
+          />
+          <div className="flex flex-col gap-3">
+            <span className="label">Your first position is ready</span>
+            <p className="text-text-primary">
+              Move {first.moveNumber} of one of your games, {first.sideToMove === 'black' ? 'Black' : 'White'} to
+              move. You missed something here. Can you find it now?
+            </p>
+            <button type="button" onClick={onContinue} className="btn-primary self-start">
+              Solve it now
+            </button>
+          </div>
+        </section>
+      )}
 
       <div className="w-full space-y-6 bg-surface rounded-none p-6 border-2 border-text-primary shadow-card">
         <Step
@@ -103,14 +144,16 @@ export function OnboardingImport() {
         >
           Edit profile
         </button>
-        <button
-          type="button"
-          onClick={onContinue}
-          disabled={phase !== 'done' && blundersFound < 1}
-          className="btn-primary"
-        >
-          Start training
-        </button>
+        {!first && (
+          <button
+            type="button"
+            onClick={onContinue}
+            disabled={phase !== 'done' && blundersFound < 1}
+            className="btn-primary"
+          >
+            Start training
+          </button>
+        )}
       </div>
       {phase === 'analyzing' && blundersFound >= 1 && (
         <p className="mt-3 text-xs text-text-secondary">
@@ -121,6 +164,14 @@ export function OnboardingImport() {
         New games sync automatically each time you visit — your vault stays
         current.
       </p>
+
+      <section className="mt-8 w-full text-left" aria-labelledby="commitment-heading">
+        <h2 id="commitment-heading" className="heading-md">How much will you commit each day?</h2>
+        <p className="mt-1 mb-3 text-sm text-text-primary">
+          Your daily plan follows this. Change it any time in your profile.
+        </p>
+        <CommitmentPicker compact />
+      </section>
     </div>
   );
 }

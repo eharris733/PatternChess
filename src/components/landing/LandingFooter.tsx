@@ -4,6 +4,7 @@ import { BrandMark } from '../BrandLogo';
 const LINKS = [
   { label: 'About', to: '/about' },
   { label: 'FAQ', to: '/faq' },
+  { label: 'Watch the video', to: '/watch' },
   { label: 'Blog', to: '/blog' },
   { label: 'Chess GIF maker', to: '/moments' },
   { label: 'Tournaments', to: '/events' },

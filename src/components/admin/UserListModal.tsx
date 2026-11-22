@@ -17,6 +17,7 @@ const CATEGORY_LABEL: Record<AdminUserCategory, string> = {
   connected: 'Connected accounts',
   synced: 'Synced games',
   foundBlunders: 'Found blunders',
+  openedTraining: 'Opened training',
   trained: 'Trained',
   dau: 'Active in last 24h',
   wau: 'Active in last 7 days',

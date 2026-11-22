@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { saveDemoUser } from '../lib/demoUser';
 import {
   runDemoAnalysis,
   DemoError,
@@ -52,6 +53,7 @@ export function useDemoAnalysis(): UseDemoAnalysisReturn {
     const controller = new AbortController();
     controllerRef.current = controller;
     const myId = ++runIdRef.current;
+    saveDemoUser({ platform: input.platform, username: input.username });
 
     setStatus('loading');
     setProgressLabel('Starting…');

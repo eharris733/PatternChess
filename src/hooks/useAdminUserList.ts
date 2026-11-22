@@ -8,6 +8,7 @@ export type AdminUserCategory =
   | 'connected'
   | 'synced'
   | 'foundBlunders'
+  | 'openedTraining'
   | 'trained'
   | 'dau'
   | 'wau'

@@ -62,9 +62,24 @@ function pauseAfter(token: string): number {
   return 0;
 }
 
-/** Times every script line inside its scene window ({start,end} in the final cut). */
-export function timeScript(script: ScriptLine[], scenes: Record<string, { start: number; end: number }>): LineTiming[] {
-  const lines = script.map((line) => timeLine(line, scenes));
+/** One transcribed word of the recorded voiceover (vo/words.json, seconds). */
+export interface VoWord {
+  w: string;
+  s: number;
+  e: number;
+}
+
+/**
+ * Times every script line: from the recorded voiceover's word timings when
+ * given (shifted by `voOffset`, the VO's start in the final cut), otherwise
+ * estimated inside its scene window ({start,end} in the final cut).
+ */
+export function timeScript(
+  script: ScriptLine[],
+  scenes: Record<string, { start: number; end: number }>,
+  vo?: { words: VoWord[]; offset: number },
+): LineTiming[] {
+  const lines = vo ? timeFromVoiceover(script, scenes, vo.words, vo.offset) : script.map((line) => timeLine(line, scenes));
   // Bridge the breath between lines: a blank frame or two between captions
   // reads as a flicker, so the last phrase holds until the next line begins.
   lines.forEach((line, i) => {
@@ -96,6 +111,83 @@ function timeLine(line: ScriptLine, scenes: Record<string, { start: number; end:
     return w;
   });
 
+  return toLineTiming(line, words, win.end);
+}
+
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * Aligns the script onto the transcribed voiceover letter by letter (longest
+ * common subsequence), so the captions keep the script's spelling ("PatternChess",
+ * "10.5", "back rank") while every word lands when it's actually spoken.
+ */
+function timeFromVoiceover(
+  script: ScriptLine[],
+  scenes: Record<string, { start: number; end: number }>,
+  vo: VoWord[],
+  offset: number,
+): LineTiming[] {
+  const lineTokens = script.map((line) => {
+    if (!scenes[line.scene]) throw new Error(`script line for unknown scene "${line.scene}"`);
+    return line.text.trim().split(/\s+/);
+  });
+  const tokens = lineTokens.flat();
+
+  // Letters on each side: which script token / which spoken word (and where in it).
+  const a: { tok: number; ch: string }[] = [];
+  tokens.forEach((t, i) => [...norm(t)].forEach((ch) => a.push({ tok: i, ch })));
+  const b: { word: number; k: number; n: number; ch: string }[] = [];
+  vo.forEach((w, i) => {
+    const letters = norm(w.w);
+    [...letters].forEach((ch, k) => b.push({ word: i, k, n: letters.length, ch }));
+  });
+
+  const W = b.length + 1;
+  const dp = new Uint16Array((a.length + 1) * W);
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      dp[i * W + j] =
+        a[i].ch === b[j].ch ? dp[(i + 1) * W + j + 1] + 1 : Math.max(dp[(i + 1) * W + j], dp[i * W + j + 1]);
+    }
+  }
+  const span: { start: number; end: number }[] = tokens.map(() => ({ start: NaN, end: NaN }));
+  for (let i = 0, j = 0; i < a.length && j < b.length; ) {
+    if (a[i].ch === b[j].ch) {
+      const { word, k, n } = b[j];
+      const w = vo[word];
+      const t0 = offset + w.s + ((w.e - w.s) * k) / n;
+      const t1 = offset + w.s + ((w.e - w.s) * (k + 1)) / n;
+      const sp = span[a[i].tok];
+      if (Number.isNaN(sp.start)) sp.start = t0;
+      sp.end = t1;
+      i++;
+      j++;
+    } else if (dp[(i + 1) * W + j] >= dp[i * W + j + 1]) i++;
+    else j++;
+  }
+  const matched = span.filter((sp) => !Number.isNaN(sp.start)).length;
+  if (matched < tokens.length * 0.9) {
+    console.warn(`  [captions] only ${matched}/${tokens.length} script words found in the voiceover — re-run vo/transcribe.py?`);
+  }
+  // Words the transcript missed sit between their neighbours.
+  span.forEach((sp, i) => {
+    if (!Number.isNaN(sp.start)) return;
+    const prev = span.slice(0, i).reverse().find((x) => !Number.isNaN(x.end));
+    const next = span.slice(i + 1).find((x) => !Number.isNaN(x.start));
+    sp.start = prev?.end ?? next?.start ?? offset;
+    sp.end = next?.start ?? sp.start + 0.3;
+  });
+
+  let at = 0;
+  const timed = lineTokens.map((toks) => toks.map((text) => ({ text, ...span[at++] })));
+  return script.map((line, i) => {
+    const nextStart = timed[i + 1]?.[0].start ?? Infinity;
+    return toLineTiming(line, timed[i], nextStart);
+  });
+}
+
+/** Breaks a timed line into caption chunks; the last one holds until `holdLimit` at most. */
+function toLineTiming(line: ScriptLine, words: Word[], holdLimit: number): LineTiming {
   const chunks: Chunk[] = [];
   let cur: Word[] = [];
   words.forEach((w, i) => {
@@ -103,11 +195,12 @@ function timeLine(line: ScriptLine, scenes: Record<string, { start: number; end:
     const chars = cur.map((x) => x.text).join(' ').length;
     const next = words[i + 1];
     const nextChars = next ? chars + 1 + next.text.length : 0;
+    // Don't strand one word ("players.") alone: take it if it ends the phrase.
+    const orphan = next && (i + 1 === words.length - 1 || pauseAfter(next.text) > 0) && nextChars <= CHUNK_CHARS + 4;
     const breakHere =
       !next ||
       (pauseAfter(w.text) > 0 && cur.length >= 2) ||
-      cur.length >= CHUNK_WORDS ||
-      nextChars > CHUNK_CHARS;
+      (!orphan && (cur.length >= CHUNK_WORDS || nextChars > CHUNK_CHARS));
     if (breakHere) {
       chunks.push({ words: cur, start: cur[0].start, end: cur[cur.length - 1].end });
       cur = [];
@@ -115,7 +208,7 @@ function timeLine(line: ScriptLine, scenes: Record<string, { start: number; end:
   });
   // Hold each chunk until the next one (or briefly after the line ends).
   chunks.forEach((c, i) => {
-    c.end = i + 1 < chunks.length ? chunks[i + 1].start : Math.min(c.end + 0.45, win.end);
+    c.end = i + 1 < chunks.length ? chunks[i + 1].start : Math.min(c.end + 0.45, holdLimit);
   });
 
   return {

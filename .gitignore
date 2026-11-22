@@ -47,3 +47,6 @@ marketing/ad/out/
 # Forum drafter output (marketing/forum)
 marketing/forum/out/
 marketing/forum/seen.json
+
+# Worker secrets (wrangler dev / admin calls)
+.dev.vars

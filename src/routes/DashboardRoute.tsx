@@ -22,6 +22,7 @@ import { UpcomingEventsCard } from '../components/insights/UpcomingEventsCard';
 import { StatStrip } from '../components/insights/StatStrip';
 import { useBlunderStats } from '../hooks/useBlunderStats';
 import { Skeleton } from '../components/Skeleton';
+import { FreshBlundersCard } from '../components/insights/FreshBlundersCard';
 
 // Background jobs wait this long after the dashboard mounts.
 const JOB_START_DELAY_MS = 3_000;
@@ -95,6 +96,8 @@ export function DashboardRoute() {
       {!isFirstRun && <StatStrip />}
 
       {showExplainer && <HowTrainingWorksCard />}
+
+      {!isFirstRun && <FreshBlundersCard />}
 
       {isFirstRun ? <GetStartedHero /> : <DailyHabitCard />}
 

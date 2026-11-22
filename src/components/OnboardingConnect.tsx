@@ -3,6 +3,7 @@ import { useAuth } from '../auth/useAuth';
 import { authService } from '../services/authService';
 import { ALL_TIME_CONTROLS, type TimeControlCategory } from '../services/chessApiService';
 import { BrandLockup } from './BrandLogo';
+import { readDemoUser } from '../lib/demoUser';
 import { GameTypePreferences } from './GameTypePreferences';
 
 /**
@@ -13,8 +14,14 @@ import { GameTypePreferences } from './GameTypePreferences';
  */
 export function OnboardingConnect() {
   const { profile, refreshProfile } = useAuth();
-  const [lichess, setLichess] = useState(profile?.lichessUsername ?? '');
-  const [chesscom, setChesscom] = useState(profile?.chesscomUsername ?? '');
+  // Prefill from the landing demo, if this visitor ran one before signing up.
+  const [demoUser] = useState(readDemoUser);
+  const [lichess, setLichess] = useState(
+    profile?.lichessUsername ?? (demoUser?.platform === 'lichess' ? demoUser.username : ''),
+  );
+  const [chesscom, setChesscom] = useState(
+    profile?.chesscomUsername ?? (demoUser?.platform === 'chesscom' ? demoUser.username : ''),
+  );
   const [ratedOnly, setRatedOnly] = useState(profile?.preferredRatedOnly ?? false);
   const [timeControls, setTimeControls] = useState<TimeControlCategory[]>(
     profile?.preferredTimeControls?.length

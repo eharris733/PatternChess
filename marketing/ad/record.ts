@@ -93,8 +93,10 @@ async function recordClip(
 ) {
   const cdp = await page.context().newCDPSession(page);
   const frames: { t: number; data: Buffer }[] = [];
-  cdp.on('Page.screencastFrame', ({ data, sessionId }) => {
-    frames.push({ t: performance.now(), data: Buffer.from(data, 'base64') });
+  // Stamp frames with Chrome's paint time (epoch seconds), not arrival time:
+  // frames can reach Node in bursts, which would place them late in the clip.
+  cdp.on('Page.screencastFrame', ({ data, sessionId, metadata }) => {
+    frames.push({ t: (metadata.timestamp ?? Date.now() / 1000) * 1000, data: Buffer.from(data, 'base64') });
     cdp.send('Page.screencastFrameAck', { sessionId }).catch(() => {});
   });
   await cdp.send('Page.startScreencast', {
@@ -107,6 +109,7 @@ async function recordClip(
   // Nudge a repaint so frame 0 exists even on a static page.
   await page.evaluate(() => document.body.style.setProperty('--ad-tick', String(Math.random())));
   const t0 = performance.now();
+  const wall0 = Date.now();
   const pageT0: number = await page.evaluate(() => (window as any).__ad.play());
   const acting = act().catch((e) => console.log(`  act failed: ${e.message}`));
   await Promise.race([acting.then(() => waitUntil(t0 + seconds * 1000)), waitUntil(t0 + seconds * 1000)]);
@@ -125,7 +128,7 @@ async function recordClip(
   ], { stdio: ['pipe', 'inherit', 'inherit'] });
   let j = 0;
   for (let i = 0; i < total; i++) {
-    const at = t0 + (i * 1000) / FPS;
+    const at = wall0 + (i * 1000) / FPS;
     while (j + 1 < frames.length && frames[j + 1].t <= at) j++;
     const frame = frames[j];
     if (!frame) continue;

@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { LegalPage, LegalSection } from '../components/legal/LegalPage';
 import { useHead } from '../seo/useHead';
 
-const EFFECTIVE_DATE = 'May 27, 2026';
+const EFFECTIVE_DATE = 'November 21, 2026';
 const CONTACT_EMAIL = 'elliot@patternchess.com';
 
 export function PrivacyRoute() {
@@ -48,6 +48,11 @@ export function PrivacyRoute() {
           <li>authenticate you and maintain your account;</li>
           <li>import and analyze your games to identify trainable mistakes;</li>
           <li>track your training progress and spaced-repetition schedule;</li>
+          <li>
+            send you training reminders and progress updates by email. These are on by default for
+            accounts with an email address; switch them off in your profile or with the unsubscribe
+            link in any email;
+          </li>
           <li>and respond to support requests.</li>
         </ul>
         <p>We do not sell your personal information.</p>
@@ -67,6 +72,9 @@ export function PrivacyRoute() {
           <li>
             <strong>Chess.com and Lichess</strong> — your browser fetches your public game history
             from their APIs when you sync.
+          </li>
+          <li>
+            <strong>Cloudflare</strong> — hosts the website and delivers our emails.
           </li>
           <li>
             <strong>Lichess Opening Explorer</strong> — queried to show opening reference data.

@@ -12,6 +12,7 @@ import { moveToUci, parseUciMove, uciToSan, toKey } from '../chess/moveUtils';
 import { classify, winPercent } from '../chess/winningChances';
 import { useForceDefaultTheme } from '../state/themeStore';
 import { useHead } from '../seo/useHead';
+import { trackCtaClick } from '../services/funnelService';
 
 type Phase = 'solving' | 'correct' | 'incorrect';
 
@@ -77,7 +78,7 @@ function SignupCta() {
         PatternChess turns the blunders from your own games into training positions, then drills
         them with spaced repetition until you stop repeating them.
       </p>
-      <Link to="/login" className="btn-primary text-center">
+      <Link to="/login" onClick={() => trackCtaClick('puzzle')} className="btn-primary text-center">
         Train your own blunders — free
       </Link>
     </div>
