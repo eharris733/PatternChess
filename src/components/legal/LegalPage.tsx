@@ -31,9 +31,9 @@ export function LegalPage({ title, effectiveDate, children }: LegalPageProps) {
   );
 }
 
-export function LegalSection({ heading, children }: { heading: string; children: ReactNode }) {
+export function LegalSection({ heading, id, children }: { heading: string; id?: string; children: ReactNode }) {
   return (
-    <section className="space-y-3">
+    <section className="space-y-3 scroll-mt-24" id={id}>
       <h2 className="text-lg font-bold tracking-tight">{heading}</h2>
       {children}
     </section>

@@ -37,6 +37,7 @@
     "react-is": "^19.2.6",
     "react-router-dom": "^6.26.2",
     "recharts": "^2.15.4",
+    "stripe": "23.1.0",
     "zustand": "^4.5.5"
   },
   "devDependencies": {

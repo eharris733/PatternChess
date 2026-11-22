@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNextAsk } from '../../hooks/useNextAsk';
 import type { AskKind, EmailAskVariant } from '../../lib/asks';
 import { EmailAskCard } from './EmailAskCard';
+import { SupporterAskCard } from './SupporterAskCard';
 
 /**
  * The dashboard's one ask card (above the daily plan). Holds on to the ask it
@@ -26,5 +27,6 @@ export function NextAskSlot() {
   if (current.kind === 'email' && current.emailVariant) {
     return <EmailAskCard variant={current.emailVariant} onClose={close} />;
   }
+  if (current.kind === 'supporter') return <SupporterAskCard onClose={close} />;
   return null;
 }

@@ -9,6 +9,7 @@ import type {
   LeaderboardWindow,
 } from '../../services/db/leaderboard';
 import { Skeleton } from '../Skeleton';
+import { SupporterMark } from '../SupporterMark';
 import { FlairBadge } from '../FlairBadge';
 import { FlairPickerModal } from '../FlairPicker';
 
@@ -185,6 +186,7 @@ function Row({
       </span>
       <span className="min-w-0 flex-1 flex items-center gap-2 text-text-primary">
         <span className="truncate">{row.label}</span>
+        <SupporterMark badge={row.supporter} className="shrink-0 inline-flex" />
         <FlairBadge flair={flair} className="shrink-0 hidden sm:inline-flex" />
         {row.isMe && (
           <span className="shrink-0 text-xs text-text-secondary">

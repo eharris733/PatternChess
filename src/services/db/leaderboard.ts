@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { supporterBadgeFromJson, type SupporterBadge } from '../../components/SupporterMark';
 
 export type LeaderboardMetric = 'solved' | 'mastered' | 'openings' | 'endgames' | 'elo' | 'streak';
 export type LeaderboardWindow = 'all' | 'week';
@@ -11,6 +12,8 @@ export interface LeaderboardRow {
   isMe: boolean;
   /** Chosen flair id (src/lib/flair.ts); null when none. Unknown ids render nothing. */
   flair: string | null;
+  /** 'supporter' (active) or 'early' (lapsed) from `supporter_badge()`; null otherwise. */
+  supporter: SupporterBadge | null;
 }
 
 export interface Leaderboard {
@@ -30,6 +33,7 @@ function rowFromJson(j: any): LeaderboardRow {
     value: Number(j.value ?? 0),
     isMe: Boolean(j.isMe),
     flair: typeof j.flair === 'string' && j.flair ? j.flair : null,
+    supporter: supporterBadgeFromJson(j.supporter),
   };
 }
 
@@ -69,6 +73,7 @@ export interface PublicLeaderboardRow {
   /** Blunders reviewed (solved on the first attempt) over the last 7 days. */
   value: number;
   flair: string | null;
+  supporter: SupporterBadge | null;
 }
 
 const RATING_CATEGORIES: ReadonlySet<string> = new Set(['bullet', 'blitz', 'rapid', 'classical']);
@@ -95,6 +100,7 @@ export function publicLeaderboardFromJson(j: any): PublicLeaderboard {
             : null,
           value: Number(r.value ?? 0),
           flair: typeof r.flair === 'string' && r.flair ? r.flair : null,
+          supporter: supporterBadgeFromJson(r.supporter),
         }))
       : [],
   };

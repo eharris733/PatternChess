@@ -18,6 +18,7 @@ import { WinBackPanel } from '../components/admin/WinBackPanel';
 import { LandingCtasCard } from '../components/admin/LandingCtasCard';
 import { RetentionCard } from '../components/admin/RetentionCard';
 import { EmailStatsCard } from '../components/admin/EmailStatsCard';
+import { SupportersCard } from '../components/admin/SupportersCard';
 import {
   chesscomProfileUrl,
   lichessProfileUrl,
@@ -84,6 +85,7 @@ function AnalyticsContent() {
           <ActivityCard data={data} onDrilldown={setDrilldown} />
           <RetentionCard />
           <EmailStatsCard />
+          <SupportersCard />
           {data.trainingAnalytics && (
             <TrainingAnalyticsCard
               analytics={data.trainingAnalytics}

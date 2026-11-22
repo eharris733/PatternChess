@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      supporters: {
+        Row: {
+          beta_invited_at: string | null
+          cancel_at_period_end: boolean
+          created_at: string
+          current_period_end: string | null
+          first_supported_at: string | null
+          status: string
+          stripe_customer_id: string
+          stripe_subscription_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          beta_invited_at?: string | null
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          first_supported_at?: string | null
+          status?: string
+          stripe_customer_id: string
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          beta_invited_at?: string | null
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          first_supported_at?: string | null
+          status?: string
+          stripe_customer_id?: string
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       benchmarks: {
         Row: {
           bucket: string
@@ -880,6 +919,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_supporters: {
+        Args: never
+        Returns: {
+          beta_invited_at: string
+          cancel_at_period_end: boolean
+          current_period_end: string
+          email: string
+          first_supported_at: string
+          label: string
+          status: string
+          user_id: string
+        }[]
+      }
       admin_email_stats: { Args: never; Returns: Json }
       admin_kpis: { Args: never; Returns: Json }
       admin_landing_ctas: { Args: { days?: number }; Returns: Json }

@@ -8,6 +8,7 @@ const LINKS = [
   { label: 'Blog', to: '/blog' },
   { label: 'Chess GIF maker', to: '/moments' },
   { label: 'Tournaments', to: '/events' },
+  { label: 'Support us', to: '/supporter' },
   { label: 'Privacy', to: '/privacy' },
   { label: 'Terms', to: '/terms' },
 ];
