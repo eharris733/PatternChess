@@ -1,9 +1,9 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
 import { isAdminEmail } from '../auth/admin';
-import { supabase } from '../lib/supabase';
+import { rpc } from '../lib/api';
 
-/** Funnel segments of `admin_outreach_leads` (migration 20261010160000). */
+/** Funnel segments of the `admin.outreachLeads` RPC (functions/_shared/rpc/admin.ts). */
 export type OutreachSegment =
   | 'demo_only'
   | 'signed_up_not_connected'
@@ -64,9 +64,7 @@ export function useOutreachLeads(segment: OutreachSegment) {
     // Keep the previous tab's payload (its counts) while the next one loads.
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<OutreachLeads> => {
-      const { data, error } = await supabase.rpc('admin_outreach_leads', { segment });
-      if (error) throw error;
-      const j = (data ?? {}) as any;
+      const j = ((await rpc('admin.outreachLeads', { segment })) ?? {}) as any;
       return {
         segment,
         counts: (j.counts ?? {}) as OutreachLeads['counts'],
@@ -86,14 +84,8 @@ export function useMarkContacted() {
       note?: string;
       undo?: boolean;
     }) => {
-      const { error } = input.undo
-        ? await supabase.rpc('admin_unmark_contacted', { lead_key: input.leadKey })
-        : await supabase.rpc('admin_mark_contacted', {
-            lead_key: input.leadKey,
-            segment: input.segment,
-            note: input.note ?? '',
-          });
-      if (error) throw error;
+      if (input.undo) await rpc('admin.unmarkContacted', { leadKey: input.leadKey });
+      else await rpc('admin.markContacted', { leadKey: input.leadKey, segment: input.segment, note: input.note ?? '' });
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ['admin', 'outreach'] }),
   });
@@ -107,9 +99,7 @@ export function useLandingCtas(days = 30) {
     enabled: admin,
     staleTime: 60_000,
     queryFn: async (): Promise<LandingCtaRow[]> => {
-      const { data, error } = await supabase.rpc('admin_landing_ctas', { days });
-      if (error) throw error;
-      return (data ?? []) as unknown as LandingCtaRow[];
+      return (await rpc<LandingCtaRow[] | null>('admin.landingCtas', { days })) ?? [];
     },
   });
 }

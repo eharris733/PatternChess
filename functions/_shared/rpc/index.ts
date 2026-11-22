@@ -2,6 +2,8 @@ import { getSessionUser, isAdminEmail } from '../auth';
 import type { AppEnv } from '../db';
 import { dispatchRpc, type RpcRegistry } from './core';
 import { handlers as meta } from './meta';
+import { handlers as leaderboard } from './leaderboard';
+import { handlers as admin } from './admin';
 import { handlers as openings } from './openings';
 import { handlers as profile } from './profile';
 
@@ -14,6 +16,8 @@ export * from './core';
  */
 const DOMAINS: Record<string, RpcRegistry> = {
   meta,
+  leaderboard,
+  admin,
   openings,
   profile,
 };

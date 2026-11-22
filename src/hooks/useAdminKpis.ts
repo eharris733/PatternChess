@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
 import { isAdminEmail } from '../auth/admin';
-import { supabase } from '../lib/supabase';
+import { rpc } from '../lib/api';
 
 export interface AdminKpiTotals {
   signups: number;
@@ -99,9 +99,7 @@ export function useAdminKpis() {
     enabled: !!user && admin,
     staleTime: 60_000,
     queryFn: async (): Promise<AdminKpis> => {
-      const { data, error } = await supabase.rpc('admin_kpis');
-      if (error) throw error;
-      return data as unknown as AdminKpis;
+      return rpc<AdminKpis>('admin.kpis');
     },
   });
 }

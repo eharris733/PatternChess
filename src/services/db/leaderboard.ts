@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabase';
+import { rpc } from '../../lib/api';
 import { supporterBadgeFromJson, type SupporterBadge } from '../../components/SupporterMark';
 
 export type LeaderboardMetric = 'solved' | 'mastered' | 'openings' | 'endgames' | 'elo' | 'streak';
@@ -12,7 +12,7 @@ export interface LeaderboardRow {
   isMe: boolean;
   /** Chosen flair id (src/lib/flair.ts); null when none. Unknown ids render nothing. */
   flair: string | null;
-  /** 'supporter' (active) or 'early' (lapsed) from `supporter_badge()`; null otherwise. */
+  /** 'supporter' (active) or 'early' (lapsed), per supporterBadge() on the server; null otherwise. */
   supporter: SupporterBadge | null;
 }
 
@@ -38,18 +38,16 @@ function rowFromJson(j: any): LeaderboardRow {
 }
 
 /**
- * `leaderboard` RPC (security definer, migrations 20260915140000 + 20260927120000 for flair): top-N
- * plus the caller's own rank for one metric × window. Opted-out users are
- * excluded server-side.
+ * `leaderboard.get` RPC (functions/_shared/rpc/leaderboard.ts): top-N plus the
+ * caller's own rank for one metric × window. Opted-out users are excluded
+ * server-side.
  */
 export async function getLeaderboard(
   metric: LeaderboardMetric,
   window: LeaderboardWindow,
   limit = 20,
 ): Promise<Leaderboard> {
-  const { data, error } = await supabase.rpc('leaderboard', { metric, win: window, limit_n: limit });
-  if (error) throw error;
-  const j = (data ?? {}) as any;
+  const j = ((await rpc('leaderboard.get', { metric, window, limit })) ?? {}) as any;
   return {
     metric,
     window,
@@ -107,13 +105,10 @@ export function publicLeaderboardFromJson(j: any): PublicLeaderboard {
 }
 
 /**
- * `public_leaderboard` RPC (anon-callable, migrations 20261010150000 +
- * 20261010170000): top 5 by blunders reviewed over the last 7 days, with each
- * player's platform and current rating for the landing page. Server-cached
- * for an hour; opted-out users are excluded.
+ * `leaderboard.public` RPC (anon-callable): top 5 by blunders reviewed over
+ * the last 7 days, with each player's platform and current rating for the
+ * landing page. Server-cached for an hour; opted-out users are excluded.
  */
 export async function getPublicLeaderboard(): Promise<PublicLeaderboard> {
-  const { data, error } = await supabase.rpc('public_leaderboard');
-  if (error) throw error;
-  return publicLeaderboardFromJson(data);
+  return publicLeaderboardFromJson(await rpc('leaderboard.public'));
 }
