@@ -36,6 +36,9 @@ const PERSISTED_ROOTS = new Set([
   'otbEvents',
 ]);
 const EXCLUDED: ReadonlyArray<readonly string[]> = [
+  // The onboarding gate latches on a zero game count; a restored 0 from the
+  // first visit would re-show onboarding on every reload after the import.
+  ['games', 'totalCount'],
   ['blunders', 'due'],
   ['blunders', 'forGames'],
   ['training', 'filterGames'],
