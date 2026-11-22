@@ -21,6 +21,9 @@ import { NotFoundRoute } from './routes/NotFoundRoute';
 // /p (shared puzzles) is public but not prerendered, and it is the only eager
 // route that pulls in chessground; lazy-loading it keeps the board library
 // out of the landing-page bundle.
+const CourseDemoRoute = lazy(() =>
+  import('./routes/CourseDemoRoute').then((m) => ({ default: m.CourseDemoRoute })),
+);
 const PuzzleRoute = lazy(() => import('./routes/PuzzleRoute').then((m) => ({ default: m.PuzzleRoute })));
 
 // Gated app routes are lazy: they sit behind auth (a brief fallback is fine) and
@@ -41,6 +44,10 @@ const AchievementsRoute = lazy(() =>
 );
 const PathRoute = lazy(() => import('./routes/PathRoute').then((m) => ({ default: m.PathRoute })));
 const ArticleRoute = lazy(() => import('./routes/ArticleRoute').then((m) => ({ default: m.ArticleRoute })));
+const CoursesRoute = lazy(() => import('./routes/CoursesRoute').then((m) => ({ default: m.CoursesRoute })));
+const CourseDayRoute = lazy(() =>
+  import('./routes/CourseDayRoute').then((m) => ({ default: m.CourseDayRoute })),
+);
 const LeaderboardsRoute = lazy(() =>
   import('./routes/LeaderboardsRoute').then((m) => ({ default: m.LeaderboardsRoute })),
 );
@@ -95,6 +102,14 @@ export default function App() {
       <Route path="/blog" element={<BlogIndex />} />
       <Route path="/blog/:slug" element={<BlogPost />} />
       <Route
+        path="/c/:slug"
+        element={
+          <Suspense fallback={<RouteFallback />}>
+            <CourseDemoRoute />
+          </Suspense>
+        }
+      />
+      <Route
         path="/p"
         element={
           <Suspense fallback={<RouteFallback />}>
@@ -124,6 +139,8 @@ export default function App() {
         <Route path="/leaderboards" element={<LeaderboardsRoute />} />
         <Route path="/path" element={<PathRoute />} />
         <Route path="/path/:slug" element={<ArticleRoute />} />
+        <Route path="/courses" element={<CoursesRoute />} />
+        <Route path="/courses/:slug/:day?" element={<CourseDayRoute />} />
         <Route path="/achievements" element={<AchievementsOrLeaderboards />} />
         <Route path="/analytics" element={<AnalyticsRoute />} />
         <Route path="/__sandbox" element={<SandboxRoute />} />

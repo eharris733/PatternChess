@@ -12,6 +12,9 @@
 //   src/generated/learnCatalog.json   — small metadata index (bundled)
 //   content/learn/snapshots/<id>.pgn  — raw PGN, for reviewing diffs
 //   content/learn/catalog.lock.json   — Last-Modified per study
+//   src/generated/courses/<slug>.json — `unlisted` entries (creator demos):
+//                                       served only at /c/<slug>, never in the
+//                                       index or the /learn list
 //
 // Deliberately NOT part of `npm run build`: CI must never depend on Lichess.
 //
@@ -37,18 +40,28 @@ const catalogPath = process.env.LEARN_CATALOG ?? join(root, 'content/learn/catal
 const lockPath = join(root, 'content/learn/catalog.lock.json');
 const snapshotDir = join(root, 'content/learn/snapshots');
 const outDir = join(root, 'src/generated/learn');
+const coursesDir = join(root, 'src/generated/courses');
 const indexPath = join(root, 'src/generated/learnCatalog.json');
 const bookPath = join(root, 'src/generated/openingBook.json');
 
 const CATEGORIES = new Set(['openings', 'strategy', 'endgames']);
 const LEVELS = new Set(['beginner', 'intermediate', 'advanced']);
-const PERMISSION_KINDS = new Set(['author-granted', 'patternchess', 'cc-by', 'cc0']);
+const PERMISSION_KINDS = new Set(['author-granted', 'patternchess', 'cc-by', 'cc0', 'outreach-demo']);
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 interface Permission {
   kind: string;
   note: string;
   grantedAt: string;
+}
+
+/** A course authored by us from a creator's video. */
+interface VideoSource {
+  kind: 'youtube';
+  url: string;
+  channel: string;
+  channelUrl: string;
+  title: string;
 }
 
 interface CatalogEntry {
@@ -67,6 +80,9 @@ interface CatalogEntry {
   pgnFile?: string;
   permission: Permission | null;
   enabled: boolean;
+  /** Reachable only by link at /c/<slug>; never listed or indexed. */
+  unlisted?: boolean;
+  source?: VideoSource;
 }
 
 const force = process.argv.includes('--force');
@@ -94,6 +110,14 @@ function validate(e: CatalogEntry, families: Set<string>): string[] {
   if (!e.author) errs.push('missing author (credited on every page)');
   if (!e.permission || !PERMISSION_KINDS.has(e.permission.kind) || !e.permission.note) {
     errs.push('missing permission — record how reuse was licensed before enabling');
+  }
+  // A private pitch demo built from a creator's video must never be listed
+  // until the creator agrees (then it gets a real permission kind).
+  if (e.permission?.kind === 'outreach-demo' && !e.unlisted) {
+    errs.push('outreach-demo courses must be unlisted');
+  }
+  if (e.source && (e.source.kind !== 'youtube' || !e.source.url || !e.source.channel || !e.source.title)) {
+    errs.push('source needs kind "youtube", url, channel and title');
   }
   for (const f of e.openingFamilies ?? []) {
     if (!families.has(f)) errs.push(`unknown opening family "${f}" (must match games.opening_family)`);
@@ -148,6 +172,7 @@ async function main() {
   const lock = readJson<Record<string, { lastModified: string | null; builtAt: string }>>(lockPath, {});
   const families = openingFamilies();
   mkdirSync(outDir, { recursive: true });
+  mkdirSync(coursesDir, { recursive: true });
   mkdirSync(snapshotDir, { recursive: true });
 
   const index: unknown[] = [];
@@ -163,6 +188,7 @@ async function main() {
       continue;
     }
     slugs.add(e.slug);
+    const dir = e.unlisted ? coursesDir : outDir;
     const errs = validate(e, families);
     if (errs.length > 0) {
       for (const err of errs) console.error(`  ✗ ${err}`);
@@ -175,7 +201,7 @@ async function main() {
       let study: Record<string, unknown>;
       if (fetched === 'unchanged') {
         console.log('  unchanged since last sync');
-        study = readJson(join(outDir, `${e.slug}.json`), {});
+        study = readJson(join(dir, `${e.slug}.json`), {});
       } else {
         if (!e.pgnFile) writeFileSync(join(snapshotDir, `${e.studyId}.pgn`), fetched.pgn);
         const games = parse(fetched.pgn, { startRule: 'games' }) as unknown as ParsedGame[];
@@ -202,25 +228,26 @@ async function main() {
           color: e.color ?? null,
           level: e.level,
           author: e.author,
-          authorUrl: `https://lichess.org/@/${e.author}`,
-          studyUrl: `https://lichess.org/study/${e.studyId}`,
+          authorUrl: e.source?.channelUrl ?? `https://lichess.org/@/${e.author}`,
+          studyUrl: e.source?.url ?? `https://lichess.org/study/${e.studyId}`,
+          ...(e.source ? { source: e.source } : {}),
           description: e.description ?? '',
           permissionNote: e.permission!.note,
           chapters: chapterData.map((c) => ({ id: c.id, name: c.name })),
           chapterData,
         };
-        writeFileSync(join(outDir, `${e.slug}.json`), JSON.stringify(study));
+        writeFileSync(join(dir, `${e.slug}.json`), JSON.stringify(study));
         lock[e.studyId] = { lastModified: fetched.lastModified, builtAt: new Date().toISOString() };
         console.log(`  ✓ ${chapterData.length} chapters`);
       }
       const { chapterData: _omit, ...meta } = study;
-      index.push(meta);
+      if (!e.unlisted) index.push(meta);
     } catch (err) {
       console.error(`  ✗ ${(err as Error).message}`);
       failed++;
       // Keep serving the last good build rather than dropping the study.
-      const previous = join(outDir, `${e.slug}.json`);
-      if (existsSync(previous)) {
+      const previous = join(dir, `${e.slug}.json`);
+      if (existsSync(previous) && !e.unlisted) {
         const { chapterData: _omit, ...meta } = readJson<Record<string, unknown>>(previous, {});
         index.push(meta);
         console.error('    (kept the previous build)');
@@ -232,11 +259,14 @@ async function main() {
   // Generated files are owned by this script: drop studies that were disabled
   // or removed from the catalog so they stop being bundled.
   // A failed fetch keeps its last good build (it just isn't in this index).
-  const keep = new Set([...slugs].map((slug) => `${slug}.json`));
-  for (const f of readdirSync(outDir)) {
-    if (f.endsWith('.json') && !keep.has(f)) {
-      rmSync(join(outDir, f));
-      console.log(`- removed stale ${f}`);
+  const unlisted = new Set(catalog.studies.filter((e) => e.unlisted).map((e) => e.slug));
+  for (const [d, wantUnlisted] of [[outDir, false], [coursesDir, true]] as const) {
+    const keep = new Set([...slugs].filter((s) => unlisted.has(s) === wantUnlisted).map((s) => `${s}.json`));
+    for (const f of readdirSync(d)) {
+      if (f.endsWith('.json') && !keep.has(f)) {
+        rmSync(join(d, f));
+        console.log(`- removed stale ${f}`);
+      }
     }
   }
 

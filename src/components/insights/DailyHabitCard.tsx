@@ -23,6 +23,12 @@ import { SnowflakeIcon } from '../icons/SnowflakeIcon';
 import { CloseIcon } from '../icons/CloseIcon';
 import { Skeleton } from '../Skeleton';
 import { usePathProgress } from '../../hooks/usePathProgress';
+import { CourseIcon } from '../icons/CourseIcon';
+import { useCourseProgress } from '../../hooks/useCourses';
+import { useSupporter } from '../../hooks/useSupporter';
+import { availableCourse } from '../../lib/courses';
+import { isSupporterDay } from '../../lib/courseCatalog';
+import { completedOn, nextDay } from '../../lib/coursePacing';
 
 /** Endgame play-outs the plan asks for per day (the list may hold many more). */
 export const PLAYOUTS_PER_DAY = 2;
@@ -131,8 +137,9 @@ function playUrl(lichess: string | null, chesscom: string | null): string | null
 
 /**
  * Today's plan: a checklist sized by the player's commitment level — play
- * games (detected from sync), drill the SR queue, review openings, play
- * endgames — each with its own progress, check, and button. (The streak lives
+ * games (detected from sync), watch the followed course's lesson, drill the
+ * SR queue, review openings, play endgames — each with its own progress,
+ * check, and button. (The streak lives
  * in the sidebar badge and on the profile.)
  */
 export function DailyHabitCard() {
@@ -160,6 +167,11 @@ export function DailyHabitCard() {
 
   const tz = profile?.timezone ?? detectTimezone();
   const today = localDate(tz);
+
+  // Today's lesson: the followed course's next day, once per local date.
+  const lessonCourse = availableCourse(profile?.courseFocus);
+  const courseProgressQuery = useCourseProgress(!!lessonCourse);
+  const supporter = useSupporter();
 
   if (drillsQuery.isPending) {
     return (
@@ -207,8 +219,22 @@ export function DailyHabitCard() {
 
   const gamesToday = gamesTodayQuery.data ?? 0;
 
+  const lessonDays = (lessonCourse && courseProgressQuery.data?.byCourse.get(lessonCourse.slug)) || [];
+  const lessonDoneToday = completedOn(lessonDays, today);
+  const lessonNext = lessonCourse ? nextDay(lessonCourse.days.length, lessonDays, today) : null;
+  // A supporter-only next day stays off the plan for free players (the course page explains).
+  const lessonOpen =
+    lessonNext?.status === 'open' && !(isSupporterDay(lessonNext.day) && !supporter.isSupporter);
+  const showLesson = !!lessonCourse && !courseProgressQuery.isPending && (lessonDoneToday || lessonOpen);
+  const lessonDetail = lessonDoneToday
+    ? `${lessonCourse?.title}: done for today`
+    : lessonNext && lessonCourse
+      ? `${lessonCourse.title}, day ${lessonNext.day}: ${lessonCourse.days[lessonNext.day - 1].title}`
+      : null;
+
   const steps = [
     ...(showPlay ? [{ done: gamesToday, goal: goals.gamesPerDay }] : []),
+    ...(showLesson ? [{ done: lessonDoneToday ? 1 : 0, goal: 1 }] : []),
     { done: drillsToday, goal: goals.positionsPerDay },
     ...(showOpenings ? [{ done: openingsToday, goal: openingsGoal }] : []),
     ...(showEndgames ? [{ done: playoutsToday, goal: PLAYOUTS_PER_DAY }] : []),
@@ -282,6 +308,17 @@ export function DailyHabitCard() {
             loading={gamesTodayQuery.isPending}
             action="Play"
             href={playHref}
+          />
+        )}
+        {showLesson && lessonCourse && (
+          <PlanStep
+            icon={<CourseIcon className="h-4 w-4" />}
+            title="Today's lesson"
+            detail={lessonDetail}
+            done={lessonDoneToday ? 1 : 0}
+            goal={1}
+            action={lessonDoneToday ? 'Review' : 'Watch'}
+            onAction={() => navigate(`/courses/${lessonCourse.slug}`)}
           />
         )}
         <PlanStep

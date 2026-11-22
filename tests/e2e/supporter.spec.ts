@@ -94,7 +94,12 @@ test('an active supporter sees thanks, and /profile offers "Manage subscription"
 });
 
 test('the dashboard asks for support from the 4th open after a finished session', async ({ page }) => {
-  const rec = await stub(page, { opens: 4 });
+  // The course ask (open 3) comes first while a course is available and none is
+  // followed; this player already answered it.
+  const rec = await stub(page, {
+    opens: 4,
+    profile: { course_prompted_at: new Date().toISOString(), course_prompt_count: 1 },
+  });
   await page.goto('/dashboard');
   const card = page.getByTestId('supporter-ask');
   await expect(card.getByText('Enjoying the plan? Help keep it running.')).toBeVisible();

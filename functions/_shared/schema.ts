@@ -90,6 +90,8 @@ export const TABLES: Record<string, TableSpec> = {
   landing_stats_cache: spec({ json: ['payload'], ts: ['computed_at'] }),
   public_leaderboard_cache: spec({ json: ['payload'], ts: ['computed_at'] }),
   benchmarks: spec({}),
+  // 0003_courses.sql (new on D1, no Supabase twin).
+  course_progress: spec({ ts: ['completed_at'] }),
   // better-auth tables (camelCase columns; better-auth's own adapter handles
   // them, these entries exist for admin queries and the importer).
   user: spec({ bool: ['emailVerified'], ts: ['createdAt', 'updatedAt'] }),
@@ -100,7 +102,7 @@ export const TABLES: Record<string, TableSpec> = {
   verification: spec({ ts: ['expiresAt', 'createdAt', 'updatedAt'] }),
 };
 
-/** The 17 app tables ported from Supabase `public` (excludes better-auth's). */
+/** The app tables: 17 ported from Supabase `public` plus course_progress (excludes better-auth's). */
 export const APP_TABLES: readonly string[] = Object.keys(TABLES).filter(
   (t) => !['user', 'session', 'account', 'verification'].includes(t),
 );

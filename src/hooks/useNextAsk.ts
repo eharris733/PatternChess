@@ -4,6 +4,7 @@ import { useAuth } from '../auth/useAuth';
 import { useSupporter } from './useSupporter';
 import { supabaseService } from '../services/supabaseService';
 import { emailAskVariant, nextAsk, type AskKind, type EmailAskVariant } from '../lib/asks';
+import { AVAILABLE_COURSES } from '../lib/courses';
 
 // One open per tab session: reloads and route changes don't count.
 const COUNTED_KEY = 'pc:open-counted';
@@ -88,8 +89,8 @@ export function useNextAsk(): NextAsk {
     eligible: {
       // Someone who unsubscribed from an email has answered for good.
       email: emailVariant != null && !profile.emailUnsubscribedAt,
-      // Turned on by the courses PR.
-      course: false,
+      // Courses live in this build and none followed yet.
+      course: AVAILABLE_COURSES.length > 0 && !profile.courseFocus,
       // After a finished session, never to someone who is (or was) a supporter.
       supporter:
         !supporter.isPending && !supporter.status?.active && !supporter.status?.early && profile.lastDrillLocalDate != null,

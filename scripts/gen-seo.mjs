@@ -43,7 +43,9 @@ const DISALLOW = [
   '/achievements',
   '/leaderboards',
   '/analytics',
+  '/courses',
   '/p',
+  '/c/',
 ];
 
 // AI answer engines we explicitly welcome (each gets the same disallow set so
