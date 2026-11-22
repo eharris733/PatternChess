@@ -2,6 +2,7 @@ import { getSessionUser, isAdminEmail } from '../auth';
 import type { AppEnv } from '../db';
 import { dispatchRpc, type RpcRegistry } from './core';
 import { handlers as meta } from './meta';
+import { handlers as openings } from './openings';
 
 export * from './core';
 
@@ -12,6 +13,7 @@ export * from './core';
  */
 const DOMAINS: Record<string, RpcRegistry> = {
   meta,
+  openings,
 };
 
 export function mergeRegistries(domains: Record<string, RpcRegistry>): RpcRegistry {

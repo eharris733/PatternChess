@@ -17,10 +17,10 @@ import {
   winningChancesLost,
 } from '../chess/winningChances';
 import { getAnalysisStockfish } from '../hooks/useStockfish';
-import { toJson } from '../lib/supabase';
 import { queryClient } from '../lib/queryClient';
 import type { OpeningDrillData, OpeningDrillSource, TheoryMove } from '../models/blunder';
 import type { OpeningDeviation } from '../chess/openingDeviation';
+import type { Json } from '../lib/database.types';
 import { isMaintenanceRunning } from './blunderEnrichmentBackfill';
 import { isEndgameVerificationRunning } from './endgameScenarioVerifier';
 import { fetchBook, positionGames, type BookPosition } from './openingBookService';
@@ -372,7 +372,7 @@ async function walkOne(game: ScanGame): Promise<'retry' | string> {
     played_uci: walk.playedUci,
     played_san: walk.playedSan,
     reason: walk.reason,
-    theory_moves: toJson(walk.theoryMoves),
+    theory_moves: walk.theoryMoves as unknown as Json,
     position_games: walk.positionGames,
     played_games: walk.playedGames,
     played_mover_win_pct: walk.playedMoverWinPct,
@@ -644,14 +644,14 @@ async function ensureOpeningDrill(
     fen: d.fen,
     move_number: d.moveNumber ?? dev.moveNumber ?? 1,
     played_move: d.playedUci,
-    correct_moves: toJson(d.theoryMoves.map((t) => ({ move: t.uci, eval: d.evalBefore }))),
+    correct_moves: d.theoryMoves.map((t) => ({ move: t.uci, eval: d.evalBefore })) as unknown as Json,
     eval_before: d.evalBefore,
     eval_after: d.evalAfter,
     eval_swing: Math.round(d.chancesLost),
     side_to_move: dev.userColor ?? (d.fen.split(' ')[1] === 'b' ? 'black' : 'white'),
     phase: 'opening',
     kind: 'opening',
-    drill_data: toJson(drillData),
+    drill_data: drillData as unknown as Json,
     analysis_depth: d.depth,
     // Opening items are scored here with a real budget; keep them out of the
     // deepening pass, whose 10% retire bar would retire them.
