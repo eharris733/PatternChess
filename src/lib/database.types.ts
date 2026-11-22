@@ -554,6 +554,13 @@ export type Database = {
           streak_freezes_used: number
           timezone: string | null
           used_training_filter: boolean
+          app_opens: number
+          course_prompt_count: number
+          course_prompted_at: string | null
+          email_prompt_count: number
+          email_unsubscribed_at: string | null
+          supporter_prompt_count: number
+          supporter_prompted_at: string | null
         }
         Insert: {
           anon_id?: string | null
@@ -601,6 +608,13 @@ export type Database = {
           streak_freezes_used?: number
           timezone?: string | null
           used_training_filter?: boolean
+          app_opens?: number
+          course_prompt_count?: number
+          course_prompted_at?: string | null
+          email_prompt_count?: number
+          email_unsubscribed_at?: string | null
+          supporter_prompt_count?: number
+          supporter_prompted_at?: string | null
         }
         Update: {
           anon_id?: string | null
@@ -648,6 +662,13 @@ export type Database = {
           streak_freezes_used?: number
           timezone?: string | null
           used_training_filter?: boolean
+          app_opens?: number
+          course_prompt_count?: number
+          course_prompted_at?: string | null
+          email_prompt_count?: number
+          email_unsubscribed_at?: string | null
+          supporter_prompt_count?: number
+          supporter_prompted_at?: string | null
         }
         Relationships: []
       }
@@ -719,6 +740,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bump_app_open: { Args: never; Returns: number }
+      mark_ask_prompted: { Args: { p_ask: string }; Returns: undefined }
       admin_email_stats: { Args: never; Returns: Json }
       admin_kpis: { Args: never; Returns: Json }
       admin_user_list: { Args: { category: string }; Returns: Json }
