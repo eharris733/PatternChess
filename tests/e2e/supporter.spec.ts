@@ -1,28 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
+import { E2E_USER, stubApp } from './helpers/api';
 
 // $5/month supporter tier: /supporter hands off to Stripe Checkout through
 // /api/stripe/checkout, shows the thank-you state for active supporters,
 // /profile carries "Manage subscription", and the dashboard ask appears from
 // the 4th open after a finished session.
-
-const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
-
-const FAKE_SESSION = {
-  access_token: 'fake',
-  token_type: 'bearer',
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  refresh_token: 'fake-refresh',
-  user: {
-    id: 'e2e-user',
-    aud: 'authenticated',
-    role: 'authenticated',
-    email: 'e2e@example.com',
-    user_metadata: { full_name: 'E2E User', avatar_url: null },
-    app_metadata: {},
-    created_at: new Date().toISOString(),
-  },
-};
 
 function daysAgo(n: number): string {
   return new Date(Date.now() - n * 86_400_000).toLocaleDateString('en-CA');
@@ -56,45 +38,19 @@ async function stub(
   page: Page,
   opts: { signedIn?: boolean; supporter?: Record<string, unknown> | null; opens?: number; profile?: Record<string, unknown> } = {},
 ) {
-  await page.addInitScript(
-    ({ session, project, profile, supporter, opens, signedIn }) => {
-      (window as any).__rpcs = [];
-      const origFetch = window.fetch.bind(window);
-      window.fetch = (input: any, init?: any) => {
-        const url = typeof input === 'string' ? input : input?.url ?? '';
-        if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
-          const method = (init?.method ?? (typeof input === 'object' ? input?.method : undefined) ?? 'GET').toUpperCase();
-          const json = (body: unknown) =>
-            Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } }));
-          if (url.includes('/auth/v1/user')) return json(session.user);
-          if (url.includes('/rest/v1/rpc/')) {
-            const name = url.split('/rest/v1/rpc/')[1].split('?')[0];
-            (window as any).__rpcs.push({ name, body: init?.body ? JSON.parse(init.body) : null });
-            if (name === 'bump_app_open') return json(opens);
-            return json(null);
-          }
-          if (method === 'HEAD') {
-            return Promise.resolve(new Response(null, { status: 200, headers: { 'content-range': '*/1' } }));
-          }
-          if (method === 'PATCH') return json([]);
-          if (url.includes('/rest/v1/supporters')) return json(supporter ? [supporter] : []);
-          if (url.includes('/rest/v1/profiles')) return json(profile);
-          return json([]);
-        }
-        return origFetch(input, init);
-      };
-      if (signedIn) localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
-      sessionStorage.setItem('pc:last-auto-sync', JSON.stringify({ fp: 'e2e-user|tester||0|', at: Date.now() }));
+  const rec = await stubApp(page, {
+    user: (opts.signedIn ?? true) ? E2E_USER : null,
+    profile: { ...BASE_PROFILE, email_opt_in: true, app_opens: (opts.opens ?? 1) - 1, ...opts.profile },
+    gameCount: 1,
+    rpc: {
+      'profile.bumpAppOpen': () => opts.opens ?? 1,
+      'supporters.mine': () => opts.supporter ?? null,
     },
-    {
-      session: FAKE_SESSION,
-      project: SUPABASE_PROJECT,
-      profile: { ...BASE_PROFILE, email_opt_in: true, app_opens: (opts.opens ?? 1) - 1, ...opts.profile },
-      supporter: opts.supporter ?? null,
-      opens: opts.opens ?? 1,
-      signedIn: opts.signedIn ?? true,
-    },
-  );
+  });
+  await page.addInitScript(() => {
+    sessionStorage.setItem('pc:last-auto-sync', JSON.stringify({ fp: 'e2e-user|tester||0|', at: Date.now() }));
+  });
+  return rec;
 }
 
 const ACTIVE = {
@@ -114,16 +70,17 @@ test('signed out, /supporter asks to sign up first', async ({ page }) => {
 
 test('"Become a supporter" posts to /api/stripe/checkout and goes to Stripe', async ({ page }) => {
   await stub(page);
-  let auth: string | null = null;
+  // Same-origin POST: the better-auth session cookie authenticates it.
+  let method: string | null = null;
   await page.route('**/api/stripe/checkout', async (route) => {
-    auth = route.request().headers()['authorization'] ?? null;
+    method = route.request().method();
     await route.fulfill({ json: { url: 'https://checkout.stripe.com/c/pay/cs_test_e2e' } });
   });
   await page.route('https://checkout.stripe.com/**', (route) => route.fulfill({ body: '<h1>Stripe Checkout</h1>', contentType: 'text/html' }));
   await page.goto('/supporter');
   await page.getByTestId('supporter-checkout').click();
   await page.waitForURL('https://checkout.stripe.com/**');
-  expect(auth).toBe('Bearer fake');
+  expect(method).toBe('POST');
 });
 
 test('an active supporter sees thanks, and /profile offers "Manage subscription"', async ({ page }) => {
@@ -137,14 +94,13 @@ test('an active supporter sees thanks, and /profile offers "Manage subscription"
 });
 
 test('the dashboard asks for support from the 4th open after a finished session', async ({ page }) => {
-  await stub(page, { opens: 4 });
+  const rec = await stub(page, { opens: 4 });
   await page.goto('/dashboard');
   const card = page.getByTestId('supporter-ask');
   await expect(card.getByText('Enjoying the plan? Help keep it running.')).toBeVisible();
   await card.getByRole('button', { name: 'Maybe later' }).first().click();
   await expect(card).toHaveCount(0);
-  const rpcs = await page.evaluate(() => (window as any).__rpcs);
-  expect(rpcs.find((r: any) => r.name === 'mark_ask_prompted')?.body).toEqual({ p_ask: 'supporter' });
+  await expect.poll(() => rec.callsTo('profile.markAskPrompted')[0]?.args).toEqual({ ask: 'supporter' });
 });
 
 test('supporters are never asked for support', async ({ page }) => {

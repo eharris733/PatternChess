@@ -1,29 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
+import { rpcError, stubApp } from './helpers/api';
 
 // Phase-2 tech-debt fix: background persistence writes in the training store
 // used to be fire-and-forget (`.catch(console.warn)`), so a failed session /
 // progress write was invisible. They now set `persistError`, surfaced as a
 // dismissible banner in TrainingRoute. This spec drives a drill to completion
-// with the training-session PATCH forced to 500 and asserts the banner shows.
-
-const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
-
-const FAKE_SESSION = {
-  access_token: 'fake',
-  token_type: 'bearer',
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  refresh_token: 'fake-refresh',
-  user: {
-    id: 'e2e-user',
-    aud: 'authenticated',
-    role: 'authenticated',
-    email: 'e2e@example.com',
-    user_metadata: { full_name: 'E2E User', avatar_url: null },
-    app_metadata: {},
-    created_at: new Date().toISOString(),
-  },
-};
+// with the training-session update (sessions.update) forced to 500 and asserts the banner shows.
 
 const PROFILE = {
   id: 'e2e-user',
@@ -95,68 +77,29 @@ const GAME = {
   parsed_metadata_at: null,
 };
 
-// Stub auth + data, but return a real session object for the create-session
-// POST and a 500 for the update-session PATCH, so drill completion hits a
-// failing background write.
+// Stub auth + data, but return a real session row from sessions.create and a
+// 500 from sessions.update, so drill completion hits a failing background write.
 async function stubWithFailingSessionUpdate(page: Page) {
-  await page.addInitScript(
-    ({ session, project, profile, blunder, game }) => {
-      const origFetch = window.fetch.bind(window);
-      window.fetch = (input: any, init?: any) => {
-        const url = typeof input === 'string' ? input : input?.url ?? '';
-        if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
-          const method = (
-            init?.method ??
-            (typeof input === 'object' ? input?.method : undefined) ??
-            'GET'
-          ).toUpperCase();
-          const json = (body: unknown, status = 200) =>
-            Promise.resolve(
-              new Response(JSON.stringify(body), {
-                status,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          if (url.includes('/auth/v1/user')) return json(session.user);
-          if (url.includes('/rest/v1/training_sessions')) {
-            if (method === 'POST') {
-              return json({
-                id: 's1',
-                user_id: 'e2e-user',
-                local_date: '2026-09-14',
-                blunders_attempted: 0,
-                blunders_correct: 0,
-                cycles_completed: 0,
-                started_at: new Date().toISOString(),
-                ended_at: null,
-                created_at: new Date().toISOString(),
-              });
-            }
-            if (method === 'PATCH') {
-              // The write under test: fail it so the store surfaces persistError.
-              return json({ message: 'forced failure', code: 'PGRST500' }, 500);
-            }
-            return json([]);
-          }
-          if (method === 'HEAD') {
-            return Promise.resolve(
-              new Response(null, { status: 200, headers: { 'content-range': '*/3' } }),
-            );
-          }
-          if (url.includes('/rest/v1/rpc/get_blunder_motif_counts')) {
-            return json({ counts: {}, tagged: 0, untagged: 1, total: 1 });
-          }
-          if (url.includes('/rest/v1/profiles')) return json(profile);
-          if (url.includes('/rest/v1/blunders')) return json([blunder]);
-          if (url.includes('/rest/v1/games')) return json(game);
-          return json([]);
-        }
-        return origFetch(input, init);
-      };
-      localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
+  await stubApp(page, {
+    profile: PROFILE,
+    blunders: [BLUNDER],
+    games: [GAME],
+    rpc: {
+      'sessions.create': () => ({
+        id: 's1',
+        user_id: 'e2e-user',
+        local_date: '2026-09-14',
+        blunders_attempted: 0,
+        blunders_correct: 0,
+        cycles_completed: 0,
+        started_at: new Date().toISOString(),
+        ended_at: null,
+        created_at: new Date().toISOString(),
+      }),
+      // The write under test: fail it so the store surfaces persistError.
+      'sessions.update': () => rpcError(500, 'forced failure'),
     },
-    { session: FAKE_SESSION, project: SUPABASE_PROJECT, profile: PROFILE, blunder: BLUNDER, game: GAME },
-  );
+  });
 }
 
 async function dragMove(
@@ -187,7 +130,7 @@ test('a failed session-progress write surfaces a dismissible banner', async ({ p
   await expect(page.getByText('Move 1 of 2')).toBeVisible();
 
   // 1.Ra7 (exact) → 2.Rb8# completes the drill, which fires the failing
-  // updateTrainingSession(correct) PATCH.
+  // updateTrainingSession(correct) write (sessions.update).
   await dragMove(page, { file: 0, rank: 2 }, { file: 0, rank: 7 });
   await expect(page.getByText('Move 2 of 2')).toBeVisible();
   await dragMove(page, { file: 1, rank: 1 }, { file: 1, rank: 8 });

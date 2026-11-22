@@ -1,36 +1,25 @@
 import { expect, test } from '@playwright/test';
-import type { Page, Request } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { stubRpc, stubSession } from './helpers/api';
 
-const SUPA = 'https://ydfwppthwnlgxnntzrvg.supabase.co';
-
-// Capture every POST to funnel_events and parse its JSON body.
-function captureFunnelInserts(page: Page): Array<Record<string, unknown>> {
+// Every funnel.track RPC body (the event row), live — read it in expect.poll.
+// The landing page is public: signed out, every other RPC gets its empty
+// default; chess APIs can fail (we only assert the tracking call fired, not
+// the demo result).
+async function captureFunnelInserts(page: Page): Promise<Array<Record<string, unknown>>> {
+  await stubSession(page, null);
   const inserts: Array<Record<string, unknown>> = [];
-  page.on('request', (req: Request) => {
-    if (req.method() === 'POST' && req.url().includes('/rest/v1/funnel_events')) {
-      try {
-        const body = req.postDataJSON();
-        if (Array.isArray(body)) inserts.push(...body);
-        else if (body) inserts.push(body);
-      } catch {
-        // ignore non-JSON
-      }
-    }
+  await stubRpc(page, {
+    'funnel.track': (args) => {
+      inserts.push(args);
+      return null;
+    },
   });
   return inserts;
 }
 
-async function stubFunnelEndpoint(page: Page): Promise<void> {
-  // funnel_events insert returns 201; chess APIs can fail (we only assert the
-  // tracking call fired, not the demo result).
-  await page.route(`${SUPA}/rest/v1/funnel_events*`, async (route) => {
-    await route.fulfill({ status: 201, json: [] });
-  });
-}
-
 test('landing_view fires after a human interaction signal', async ({ page }) => {
-  const inserts = captureFunnelInserts(page);
-  await stubFunnelEndpoint(page);
+  const inserts = await captureFunnelInserts(page);
 
   await page.goto('/');
   await expect(page.getByPlaceholder(/ENTER USERNAME/i)).toBeVisible();
@@ -51,8 +40,7 @@ test('landing_view fires after a human interaction signal', async ({ page }) => 
 });
 
 test('demo_submit fires with the entered username + platform', async ({ page }) => {
-  const inserts = captureFunnelInserts(page);
-  await stubFunnelEndpoint(page);
+  const inserts = await captureFunnelInserts(page);
 
   await page.goto('/');
   const input = page.getByPlaceholder(/ENTER USERNAME/i);
@@ -70,8 +58,7 @@ test('demo_submit fires with the entered username + platform', async ({ page }) 
 });
 
 test('anon_id is stable across the two events', async ({ page }) => {
-  const inserts = captureFunnelInserts(page);
-  await stubFunnelEndpoint(page);
+  const inserts = await captureFunnelInserts(page);
 
   await page.goto('/');
   await page.mouse.move(150, 150);
@@ -84,8 +71,7 @@ test('anon_id is stable across the two events', async ({ page }) => {
 });
 
 test('win-back link prefills the username, re-runs the demo once and cleans the URL', async ({ page }) => {
-  const inserts = captureFunnelInserts(page);
-  await stubFunnelEndpoint(page);
+  const inserts = await captureFunnelInserts(page);
 
   await page.goto('/?u=player1&p=chesscom&src=wb');
   await expect(page.locator('#demo-username')).toHaveValue('player1');
@@ -99,8 +85,7 @@ test('win-back link prefills the username, re-runs the demo once and cleans the 
 });
 
 test('landing sign-up CTAs record cta_click with their section', async ({ page }) => {
-  const inserts = captureFunnelInserts(page);
-  await stubFunnelEndpoint(page);
+  const inserts = await captureFunnelInserts(page);
 
   await page.goto('/');
   await page.getByRole('banner').getByRole('link', { name: 'Sign up' }).click();
@@ -111,7 +96,7 @@ test('landing sign-up CTAs record cta_click with their section', async ({ page }
 });
 
 test('testimonials are on the landing page', async ({ page }) => {
-  await stubFunnelEndpoint(page);
+  await captureFunnelInserts(page);
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'What players say' })).toBeVisible();
   await expect(page.getByText('DrG00se')).toBeVisible();

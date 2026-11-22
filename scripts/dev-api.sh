@@ -1,9 +1,10 @@
 #!/bin/bash
 # Local Pages Functions (better-auth at /api/auth, RPC at /api/rpc) on :8788
 # with the app D1 (DB), the auth KV (AUTH_KV) and the content KV (CONTENT:
-# supporter course days via `npm run courses:sync -- --local`), persisted under
-# .wrangler/state.
-# Pair it with `npm run dev`: Vite proxies /api/auth + /api/rpc here.
+# supporter course days via `npm run courses:sync -- --local`; articles: seed with
+# `wrangler kv key put article:<slug> … --namespace-id $CONTENT_ID --local
+# --persist-to .wrangler/state`), persisted under .wrangler/state.
+# Pair it with `npm run dev`: Vite proxies /api/auth, /api/rpc, /api/stripe and /api/articles here.
 # Secrets come from .dev.vars (BETTER_AUTH_SECRET, BETTER_AUTH_URL=http://localhost:8788,
 # AUTH_TEST_MODE=1 for the email+password test sign-in).
 set -euo pipefail

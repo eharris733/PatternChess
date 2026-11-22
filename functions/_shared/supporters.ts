@@ -1,11 +1,22 @@
 import Stripe from 'stripe';
+import { first, insertStmt, nowIso, updateStmt } from './db';
 
 /**
- * Shared server code for the $5/month supporter tier (functions/api/stripe/*).
- * No route handlers here, so Pages doesn't mount this file.
+ * Shared server code for the $5/month supporter tier (functions/api/stripe/*)
+ * and the supporter-only articles. No route handlers here, so Pages doesn't
+ * mount this file.
+ *
+ * The player comes from the better-auth session cookie (getSessionUser in
+ * ./auth) and the `supporters` mirror lives in the app D1 (env.DB); there are
+ * no client write paths to it, only these functions.
  */
 
-export interface StripeEnv {
+export interface SupporterDbEnv {
+  /** D1 `patternchess-app`. */
+  DB: D1Database;
+}
+
+export interface StripeEnv extends SupporterDbEnv {
   /** Restricted key (rk_…): Customers, Checkout Sessions, Subscriptions, Customer portal. */
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
@@ -13,15 +24,9 @@ export interface StripeEnv {
   STRIPE_PRICE_ID: string;
   /** The PatternChess Customer Portal configuration (bpc_…). */
   STRIPE_PORTAL_CONFIG_ID: string;
-  SUPABASE_URL: string;
-  SUPABASE_ANON_KEY: string;
-  SUPABASE_SERVICE_ROLE_KEY: string;
 }
 
-/** What the auth + `supporters` helpers need (articles use these without the Stripe keys). */
-export type SupabaseEnv = Pick<StripeEnv, 'SUPABASE_URL' | 'SUPABASE_ANON_KEY' | 'SUPABASE_SERVICE_ROLE_KEY'>;
-
-/** Statuses that carry the perks; keep in sync with is_supporter() (migration 20261124120000). */
+/** Statuses that carry the perks; keep in sync with supporter_badge() / the client's isSupporter. */
 export const PERK_STATUSES = new Set(['active', 'trialing', 'past_due']);
 
 // Function responses don't get public/_headers — keep the page isolated.
@@ -42,21 +47,18 @@ export function stripeClient(env: StripeEnv): Stripe {
   return new Stripe(env.STRIPE_SECRET_KEY, { httpClient: Stripe.createFetchHttpClient() });
 }
 
-export interface AuthedUser {
-  id: string;
-  email: string | null;
-}
-
-/** The signed-in player behind `Authorization: Bearer <supabase access token>`, or null. */
-export async function authedUser(request: Request, env: SupabaseEnv): Promise<AuthedUser | null> {
-  const auth = request.headers.get('Authorization') ?? '';
-  if (!auth.startsWith('Bearer ')) return null;
-  const res = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
-    headers: { Authorization: auth, apikey: env.SUPABASE_ANON_KEY },
-  });
-  if (!res.ok) return null;
-  const user = (await res.json()) as { id?: string; email?: string | null };
-  return user.id ? { id: user.id, email: user.email || null } : null;
+/**
+ * Cross-site POSTs are refused (the session cookie is SameSite=Lax, so this is
+ * belt and braces for the checkout/portal endpoints that create Stripe objects).
+ */
+export function crossSite(request: Request): boolean {
+  const origin = request.headers.get('origin');
+  if (!origin) return false;
+  try {
+    return new URL(origin).host !== (request.headers.get('host') ?? new URL(request.url).host);
+  } catch {
+    return true;
+  }
 }
 
 export interface SupporterRow {
@@ -69,49 +71,31 @@ export interface SupporterRow {
   first_supported_at: string | null;
 }
 
-/** PostgREST with the service role (bypasses RLS; `supporters` has no client write policies). */
-async function rest(env: SupabaseEnv, path: string, init: RequestInit = {}): Promise<Response> {
-  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
-    ...init,
-    headers: {
-      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-      'Content-Type': 'application/json',
-      ...(init.headers ?? {}),
-    },
-  });
-  if (!res.ok) throw new Error(`supabase ${init.method ?? 'GET'} ${path.split('?')[0]}: ${res.status} ${await res.text()}`);
-  return res;
-}
-
 export async function supporterBy(
-  env: SupabaseEnv,
+  env: SupporterDbEnv,
   column: 'user_id' | 'stripe_customer_id',
   value: string,
 ): Promise<SupporterRow | null> {
-  const res = await rest(env, `supporters?${column}=eq.${encodeURIComponent(value)}&select=*`);
-  const rows = (await res.json()) as SupporterRow[];
-  return rows[0] ?? null;
+  // `column` is one of two literals, never user input.
+  return first<SupporterRow>(env.DB, `SELECT * FROM supporters WHERE ${column} = ?`, [value], 'supporters');
 }
 
 /** Links a Stripe customer to a player before checkout; the first link wins. */
-export async function linkCustomer(env: StripeEnv, userId: string, customerId: string): Promise<SupporterRow> {
-  await rest(env, 'supporters?on_conflict=user_id', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
-    body: JSON.stringify({ user_id: userId, stripe_customer_id: customerId }),
-  });
+export async function linkCustomer(env: SupporterDbEnv, userId: string, customerId: string): Promise<SupporterRow> {
+  const now = nowIso();
+  await insertStmt(
+    env.DB,
+    'supporters',
+    { user_id: userId, stripe_customer_id: customerId, status: 'none', created_at: now, updated_at: now },
+    { onConflict: { target: ['user_id'] } },
+  ).run();
   const row = await supporterBy(env, 'user_id', userId);
   if (!row) throw new Error('supporter row missing after insert');
   return row;
 }
 
-async function patchSupporter(env: StripeEnv, userId: string, patch: Partial<SupporterRow>) {
-  await rest(env, `supporters?user_id=eq.${encodeURIComponent(userId)}`, {
-    method: 'PATCH',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }),
-  });
+async function patchSupporter(env: SupporterDbEnv, userId: string, patch: Partial<SupporterRow>) {
+  await updateStmt(env.DB, 'supporters', { ...patch, updated_at: nowIso() }, 'user_id = ?', [userId]).run();
 }
 
 function hasPrice(sub: Stripe.Subscription, priceId: string): boolean {
@@ -149,7 +133,7 @@ export async function syncSubscription(env: StripeEnv, stripe: Stripe, subscript
     status: sub.status,
     current_period_end: periodEnd > 0 ? new Date(periodEnd * 1000).toISOString() : null,
     cancel_at_period_end: sub.cancel_at_period_end,
-    ...(perks && !row.first_supported_at ? { first_supported_at: new Date().toISOString() } : {}),
+    ...(perks && !row.first_supported_at ? { first_supported_at: nowIso() } : {}),
   });
   return `synced ${sub.id}: ${sub.status}`;
 }

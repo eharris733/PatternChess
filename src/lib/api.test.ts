@@ -24,7 +24,7 @@ describe('rpc', () => {
 
   it('throws ApiError with the server code + status', async () => {
     mockFetch(401, { error: { code: 'unauthorized', message: 'Sign in required' } });
-    const err = await rpc('me').catch((e) => e);
+    const err = (await rpc('me').catch((e: unknown) => e)) as ApiError;
     expect(err).toBeInstanceOf(ApiError);
     expect(err).toMatchObject({ status: 401, code: 'unauthorized', message: 'Sign in required' });
     expect(err.isUnauthorized).toBe(true);

@@ -41,6 +41,8 @@ export default defineConfig(function () {
             proxy: {
                 '/api/auth': { target: 'http://localhost:8788' },
                 '/api/rpc': { target: 'http://localhost:8788' },
+                '/api/stripe': { target: 'http://localhost:8788' },
+                '/api/articles': { target: 'http://localhost:8788' },
             },
         },
         preview: { port: 4173 },

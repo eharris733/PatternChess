@@ -1,7 +1,13 @@
 import { expect, test } from '@playwright/test';
+import { stubRpc, stubSession } from './helpers/api';
 
-// The public shared-puzzle page (/p?d=...) — no auth stub on purpose: the
-// whole point is that logged-out visitors can open and solve a shared link.
+// The public shared-puzzle page (/p?d=...) — signed out on purpose: the whole
+// point is that logged-out visitors can open and solve a shared link. The
+// stubs pin "no session" and keep any RPC off a real backend.
+test.beforeEach(async ({ page }) => {
+  await stubSession(page, null);
+  await stubRpc(page);
+});
 
 const STARTPOS = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 

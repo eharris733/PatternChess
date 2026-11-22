@@ -1,9 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { stubRpc, stubSession } from './helpers/api';
 
-// Public tool: no auth stub needed. Supabase calls are shorted out so the
-// signed-out AuthProvider settles quickly.
+// Public tool: signed out. The API is stubbed so the signed-out
+// AuthProvider settles quickly and nothing reaches a real backend.
 test.beforeEach(async ({ page }) => {
-  await page.route(/supabase\.co/, (route) => route.fulfill({ status: 200, body: '{}' }));
+  await stubSession(page, null);
+  await stubRpc(page);
 });
 
 test('moments: the example renders, a pasted PGN exports a GIF and a screenshot', async ({ page }) => {

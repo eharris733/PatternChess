@@ -1,27 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
+import { stubApp, type RpcHandlers } from './helpers/api';
 
 // Drives the dashboard as an *established* user (linked account + catalogued
 // blunders) so the cards gated behind `!isFirstRun` actually render — the
 // shared visual.spec stub is a brand-new user, so it can't cover these.
-
-const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
-
-const FAKE_SESSION = {
-  access_token: 'fake',
-  token_type: 'bearer',
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  refresh_token: 'fake-refresh',
-  user: {
-    id: 'e2e-user',
-    aud: 'authenticated',
-    role: 'authenticated',
-    email: 'e2e@example.com',
-    user_metadata: { full_name: 'E2E User', avatar_url: null },
-    app_metadata: {},
-    created_at: new Date().toISOString(),
-  },
-};
 
 const PROFILE = {
   id: 'e2e-user',
@@ -61,66 +43,35 @@ const UNDRILLED_BLUNDERS = BLUNDERS.map((b) => ({
 
 async function stubRichAuth(
   page: Page,
-  opts: { drillsToday?: number; blunders?: typeof BLUNDERS } = {},
+  opts: { drillsToday?: number; blunders?: typeof BLUNDERS; rpc?: RpcHandlers } = {},
 ) {
-  await page.addInitScript(
-    ({ session, project, profile, blunders, drillsToday }) => {
-      const origFetch = window.fetch.bind(window);
-      window.fetch = (input: any, init?: any) => {
-        const url = typeof input === 'string' ? input : input?.url ?? '';
-        if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
-          const method = (
-            init?.method ??
-            (typeof input === 'object' ? input?.method : undefined) ??
-            'GET'
-          ).toUpperCase();
-          const json = (body: unknown) =>
-            Promise.resolve(
-              new Response(JSON.stringify(body), {
-                status: 200,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          if (url.includes('/auth/v1/user')) return json(session.user);
-          if (method === 'HEAD') {
-            return Promise.resolve(
-              new Response(null, { status: 200, headers: { 'content-range': '*/3' } }),
-            );
-          }
-          if (url.includes('/rest/v1/profiles')) return json(profile);
-          if (url.includes('/rest/v1/blunders')) return json(blunders);
-          if (url.includes('/rest/v1/training_sessions')) {
-            if (drillsToday > 0) {
-              const today = new Date().toLocaleDateString('en-CA');
-              return json([
-                {
-                  id: 's1',
-                  user_id: session.user.id,
-                  started_at: new Date().toISOString(),
-                  ended_at: new Date().toISOString(),
-                  local_date: today,
-                  blunders_attempted: drillsToday,
-                  blunders_correct: drillsToday,
-                  cycles_completed: 0,
-                },
-              ]);
-            }
-            return json([]);
-          }
-          return json([]);
-        }
-        return origFetch(input, init);
-      };
-      localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
+  const drillsToday = opts.drillsToday ?? 0;
+  const today = new Date().toLocaleDateString('en-CA');
+  const sessions =
+    drillsToday > 0
+      ? [
+          {
+            id: 's1',
+            user_id: 'e2e-user',
+            started_at: new Date().toISOString(),
+            ended_at: new Date().toISOString(),
+            local_date: today,
+            blunders_attempted: drillsToday,
+            blunders_correct: drillsToday,
+            cycles_completed: 0,
+          },
+        ]
+      : [];
+  return stubApp(page, {
+    profile: PROFILE,
+    blunders: opts.blunders ?? BLUNDERS,
+    sessions,
+    gameCount: 3,
+    rpc: {
+      'sessions.hasToday': (a) => sessions.some((s) => s.local_date === a.localDate),
+      ...opts.rpc,
     },
-    {
-      session: FAKE_SESSION,
-      project: SUPABASE_PROJECT,
-      profile: PROFILE,
-      blunders: opts.blunders ?? BLUNDERS,
-      drillsToday: opts.drillsToday ?? 0,
-    },
-  );
+  });
 }
 
 test('dashboard renders the renamed + new cards for an established user', async ({ page }) => {
@@ -229,37 +180,20 @@ test('a reload paints the dashboard from the IndexedDB cache while the network c
     total_plies: 80,
     parsed_metadata_at: null,
   }));
-  await stubRichAuth(page);
-  // Wraps the stub (init scripts run in order). First load serves the games;
-  // every later load leaves the games request hanging, so anything on screen
-  // must come from the persisted cache.
-  await page.addInitScript(
-    ({ project, games }) => {
-      const loads = Number(sessionStorage.getItem('pc-e2e-loads') ?? '0') + 1;
-      sessionStorage.setItem('pc-e2e-loads', String(loads));
-      const prevFetch = window.fetch;
-      window.fetch = (input: any, init?: any) => {
-        const url = typeof input === 'string' ? input : input?.url ?? '';
-        if (url.includes(`${project}.supabase.co/rest/v1/games`) && url.includes('opponent')) {
-          if (loads > 1) return new Promise(() => {});
-          return Promise.resolve(
-            new Response(JSON.stringify(games), {
-              status: 200,
-              headers: { 'content-type': 'application/json' },
-            }),
-          );
-        }
-        return prevFetch(input, init);
-      };
-    },
-    { project: SUPABASE_PROJECT, games },
-  );
+  // The first load serves the games; once `hang` is set every later
+  // games.list stays pending, so anything on screen must come from the
+  // persisted cache.
+  let hang = false;
+  await stubRichAuth(page, {
+    rpc: { 'games.list': () => (hang ? new Promise(() => {}) : games) },
+  });
 
   await page.goto('/dashboard');
   await expect(page.getByText('3 games')).toBeVisible();
   // Writes are throttled (1s); let the snapshot land.
   await page.waitForTimeout(1500);
 
+  hang = true;
   await page.reload();
   await expect(page.getByText('3 games')).toBeVisible();
   // Restored rows keep real Dates: the vault formats them without crashing.

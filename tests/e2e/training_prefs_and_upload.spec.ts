@@ -1,28 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
+import { rpcError, stubApp, type RpcHandlers, type RpcRecorder } from './helpers/api';
 
 // Covers two of the testing-feedback features:
 //  - the profile "Training" card persists the two new preference columns
 //  - the PGN upload modal surfaces a color override when the entered name
 //    doesn't match a game's White/Black headers (Lichess study exports).
-
-const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
-
-const FAKE_SESSION = {
-  access_token: 'fake',
-  token_type: 'bearer',
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  refresh_token: 'fake-refresh',
-  user: {
-    id: 'e2e-user',
-    aud: 'authenticated',
-    role: 'authenticated',
-    email: 'e2e@example.com',
-    user_metadata: { full_name: 'E2E User', avatar_url: null },
-    app_metadata: {},
-    created_at: new Date().toISOString(),
-  },
-};
 
 const PROFILE = {
   id: 'e2e-user',
@@ -48,60 +30,23 @@ async function stubAuth(
   page: Page,
   opts: { patchBehavior?: 'ok' | 'slow' | 'fail' } = {},
 ) {
-  await page.addInitScript(
-    ({ session, project, profile, patchBehavior }) => {
-      (window as any).__patches = [];
-      const origFetch = window.fetch.bind(window);
-      window.fetch = (input: any, init?: any) => {
-        const url = typeof input === 'string' ? input : input?.url ?? '';
-        if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
-          const method = (
-            init?.method ??
-            (typeof input === 'object' ? input?.method : undefined) ??
-            'GET'
-          ).toUpperCase();
-          const json = (body: unknown, status = 200) =>
-            Promise.resolve(
-              new Response(JSON.stringify(body), {
-                status,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          if (method === 'PATCH' && url.includes('/rest/v1/profiles')) {
-            (window as any).__patches.push(String(init?.body ?? ''));
-            if (patchBehavior === 'fail') {
-              return json({ code: '42703', message: 'column does not exist' }, 400);
-            }
-            if (patchBehavior === 'slow') {
-              return new Promise((resolve) =>
-                setTimeout(() => resolve(new Response(JSON.stringify(profile), { status: 200 })), 2000),
-              );
-            }
-          }
-          if (url.includes('/auth/v1/user')) return json(session.user);
-          if (method === 'HEAD') {
-            return Promise.resolve(
-              new Response(null, { status: 200, headers: { 'content-range': '*/3' } }),
-            );
-          }
-          if (url.includes('/rest/v1/profiles')) return json(profile);
-          return json([]);
-        }
-        return origFetch(input, init);
-      };
-      localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
-    },
-    {
-      session: FAKE_SESSION,
-      project: SUPABASE_PROJECT,
-      profile: PROFILE,
-      patchBehavior: opts.patchBehavior ?? 'ok',
-    },
-  );
+  const patchBehavior = opts.patchBehavior ?? 'ok';
+  const rpc: RpcHandlers = {};
+  if (patchBehavior === 'fail') {
+    rpc['profile.update'] = () => rpcError(400, 'column does not exist', 'bad_request');
+  } else if (patchBehavior === 'slow') {
+    rpc['profile.update'] = () => new Promise((resolve) => setTimeout(() => resolve(null), 2000));
+  }
+  return stubApp(page, { profile: PROFILE, rpc });
+}
+
+/** Every profile.update patch sent so far. */
+function patches(rec: RpcRecorder) {
+  return rec.callsTo('profile.update').map((c) => c.args.patch as Record<string, unknown>);
 }
 
 test('profile training card saves the two preferences on toggle', async ({ page }) => {
-  await stubAuth(page);
+  const rec = await stubAuth(page);
   await page.goto('/profile');
 
   await expect(page.getByRole('heading', { name: 'Training' })).toBeVisible();
@@ -109,23 +54,17 @@ test('profile training card saves the two preferences on toggle', async ({ page 
   // "Hide extra info" starts checked (reveal_before_solve: false); unchecking
   // it persists reveal_before_solve = true.
   await page.getByText('Hide extra info when solving').click();
-  await expect
-    .poll(async () => page.evaluate(() => (window as any).__patches as string[]))
-    .toContainEqual(expect.stringContaining('"reveal_before_solve":true'));
+  await expect.poll(() => patches(rec)).toContainEqual(expect.objectContaining({ reveal_before_solve: true }));
 
   await page.getByText('Show raw engine evals').click();
-  await expect
-    .poll(async () => page.evaluate(() => (window as any).__patches as string[]))
-    .toContainEqual(expect.stringContaining('"show_engine_evals":true'));
+  await expect.poll(() => patches(rec)).toContainEqual(expect.objectContaining({ show_engine_evals: true }));
 
   // Drill-feedback prefs (shared with the board gear via useDrillFeedbackPrefs).
   await page.getByText('Show the answer after a miss').click();
-  await expect
-    .poll(async () => page.evaluate(() => (window as any).__patches as string[]))
-    .toContainEqual(expect.stringContaining('"show_answer_on_miss":true'));
+  await expect.poll(() => patches(rec)).toContainEqual(expect.objectContaining({ show_answer_on_miss: true }));
 });
 
-test('training toggles flip optimistically while the PATCH is in flight', async ({ page }) => {
+test('training toggles flip optimistically while the profile write is in flight', async ({ page }) => {
   await stubAuth(page, { patchBehavior: 'slow' });
   await page.goto('/profile');
   await expect(page.getByRole('heading', { name: 'Training' })).toBeVisible();
@@ -135,12 +74,12 @@ test('training toggles flip optimistically while the PATCH is in flight', async 
     .locator('input[type="checkbox"]');
   await expect(checkbox).toBeChecked();
   await checkbox.click();
-  // The PATCH takes 2s in this stub; the checkbox must be unchecked well
+  // The write takes 2s in this stub; the checkbox must be unchecked well
   // before that — assert within 500ms.
   await expect(checkbox).not.toBeChecked({ timeout: 500 });
 });
 
-test('training toggles revert when the PATCH fails', async ({ page }) => {
+test('training toggles revert when the profile write fails', async ({ page }) => {
   await stubAuth(page, { patchBehavior: 'fail' });
   await page.goto('/profile');
   await expect(page.getByRole('heading', { name: 'Training' })).toBeVisible();
