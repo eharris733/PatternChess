@@ -177,7 +177,7 @@ function layout(b: Body, d: EmailData, links: EmailLinks): RenderedEmail {
       You're getting this because training reminders are on for your PatternChess account.
       <a href="${esc(links.settings)}" style="color:${MUTED};">Choose which emails you get</a> or
       <a href="${esc(links.unsubscribe)}" style="color:${MUTED};">unsubscribe in one click</a>.<br>
-      EH Solutions LLC
+      EH Solutions LLC, 2592 Mass Ave, Cambridge, MA 02140
     </td></tr>
   </table>
 </td></tr>
@@ -207,7 +207,7 @@ function layout(b: Body, d: EmailData, links: EmailLinks): RenderedEmail {
     "You're getting this because training reminders are on for your PatternChess account.",
     `Choose which emails you get: ${links.settings}`,
     `Unsubscribe: ${links.unsubscribe}`,
-    'EH Solutions LLC',
+    'EH Solutions LLC, 2592 Mass Ave, Cambridge, MA 02140',
   ].join('\n\n');
 
   return { subject: b.subject, preheader: b.preheader, html, text };

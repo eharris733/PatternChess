@@ -1,0 +1,27 @@
+// PatternChess notifier Worker. Deploy from the repo root:
+//   npx wrangler deploy --config workers/notifier/wrangler.jsonc
+// Secrets (npx wrangler secret put <NAME> --config workers/notifier/wrangler.jsonc):
+//   SUPABASE_SERVICE_ROLE_KEY  service-role key (email_outbox + token RPCs)
+//   ADMIN_SECRET               bearer token for /admin/*
+// Run wrangler from a directory without .env.local (it carries a stale
+// CLOUDFLARE_API_TOKEN), e.g. `cd ~ && npx --prefix ~/PatternChess wrangler ...`.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "patternchess-notifier",
+  "account_id": "3a7d5866212911306e2e67ed4b6353e0",
+  "main": "src/index.ts",
+  // wrangler 4.100's local workerd rejects newer dates (see CLAUDE.md).
+  "compatibility_date": "2026-06-18",
+  "routes": [{ "pattern": "email.patternchess.com", "custom_domain": true }],
+  "triggers": { "crons": ["0 * * * *"] },
+  "send_email": [{ "name": "EMAIL" }],
+  "vars": {
+    "APP_URL": "https://patternchess.com",
+    "EMAIL_URL": "https://email.patternchess.com",
+    "SUPABASE_URL": "https://ydfwppthwnlgxnntzrvg.supabase.co",
+    // Anything but "live" sends only to TEST_RECIPIENTS (comma-separated).
+    "SEND_MODE": "test",
+    "TEST_RECIPIENTS": "elliotmharris@gmail.com"
+  },
+  "observability": { "enabled": true }
+}
