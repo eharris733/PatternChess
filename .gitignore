@@ -50,3 +50,6 @@ marketing/forum/seen.json
 
 # Worker secrets (wrangler dev / admin calls)
 .dev.vars
+
+# Supporter-only article sources (bodies live in Cloudflare KV, never in this public repo)
+content/supporter/

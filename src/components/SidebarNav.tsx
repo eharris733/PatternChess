@@ -12,6 +12,7 @@ import { AnalyticsIcon } from './icons/AnalyticsIcon';
 import { TrophyIcon } from './icons/TrophyIcon';
 import { EndgameIcon } from './icons/EndgameIcon';
 import { OpeningIcon } from './icons/OpeningIcon';
+import { PathIcon } from './icons/PathIcon';
 import { SettingsLink } from './SettingsLink';
 
 const NAV_ITEMS = [
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { to: '/training', label: 'Train', Icon: TrainIcon },
   { to: '/openings', label: 'Openings', Icon: OpeningIcon },
   { to: '/endgames', label: 'Endgames', Icon: EndgameIcon },
+  { to: '/path', label: 'Path', Icon: PathIcon },
   { to: '/leaderboards', label: 'Leaderboards', Icon: TrophyIcon },
 ];
 

@@ -39,6 +39,8 @@ const ProfileRoute = lazy(() =>
 const AchievementsRoute = lazy(() =>
   import('./routes/AchievementsRoute').then((m) => ({ default: m.AchievementsRoute })),
 );
+const PathRoute = lazy(() => import('./routes/PathRoute').then((m) => ({ default: m.PathRoute })));
+const ArticleRoute = lazy(() => import('./routes/ArticleRoute').then((m) => ({ default: m.ArticleRoute })));
 const LeaderboardsRoute = lazy(() =>
   import('./routes/LeaderboardsRoute').then((m) => ({ default: m.LeaderboardsRoute })),
 );
@@ -120,6 +122,8 @@ export default function App() {
         <Route path="/learn/:slug/:chapter?" element={<LearnStudyRoute />} />
         <Route path="/profile" element={<ProfileRoute />} />
         <Route path="/leaderboards" element={<LeaderboardsRoute />} />
+        <Route path="/path" element={<PathRoute />} />
+        <Route path="/path/:slug" element={<ArticleRoute />} />
         <Route path="/achievements" element={<AchievementsOrLeaderboards />} />
         <Route path="/analytics" element={<AnalyticsRoute />} />
         <Route path="/__sandbox" element={<SandboxRoute />} />

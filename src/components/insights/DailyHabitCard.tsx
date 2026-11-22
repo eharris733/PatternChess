@@ -22,6 +22,7 @@ import { KingIcon } from '../icons/KingIcon';
 import { SnowflakeIcon } from '../icons/SnowflakeIcon';
 import { CloseIcon } from '../icons/CloseIcon';
 import { Skeleton } from '../Skeleton';
+import { usePathProgress } from '../../hooks/usePathProgress';
 
 /** Endgame play-outs the plan asks for per day (the list may hold many more). */
 export const PLAYOUTS_PER_DAY = 2;
@@ -151,6 +152,7 @@ export function DailyHabitCard() {
   const triggerSync = useSyncStore((s) => s.triggerNow);
   const notice = useStreakNoticeStore((s) => s.notice);
   const clearNotice = useStreakNoticeStore((s) => s.clear);
+  const path = usePathProgress();
   const goals = profile?.dailyGoals ?? DEFAULT_DAILY_GOALS;
   const playHref = playUrl(profile?.lichessUsername ?? null, profile?.chesscomUsername ?? null);
   // PGN-only players have nothing to sync, so the Play step can't detect games.
@@ -324,6 +326,21 @@ export function DailyHabitCard() {
           )
         )}
       </ul>
+
+      {path.next && path.remaining != null && !path.isPending && (
+        <button
+          type="button"
+          onClick={() => navigate('/path')}
+          className="flex items-baseline justify-between gap-3 text-left text-sm transition-opacity hover:opacity-90"
+          data-testid="next-unlock"
+        >
+          <span className="text-text-primary">
+            Next unlock in <span className="font-semibold tabular-nums">{path.remaining}</span> position
+            {path.remaining === 1 ? '' : 's'}
+          </span>
+          <span className="label shrink-0">Your path</span>
+        </button>
+      )}
 
       {next && (
         <button

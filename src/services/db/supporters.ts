@@ -80,3 +80,15 @@ export async function getAdminSupporters(): Promise<AdminSupporter[]> {
     betaInvitedAt: r.beta_invited_at,
   }));
 }
+
+/** A /path article body (functions/api/articles/[slug].ts): supporters only, null otherwise. */
+export async function getSupporterContent(slug: string): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) return null;
+  const res = await fetch(`/api/articles/${encodeURIComponent(slug)}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (res.status === 403 || res.status === 404) return null;
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const body = (await res.json()) as { html?: string };
+  return body.html ?? null;
+}
