@@ -11,6 +11,7 @@ import { splitCommentLines, type CommentLine } from '../learn/commentLines';
 import { countMoments, drillFen, useLearnDrillStore } from '../state/learnDrillStore';
 import { useForceDefaultTheme } from '../state/themeStore';
 import { useHead } from '../seo/useHead';
+import { YouTubeEmbed, useYouTubePlayer, youtubeIdFromUrl } from '../components/youtube/YouTubeEmbed';
 
 /**
  * Unlisted interactive course built from a creator's video (/c/<slug>). Public
@@ -39,41 +40,6 @@ function lastMoveOf(node: LearnNode | undefined): [string, string] | null {
 function clock(seconds: number): string {
   const m = Math.floor(seconds / 60);
   return `${m}:${String(seconds % 60).padStart(2, '0')}`;
-}
-
-function youtubeId(url: string): string | null {
-  const u = new URL(url);
-  return u.searchParams.get('v') ?? (u.hostname === 'youtu.be' ? u.pathname.slice(1) : null);
-}
-
-/**
- * The creator's own video, embedded (never re-hosted) so the learner can watch
- * along. `seek` jumps the player to a moment via the IFrame API's postMessage
- * commands. The site is cross-origin isolated (COEP require-corp, for
- * Stockfish), which blocks third-party frames: `credentialless` lets Chrome load
- * it anyway, and public/_headers drops COEP on /c/* for other browsers.
- */
-function useVideoPlayer(videoId: string | null, startAt: number) {
-  const ref = useRef<HTMLIFrameElement>(null);
-  const src = useMemo(
-    () =>
-      videoId
-        ? `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&rel=0&playsinline=1&start=${startAt}`
-        : null,
-    // The start position only matters for the first load; seek handles the rest.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [videoId],
-  );
-  const seek = (seconds: number) => {
-    const win = ref.current?.contentWindow;
-    if (!win) return;
-    const command = (func: string, args: unknown[] = []) =>
-      win.postMessage(JSON.stringify({ event: 'command', func, args }), '*');
-    command('seekTo', [seconds, true]);
-    command('playVideo');
-    ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  };
-  return { ref, src, seek };
 }
 
 export function CourseDemoRoute() {
@@ -243,7 +209,7 @@ function CoursePlayer({ course }: { course: LearnStudy }) {
     : before + Math.min(perChapter[index] ?? 0, drill.chapter?.id === chapter.id ? drill.momentsDone : 0);
   const source = course.source;
   const side = chapter.orientation === 'white' ? 'White' : 'Black';
-  const video = useVideoPlayer(source ? youtubeId(source.url) : null, chapters[0]?.introTs ?? 0);
+  const video = useYouTubePlayer(source ? youtubeIdFromUrl(source.url) : null, { start: chapters[0]?.introTs ?? 0 });
 
   // Positions a quoted line may start from, most specific first.
   const lineStarts = useMemo(
@@ -456,18 +422,7 @@ function CoursePlayer({ course }: { course: LearnStudy }) {
             {video.src && source && (
               <div className="card !p-3 flex flex-col gap-2" data-testid="course-video">
                 <span className="label">Watch along</span>
-                <div className="relative w-full aspect-video bg-text-primary">
-                  <iframe
-                    ref={video.ref}
-                    src={video.src}
-                    title={source.title}
-                    className="absolute inset-0 w-full h-full"
-                    allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-                    allowFullScreen
-                    referrerPolicy="strict-origin-when-cross-origin"
-                    {...{ credentialless: '' }}
-                  />
-                </div>
+                <YouTubeEmbed player={video} title={source.title} />
               </div>
             )}
           </div>
