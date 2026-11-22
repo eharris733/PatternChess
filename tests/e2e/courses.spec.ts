@@ -1,18 +1,17 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { DEFAULT_PROFILE_ROW, rpcError, stubApp, type RpcRecorder, type StubUser } from './helpers/api';
 
 // /courses on the Cloudflare backend: the session (better-auth) and every
-// RPC are stubbed with page.route, so no local D1 or Functions are needed.
-// The dev server shows pending courses (import.meta.env.DEV), which is all of
-// the catalog until creators agree.
+// RPC are stubbed by tests/e2e/helpers/api.ts, so no local D1 or Functions
+// are needed. The dev server shows pending courses (import.meta.env.DEV),
+// which is all of the catalog until creators agree.
 
-const USER = {
+const USER: StubUser = {
   id: 'e2e-courses',
   name: 'E2E Courses',
   email: 'e2e-courses@example.com',
   emailVerified: true,
   image: null,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
 };
 
 const today = new Date().toLocaleDateString('en-CA');
@@ -64,72 +63,49 @@ function blunderRow(id: string, motifs: string[]) {
   };
 }
 
-interface Stub {
-  rpcs: { name: string; args: Record<string, unknown> }[];
-  progress: { course_slug: string; day: number; local_date: string; completed_at: string }[];
+type ProgressRow = { course_slug: string; day: number; local_date: string; completed_at: string };
+
+interface CourseState {
+  rec: RpcRecorder;
+  progress: ProgressRow[];
   focus: string | null;
 }
 
-async function stub(page: Page, opts: { supporter?: boolean; progress?: Stub['progress']; focus?: string | null } = {}) {
-  const state: Stub = { rpcs: [], progress: opts.progress ?? [], focus: opts.focus ?? null };
-  const json = (route: Route, body: unknown, status = 200) =>
-    route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-
-  await page.route('**/api/auth/**', (route) => {
-    if (route.request().url().includes('/get-session')) {
-      return json(route, { session: { id: 's1', userId: USER.id, expiresAt: new Date(Date.now() + 3_600_000).toISOString() }, user: USER });
-    }
-    return json(route, {});
-  });
-
-  await page.route('**/api/rpc/*', (route) => {
-    const name = decodeURIComponent(route.request().url().split('/api/rpc/')[1].split('?')[0]);
-    const args = (route.request().postDataJSON() ?? {}) as Record<string, unknown>;
-    state.rpcs.push({ name, args });
-    switch (name) {
-      case 'profile.get':
-      case 'profile.getOrCreate':
-        return json(route, { data: { ...PROFILE, course_focus: state.focus } });
-      case 'profile.bumpAppOpen':
-        return json(route, { data: 1 });
-      case 'supporters.mine':
-        return json(route, {
-          data: opts.supporter
-            ? { status: 'active', current_period_end: null, cancel_at_period_end: false, first_supported_at: new Date().toISOString() }
-            : null,
-        });
-      case 'courses.progress':
-        return json(route, { data: { focus: state.focus, days: state.progress } });
-      case 'courses.setFocus':
+async function stub(page: Page, opts: { supporter?: boolean; progress?: ProgressRow[]; focus?: string | null } = {}) {
+  const state = { progress: opts.progress ?? [], focus: opts.focus ?? null } as CourseState;
+  const profile = () => ({ ...DEFAULT_PROFILE_ROW, ...PROFILE, course_focus: state.focus });
+  state.rec = await stubApp(page, {
+    user: USER,
+    blunders: [blunderRow('b-fork-1', ['allowedFork']), blunderRow('b-fork-2', ['missedFork']), blunderRow('b-pin', ['allowedPin'])],
+    rpc: {
+      'profile.get': profile,
+      'profile.getOrCreate': profile,
+      'profile.bumpAppOpen': () => 1,
+      'supporters.mine': () =>
+        opts.supporter
+          ? { status: 'active', current_period_end: null, cancel_at_period_end: false, first_supported_at: new Date().toISOString() }
+          : null,
+      'courses.progress': () => ({ focus: state.focus, days: state.progress }),
+      'courses.setFocus': (args) => {
         state.focus = (args.slug as string | null) ?? null;
-        return json(route, { data: { focus: state.focus } });
-      case 'courses.completeDay': {
+        return { focus: state.focus };
+      },
+      'courses.completeDay': (args) => {
         state.progress.push({
-          course_slug: args.slug as string,
-          day: args.day as number,
-          local_date: args.localDate as string,
+          course_slug: args.slug,
+          day: args.day,
+          local_date: args.localDate,
           completed_at: new Date().toISOString(),
         });
-        return json(route, { data: state.progress.filter((r) => r.course_slug === args.slug) });
-      }
-      case 'courses.dayContent':
-        return opts.supporter
-          ? json(route, { data: { youtubeId: 'FGx28GrVrY8', start: 659, end: 1128, takeaway: 'Supporter takeaway.' } })
-          : json(route, { error: { code: 'supporters_only', message: 'This lesson is for supporters' } }, 403);
-      case 'stats.motifCounts':
-        return json(route, { data: { counts: { allowedFork: 12, missedFork: 2, defensiveMistake: 6 }, tagged: 20, untagged: 0, total: 20 } });
-      case 'blunders.allLive':
-        return json(route, { data: [blunderRow('b-fork-1', ['allowedFork']), blunderRow('b-fork-2', ['missedFork']), blunderRow('b-pin', ['allowedPin'])] });
-      case 'stats.gameRows':
-      case 'stats.blunderRows':
-      case 'openings.list':
-      case 'endgameScenarios.list':
-      case 'blunders.byIds':
-      case 'blunders.due':
-        return json(route, { data: [] });
-      default:
-        return json(route, { data: null });
-    }
+        return state.progress.filter((r) => r.course_slug === args.slug);
+      },
+      'courses.dayContent': () =>
+        opts.supporter
+          ? { youtubeId: 'FGx28GrVrY8', start: 659, end: 1128, takeaway: 'Supporter takeaway.' }
+          : rpcError(403, 'This lesson is for supporters', 'supporters_only'),
+      // The server's aggregate, not the seeded rows' (those carry no solution line).
+      'stats.motifCounts': () => ({ counts: { allowedFork: 12, missedFork: 2, defensiveMistake: 6 }, tagged: 20, untagged: 0, total: 20 }),
+    },
   });
   return state;
 }
@@ -159,7 +135,7 @@ test.describe('courses', () => {
 
     await page.getByTestId('course-complete').click();
     await expect(page.getByTestId('course-day-done')).toContainText('Day 2 opens tomorrow');
-    const done = state.rpcs.find((r) => r.name === 'courses.completeDay');
+    const done = state.rec.callsTo('courses.completeDay')[0];
     expect(done?.args).toEqual({ slug: 'avoid-knight-forks', day: 1, localDate: today });
     // Finishing a lesson follows the course.
     await expect.poll(() => state.focus).toBe('avoid-knight-forks');
@@ -171,7 +147,7 @@ test.describe('courses', () => {
     await page.getByTestId('course-day-link').first().click();
     await page.getByTestId('course-drill-start').click();
     await expect(page).toHaveURL(/\/training$/);
-    await expect.poll(() => state.rpcs.find((r) => r.name === 'blunders.byIds')?.args.ids).toEqual(['b-fork-1', 'b-fork-2']);
+    await expect.poll(() => state.rec.callsTo('blunders.byIds')[0]?.args.ids).toEqual(['b-fork-1', 'b-fork-2']);
   });
 
   test('day 3 is gated for free players and never fetched', async ({ page }) => {
@@ -185,7 +161,7 @@ test.describe('courses', () => {
     await expect(page).toHaveURL(/\/3$/);
     await expect(page.getByTestId('course-supporter-gate')).toContainText('Day 3 onward is for supporters');
     await expect(page.getByTestId('course-video')).toHaveCount(0);
-    expect(state.rpcs.some((r) => r.name === 'courses.dayContent')).toBe(false);
+    expect(state.rec.callsTo('courses.dayContent')).toHaveLength(0);
   });
 
   test('supporters get day 3 from the server', async ({ page }) => {
@@ -199,6 +175,6 @@ test.describe('courses', () => {
     await page.goto('/courses/avoid-knight-forks/3');
     await expect(page.getByTestId('course-video').locator('iframe')).toHaveAttribute('src', /start=659&end=1128/);
     await expect(page.getByTestId('course-takeaway')).toContainText('Supporter takeaway.');
-    expect(state.rpcs.find((r) => r.name === 'courses.dayContent')?.args).toEqual({ slug: 'avoid-knight-forks', day: 3, localDate: today });
+    expect(state.rec.callsTo('courses.dayContent')[0]?.args).toEqual({ slug: 'avoid-knight-forks', day: 3, localDate: today });
   });
 });

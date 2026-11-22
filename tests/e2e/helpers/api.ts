@@ -185,6 +185,7 @@ const LIST_RPCS = new Set([
   'admin.userList',
   'admin.landingCtas',
   'admin.supporters',
+  'courses.completeDay',
 ]);
 
 const NUMBER_RPCS = new Set([
@@ -225,6 +226,10 @@ export function defaultRpcValue(name: string, _args: Record<string, any> = {}): 
       return { since: null, rows: [], me: null };
     case 'leaderboard.public':
       return { since: null, computedAt: new Date().toISOString(), rows: [] };
+    case 'courses.progress':
+      return { focus: null, days: [] };
+    case 'courses.setFocus':
+      return { focus: _args.slug ?? null };
     default:
       return null;
   }
