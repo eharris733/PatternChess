@@ -1,27 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
+import { stubApp } from './helpers/api';
 
 // Opening drills: the user's game plays out up to the position, then the
 // prompt asks for the move; a book move is "Great!" and can be added to the
 // repertoire, which then becomes the expected answer.
-
-const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
-
-const FAKE_SESSION = {
-  access_token: 'fake',
-  token_type: 'bearer',
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  refresh_token: 'fake-refresh',
-  user: {
-    id: 'e2e-user',
-    aud: 'authenticated',
-    role: 'authenticated',
-    email: 'e2e@example.com',
-    user_metadata: { full_name: 'E2E User', avatar_url: null },
-    app_metadata: {},
-    created_at: new Date().toISOString(),
-  },
-};
 
 const PROFILE = {
   id: 'e2e-user',
@@ -110,50 +92,31 @@ const GAME = {
 };
 
 async function stub(page: Page, repertoire: Record<string, unknown>[] = []) {
-  await page.addInitScript(
-    ({ session, project, profile, blunders, game, repertoire }) => {
-      const origFetch = window.fetch.bind(window);
-      (window as any).__repertoireWrites = [] as unknown[];
-      (window as any).__sessionWrites = [] as unknown[];
-      window.fetch = (input: any, init?: any) => {
-        const url = typeof input === 'string' ? input : input?.url ?? '';
-        if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
-          const method = (init?.method ?? (typeof input === 'object' ? input?.method : undefined) ?? 'GET').toUpperCase();
-          const json = (body: unknown) =>
-            Promise.resolve(
-              new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } }),
-            );
-          if (url.includes('/auth/v1/user')) return json(session.user);
-          if (method === 'HEAD') {
-            return Promise.resolve(new Response(null, { status: 200, headers: { 'content-range': '*/1' } }));
-          }
-          if (url.includes('/rest/v1/repertoire_moves')) {
-            if (method === 'POST') {
-              const row = JSON.parse(init.body);
-              (window as any).__repertoireWrites.push(row);
-              return json({ id: 'r-new', created_at: new Date().toISOString(), ...row });
-            }
-            return json(repertoire);
-          }
-          if (url.includes('/rest/v1/training_sessions')) {
-            if (method === 'POST') {
-              const row = JSON.parse(init.body);
-              return json({ id: 's1', started_at: new Date().toISOString(), ended_at: null, ...row });
-            }
-            if (method === 'PATCH') (window as any).__sessionWrites.push(JSON.parse(init.body));
-            return json([]);
-          }
-          if (url.includes('/rest/v1/profiles')) return json(profile);
-          if (url.includes('/rest/v1/blunders')) return json(blunders);
-          if (url.includes('/rest/v1/games')) return json(game);
-          return json([]);
-        }
-        return origFetch(input, init);
-      };
-      localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
+  return stubApp(page, {
+    profile: PROFILE,
+    blunders: [OPENING_DRILL],
+    games: [GAME],
+    repertoire,
+    rpc: {
+      'repertoire.upsert': (args) => ({
+        id: 'r-new',
+        user_id: 'e2e-user',
+        created_at: new Date().toISOString(),
+        ...args,
+      }),
+      // A real session row, so the session's progress writes (sessions.update) happen.
+      'sessions.create': (args) => ({
+        id: 's1',
+        user_id: 'e2e-user',
+        started_at: new Date().toISOString(),
+        ended_at: null,
+        local_date: args.localDate,
+        blunders_attempted: 0,
+        blunders_correct: 0,
+        cycles_completed: 0,
+      }),
     },
-    { session: FAKE_SESSION, project: SUPABASE_PROJECT, profile: PROFILE, blunders: [OPENING_DRILL], game: GAME, repertoire },
-  );
+  });
 }
 
 async function dragMove(page: Page, from: { file: number; rank: number }, to: { file: number; rank: number }) {
@@ -172,7 +135,7 @@ async function dragMove(page: Page, from: { file: number; rank: number }, to: { 
 }
 
 test('an opening drill plays the game out, then a book move is great and joins the repertoire', async ({ page }) => {
-  await stub(page);
+  const rpc = await stub(page);
   await page.goto('/training');
   await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
 
@@ -192,8 +155,8 @@ test('an opening drill plays the game out, then a book move is great and joins t
 
   await verdict.getByTestId('add-to-repertoire').click();
   await expect(verdict.getByTestId('in-repertoire')).toBeVisible();
-  const writes = await page.evaluate(() => (window as any).__repertoireWrites as Array<Record<string, string>>);
-  expect(writes[0]).toMatchObject({ color: 'white', epd: EPD, uci: 'g1f3', san: 'Nf3' });
+  const write = await rpc.waitFor('repertoire.upsert');
+  expect(write.args).toMatchObject({ color: 'white', epd: EPD, uci: 'g1f3', san: 'Nf3' });
 });
 
 test('with a repertoire move saved, another book move is a nudge toward it', async ({ page }) => {
@@ -210,7 +173,7 @@ test('with a repertoire move saved, another book move is a nudge toward it', asy
 });
 
 test('Space skips the intro, and an opening drill never fills the daily "Train" goal', async ({ page }) => {
-  await stub(page);
+  const rpc = await stub(page);
   await page.goto('/training');
   await page.getByRole('button', { name: /Review \d+ positions?/ }).click();
   await expect(page.getByTestId('skip-intro')).toBeVisible();
@@ -221,6 +184,6 @@ test('Space skips the intro, and an opening drill never fills the daily "Train" 
   await dragMove(page, { file: 6, rank: 1 }, { file: 5, rank: 3 });
   await expect(page.getByTestId('opening-verdict')).toContainText('Great! Nf3 is book.');
   // training_sessions feeds "Train N positions"; openings have their own step.
-  const writes = await page.evaluate(() => (window as any).__sessionWrites as Array<Record<string, number>>);
-  for (const w of writes) expect(w.blunders_attempted ?? 0).toBe(0);
+  await expect.poll(() => rpc.callsTo('sessions.update').length).toBeGreaterThan(0);
+  for (const w of rpc.callsTo('sessions.update')) expect(w.args.patch.blunders_attempted ?? 0).toBe(0);
 });

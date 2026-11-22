@@ -1,4 +1,12 @@
 import { expect, test } from '@playwright/test';
+import { stubRpc, stubSession } from './helpers/api';
+
+// Signed out, with no API server: get-session answers null and RPCs get the
+// empty defaults.
+test.beforeEach(async ({ page }) => {
+  await stubSession(page, null);
+  await stubRpc(page);
+});
 
 test.describe('landing page', () => {
   test('renders public landing at / with brand, auth CTAs, hero, demo input, how-it-works, footer', async ({

@@ -1,27 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
+import { stubApp, type RpcRecorder } from './helpers/api';
 
 // The daily loop (retention roadmap Phase 1): commitment level sizes the plan,
 // the Play step counts games synced today, banked streak freezes show in the
 // sidebar, and a sync that finds new blunders is celebrated on the dashboard.
-
-const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
-
-const FAKE_SESSION = {
-  access_token: 'fake',
-  token_type: 'bearer',
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  refresh_token: 'fake-refresh',
-  user: {
-    id: 'e2e-user',
-    aud: 'authenticated',
-    role: 'authenticated',
-    email: 'e2e@example.com',
-    user_metadata: { full_name: 'E2E User', avatar_url: null },
-    app_metadata: {},
-    created_at: new Date().toISOString(),
-  },
-};
 
 function daysAgo(n: number): string {
   return new Date(Date.now() - n * 86_400_000).toLocaleDateString('en-CA');
@@ -56,49 +38,25 @@ const BLUNDERS = [
 ];
 
 async function stub(page: Page, opts: { profile?: Partial<typeof BASE_PROFILE>; gamesToday?: number } = {}) {
-  await page.addInitScript(
-    ({ session, project, profile, blunders, gamesToday }) => {
-      (window as any).__patches = [];
-      const origFetch = window.fetch.bind(window);
-      window.fetch = (input: any, init?: any) => {
-        const url = typeof input === 'string' ? input : input?.url ?? '';
-        if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
-          const method = (init?.method ?? (typeof input === 'object' ? input?.method : undefined) ?? 'GET').toUpperCase();
-          const json = (body: unknown) =>
-            Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } }));
-          if (url.includes('/auth/v1/user')) return json(session.user);
-          if (method === 'HEAD') {
-            return Promise.resolve(new Response(null, { status: 200, headers: { 'content-range': '*/1' } }));
-          }
-          if (method === 'PATCH') {
-            (window as any).__patches.push({ url, body: init?.body ? JSON.parse(init.body) : null });
-            return json([]);
-          }
-          if (url.includes('/rest/v1/profiles')) return json(profile);
-          if (url.includes('/rest/v1/blunders')) {
-            if (url.includes('select=id') && url.includes('game_id=in')) return json([{ id: 'fresh-1' }, { id: 'fresh-2' }]);
-            return json(blunders);
-          }
-          if (url.includes('/rest/v1/games') && url.includes('select=played_at')) {
-            return json(Array.from({ length: gamesToday }, () => ({ played_at: new Date().toISOString() })));
-          }
-          return json([]);
-        }
-        return origFetch(input, init);
-      };
-      localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
-      // An automatic sync on load would race the stubs; mark it as just done.
-      sessionStorage.setItem('pc:last-auto-sync', JSON.stringify({ fp: 'e2e-user|tester||0|', at: Date.now() }));
+  const gamesToday = opts.gamesToday ?? 0;
+  const rec = await stubApp(page, {
+    profile: { ...BASE_PROFILE, ...opts.profile },
+    blunders: BLUNDERS,
+    gameCount: 1,
+    rpc: {
+      'games.playedSince': () => Array.from({ length: gamesToday }, () => new Date().toISOString()),
+      'blunders.liveIdsForGames': () => ['fresh-1', 'fresh-2'],
     },
-    {
-      session: FAKE_SESSION,
-      project: SUPABASE_PROJECT,
-      profile: { ...BASE_PROFILE, ...opts.profile },
-      blunders: BLUNDERS,
-      gamesToday: opts.gamesToday ?? 0,
-    },
-  );
+  });
+  await page.addInitScript(() => {
+    // An automatic sync on load would race the stubs; mark it as just done.
+    sessionStorage.setItem('pc:last-auto-sync', JSON.stringify({ fp: 'e2e-user|tester||0|', at: Date.now() }));
+  });
+  return rec;
 }
+
+/** Patches the page sent through profile.update, in order. */
+const profilePatches = (rec: RpcRecorder) => rec.callsTo('profile.update').map((c) => c.args.patch as Record<string, any>);
 
 test('the commitment level sizes the plan and the Play step counts games played today', async ({ page }) => {
   await stub(page, {
@@ -133,15 +91,15 @@ test('banked freezes keep a streak alive over a missed day and show as snowflake
 });
 
 test('picking a commitment on /profile saves it', async ({ page }) => {
-  await stub(page);
+  const rec = await stub(page);
   await page.goto('/profile#commitment');
   const picker = page.getByTestId('commitment-picker');
   await expect(picker).toBeVisible();
   await picker.getByRole('button', { name: /Obsessed/ }).click();
   await expect(picker.getByRole('button', { name: /Obsessed/ })).toHaveAttribute('aria-pressed', 'true');
-  const patches = await page.evaluate(() => (window as any).__patches as { url: string; body: any }[]);
-  const saved = patches.find((p) => p.url.includes('/rest/v1/profiles') && p.body?.commitment_level);
-  expect(saved?.body).toEqual({ commitment_level: 'obsessed', daily_positions_goal: 30, daily_games_goal: 3 });
+  await expect
+    .poll(() => profilePatches(rec).find((p) => p.commitment_level))
+    .toEqual({ commitment_level: 'obsessed', daily_positions_goal: 30, daily_games_goal: 3 });
 });
 
 test('a sync that finds new blunders is celebrated, and Train them now drills them', async ({ page }) => {
@@ -168,7 +126,7 @@ test('a sync that finds new blunders is celebrated, and Train them now drills th
 });
 
 test('custom numbers save on blur, not per keystroke', async ({ page }) => {
-  await stub(page);
+  const rec = await stub(page);
   await page.goto('/profile#commitment');
   const picker = page.getByTestId('commitment-picker');
   await picker.getByRole('button', { name: 'Custom' }).click();
@@ -176,29 +134,20 @@ test('custom numbers save on blur, not per keystroke', async ({ page }) => {
   await positions.fill('');
   await positions.fill('15');
   await positions.press('Enter');
-  const goalPatches = () =>
-    page.evaluate(() =>
-      ((window as any).__patches as { url: string; body: any }[]).filter((p) => p.body?.commitment_level === 'custom'),
-    );
+  const goalPatches = () => profilePatches(rec).filter((p) => p.commitment_level === 'custom');
   await expect
-    .poll(async () => (await goalPatches()).at(-1)?.body)
+    .poll(() => goalPatches().at(-1))
     .toEqual({ commitment_level: 'custom', daily_positions_goal: 15, daily_games_goal: 1 });
   // One save for picking Custom, one for the edit: no per-keystroke writes.
-  expect((await goalPatches()).length).toBe(2);
+  expect(goalPatches().length).toBe(2);
 });
 
 test('reminder emails can be switched off in /profile', async ({ page }) => {
-  await stub(page, { profile: { email_opt_in: true } as Partial<typeof BASE_PROFILE> });
+  const rec = await stub(page, { profile: { email_opt_in: true } as Partial<typeof BASE_PROFILE> });
   await page.goto('/profile');
   const setting = page.getByTestId('email-reminders-setting');
   const box = setting.getByRole('checkbox');
   await expect(box).toBeChecked();
   await box.uncheck();
-  await expect
-    .poll(async () =>
-      (await page.evaluate(() => (window as any).__patches as { url: string; body: any }[])).find(
-        (p) => p.body && 'email_opt_in' in p.body,
-      )?.body.email_opt_in,
-    )
-    .toBe(false);
+  await expect.poll(() => profilePatches(rec).find((p) => 'email_opt_in' in p)?.email_opt_in).toBe(false);
 });

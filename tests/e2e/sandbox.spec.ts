@@ -1,47 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { stubApp } from './helpers/api';
 
-const FAKE_SESSION = {
-  access_token: 'fake',
-  token_type: 'bearer',
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  refresh_token: 'fake-refresh',
-  user: {
-    id: 'e2e-user',
-    aud: 'authenticated',
-    role: 'authenticated',
-    email: 'e2e@example.com',
-    user_metadata: { full_name: 'E2E User' },
-    app_metadata: {},
-    created_at: new Date().toISOString(),
-  },
-};
-
-const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
-
+// Signed-in shell with an empty account, so loaders settle.
 async function stubAuth(page: import('@playwright/test').Page) {
-  await page.addInitScript(
-    ({ session, project }) => {
-      try {
-        // Block any outbound supabase calls so loaders don't hang
-        const origFetch = window.fetch.bind(window);
-        window.fetch = (input: any, init?: any) => {
-          const url = typeof input === 'string' ? input : input?.url ?? '';
-          if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
-            return Promise.resolve(
-              new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } }),
-            );
-          }
-          return origFetch(input, init);
-        };
-        const key = `sb-${project}-auth-token`;
-        localStorage.setItem(key, JSON.stringify(session));
-      } catch {
-        /* ignore */
-      }
-    },
-    { session: FAKE_SESSION, project: SUPABASE_PROJECT },
-  );
+  await stubApp(page);
 }
 
 test('sandbox board exposes interactive chessground', async ({ page }) => {

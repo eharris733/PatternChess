@@ -1,46 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
+import { stubApp } from './helpers/api';
 
 // Vault filter bar + expandable blunder-position thumbnails.
-// Stubs auth and the games/blunders REST endpoints so no real user is needed.
-
-const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
-
-const FAKE_SESSION = {
-  access_token: 'fake',
-  token_type: 'bearer',
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  refresh_token: 'fake-refresh',
-  user: {
-    id: 'e2e-user',
-    aud: 'authenticated',
-    role: 'authenticated',
-    email: 'e2e@example.com',
-    user_metadata: { full_name: 'E2E User', avatar_url: null },
-    app_metadata: {},
-    created_at: new Date().toISOString(),
-  },
-};
-
-const PROFILE = {
-  id: 'e2e-user',
-  display_name: 'E2E User',
-  avatar_url: null,
-  lichess_username: null,
-  chesscom_username: null,
-  preferred_rated_only: false,
-  preferred_time_controls: [],
-  last_synced_lichess_at: null,
-  last_synced_chesscom_at: null,
-  created_at: new Date().toISOString(),
-  current_streak_days: 0,
-  longest_streak_days: 0,
-  last_drill_local_date: null,
-  timezone: null,
-  board_theme: 'default',
-  show_engine_evals: false,
-  reveal_before_solve: false,
-};
+// Stubs the session and the games/blunders RPCs so no real user is needed.
 
 const NOW = new Date().toISOString();
 
@@ -171,63 +133,13 @@ const REPERTOIRE = [
 ];
 
 async function stubVault(page: Page) {
-  await page.addInitScript(
-    ({ session, project, profile, games, blunders, repertoire }) => {
-      const origFetch = window.fetch.bind(window);
-      window.fetch = (input: any, init?: any) => {
-        const url = typeof input === 'string' ? input : (input?.url ?? '');
-        if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
-          const method = (
-            init?.method ??
-            (typeof input === 'object' ? input?.method : undefined) ??
-            'GET'
-          ).toUpperCase();
-          const json = (body: unknown, status = 200) =>
-            Promise.resolve(
-              new Response(JSON.stringify(body), {
-                status,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          if (method === 'HEAD') {
-            // Non-zero game count keeps the onboarding gate closed.
-            return Promise.resolve(
-              new Response(null, { status: 200, headers: { 'content-range': '*/3' } }),
-            );
-          }
-          if (url.includes('/auth/v1/user')) return json(session.user);
-          if (url.includes('/rest/v1/profiles')) return json(profile);
-          if (url.includes('/rest/v1/games')) return json(games);
-          if (url.includes('/rest/v1/blunders')) {
-            // getBlunderCountsByGame projects only game_id.
-            if (url.includes('select=game_id')) {
-              return json(blunders.map((b: any) => ({ game_id: b.game_id })));
-            }
-            // getBlundersForGames filters by game_id=in.(…).
-            if (url.includes('game_id=in.')) {
-              return json(
-                blunders.filter((b: any) => url.includes(b.game_id)),
-              );
-            }
-            // getAllLiveBlunders: every live position (the Blunders / Mastered tabs).
-            return json(blunders);
-          }
-          if (url.includes('/rest/v1/repertoire_moves')) return json(repertoire);
-          return json([]);
-        }
-        return origFetch(input, init);
-      };
-      localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
-    },
-    {
-      session: FAKE_SESSION,
-      project: SUPABASE_PROJECT,
-      profile: PROFILE,
-      games: GAMES,
-      blunders: [...BLUNDERS, MASTERED],
-      repertoire: REPERTOIRE,
-    },
-  );
+  // Seeded rows answer games.list, blunders.allLive / forGames / countsByGame
+  // and repertoire.list with the server's filters.
+  await stubApp(page, {
+    games: GAMES,
+    blunders: [...BLUNDERS, MASTERED],
+    repertoire: REPERTOIRE,
+  });
 }
 
 test('vault tabs list blunders, mastered positions and the repertoire, each shareable', async ({ page }) => {

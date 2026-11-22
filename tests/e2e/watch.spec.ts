@@ -1,4 +1,12 @@
 import { expect, test } from '@playwright/test';
+import { stubRpc, stubSession } from './helpers/api';
+
+// Signed out, with no API server: get-session answers null and RPCs get the
+// empty defaults.
+test.beforeEach(async ({ page }) => {
+  await stubSession(page, null);
+  await stubRpc(page);
+});
 
 test('/watch plays the tour from its own page and preloads nothing', async ({ page }) => {
   const videoRequests: string[] = [];
