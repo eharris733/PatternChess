@@ -1,0 +1,17 @@
+// Wrangler config used ONLY for D1 commands against patternchess-app
+// (migrations, ad-hoc queries, the data import). It is not a Pages or Worker
+// deploy config: the `patternchess` Pages project stays dashboard-configured,
+// and this file lives in d1/ so `wrangler pages dev` (run from the repo root)
+// never picks it up. See d1/README.md.
+{
+  "name": "patternchess-d1",
+  "compatibility_date": "2026-06-18",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "patternchess-app",
+      "database_id": "7d359ac5-7829-4a4d-8fa9-5af6379cdf15",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

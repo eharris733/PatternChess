@@ -22,7 +22,9 @@
     "ad:stats": "node marketing/ad/stats.ts",
     "ad:record": "node marketing/ad/record.ts",
     "ad:render": "node marketing/ad/stitch.ts",
-    "forum:find": "node marketing/forum/run.ts"
+    "forum:find": "node marketing/forum/run.ts",
+    "migrate:export": "node scripts/migrate/export-supabase.mjs",
+    "migrate:import": "node scripts/migrate/import-d1.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

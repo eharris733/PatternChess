@@ -39,6 +39,8 @@ playwright/.cache/
 supabase/.temp
 # Opening-book build inputs/outputs (scripts/book, tools/book-builder)
 /data/
+# Supabase -> D1 data export + generated SQL (scripts/migrate; holds user data)
+/data/migrate/
 /tools/book-builder/target/
 
 # Ad recordings (marketing/ad)
