@@ -1,7 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { Chess } from 'chess.js';
-
-vi.mock('../services/supabaseService', () => ({ supabaseService: {} }));
 
 import type { BookMove, BookPosition } from '../services/openingBookService';
 import {
