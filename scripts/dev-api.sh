@@ -9,7 +9,8 @@
 # AUTH_TEST_MODE=1 for the email+password test sign-in).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-STATE=.wrangler/state
+# STATE=<dir> picks another local store (e.g. a second copy of the production data).
+STATE=${STATE:-.wrangler/state}
 DB_ID=7d359ac5-7829-4a4d-8fa9-5af6379cdf15 # patternchess-app
 CONTENT_ID=d4683ee908184d24a880ed39b4ebedaf # patternchess-content (local copy keyed by the real id)
 

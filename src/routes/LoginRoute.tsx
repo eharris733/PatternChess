@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { useAuth } from '../auth/useAuth';
 import { BrandLockup } from '../components/BrandLogo';
+import { DevSignInForm } from '../components/DevSignInForm';
 import { useForceDefaultTheme } from '../state/themeStore';
 import { useHead } from '../seo/useHead';
 import { trackLeadReturn } from '../services/funnelService';
@@ -102,6 +103,7 @@ export function LoginRoute() {
             {signingIn ? 'Redirecting…' : 'Continue with Lichess'}
           </button>
         </div>
+        {import.meta.env.DEV && <DevSignInForm />}
         {error && (
           <p role="alert" className="text-incorrect text-sm">
             {error}

@@ -7,6 +7,11 @@
 //
 //   npm run articles:sync            write the JSON and upload bodies to KV
 //   npm run articles:sync -- --dry   write the JSON only
+//   npm run articles:sync -- --local --drafts
+//                                    local try-out: every article, drafts included,
+//                                    into the local KV (.wrangler/state or $STATE) and
+//                                    the gitignored src/generated/articles.local.json,
+//                                    which dev builds read instead of articles.json
 //
 // Run by hand, never in `build`. Only `status: approved` articles are synced;
 // drafts are skipped, and bodies of articles no longer approved are deleted
@@ -26,6 +31,9 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dir = join(root, 'content', 'supporter', 'articles');
 const out = join(root, 'src', 'generated', 'articles.json');
 const dry = process.argv.includes('--dry');
+const local = process.argv.includes('--local');
+const drafts = process.argv.includes('--drafts');
+if (drafts && !local) throw new Error('--drafts only works with --local (drafts never reach the remote KV)');
 const md = new MarkdownIt({ html: false, linkify: false, typographer: true });
 
 if (!existsSync(dir)) throw new Error(`${dir} not found (article sources are gitignored; restore them first)`);
@@ -51,25 +59,29 @@ const articles = readdirSync(dir)
     };
   });
 
-const approved = articles.filter((a) => a.status === 'approved');
-for (const a of articles) if (a.status !== 'approved') console.log(`  skip ${a.status}: ${a.slug}`);
+const approved = drafts ? articles : articles.filter((a) => a.status === 'approved');
+for (const a of articles) if (!approved.includes(a)) console.log(`  skip ${a.status}: ${a.slug}`);
 
 writeFileSync(
-  out,
+  drafts ? join(root, 'src', 'generated', 'articles.local.json') : out,
   JSON.stringify(
     approved.map(({ slug, title, unlockAt, teaserHtml }) => ({ slug, title, unlockAt, teaserHtml })),
     null,
     2,
   ) + '\n',
 );
-console.log(`wrote ${approved.length} approved article(s) to src/generated/articles.json`);
+console.log(`wrote ${approved.length} article(s) ${drafts ? '(drafts included) to src/generated/articles.local.json' : '(approved) to src/generated/articles.json'}`);
 if (dry) process.exit(0);
 
 const wrangler = (...args) =>
-  execFileSync('npx', ['wrangler', 'kv', ...args, '--namespace-id', KV_NAMESPACE_ID, '--remote'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  execFileSync(
+    'npx',
+    ['wrangler', 'kv', ...args, '--namespace-id', KV_NAMESPACE_ID, ...(local ? ['--local', '--persist-to', process.env.STATE ?? '.wrangler/state'] : ['--remote'])],
+    {
+      cwd: root,
+      encoding: 'utf8',
+    },
+  );
 
 const tmp = mkdtempSync(join(tmpdir(), 'pc-articles-'));
 if (approved.length > 0) {
@@ -88,4 +100,4 @@ if (stale.length > 0) {
   writeFileSync(join(tmp, 'delete.json'), JSON.stringify(stale));
   wrangler('bulk', 'delete', join(tmp, 'delete.json'), '--force');
 }
-console.log(`synced ${approved.length} article(s) to KV; removed ${stale.length} stale key(s)`);
+console.log(`synced ${approved.length} article(s) to ${local ? 'local' : 'remote'} KV; removed ${stale.length} stale key(s)`);

@@ -13,7 +13,7 @@
 //   npm run courses:sync                 write the JSON and upload days 3+ to KV
 //   npm run courses:sync -- --dry        write the JSON only
 //   npm run courses:sync -- --local      write the JSON and fill the local KV
-//                                         (.wrangler/state, for scripts/dev-api.sh)
+//                                         (.wrangler/state or $STATE, for scripts/dev-api.sh)
 //
 // Run by hand, never in `build`. Every course is synced whatever its
 // permission status; the app shows only `granted` courses in production
@@ -148,7 +148,7 @@ if (dry) process.exit(0);
 const wrangler = (...args) =>
   execFileSync(
     'npx',
-    ['wrangler', 'kv', ...args, '--namespace-id', KV_NAMESPACE_ID, ...(local ? ['--local', '--persist-to', '.wrangler/state'] : ['--remote'])],
+    ['wrangler', 'kv', ...args, '--namespace-id', KV_NAMESPACE_ID, ...(local ? ['--local', '--persist-to', process.env.STATE ?? '.wrangler/state'] : ['--remote'])],
     { cwd: root, encoding: 'utf8' },
   );
 

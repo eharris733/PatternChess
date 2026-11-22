@@ -13,7 +13,13 @@ export interface ArticleMeta {
   teaserHtml: string;
 }
 
-export const ARTICLES: readonly ArticleMeta[] = articlesJson as ArticleMeta[];
+// Dev only: `npm run articles:sync -- --local --drafts` writes a gitignored list
+// with the drafts so they can be tried locally; builds never read it.
+const localArticles = import.meta.env.DEV
+  ? Object.values(import.meta.glob<ArticleMeta[]>('../generated/articles.local.json', { eager: true, import: 'default' }))[0]
+  : undefined;
+
+export const ARTICLES: readonly ArticleMeta[] = localArticles ?? (articlesJson as ArticleMeta[]);
 
 export const PATH_RUNGS: readonly number[] = [10, 25, 50, 100, 200, 350, 500, 750, 1000];
 
