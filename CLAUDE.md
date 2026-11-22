@@ -143,13 +143,13 @@ Feature flows:
 - `analytics.spec.ts`, `dashboard-cards.spec.ts`, `achievements.spec.ts` — dashboard/analytics/insight cards
 - `puzzle_share.spec.ts` — `/p?d=` share links
 - `moments.spec.ts` — public GIF maker (PGN → GIF/PNG downloads, footer link)
-- `openings.spec.ts`, `learn.spec.ts` — `/openings` grouping + colour filter (stubbed `opening_deviations`), `/learn` tabs
+- `openings.spec.ts`, `learn.spec.ts` — `/openings` grouping + colour filter (stubbed `openings.list`), `/learn` tabs
 - `otb_events.spec.ts` — events integration
 - `landing.spec.ts`, `funnel.spec.ts`, `sync_indicator.spec.ts` — public landing + sync onboarding
 
 `npm run smoke` runs the minimum viable subset: `headers.spec.ts` + `engine.spec.ts` (shell boot + engine).
 
-`stubAuth` in the specs writes a fake Supabase session into `localStorage` and shorts out outbound calls to `*.supabase.co`, so tests don't need a real user. Gotchas learned the hard way: match `[?&]id=eq.` with a regex (`user_id=eq.` contains `id=eq.` as a substring), and `scrollIntoViewIfNeeded()` before board drags (bottom ranks can sit below the 720px viewport fold). Note: `sync_indicator.spec.ts` and 3 `dashboard-cards.spec.ts` tests are known-flaky on a clean tree.
+Specs stub the backend with `tests/e2e/helpers/api.ts` (page.route runs in the browser, before Vite's `/api` proxy, so no API server is needed): `stubSession(page, user | null)` answers better-auth's `GET /api/auth/get-session` (and `sign-out`); `stubRpc(page, handlers, { fallback })` intercepts `POST /api/rpc/<name>`, answers `{ data }` from the handler for that name (return `rpcError(status)` for a failure) and records every call — assert writes on the recorder (`callsTo('profile.update')`, `waitFor(name, pred)`) or `getRpcCalls(page)`. Unhandled names get `defaultRpcValue` (lists → `[]`, counts → 0, `profile.get`/`getOrCreate` → `DEFAULT_PROFILE_ROW`, else null). `stubApp(page, { user, profile, games, blunders, endgameScenarios, repertoire, sessions, deviations, gameCount, rpc })` does both and serves the read RPCs from seeded snake_case rows with the server's filters (`seededHandlers`; `profile.update` patches the stored profile; `gameCount` defaults to the seeded games, or 3 with none, so the onboarding gate stays hidden — pass 0 for a new user). Admin = sign in as an `ADMIN_EMAILS` address; Lichess = a `@lichess.invalid` email. Public pages call `stubSession(page, null)` + `stubRpc(page)` so nothing reaches a local API on :8788. Gotcha learned the hard way: `scrollIntoViewIfNeeded()` before board drags (bottom ranks can sit below the 720px viewport fold). The real-engine endgame specs can time out under heavy parallel load; rerun with `--workers=1` before suspecting a regression.
 
 ### Verifying UI changes
 
