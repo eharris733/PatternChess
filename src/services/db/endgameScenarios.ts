@@ -1,22 +1,18 @@
-import { supabase } from '../../lib/supabase';
-import type { TablesInsert } from '../../lib/database.types';
+import { rpc } from '../../lib/api';
+import type { Tables, TablesInsert } from '../../lib/database.types';
 import { EndgameScenario, endgameScenarioFromJson, ScenarioStatus } from '../../models/endgameScenario';
 import { nextDrillDate } from '../../models/blunder';
 import { currentUserId } from './currentUser';
-import { fetchAllRows } from './paginate';
+
+// Server side: functions/_shared/rpc/training.ts (`endgameScenarios.*`),
+// scoped to the session user.
+
+type ScenarioRow = Tables<'endgame_scenarios'>;
 
 export async function getEndgameScenarios(): Promise<EndgameScenario[]> {
   const userId = await currentUserId();
   if (!userId) return [];
-  const rows = await fetchAllRows(() =>
-    supabase
-      .from('endgame_scenarios')
-      .select()
-      .eq('user_id', userId)
-      .is('retired_at', null)
-      .order('created_at', { ascending: false })
-      .order('id'),
-  );
+  const rows = await rpc<ScenarioRow[]>('endgameScenarios.list');
   return rows.map(endgameScenarioFromJson);
 }
 
@@ -26,45 +22,25 @@ export async function getUnverifiedEndgameScenarios(opts: {
 }): Promise<EndgameScenario[]> {
   const userId = await currentUserId();
   if (!userId) return [];
-  const { data, error } = await supabase
-    .from('endgame_scenarios')
-    .select()
-    .eq('user_id', userId)
-    .is('verified_at', null)
-    .is('retired_at', null)
-    .order('created_at', { ascending: true })
-    .limit(opts.limit);
-  if (error) throw error;
-  return (data ?? []).map(endgameScenarioFromJson);
+  const rows = await rpc<ScenarioRow[]>('endgameScenarios.unverified', { limit: opts.limit });
+  return rows.map(endgameScenarioFromJson);
 }
 
 export async function countUnverifiedEndgameScenarios(): Promise<number> {
   const userId = await currentUserId();
   if (!userId) return 0;
-  const { count, error } = await supabase
-    .from('endgame_scenarios')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .is('verified_at', null)
-    .is('retired_at', null);
-  if (error) throw error;
-  return count ?? 0;
+  return rpc<number>('endgameScenarios.countUnverified');
 }
 
 export async function markEndgameScenarioVerified(
   id: string,
   result: { verifyEvalCp: number; retired: boolean },
 ): Promise<void> {
-  const now = new Date().toISOString();
-  const { error } = await supabase
-    .from('endgame_scenarios')
-    .update({
-      verified_at: now,
-      verify_eval_cp: result.verifyEvalCp,
-      retired_at: result.retired ? now : null,
-    })
-    .eq('id', id);
-  if (error) throw error;
+  await rpc('endgameScenarios.markVerified', {
+    id,
+    verifyEvalCp: result.verifyEvalCp,
+    retired: result.retired,
+  });
 }
 
 /**
@@ -77,33 +53,25 @@ export async function upsertEndgameScenarios(
   if (rows.length === 0) return;
   const userId = await currentUserId();
   if (!userId) return; // scenarios are owner-scoped — nothing to persist without one
-  const enriched: TablesInsert<'endgame_scenarios'>[] = rows.map((r) => ({ ...r, user_id: userId }));
-  const { error } = await supabase
-    .from('endgame_scenarios')
-    .upsert(enriched, { onConflict: 'user_id,game_id', ignoreDuplicates: true });
-  if (error) throw error;
+  const CHUNK = 500;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    await rpc('endgameScenarios.upsert', { rows: rows.slice(i, i + CHUNK) });
+  }
 }
 
 export async function updateEndgameScenarioResult(
   id: string,
   update: { status: ScenarioStatus; attempts: number },
 ): Promise<void> {
-  const { error } = await supabase
-    .from('endgame_scenarios')
-    .update({
-      status: update.status,
-      attempts: update.attempts,
-      last_played_at: new Date().toISOString(),
-    })
-    .eq('id', id);
-  if (error) throw error;
+  // last_played_at is stamped by the server.
+  await rpc('endgameScenarios.updateResult', { id, status: update.status, attempts: update.attempts });
 }
 
 /** Persist a play-out result on the SR ladder (see applyScenarioResult). */
 export async function updateEndgameScenarioSr(s: EndgameScenario): Promise<void> {
-  const { error } = await supabase
-    .from('endgame_scenarios')
-    .update({
+  await rpc('endgameScenarios.updateSr', {
+    id: s.id,
+    patch: {
       status: s.status,
       attempts: s.attempts,
       last_played_at: (s.lastPlayedAt ?? new Date()).toISOString(),
@@ -113,7 +81,6 @@ export async function updateEndgameScenarioSr(s: EndgameScenario): Promise<void>
       last_drill_failed: s.lastDrillFailed,
       last_drilled_at: (s.lastDrilledAt ?? new Date()).toISOString(),
       next_drill_at: nextDrillDate(s).toISOString(),
-    })
-    .eq('id', s.id);
-  if (error) throw error;
+    },
+  });
 }

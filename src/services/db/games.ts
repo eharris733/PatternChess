@@ -1,52 +1,40 @@
-import { supabase } from '../../lib/supabase';
-import type { TablesInsert, TablesUpdate } from '../../lib/database.types';
+import { rpc } from '../../lib/api';
+import type { Tables, TablesInsert, TablesUpdate } from '../../lib/database.types';
 import { GameRecord, gameRecordFromJson, parseColor } from '../../models/gameRecord';
 import { currentUserId } from './currentUser';
-import { fetchAllRows, fetchInChunks } from './paginate';
+
+// Server side: functions/_shared/rpc/training.ts (`games.*`). Every handler is
+// scoped to the session user (that replaced RLS), so the old optional
+// `userId` filters are implicit and kept only for signature compatibility.
+
+/** Games per insert call: keeps each request (PGN text) and its D1 batch small. */
+const INSERT_CHUNK = 200;
 
 export async function insertGames(
   games: Omit<TablesInsert<'games'>, 'user_id'>[],
 ): Promise<GameRecord[]> {
-  const userId = await currentUserId();
-  const enriched = userId ? games.map((g) => ({ ...g, user_id: userId })) : games;
   // ON CONFLICT DO NOTHING on (user_id, platform, external_game_id): a second
   // tab / a racing trigger inserting the same game must not abort the whole
-  // batch. `.select()` returns only the rows actually inserted, so callers'
+  // batch. The server returns only the rows actually inserted, so callers'
   // "inserted" counts stay honest.
-  const { data, error } = await supabase
-    .from('games')
-    .upsert(enriched, {
-      onConflict: 'user_id,platform,external_game_id',
-      ignoreDuplicates: true,
-    })
-    .select();
-  if (error) throw error;
-  if ((data?.length ?? 0) > 0) forgetUnanalyzedCount();
-  return (data ?? []).map(gameRecordFromJson);
+  const inserted: Tables<'games'>[] = [];
+  for (let i = 0; i < games.length; i += INSERT_CHUNK) {
+    inserted.push(
+      ...(await rpc<Tables<'games'>[]>('games.insert', { games: games.slice(i, i + INSERT_CHUNK) })),
+    );
+  }
+  if (inserted.length > 0) forgetUnanalyzedCount();
+  return inserted.map(gameRecordFromJson);
 }
 
-// Every column GameRecord needs EXCEPT the heavy `pgn` (full move text, ~1KB
-// each) and `clock_per_ply` (per-move clock array). The games list/insights
-// never render the PGN — replay fetches the single full row via getGame — so
-// omitting them drops the list payload from ~1MB to tens of KB for active users.
-const GAME_LIST_COLUMNS =
-  'id, platform, username, opponent, time_control, rated, result, played_at, ' +
-  'created_at, analyzed_at, eco, opening_name, opening_family, ' +
-  'opening_classified_at, user_color, user_rating, ' +
-  'opponent_rating, total_plies, parsed_metadata_at';
-
-export async function getGames(opts?: { userId?: string }): Promise<GameRecord[]> {
-  // Sort by played_at primarily, but break ties (and rank PGN uploads with
-  // missing/old [Date] headers) by insertion time so freshly-imported games
-  // always surface at the top of the vault. `id` keeps pages stable.
-  const rows = await fetchAllRows(() => {
-    let q = supabase.from('games').select(GAME_LIST_COLUMNS);
-    if (opts?.userId) q = q.eq('user_id', opts.userId);
-    return q
-      .order('played_at', { ascending: false, nullsFirst: true })
-      .order('created_at', { ascending: false })
-      .order('id');
-  });
+/**
+ * Every game, newest first: by played_at (NULL first), then insertion time, so
+ * freshly-imported PGN uploads with missing/old [Date] headers surface at the
+ * top of the vault. Every column GameRecord needs EXCEPT the heavy `pgn` and
+ * `clock_per_ply` — replay fetches the single full row via getGame.
+ */
+export async function getGames(_opts?: { userId?: string }): Promise<GameRecord[]> {
+  const rows = await rpc<Tables<'games'>[]>('games.list');
   return rows.map(gameRecordFromJson);
 }
 
@@ -57,14 +45,11 @@ export async function getGames(opts?: { userId?: string }): Promise<GameRecord[]
 export async function getScenarioGames(
   ids: readonly string[],
 ): Promise<Array<Pick<GameRecord, 'id' | 'platform' | 'result' | 'userColor'>>> {
-  const rows = await fetchInChunks(ids, async (chunk) => {
-    const { data, error } = await supabase
-      .from('games')
-      .select('id, platform, result, user_color')
-      .in('id', chunk);
-    if (error) throw error;
-    return data ?? [];
-  });
+  if (ids.length === 0) return [];
+  const rows = await rpc<Array<Pick<Tables<'games'>, 'id' | 'platform' | 'result' | 'user_color'>>>(
+    'games.scenarioGames',
+    { ids },
+  );
   return rows.map((r) => ({
     id: r.id,
     platform: r.platform,
@@ -74,17 +59,11 @@ export async function getScenarioGames(
 }
 
 export async function getGame(id: string): Promise<GameRecord> {
-  const { data, error } = await supabase.from('games').select().eq('id', id).single();
-  if (error) throw error;
-  return gameRecordFromJson(data);
+  return gameRecordFromJson(await rpc<Tables<'games'>>('games.get', { id }));
 }
 
 export async function markGameAnalyzed(gameId: string): Promise<void> {
-  const { error } = await supabase
-    .from('games')
-    .update({ analyzed_at: new Date().toISOString() })
-    .eq('id', gameId);
-  if (error) throw error;
+  await rpc('games.markAnalyzed', { gameId });
 }
 
 export async function getUnanalyzedGameIds(opts: {
@@ -92,19 +71,8 @@ export async function getUnanalyzedGameIds(opts: {
   username: string;
 }): Promise<string[]> {
   const userId = await currentUserId();
-  const rows = await fetchAllRows(() => {
-    let q = supabase
-      .from('games')
-      .select('id')
-      .eq('platform', opts.platform)
-      .eq('username', opts.username)
-      .is('analyzed_at', null)
-      .order('played_at', { ascending: false, nullsFirst: false })
-      .order('id');
-    if (userId) q = q.eq('user_id', userId);
-    return q;
-  });
-  return rows.map((row) => (row as { id: string }).id);
+  if (!userId) return [];
+  return rpc<string[]>('games.unanalyzedIds', { platform: opts.platform, username: opts.username });
 }
 
 /**
@@ -115,25 +83,16 @@ export async function getUnanalyzedGameIds(opts: {
 export async function getLeftoverUnanalyzedGameIds(limit: number): Promise<string[]> {
   const userId = await currentUserId();
   if (!userId) return [];
-  const { data, error } = await supabase
-    .from('games')
-    .select('id')
-    .eq('user_id', userId)
-    .is('analyzed_at', null)
-    .order('played_at', { ascending: false, nullsFirst: false })
-    .order('id')
-    .limit(limit);
-  if (error) throw error;
-  return (data ?? []).map((row) => row.id);
+  return rpc<string[]>('games.leftoverUnanalyzedIds', { limit });
 }
 
 /**
  * Remembers a zero from countUnanalyzedGames for a short while. Every
  * background job (blunder maintenance, endgame verification, the openings
  * scan) uses the count as its "is sync analysis busy?" gate, and the openings
- * scan re-asks on every loop pass: ~120 HEAD requests per 10 minutes on an
- * open dashboard, nearly all answering 0. Only a zero is kept — while games
- * are waiting, the jobs poll on their own timers and must see the count drop
+ * scan re-asks on every loop pass: ~120 requests per 10 minutes on an open
+ * dashboard, nearly all answering 0. Only a zero is kept — while games are
+ * waiting, the jobs poll on their own timers and must see the count drop
  * promptly. In this tab, only inserting a game or clearing analyzed_at can
  * make it nonzero, and both forget it; another tab's import shows within the TTL.
  */
@@ -154,40 +113,24 @@ export async function countUnanalyzedGames(): Promise<number> {
   ) {
     return 0;
   }
-  const { count, error } = await supabase
-    .from('games')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .is('analyzed_at', null);
-  if (error) throw error;
-  unanalyzedZero = (count ?? 0) === 0 ? { userId, at: Date.now() } : null;
-  return count ?? 0;
+  const count = await rpc<number>('games.countUnanalyzed');
+  unanalyzedZero = count === 0 ? { userId, at: Date.now() } : null;
+  return count;
 }
 
+/**
+ * Delete one game (its blunders first; every other FK to games cascades).
+ * Returns the rows removed — 0 means it wasn't the caller's or is already gone.
+ */
 export async function deleteGame(gameId: string): Promise<number> {
-  // Blunders reference games; remove them first so the game row delete succeeds
-  // even without an ON DELETE CASCADE on the FK.
-  const { error: blundersError } = await supabase
-    .from('blunders')
-    .delete()
-    .eq('game_id', gameId);
-  if (blundersError) throw blundersError;
-  // `.select()` lets the caller detect a 0-row delete (e.g. blocked by RLS),
-  // which Supabase reports without an error.
-  const { data, error } = await supabase
-    .from('games')
-    .delete()
-    .eq('id', gameId)
-    .select('id');
-  if (error) throw error;
-  return data?.length ?? 0;
+  return rpc<number>('games.delete', { gameId });
 }
 
 /**
  * Bulk delete for the Vault ("Delete games…"). Blunders, endgame scenarios,
  * opening deviations and annotations go with their games (every FK to games
- * cascades). Chunked so the id list stays well inside URL limits. Returns the
- * rows actually removed — fewer than asked means a policy blocked some.
+ * cascades). Chunked so progress can be reported. Returns the rows actually
+ * removed — fewer than asked means some weren't the caller's.
  */
 export async function deleteGames(
   gameIds: string[],
@@ -196,24 +139,14 @@ export async function deleteGames(
   const CHUNK = 100;
   let deleted = 0;
   for (let i = 0; i < gameIds.length; i += CHUNK) {
-    const { data, error } = await supabase
-      .from('games')
-      .delete()
-      .in('id', gameIds.slice(i, i + CHUNK))
-      .select('id');
-    if (error) throw error;
-    deleted += data?.length ?? 0;
+    deleted += await rpc<number>('games.deleteMany', { ids: gameIds.slice(i, i + CHUNK) });
     onProgress?.(deleted);
   }
   return deleted;
 }
 
 export async function resetGameAnalyzed(gameId: string): Promise<void> {
-  const { error } = await supabase
-    .from('games')
-    .update({ analyzed_at: null })
-    .eq('id', gameId);
-  if (error) throw error;
+  await rpc('games.resetAnalyzed', { gameId });
   forgetUnanalyzedCount();
 }
 
@@ -221,22 +154,9 @@ export async function getExistingExternalGameIds(
   platform: string,
 ): Promise<Set<string>> {
   const userId = await currentUserId();
-  const ids = new Set<string>();
-  const rows = await fetchAllRows(() => {
-    let q = supabase
-      .from('games')
-      .select('external_game_id')
-      .eq('platform', platform)
-      .not('external_game_id', 'is', null)
-      .order('id');
-    if (userId) q = q.eq('user_id', userId);
-    return q;
-  });
-  for (const row of rows) {
-    const id = (row as { external_game_id: string | null }).external_game_id;
-    if (id) ids.add(id);
-  }
-  return ids;
+  if (!userId) return new Set();
+  const ids = await rpc<Array<string | null>>('games.externalIds', { platform });
+  return new Set(ids.filter((id): id is string => !!id));
 }
 
 export async function getGameCount(
@@ -244,15 +164,8 @@ export async function getGameCount(
   username: string,
 ): Promise<number> {
   const userId = await currentUserId();
-  let q = supabase
-    .from('games')
-    .select('id', { count: 'exact', head: true })
-    .eq('platform', platform)
-    .eq('username', username);
-  if (userId) q = q.eq('user_id', userId);
-  const { count, error } = await q;
-  if (error) throw error;
-  return count ?? 0;
+  if (!userId) return 0;
+  return rpc<number>('games.count', { platform, username });
 }
 
 /**
@@ -263,53 +176,29 @@ export async function getGameCount(
 export async function getGamesPlayedSince(since: Date): Promise<Date[]> {
   const userId = await currentUserId();
   if (!userId) return [];
-  const { data, error } = await supabase
-    .from('games')
-    .select('played_at')
-    .eq('user_id', userId)
-    .gte('played_at', since.toISOString())
-    .limit(500);
-  if (error) throw error;
-  return (data ?? [])
-    .map((r) => (r.played_at ? new Date(r.played_at) : null))
+  const playedAt = await rpc<Array<string | null>>('games.playedSince', { since: since.toISOString() });
+  return playedAt
+    .map((p) => (p ? new Date(p) : null))
     .filter((d): d is Date => d != null && !Number.isNaN(d.getTime()));
 }
 
 export async function getTotalGameCount(): Promise<number> {
   const userId = await currentUserId();
   if (!userId) return 0;
-  const { count, error } = await supabase
-    .from('games')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId);
-  if (error) throw error;
-  return count ?? 0;
+  return rpc<number>('games.totalCount');
 }
 
 export async function getUnparsedGames(opts?: { limit?: number }): Promise<GameRecord[]> {
   const userId = await currentUserId();
   if (!userId) return [];
-  let q = supabase
-    .from('games')
-    .select()
-    .eq('user_id', userId)
-    .is('parsed_metadata_at', null);
-  if (opts?.limit) q = q.limit(opts.limit);
-  const { data, error } = await q;
-  if (error) throw error;
-  return (data ?? []).map(gameRecordFromJson);
+  const rows = await rpc<Tables<'games'>[]>('games.unparsed', { limit: opts?.limit });
+  return rows.map(gameRecordFromJson);
 }
 
 export async function countUnparsedGames(): Promise<number> {
   const userId = await currentUserId();
   if (!userId) return 0;
-  const { count, error } = await supabase
-    .from('games')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .is('parsed_metadata_at', null);
-  if (error) throw error;
-  return count ?? 0;
+  return rpc<number>('games.countUnparsed');
 }
 
 /** Games still needing position-based opening classification, oldest first. */
@@ -318,28 +207,13 @@ export async function getUnclassifiedOpeningGames(opts?: {
 }): Promise<Array<{ id: string; pgn: string }>> {
   const userId = await currentUserId();
   if (!userId) return [];
-  let q = supabase
-    .from('games')
-    .select('id, pgn')
-    .eq('user_id', userId)
-    .is('opening_classified_at', null)
-    .order('id');
-  if (opts?.limit) q = q.limit(opts.limit);
-  const { data, error } = await q;
-  if (error) throw error;
-  return (data ?? []) as Array<{ id: string; pgn: string }>;
+  return rpc<Array<{ id: string; pgn: string }>>('games.unclassifiedOpenings', { limit: opts?.limit });
 }
 
 export async function countUnclassifiedOpeningGames(): Promise<number> {
   const userId = await currentUserId();
   if (!userId) return 0;
-  const { count, error } = await supabase
-    .from('games')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .is('opening_classified_at', null);
-  if (error) throw error;
-  return count ?? 0;
+  return rpc<number>('games.countUnclassifiedOpenings');
 }
 
 export interface GameOpeningPatch {
@@ -352,16 +226,12 @@ export interface GameOpeningPatch {
 
 /**
  * Write a batch of classified openings in one round trip (an active account has
- * thousands of games, so per-row PATCHes are far too slow). Returns the number
- * of rows the RPC actually updated.
+ * thousands of games, so per-row requests are far too slow). Returns the number
+ * of rows actually updated.
  */
 export async function applyGameOpenings(rows: GameOpeningPatch[]): Promise<number> {
   if (rows.length === 0) return 0;
-  const { data, error } = await supabase.rpc('apply_game_openings', {
-    p_rows: rows as unknown as TablesInsert<'games'>[] as never,
-  });
-  if (error) throw error;
-  return (data as number | null) ?? 0;
+  return rpc<number>('games.applyOpenings', { rows });
 }
 
 export async function updateGameMetadata(
@@ -376,9 +246,8 @@ export async function updateGameMetadata(
     totalPlies?: number | null;
   },
 ): Promise<void> {
-  const update: TablesUpdate<'games'> = {
-    parsed_metadata_at: new Date().toISOString(),
-  };
+  // parsed_metadata_at is stamped by the server.
+  const update: TablesUpdate<'games'> = {};
   if (patch.eco !== undefined) update.eco = patch.eco;
   if (patch.openingName !== undefined) update.opening_name = patch.openingName;
   if (patch.userColor !== undefined) update.user_color = patch.userColor;
@@ -386,6 +255,5 @@ export async function updateGameMetadata(
   if (patch.opponentRating !== undefined) update.opponent_rating = patch.opponentRating;
   if (patch.clockPerPly !== undefined) update.clock_per_ply = patch.clockPerPly;
   if (patch.totalPlies !== undefined) update.total_plies = patch.totalPlies;
-  const { error } = await supabase.from('games').update(update).eq('id', gameId);
-  if (error) throw error;
+  await rpc('games.updateMetadata', { gameId, patch: update });
 }

@@ -1,5 +1,5 @@
-import { supabase, toJson } from '../../lib/supabase';
-import type { TablesInsert } from '../../lib/database.types';
+import { rpc } from '../../lib/api';
+import type { Tables, TablesInsert } from '../../lib/database.types';
 import {
   Blunder,
   blunderFromJson,
@@ -8,86 +8,60 @@ import {
   sortDueQueue,
 } from '../../models/blunder';
 import { currentUserId } from './currentUser';
-import { fetchAllRows, fetchInChunks } from './paginate';
+
+// Server side: functions/_shared/rpc/training.ts (`blunders.*`). Every handler
+// is scoped to the session user (that replaced RLS), so the old optional
+// `userId` filters are implicit and kept only for signature compatibility.
+
+type BlunderRow = Tables<'blunders'>;
+
+/** Rows per insert call (one D1 batch each). */
+const INSERT_CHUNK = 500;
 
 export async function insertBlunders(
   blunders: Omit<TablesInsert<'blunders'>, 'user_id'>[],
 ): Promise<void> {
   if (blunders.length === 0) return;
-  const userId = await currentUserId();
   // Analysis callers predate `kind` and omit it — they are always tactics.
-  const enriched: TablesInsert<'blunders'>[] = blunders.map((b) => ({
-    kind: 'tactic',
-    ...b,
-    ...(userId ? { user_id: userId } : {}),
-  }));
-  // Drop intra-batch duplicates (e.g. threefold repetition) — Postgres rejects
-  // an upsert payload that conflicts with itself on the onConflict target.
+  // The server sets user_id from the session.
+  const enriched = blunders.map((b) => ({ kind: 'tactic', ...b }));
+  // Drop intra-batch duplicates (e.g. threefold repetition) on the
+  // (user_id, fen, kind) conflict target.
   const seen = new Set<string>();
-  const deduped: TablesInsert<'blunders'>[] = [];
+  const deduped: typeof enriched = [];
   for (const row of enriched) {
-    const key = `${row.user_id ?? ''}|${row.fen ?? ''}|${row.kind ?? ''}`;
+    const key = `${row.fen ?? ''}|${row.kind ?? ''}`;
     if (seen.has(key)) continue;
     seen.add(key);
     deduped.push(row);
   }
-  const { error } = await supabase
-    .from('blunders')
-    .upsert(deduped, { onConflict: 'user_id,fen,kind', ignoreDuplicates: true });
-  if (error) throw error;
+  for (let i = 0; i < deduped.length; i += INSERT_CHUNK) {
+    await rpc('blunders.insert', { blunders: deduped.slice(i, i + INSERT_CHUNK) });
+  }
 }
 
 // Game-analysis views (Vault, Review) show blunders *found in the game* —
 // endgame play-out slips also carry a game_id but aren't part of the game's
 // analysis, so these stay tactic-only.
 export async function getBlundersForGames(gameIds: string[]): Promise<Blunder[]> {
-  const rows = await fetchInChunks(gameIds, (chunk) =>
-    fetchAllRows(() =>
-      supabase.from('blunders').select().in('game_id', chunk).eq('kind', 'tactic').order('id'),
-    ),
-  );
+  if (gameIds.length === 0) return [];
+  const rows = await rpc<BlunderRow[]>('blunders.forGames', { gameIds });
   return rows.map(blunderFromJson).sort((a, b) => a.moveNumber - b.moveNumber);
 }
 
-export async function getBlunderCountsByGame(opts?: {
+export async function getBlunderCountsByGame(_opts?: {
   userId?: string;
 }): Promise<Record<string, number>> {
-  // One aggregate round trip; the paged tally below is the fallback until the
-  // RPC's migration is live (and for any error it raises).
-  const { data, error } = await supabase.rpc('blunder_counts_by_game');
-  if (!error && data && typeof data === 'object' && !Array.isArray(data)) {
-    return data as Record<string, number>;
-  }
-  const rows = await fetchAllRows(() => {
-    let q = supabase.from('blunders').select('game_id').eq('kind', 'tactic').order('id');
-    if (opts?.userId) q = q.eq('user_id', opts.userId);
-    return q;
-  });
-  const counts: Record<string, number> = {};
-  for (const row of rows as Array<{ game_id: string }>) {
-    counts[row.game_id] = (counts[row.game_id] ?? 0) + 1;
-  }
-  return counts;
+  // One aggregate round trip: { game_id: tactic count }.
+  return rpc<Record<string, number>>('blunders.countsByGame');
 }
 
-export async function getDueBlunders(opts?: { userId?: string }): Promise<Blunder[]> {
-  const now = new Date().toISOString();
+export async function getDueBlunders(_opts?: { userId?: string }): Promise<Blunder[]> {
   // Retired rows (deepening showed the position wasn't really a blunder) are
   // hidden from the queue but keep their SR history and stay in Vault/stats.
-  // Paged: a backlog past PostgREST's 1000-row cap used to show "Review 1000".
-  const rows = await fetchAllRows(() => {
-    let q = supabase
-      .from('blunders')
-      .select()
-      .lte('next_drill_at', now)
-      .is('retired_at', null)
-      .order('next_drill_at', { ascending: true })
-      .order('id');
-    if (opts?.userId) q = q.eq('user_id', opts.userId);
-    return q;
-  });
   // Final ordering (pressing reviews → mastered maintenance → new, by relative
   // overdue-ness) happens client-side in sortDueQueue — see its docstring for why.
+  const rows = await rpc<BlunderRow[]>('blunders.due');
   return sortDueQueue(rows.map(blunderFromJson));
 }
 
@@ -97,33 +71,16 @@ export async function getDueBlunders(opts?: { userId?: string }): Promise<Blunde
  */
 export async function getLiveBlunderIdsForGames(gameIds: string[]): Promise<string[]> {
   if (gameIds.length === 0) return [];
-  const { data, error } = await supabase
-    .from('blunders')
-    .select('id')
-    .in('game_id', gameIds.slice(0, 200))
-    .in('kind', ['tactic', 'endgame'])
-    .is('retired_at', null);
-  if (error) throw error;
-  return (data ?? []).map((r) => r.id as string);
+  return rpc<string[]>('blunders.liveIdsForGames', { gameIds: gameIds.slice(0, 200) });
 }
 
 /**
  * The oldest due tactic — the position the onboarding screen previews while
  * analysis is still running. One row, so it can poll cheaply.
  */
-export async function getFirstDueTactic(userId: string): Promise<Blunder | null> {
-  const { data, error } = await supabase
-    .from('blunders')
-    .select()
-    .eq('user_id', userId)
-    .eq('kind', 'tactic')
-    .lte('next_drill_at', new Date().toISOString())
-    .is('retired_at', null)
-    .order('next_drill_at', { ascending: true })
-    .order('id')
-    .limit(1);
-  if (error) throw error;
-  return data && data.length > 0 ? blunderFromJson(data[0]) : null;
+export async function getFirstDueTactic(_userId: string): Promise<Blunder | null> {
+  const row = await rpc<BlunderRow | null>('blunders.firstDueTactic');
+  return row ? blunderFromJson(row) : null;
 }
 
 /**
@@ -131,18 +88,9 @@ export async function getFirstDueTactic(userId: string): Promise<Blunder | null>
  * mastery views on /openings. Not filtered by due date.
  */
 export async function getDrillsOfKind(kind: 'opening' | 'endgame'): Promise<Blunder[]> {
-  // Explicit user_id (RLS scopes it anyway) so the (user_id, kind) index is used.
   const userId = await currentUserId();
   if (!userId) return [];
-  const rows = await fetchAllRows(() =>
-    supabase
-      .from('blunders')
-      .select()
-      .eq('user_id', userId)
-      .eq('kind', kind)
-      .is('retired_at', null)
-      .order('id'),
-  );
+  const rows = await rpc<BlunderRow[]>('blunders.drillsOfKind', { kind });
   return rows.map(blunderFromJson);
 }
 
@@ -151,9 +99,7 @@ export async function getDrillsOfKind(kind: 'opening' | 'endgame'): Promise<Blun
  * the Vault's position lists (blunders, mastered).
  */
 export async function getAllLiveBlunders(): Promise<Blunder[]> {
-  const rows = await fetchAllRows(() =>
-    supabase.from('blunders').select().is('retired_at', null).order('created_at', { ascending: false }).order('id'),
-  );
+  const rows = await rpc<BlunderRow[]>('blunders.allLive');
   return rows.map(blunderFromJson);
 }
 
@@ -163,11 +109,8 @@ export async function getAllLiveBlunders(): Promise<Blunder[]> {
  * early still goes through the normal SR rules.
  */
 export async function getBlundersByIds(ids: string[]): Promise<Blunder[]> {
-  const rows = await fetchInChunks(ids, async (chunk) => {
-    const { data, error } = await supabase.from('blunders').select().in('id', chunk).is('retired_at', null);
-    if (error) throw error;
-    return data ?? [];
-  });
+  if (ids.length === 0) return [];
+  const rows = await rpc<BlunderRow[]>('blunders.byIds', { ids });
   return sortDueQueue(rows.map(blunderFromJson));
 }
 
@@ -176,77 +119,49 @@ export async function getDueCount(opts?: {
   userId?: string;
   excludeKind?: 'opening' | 'endgame' | 'tactic';
 }): Promise<number> {
-  let q = supabase
-    .from('blunders')
-    .select('id', { count: 'exact', head: true })
-    .lte('next_drill_at', new Date().toISOString())
-    .is('retired_at', null);
-  if (opts?.userId) q = q.eq('user_id', opts.userId);
-  if (opts?.excludeKind) q = q.neq('kind', opts.excludeKind);
-  const { count, error } = await q;
-  if (error) throw error;
-  return count ?? 0;
+  return rpc<number>('blunders.dueCount', { excludeKind: opts?.excludeKind ?? null });
 }
 
-export async function getDueTomorrowCount(opts?: { userId?: string }): Promise<number> {
+export async function getDueTomorrowCount(_opts?: { userId?: string }): Promise<number> {
+  // Local-day bounds: the server doesn't know the browser's timezone.
   const now = new Date();
   const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   const startOfDayAfter = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
-  let q = supabase
-    .from('blunders')
-    .select('*', { count: 'exact', head: true })
-    .gte('next_drill_at', startOfTomorrow.toISOString())
-    .lt('next_drill_at', startOfDayAfter.toISOString());
-  if (opts?.userId) q = q.eq('user_id', opts.userId);
-  const { count, error } = await q;
-  if (error) throw error;
-  return count ?? 0;
+  return rpc<number>('blunders.dueBetweenCount', {
+    from: startOfTomorrow.toISOString(),
+    to: startOfDayAfter.toISOString(),
+  });
 }
 
 export async function appendCorrectMove(
   blunderId: string,
   updatedMoves: CorrectMove[],
 ): Promise<void> {
-  const { error } = await supabase
-    .from('blunders')
-    .update({ correct_moves: toJson(updatedMoves) })
-    .eq('id', blunderId);
-  if (error) throw error;
+  await rpc('blunders.setCorrectMoves', { id: blunderId, correctMoves: updatedMoves });
 }
 
 export async function updateBlunderAfterDrill(blunder: Blunder): Promise<void> {
   const next = nextDrillDate(blunder);
-  const { error } = await supabase
-    .from('blunders')
-    .update({
+  await rpc('blunders.updateAfterDrill', {
+    id: blunder.id,
+    patch: {
       cycle_number: blunder.cycleNumber,
       last_drilled_at: new Date().toISOString(),
       next_drill_at: next.toISOString(),
       times_correct: blunder.timesCorrect,
       times_attempted: blunder.timesAttempted,
       last_drill_failed: blunder.lastDrillFailed,
-    })
-    .eq('id', blunder.id);
-  if (error) throw error;
+    },
+  });
 }
 
 /** Candidate pool for the endgame scan: the user's endgame-phase analysis blunders. */
 export async function getEndgameCandidateBlunders(): Promise<Blunder[]> {
   const userId = await currentUserId();
   if (!userId) return [];
-  const rows = await fetchAllRows(() =>
-    supabase
-      .from('blunders')
-      .select()
-      .eq('user_id', userId)
-      .eq('kind', 'tactic')
-      .eq('phase', 'endgame')
-      // Rows the deeper pass retired weren't real blunders — don't seed
-      // scenarios from them.
-      .is('retired_at', null)
-      .order('move_number')
-      .order('id'),
-  );
+  // Rows the deeper pass retired weren't real blunders — the server leaves
+  // them out so they don't seed scenarios.
+  const rows = await rpc<BlunderRow[]>('blunders.endgameCandidates');
   return rows.map(blunderFromJson);
 }
 
@@ -260,15 +175,13 @@ export async function updateBlunderEnrichment(
     deepened_at?: string;
   },
 ): Promise<void> {
-  const update = { ...enrichment, solution_line: toJson(enrichment.solution_line) };
-  const { error } = await supabase.from('blunders').update(update).eq('id', id);
-  if (error) throw error;
+  await rpc('blunders.updateEnrichment', { id, patch: enrichment });
 }
 
 /**
  * Persist a background deepening pass: rewritten evals/PV/motifs plus the
- * deepening metadata. Always an UPDATE — `insertBlunders` upserts with
- * ignoreDuplicates, so a re-insert of the same (user, fen, kind) is a no-op.
+ * deepening metadata. Always an UPDATE — `insertBlunders` ignores duplicates,
+ * so a re-insert of the same (user, fen, kind) is a no-op.
  */
 export async function updateBlunderDeepening(
   id: string,
@@ -284,96 +197,45 @@ export async function updateBlunderDeepening(
     retired_at: string | null;
   },
 ): Promise<void> {
-  const update = {
-    ...patch,
-    correct_moves: toJson(patch.correct_moves),
-    solution_line: toJson(patch.solution_line),
-  };
-  const { error } = await supabase.from('blunders').update(update).eq('id', id);
-  if (error) throw error;
+  await rpc('blunders.updateDeepening', { id, patch });
 }
 
 export async function countBlundersForDeepening(): Promise<number> {
   const userId = await currentUserId();
   if (!userId) return 0;
-  const { count, error } = await supabase
-    .from('blunders')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .in('kind', ['tactic', 'endgame'])
-    .not('solution_line', 'is', null)
-    .is('deepened_at', null);
-  if (error) throw error;
-  return count ?? 0;
+  return rpc<number>('blunders.countForDeepening');
 }
 
 /** Rows awaiting their timed background re-analysis, shallowest first. */
 export async function getBlundersForDeepening(opts: { limit: number }): Promise<Blunder[]> {
   const userId = await currentUserId();
   if (!userId) return [];
-  const { data, error } = await supabase
-    .from('blunders')
-    .select()
-    .eq('user_id', userId)
-    .in('kind', ['tactic', 'endgame'])
-    .not('solution_line', 'is', null)
-    .is('deepened_at', null)
-    .order('analysis_depth', { ascending: true, nullsFirst: true })
-    .order('created_at', { ascending: false })
-    .limit(opts.limit);
-  if (error) throw error;
-  return (data ?? []).map(blunderFromJson);
+  const rows = await rpc<BlunderRow[]>('blunders.forDeepening', { limit: opts.limit });
+  return rows.map(blunderFromJson);
 }
 
 export async function countUnenrichedBlunders(): Promise<number> {
   const userId = await currentUserId();
   if (!userId) return 0;
-  const { count, error } = await supabase
-    .from('blunders')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('kind', 'tactic')
-    .is('solution_line', null);
-  if (error) throw error;
-  return count ?? 0;
+  return rpc<number>('blunders.countUnenriched');
 }
 
 export async function getUnenrichedBlunders(opts: { limit: number }): Promise<Blunder[]> {
   const userId = await currentUserId();
   if (!userId) return [];
-  const { data, error } = await supabase
-    .from('blunders')
-    .select()
-    .eq('user_id', userId)
-    .eq('kind', 'tactic')
-    .is('solution_line', null)
-    .order('created_at', { ascending: false })
-    .limit(opts.limit);
-  if (error) throw error;
-  return (data ?? []).map(blunderFromJson);
+  const rows = await rpc<BlunderRow[]>('blunders.unenriched', { limit: opts.limit });
+  return rows.map(blunderFromJson);
 }
 
 // Opening items are deduped across every game that reaches the same position
 // but keep only one game_id, so re-analyzing that one game must not wipe an
 // item (and its SR progress) the other games share.
 export async function deleteBlundersForGame(gameId: string): Promise<void> {
-  const { error } = await supabase
-    .from('blunders')
-    .delete()
-    .eq('game_id', gameId)
-    .neq('kind', 'opening');
-  if (error) throw error;
+  await rpc('blunders.deleteForGame', { gameId });
 }
 
 export async function deleteBlunder(blunderId: string): Promise<number> {
-  // `.select()` returns the rows actually deleted. A row-level policy that
-  // blocks the delete removes 0 rows WITHOUT raising an error, so callers must
-  // check the returned count to know the delete really happened.
-  const { data, error } = await supabase
-    .from('blunders')
-    .delete()
-    .eq('id', blunderId)
-    .select('id');
-  if (error) throw error;
-  return data?.length ?? 0;
+  // The rows actually deleted: 0 means the row wasn't the caller's (or is
+  // already gone), so callers must check it to know the delete happened.
+  return rpc<number>('blunders.delete', { id: blunderId });
 }

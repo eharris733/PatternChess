@@ -1,36 +1,24 @@
-import { supabase, toJson } from '../../lib/supabase';
+import { rpc } from '../../lib/api';
+import type { Tables } from '../../lib/database.types';
 import {
   GameAnnotation,
   gameAnnotationFromJson,
   MoveAnnotation,
   moveAnnotationToJson,
 } from '../../models/gameAnnotation';
-import { currentUserId } from './currentUser';
+
+// Server side: functions/_shared/rpc/training.ts (`annotations.*`), scoped to
+// the session user's own games.
 
 export async function getAnnotations(gameId: string): Promise<GameAnnotation | null> {
-  const { data, error } = await supabase
-    .from('game_annotations')
-    .select()
-    .eq('game_id', gameId)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) return null;
-  return gameAnnotationFromJson(data);
+  const row = await rpc<Tables<'game_annotations'> | null>('annotations.get', { gameId });
+  return row ? gameAnnotationFromJson(row) : null;
 }
 
 export async function saveAnnotations(
   gameId: string,
   annotations: MoveAnnotation[],
 ): Promise<void> {
-  const userId = await currentUserId();
-  const payload = {
-    game_id: gameId,
-    user_id: userId,
-    annotations: toJson(annotations.map(moveAnnotationToJson)),
-    updated_at: new Date().toISOString(),
-  };
-  const { error } = await supabase
-    .from('game_annotations')
-    .upsert(payload, { onConflict: 'game_id' });
-  if (error) throw error;
+  // Upsert on game_id; the server sets user_id and updated_at.
+  await rpc('annotations.save', { gameId, annotations: annotations.map(moveAnnotationToJson) });
 }

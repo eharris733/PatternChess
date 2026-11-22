@@ -1,4 +1,5 @@
-import { supabase } from '../../lib/supabase';
+import { rpc } from '../../lib/api';
+import type { Tables } from '../../lib/database.types';
 
 export interface BenchmarkRow {
   kind: string;
@@ -9,11 +10,8 @@ export interface BenchmarkRow {
 }
 
 export async function getBenchmarks(kind?: string): Promise<BenchmarkRow[]> {
-  let q = supabase.from('benchmarks').select();
-  if (kind) q = q.eq('kind', kind);
-  const { data, error } = await q;
-  if (error) throw error;
-  return (data ?? []).map((row) => ({
+  const rows = await rpc<Tables<'benchmarks'>[]>('benchmarks.list', { kind: kind ?? null });
+  return rows.map((row) => ({
     kind: row.kind,
     bucket: row.bucket,
     value: Number(row.value),
