@@ -8,14 +8,22 @@ import { ChevronIcon } from '../icons/ChevronIcon';
  */
 export function VaultSelect({
   className,
+  fill = false,
   children,
   ...props
-}: React.SelectHTMLAttributes<HTMLSelectElement>) {
+}: React.SelectHTMLAttributes<HTMLSelectElement> & {
+  /** Fill its grid cell on phones, natural width from `sm` up. */
+  fill?: boolean;
+}) {
   return (
-    <div className="relative">
+    <div className={clsx('relative', fill && 'min-w-0 w-full sm:w-auto')}>
       <select
         {...props}
-        className={clsx('input h-9 w-auto appearance-none pr-9 cursor-pointer', className)}
+        className={clsx(
+          'input h-9 appearance-none pr-9 cursor-pointer',
+          fill ? 'w-full sm:w-auto' : 'w-auto',
+          className,
+        )}
       >
         {children}
       </select>

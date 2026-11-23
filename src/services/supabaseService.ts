@@ -15,6 +15,7 @@ import * as leaderboardDb from './db/leaderboard';
 import * as openingDeviationsDb from './db/openingDeviations';
 import * as repertoireDb from './db/repertoire';
 import * as supportersDb from './db/supporters';
+import * as vaultDb from './db/vault';
 
 export * from './db/games';
 export * from './db/blunders';
@@ -28,6 +29,7 @@ export * from './db/leaderboard';
 export * from './db/openingDeviations';
 export * from './db/repertoire';
 export * from './db/supporters';
+export * from './db/vault';
 
 export const supabaseService = {
   ...gamesDb,
@@ -42,4 +44,5 @@ export const supabaseService = {
   ...openingDeviationsDb,
   ...repertoireDb,
   ...supportersDb,
+  ...vaultDb,
 };
