@@ -9,7 +9,7 @@ author: "Elliot Harris"
 
 ## Why review your own games at all
 
-You can study openings and watch grandmaster videos for years and still lose the same way every week. The fastest feedback loop in chess is your own games, because they contain your actual mistakes — not hypothetical ones. Reviewing them is how you find the patterns that are specifically costing you rating.
+You can study openings and watch grandmaster videos for years and still lose the same way every week. The fastest feedback loop in chess is your own games, because they hold the exact mistakes you make. Reviewing them is how you find the patterns that are specifically costing you rating.
 
 ## Do your own review first, then check the engine
 
@@ -32,4 +32,4 @@ The mistake most players make is to analyze a game, nod, and move on. You will f
 
 ## Make it automatic
 
-Doing all of this by hand — exporting games, running an engine, extracting positions, scheduling reviews — is a lot of work, which is why most people skip it. PatternChess does it for you: connect a Chess.com or Lichess account, and it imports your games, finds your blunders with Stockfish, and schedules them for spaced-repetition drilling. [Try it free](/login).
+Doing all of this by hand — exporting games, running an engine, extracting positions, scheduling reviews — is a lot of work, which is why most people skip it. PatternChess does it for you: connect a Chess.com or Lichess account, and it imports your games, finds your blunders with Stockfish, and hands you a few each day as part of a daily plan. [Start your daily plan](/login), free.

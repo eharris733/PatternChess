@@ -187,7 +187,7 @@ export function TrainingLadder() {
           })}
         </div>
         <div className="mt-4 font-mono uppercase text-[10px] tracking-tight text-text-secondary text-right">
-          Each drill survived advances you one rung.
+          Every first-try solve moves it up one rung.
         </div>
       </div>
     </div>

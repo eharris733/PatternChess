@@ -35,7 +35,7 @@ export function SocialProofBadge() {
             <Stat target={data.positionsReviewed} label="Positions reviewed" active={inView} />
             <Stat
               target={data.eloGained}
-              label="ELO gained by players"
+              label="Elo gained by players"
               prefix="+"
               accent
               active={inView}

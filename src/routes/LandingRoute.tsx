@@ -31,7 +31,7 @@ export function LandingRoute() {
   const demo = useDemoAnalysis();
   useForceDefaultTheme();
   useHead({
-    title: 'PatternChess — Train the blunders from your own chess games',
+    title: 'PatternChess — Stop procrastinating your improvement',
     description: SITE_DESCRIPTION,
     canonical: '/',
     jsonLd: [
@@ -39,8 +39,8 @@ export function LandingRoute() {
       websiteJsonLd(),
       softwareApplicationJsonLd(),
       howToJsonLd(
-        'How PatternChess trains the blunders from your own games',
-        'Import your games, let Stockfish find the blunders, then drill them on a four-rep spaced-repetition ladder until the right move is automatic.',
+        'How to build a daily chess-improvement habit with PatternChess',
+        'Import your games, let Stockfish find your blunders, then train a few every day on a four-rep spaced-repetition ladder while you keep playing.',
         HOW_IT_WORKS_STEPS.map((s) => ({ name: s.title, text: s.body })),
       ),
     ],

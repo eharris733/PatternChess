@@ -6,6 +6,7 @@ import {
   COMMITMENT_LABEL,
   COMMITMENT_PRESETS,
   COMMITMENT_PRESET_ORDER,
+  COMMITMENT_TAGLINE,
   DEFAULT_DAILY_GOALS,
   GAMES_PER_DAY_RANGE,
   POSITIONS_PER_DAY_RANGE,
@@ -93,6 +94,7 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
             >
               <span className="text-sm font-semibold text-text-primary">{COMMITMENT_LABEL[level]}</span>
               <span className="text-xs text-text-primary">{presetSummary(p.positionsPerDay, p.gamesPerDay)}</span>
+              <span className="text-xs text-text-secondary">{COMMITMENT_TAGLINE[level]}</span>
             </button>
           );
         })}
@@ -145,6 +147,7 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
           </>
         )}
       </div>
+      <p className="text-xs text-text-secondary">Smaller plans you actually finish beat big ones you skip.</p>
       {error && <p className="text-incorrect text-sm">{error}</p>}
     </div>
   );

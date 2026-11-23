@@ -17,7 +17,7 @@ const distDir = join(here, '..', 'dist');
 const SITE_URL = 'https://patternchess.com';
 const SITE_NAME = 'PatternChess';
 const SITE_DESCRIPTION =
-  'PatternChess turns the blunders from your own chess games into spaced-repetition drills, using the Woodpecker Method so you stop making the same mistakes twice.';
+  'PatternChess turns the blunders from your Lichess and Chess.com games into a free daily training plan: play a game, train a few positions with spaced repetition, keep your streak.';
 
 // Routes a crawler should index. Gated app routes and /p are excluded.
 const STATIC_ROUTES = [
@@ -108,8 +108,8 @@ function main() {
   const llms =
     `# ${SITE_NAME}\n\n> ${SITE_DESCRIPTION}\n\n` +
     `## Core pages\n` +
-    `- [Home](${SITE_URL}/): What PatternChess is and how it trains the blunders from your own games.\n` +
-    `- [About & glossary](${SITE_URL}/about): What the app is, the Woodpecker Method, and definitions of blunder, spaced repetition, and winning chances.\n` +
+    `- [Home](${SITE_URL}/): What PatternChess is: a free daily training plan built from the blunders in your own games.\n` +
+    `- [About & glossary](${SITE_URL}/about): What the app is, the Woodpecker Method, and definitions of blunder, spaced repetition, winning chances, daily plan, and streak.\n` +
     `- [FAQ](${SITE_URL}/faq): Answers to common questions about PatternChess and chess improvement.\n` +
     `- [Chess GIF maker](${SITE_URL}/moments): Free tool that turns a PGN move sequence into an animated, shareable chess GIF or board screenshot.\n\n` +
     `## Blog\n` +

@@ -33,8 +33,8 @@ const BEATS: Beat[] = [
     body: (
       <>
         To improve, your brain has to struggle with the same idea — many times over. Most chess
-        training skips this. Blitz while half-watching TV trains nothing. Puzzles slip away the
-        moment you solve them.<Cite n="1" /> Patterns stick when you face the same position on
+        training skips this. Blitz while half-watching TV trains nothing. Puzzles fade within a
+        day of solving them.<Cite n="1" /> Patterns stick when you face the same position on
         different days until the answer is automatic.<Cite n="2" /><Cite n="3" />
       </>
     ),
@@ -44,9 +44,9 @@ const BEATS: Beat[] = [
     title: 'Blunders decide your games',
     body: (
       <>
-        Most games below 2000 elo are decided by one player handing the other a winning position.
-        I've coached adult improvers for years and climbed to 2100 chess.com myself — that's the
-        pattern, every time. Not a set of strategic innacuracies; One missed move. That's what you need to drill.
+        Most games below 2000 Elo are decided by one player handing the other a winning position.
+        I've coached adult improvers for years and climbed to 2300+ on chess.com myself, and I see
+        the same thing every time: one missed move decides the game. That's what you need to drill.
       </>
     ),
   },
@@ -57,8 +57,20 @@ const BEATS: Beat[] = [
       <>
         The patterns that keep beating you are sitting in your own losses. PatternChess pulls
         your games from Chess.com or Lichess, runs Stockfish over them, and collects the moves
-        where you actually lost ground into one structured set. Same shrinking-interval drill
-        that took Tikkanen to three GM norms in seven weeks.<Cite n="4" />
+        where you actually lost ground into one structured set. It's the same
+        repeat-until-automatic idea Tikkanen used on his way to three GM norms in seven
+        weeks.<Cite n="4" />
+      </>
+    ),
+  },
+  {
+    num: '04',
+    title: 'Consistency compounds',
+    body: (
+      <>
+        Ten minutes today does more than two hours next Sunday. Spaced practice works because it
+        gives you time to digest new chess patterns.<Cite n="3" /> The hard part is showing up, so
+        we made it easy: a daily plan, a streak, and reminders to keep you consistent.
       </>
     ),
   },

@@ -34,7 +34,7 @@ export function AboutCreator() {
             <p className="text-base sm:text-lg text-text-primary leading-relaxed">
               The issue was, these positions taught me how to win. They didn't teach me how to
               stop losing. Without an expensive coach, no one could tell me exactly where my
-              blindspots were, and I had no way of training the exact positions I was losing
+              blind spots were, and I had no way of training the exact positions I was losing
               in. As a professional software engineer, I thought I might finally be able to
               come up with a solution. So I built one.
             </p>

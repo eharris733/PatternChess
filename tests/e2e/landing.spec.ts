@@ -11,14 +11,14 @@ test.describe('landing page', () => {
 
     // Auth CTAs both link to /login.
     const loginLink = page.getByRole('link', { name: /^Log in$/i });
-    const signupLink = page.getByRole('link', { name: /^Sign up$/i });
+    const signupLink = page.getByRole('link', { name: /^Sign up free$/i });
     await expect(loginLink).toBeVisible();
     await expect(signupLink).toBeVisible();
     await expect(loginLink).toHaveAttribute('href', '/login');
     await expect(signupLink).toHaveAttribute('href', '/login');
 
-    // Hero headline mentions "blunder".
-    await expect(page.getByRole('heading', { level: 1 })).toContainText(/blunder/i);
+    // Hero headline.
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(/Stop procrastinating your improvement/i);
 
     // Username input + platform toggle.
     await expect(page.getByPlaceholder(/ENTER USERNAME/i)).toBeVisible();
@@ -26,7 +26,7 @@ test.describe('landing page', () => {
     await expect(page.getByRole('button', { name: /^Chess\.com$/i, exact: false })).toBeVisible();
 
     // Submit button.
-    await expect(page.getByRole('button', { name: /Analyze Blunders/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Find my blunders/i })).toBeVisible();
 
     // "How it works" section heading.
     await expect(page.getByRole('heading', { name: /How it works/i })).toBeVisible();
@@ -37,7 +37,7 @@ test.describe('landing page', () => {
     await expect(footer.getByRole('link', { name: /^Terms$/i })).toBeVisible();
 
     // About-the-creator section is present.
-    await expect(page.getByRole('heading', { name: /Who built this/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Why I built this/i })).toBeVisible();
   });
 
   test('clicking Log in navigates to /login', async ({ page }) => {

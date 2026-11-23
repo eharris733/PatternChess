@@ -35,6 +35,14 @@ export const COMMITMENT_LABEL: Record<CommitmentLevel, string> = {
   custom: 'Custom',
 };
 
+/** One line per preset on what it gets you (CommitmentPicker). */
+export const COMMITMENT_TAGLINE: Record<CommitmentPreset, string> = {
+  casual: 'A coffee-break habit, small enough to never skip.',
+  regular: 'Steady progress, done before dinner.',
+  serious: 'For players with a rating target in mind.',
+  obsessed: 'Your opponents should be worried. So should your family.',
+};
+
 /** Bounds match the profiles check constraints. */
 export const POSITIONS_PER_DAY_RANGE = { min: 1, max: 100 } as const;
 export const GAMES_PER_DAY_RANGE = { min: 0, max: 10 } as const;

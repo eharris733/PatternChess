@@ -19,7 +19,7 @@ export function LoginRoute() {
   // fallback. Keep it out of search: it is a pure sign-in surface.
   useHead({
     title: 'Log in',
-    description: 'Sign in to PatternChess with Google or Lichess to train the blunders from your own games.',
+    description: 'Sign in to PatternChess with Google or Lichess and get your daily chess plan.',
     canonical: '/login',
     robots: 'noindex,follow',
   });
@@ -78,7 +78,7 @@ export function LoginRoute() {
           <h1 className="sr-only">Log in to PatternChess</h1>
           <BrandLockup size="xl" />
           <p className="text-text-secondary text-sm">
-            Don't play the same blunder twice.
+            Your daily plan is one click away.
           </p>
         </div>
         <div className="flex flex-col gap-3">

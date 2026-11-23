@@ -23,6 +23,8 @@ import { StatStrip } from '../components/insights/StatStrip';
 import { useBlunderStats } from '../hooks/useBlunderStats';
 import { Skeleton } from '../components/Skeleton';
 import { FreshBlundersCard } from '../components/insights/FreshBlundersCard';
+import { streakStatus } from '../services/streakService';
+import type { UserProfile } from '../models/userProfile';
 
 // Background jobs wait this long after the dashboard mounts.
 const JOB_START_DELAY_MS = 3_000;
@@ -89,7 +91,7 @@ export function DashboardRoute() {
             <h1 className="heading-xl">{firstName}, let's get started.</h1>
           </>
         ) : (
-          <h1 className="heading-xl">Hey {firstName}</h1>
+          <h1 className="heading-xl">{greeting(profile, firstName)}</h1>
         )}
       </header>
 
@@ -120,7 +122,7 @@ export function DashboardRoute() {
           ) : (
             <p className="heading-md mt-2">{gamesCount} games</p>
           )}
-          <p className="text-text-secondary text-sm mt-1">Browse and review your imports.</p>
+          <p className="text-text-secondary text-sm mt-1">Every game you've imported, and the blunders in each.</p>
         </button>
       )}
 
@@ -132,4 +134,19 @@ export function DashboardRoute() {
       <GameStateCard />
     </div>
   );
+}
+
+// The most-seen line carries the streak; a lapsed streak gets a welcome back.
+function greeting(profile: UserProfile | null, firstName: string): string {
+  if (profile && profile.currentStreakDays > 0) {
+    const { alive } = streakStatus({
+      currentStreakDays: profile.currentStreakDays,
+      lastDrillLocalDate: profile.lastDrillLocalDate,
+      timezone: profile.timezone,
+      streakFreezes: profile.streakFreezes,
+    });
+    if (!alive) return `Welcome back, ${firstName}.`;
+    if (profile.currentStreakDays >= 2) return `Day ${profile.currentStreakDays}, ${firstName}. Keep it going.`;
+  }
+  return `Hey ${firstName}`;
 }

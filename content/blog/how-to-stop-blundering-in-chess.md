@@ -1,6 +1,6 @@
 ---
 title: "How to Stop Blundering in Chess"
-description: "Blunders, not strategy, decide most club games. Here is how to stop making the same chess blunder twice — by training the mistakes from your own games."
+description: "Blunders decide most club games. Here is how to stop making the same chess blunder twice — by training the mistakes from your own games."
 slug: how-to-stop-blundering-in-chess
 date: "2026-06-12"
 tags: ["improvement", "blunders"]
@@ -9,9 +9,9 @@ author: "Elliot Harris"
 
 ## Blunders decide most games below master level
 
-If you are stuck at the same rating, the cause is rarely your opening knowledge. It is the one move a game where you hang a piece, miss a one-move threat, walk into a tactic, or [let a won endgame slip](/blog/train-your-own-endgames). At club level, most games are decided by a single blunder — one player hands the other a winning position, and the rest is formality.
+If you are stuck at the same rating, look for the one move a game where you hang a piece, miss a one-move threat, walk into a tactic, or [let a won endgame slip](/blog/train-your-own-endgames). At club level, most games are decided by a single blunder — one player hands the other a winning position, and the rest is formality.
 
-That is good news. It means you do not need to study everything. You need to stop making the handful of mistakes that actually cost you games.
+That is good news. You only need to fix the handful of mistakes that actually cost you games.
 
 ## Why "just calculate more carefully" does not work
 
@@ -38,6 +38,6 @@ The fix is to train your own blunders:
 
 ## Stop making the same mistake twice
 
-The goal is not to never blunder again — everyone blunders. The goal is to stop repeating the same blunder. A queen left hanging on the same diagonal, the same back-rank pattern, the same overloaded defender: those are learnable, and once you have drilled them, they stop happening.
+Everyone blunders. The goal is to stop repeating the same blunder. A queen left hanging on the same diagonal, the same back-rank pattern, the same overloaded defender: those are learnable, and once you have drilled them, they stop happening.
 
-PatternChess automates this loop. It pulls your games, finds your blunders with Stockfish, and schedules them with spaced repetition so you train the exact mistakes that are costing you rating. [Try it on your own games](/login) — it is free.
+PatternChess automates this loop and turns it into a daily plan you can finish in a few minutes. It pulls your games, finds your blunders with Stockfish, and schedules them with spaced repetition so you train the exact mistakes that are costing you rating. [Try it on your own games](/login), free.

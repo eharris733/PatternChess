@@ -9,6 +9,7 @@ import { ProgressBar } from './ProgressBar';
 import { BrandLockup } from './BrandLogo';
 import { MiniBoard } from './MiniBoard';
 import { CommitmentPicker } from './CommitmentPicker';
+import { freshBlunderLine } from '../content/freshBlunderLines';
 
 type Phase = 'fetching' | 'analyzing' | 'done' | 'error' | 'idle';
 
@@ -107,7 +108,7 @@ export function OnboardingImport() {
           total={totalTarget || 200}
         />
         <Step
-          label="Analyzing for blunders"
+          label="Hunting for blunders"
           done={phase === 'done'}
           active={phase === 'analyzing'}
           current={analyzeIndex}
@@ -121,6 +122,12 @@ export function OnboardingImport() {
           }
         />
       </div>
+
+      {phase === 'done' && blundersFound > 0 && (
+        <p className="mt-6 w-full text-center text-text-primary" data-testid="onboarding-celebration">
+          {freshBlunderLine(blundersFound, analyzeTotal, blundersFound)}
+        </p>
+      )}
 
       {phase === 'error' && (
         <div className="mt-6 w-full bg-incorrect/10 border-2 border-incorrect/50 text-incorrect rounded-none p-4 text-sm text-left">
@@ -151,13 +158,13 @@ export function OnboardingImport() {
             disabled={phase !== 'done' && blundersFound < 1}
             className="btn-primary"
           >
-            Start training
+            Start today's plan
           </button>
         )}
       </div>
       {phase === 'analyzing' && blundersFound >= 1 && (
         <p className="mt-3 text-xs text-text-secondary">
-          More blunders will keep arriving as we finish analyzing.
+          More fuel on the way: we're still analyzing.
         </p>
       )}
       <p className="mt-3 text-xs text-text-secondary">

@@ -13,7 +13,7 @@ const FAQS: FaqItem[] = [
   {
     question: 'What is the Woodpecker Method?',
     answer:
-      'The Woodpecker Method, from the book by Axel Smith and Hans Tikkanen, is a training technique where you solve the same set of tactical positions over and over, each pass faster than the last. Repeating the same patterns at shrinking intervals moves them from slow calculation into instant recognition. PatternChess applies the same idea to the blunders from your own games.',
+      'The Woodpecker Method, from the book by Axel Smith and Hans Tikkanen, is a training technique where you solve the same set of tactical positions over and over, each pass faster than the last. Each cycle through the set pops up just as the memory becomes fuzzy, until the patterns are recalled instantly now and in the future. PatternChess applies the same repeat-until-automatic idea to the blunders from your own games.',
   },
   {
     question: 'How do I stop blundering in chess?',
@@ -28,7 +28,17 @@ const FAQS: FaqItem[] = [
   {
     question: 'Is PatternChess free?',
     answer:
-      'Yes. PatternChess is free to use. You sign in with Google, connect a Chess.com or Lichess username, and start training on your own games.',
+      'Yes, all the training is free (including the plan!). Sign in with Google or Lichess, connect your Chess.com or Lichess username, and start training on your own games.',
+  },
+  {
+    question: 'How much time does it take each day?',
+    answer:
+      'You choose. The lightest plan is 5 positions and 1 game a day; the heaviest is 30 positions and 3 games. The default is 10 positions and 1 game. All plans include opening and endgame training based on the mistakes we find.',
+  },
+  {
+    question: 'Will PatternChess email me?',
+    answer:
+      'If you sign in with Google, yes: a short reminder on days you have positions due and a progress report each Sunday. You pick the hour, you can turn reminders off any time in your profile, and every email has a one-click unsubscribe.',
   },
   {
     question: 'Does it work with Chess.com and Lichess?',
@@ -38,7 +48,7 @@ const FAQS: FaqItem[] = [
   {
     question: 'What is spaced repetition for chess?',
     answer:
-      'Spaced repetition means reviewing the same material at increasing intervals so it sticks in long-term memory instead of fading. PatternChess schedules each blunder you have drilled to come back on a widening ladder of days, which is far more durable than cramming in one sitting.',
+      'Spaced repetition means reviewing the same material at increasing intervals so it settles into long-term memory. PatternChess schedules each blunder you have drilled to come back on a widening ladder of days, which is far more durable than cramming in one sitting.',
   },
 ];
 
@@ -86,7 +96,7 @@ export function FaqRoute() {
               to="/login"
               className="inline-block font-mono uppercase text-xs tracking-tight border-2 border-text-primary bg-text-primary text-bg px-5 py-3 rounded-none shadow-[3px_3px_0_#8B6914] hover:shadow-[1px_1px_0_#8B6914] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
             >
-              Train your own blunders — free
+              Start your daily plan — free
             </Link>
           </div>
         </div>

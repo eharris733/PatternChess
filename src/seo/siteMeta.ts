@@ -7,7 +7,7 @@ export const SITE_URL = 'https://patternchess.com';
 export const SITE_NAME = 'PatternChess';
 
 export const SITE_DESCRIPTION =
-  'PatternChess turns the blunders from your own chess games into spaced-repetition drills, using the Woodpecker Method so you stop making the same mistakes twice.';
+  'PatternChess turns the blunders from your Lichess and Chess.com games into a free daily training plan: play a game, train a few positions with spaced repetition, keep your streak.';
 
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/social-card-og.png`;
 export const SITE_LOGO = `${SITE_URL}/app-icon-512.png`;

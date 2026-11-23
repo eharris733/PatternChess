@@ -72,8 +72,8 @@ export function OnboardingConnect() {
     <div className="flex flex-col items-center min-h-[60vh] max-w-xl mx-auto">
       <BrandLockup size="lg" className="mb-4" />
       <p className="text-text-secondary mb-8 text-center">
-        Connect your online chess account and we'll find the blunders in your
-        real games to train against.
+        Connect your chess account. We'll find the blunders in your games and
+        build your daily plan from them.
       </p>
 
       <div className="w-full space-y-5 bg-surface rounded-none p-6 border-2 border-text-primary shadow-card">
@@ -112,8 +112,8 @@ export function OnboardingConnect() {
       </div>
 
       <p className="mt-4 text-xs text-text-secondary text-center">
-        We'll import your recent games now. After this, new games are added to
-        your vault automatically every time you come back.
+        We'll import your recent games now. New games get added automatically
+        every time you come back.
       </p>
 
       <button
@@ -122,7 +122,7 @@ export function OnboardingConnect() {
         disabled={!canStart || saving}
         className="btn-primary mt-6"
       >
-        {saving ? 'Starting…' : 'Start import'}
+        {saving ? 'Starting…' : 'Build my plan'}
       </button>
 
       {error && (
