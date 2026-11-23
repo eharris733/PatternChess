@@ -211,7 +211,9 @@ function OpeningPatternCard({
               ? `Left theory in ${costlyGames} of ${summary.games} ${summary.games === 1 ? 'game' : 'games'}${
                   exitMove != null ? `, usually by move ${exitMove}` : ''
                 }`
-              : `${summary.games} ${summary.games === 1 ? 'game' : 'games'}, no costly exits`}
+              : summary.pendingEvals > 0
+                ? `${summary.games} ${summary.games === 1 ? 'game' : 'games'}, checking your exits with the engine`
+                : `${summary.games} ${summary.games === 1 ? 'game' : 'games'}, no costly exits`}
           </span>
           {drills.length > 0 && (
             <span className="flex items-center gap-2 text-sm text-text-primary" data-testid="opening-mastery">
@@ -325,6 +327,48 @@ function useReportReady(uid: string | null): [boolean, () => void] {
   return [ready, markReady];
 }
 
+/**
+ * While the first report is still being built, the openings that are ready
+ * show right away and this slim line says the rest is on its way.
+ */
+function CheckingMoreBanner({
+  library,
+  scan,
+}: {
+  library: LibraryProgress;
+  scan: ReturnType<typeof useOpeningScanStore.getState>;
+}) {
+  const left = scanItemsLeft(scan);
+  const detail =
+    library.phase === 'importing'
+      ? `Importing your games (${library.imported}${library.importTotal ? ` of ${library.importTotal}` : ''}).`
+      : library.phase === 'analyzing'
+        ? `Analyzing your games (${library.analyzed} of ${library.analyzeTotal}).`
+        : scan.bookUnavailable
+          ? "Can't reach the opening book right now. Retrying shortly."
+          : left > 0
+            ? `${left} left to check against theory.`
+            : scan.unanalyzed > 0
+              ? `${scan.unanalyzed} ${scan.unanalyzed === 1 ? 'game is' : 'games are'} waiting to be analyzed.`
+              : null;
+  return (
+    <p
+      className="flex items-center gap-2 text-text-primary text-sm border-2 border-text-primary/20 px-3 py-2"
+      data-testid="openings-checking"
+      aria-live="polite"
+    >
+      <span
+        aria-hidden
+        className="inline-block w-3 h-3 shrink-0 border-2 border-gold-dark border-t-transparent rounded-full animate-spin"
+      />
+      <span>
+        <span className="font-semibold">Checking more openings…</span>
+        {detail ? ` ${detail}` : ''}
+      </span>
+    </p>
+  );
+}
+
 /** Once the report exists, new games join it in the background — say so, never block it. */
 function ReportUpdatingBanner({
   library,
@@ -415,7 +459,12 @@ export function OpeningsRoute() {
     navigate('/training', { state: { blunderIds: ids, focusLabel: label } });
   };
 
-  if (!ready) {
+  // Until the first full report exists, the building panel shows only while
+  // there's nothing to show: the first opening with data replaces it, and
+  // a slim banner covers the rest.
+  const hasData = (query.data?.length ?? 0) > 0;
+  const firstBuild = !ready && !complete && scan.phase !== 'stopped';
+  if (!ready && !hasData) {
     return (
       <div className="max-w-3xl mx-auto flex flex-col gap-6">
         <header className="flex flex-col gap-1">
@@ -459,7 +508,11 @@ export function OpeningsRoute() {
         )}
       </header>
 
-      <ReportUpdatingBanner library={library} scan={scan} />
+      {firstBuild ? (
+        <CheckingMoreBanner library={library} scan={scan} />
+      ) : (
+        <ReportUpdatingBanner library={library} scan={scan} />
+      )}
 
       {hero && <OpeningsHero summary={hero} drills={heroDrills} onDrill={() => drill(heroDrills.map((d) => d.id), familyName(hero))} />}
 

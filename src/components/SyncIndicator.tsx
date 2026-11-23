@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
 import { retryWithProfile, useSyncStore } from '../state/syncStore';
 import type { ProviderProgress } from '../services/syncService';
+import { fetchingHeadline, summarizeFetch } from '../lib/syncProgress';
 import { CheckIcon } from './icons/CheckIcon';
 import { CloseIcon } from './icons/CloseIcon';
 
@@ -54,22 +55,17 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
     }
   }, [agg, providers.lichess.phase, providers.chesscom.phase]);
 
-  const totalInserted =
-    (hasLichess ? providers.lichess.inserted : 0) +
-    (hasChesscom ? providers.chesscom.inserted : 0);
-  const totalFetching =
-    (hasLichess && (providers.lichess.phase === 'fetching' || providers.lichess.phase === 'inserting')
-      ? providers.lichess.total ?? 0
-      : 0) +
-    (hasChesscom && (providers.chesscom.phase === 'fetching' || providers.chesscom.phase === 'inserting')
-      ? providers.chesscom.total ?? 0
-      : 0);
-  const totalBlundersFound =
-    (hasLichess ? providers.lichess.blundersFound : 0) +
-    (hasChesscom ? providers.chesscom.blundersFound : 0);
-  const isAnalyzing =
-    (hasLichess && providers.lichess.phase === 'analyzing') ||
-    (hasChesscom && providers.chesscom.phase === 'analyzing');
+  const linked: ProviderProgress[] = [
+    ...(hasLichess ? [providers.lichess] : []),
+    ...(hasChesscom ? [providers.chesscom] : []),
+  ];
+  const totalInserted = linked.reduce((n, p) => n + p.inserted, 0);
+  const totalBlundersFound = linked.reduce((n, p) => n + p.blundersFound, 0);
+  const fetch = summarizeFetch(linked);
+  const saving = linked.filter((p) => p.phase === 'inserting');
+  const analyzing = linked.filter((p) => p.phase === 'analyzing');
+  const analyzedGames = analyzing.reduce((n, p) => n + p.analyzeGameIndex, 0);
+  const analyzeTotal = analyzing.reduce((n, p) => n + p.analyzeGamesTotal, 0);
 
   const collapseToIdle = agg === 'done' && collapseDone;
   const display: Aggregate = collapseToIdle ? 'idle' : agg;
@@ -77,8 +73,15 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
   const headline = (() => {
     if (display === 'none') return 'Connect account';
     if (display === 'syncing') {
-      if (isAnalyzing) return 'Analyzing…';
-      if (totalFetching > 0) return `Syncing ${totalInserted}/${totalFetching}`;
+      // A provider still downloading leads: its count is the one that moves.
+      if (fetch) return fetchingHeadline(fetch);
+      if (saving.length > 0) {
+        const n = saving.reduce((sum, p) => sum + (p.total ?? p.fetched), 0);
+        return `Saving ${n} ${n === 1 ? 'game' : 'games'}`;
+      }
+      if (analyzing.length > 0 && analyzeTotal > 0) {
+        return `Analyzing ${Math.min(analyzedGames + 1, analyzeTotal)}/${analyzeTotal}`;
+      }
       return 'Syncing…';
     }
     if (display === 'done') {
@@ -125,7 +128,13 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
   };
 
   const subTitle = (() => {
-    if (display === 'syncing') return null;
+    if (display === 'syncing') {
+      if (fetch) return fetch.months ? `Games · ${fetch.months}` : 'Games';
+      if (analyzing.length > 0 && totalBlundersFound > 0) {
+        return `${totalBlundersFound} ${totalBlundersFound === 1 ? 'blunder' : 'blunders'} found`;
+      }
+      return null;
+    }
     if (display === 'none') return 'Sync games to start';
     if (display === 'error') return rateLimited ? 'Wait a minute, then tap to retry' : 'Tap to retry';
     return 'Tap to sync now';

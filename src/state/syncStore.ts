@@ -115,6 +115,17 @@ export function isAnySyncInFlight(): boolean {
   return inFlight.size > 0;
 }
 
+/**
+ * Start (or keep alive) the opening-deviation scan without a page holding it.
+ * Imported lazily: the scan pulls in the engine client and opening book code,
+ * which the sync path itself never needs.
+ */
+function kickOpeningScan(): void {
+  void import('../services/openingDeviationService')
+    .then((m) => m.startOpeningDeviationScan({ detached: true }))
+    .catch((e) => console.warn('[sync] could not start the openings scan', e));
+}
+
 function runOne(
   platform: Platform,
   username: string,
@@ -161,10 +172,18 @@ async function runOneUnlocked(
   set: SetState,
 ): Promise<void> {
   const key = platformKey(platform);
+  let scanKicked = false;
   try {
-    const result = await syncProvider(platform, username, since, filters, (p) =>
-      setProvider(set, key, p),
-    );
+    const result = await syncProvider(platform, username, since, filters, (p) => {
+      setProvider(set, key, p);
+      // Games are in and analysis starts (new ones, or ones a reload left
+      // unanalyzed): their theory walk (network only) can run while analysis
+      // does, so /openings fills in without waiting for the end.
+      if (!scanKicked && p.phase === 'analyzing') {
+        scanKicked = true;
+        kickOpeningScan();
+      }
+    });
     if (result.latestPlayedAt) {
       try {
         await supabaseService.updateProfileLastSynced(platform, result.latestPlayedAt);
@@ -179,8 +198,15 @@ async function runOneUnlocked(
     // Vault unmounted mid-sync) are still marked stale and refetch on mount.
     if (result.inserted.length > 0 || result.analyzedCount > 0) {
       void queryClient.invalidateQueries({ queryKey: ['games'] });
+      // Covers the opening drill queries too (['blunders', 'kind', 'opening']).
       void queryClient.invalidateQueries({ queryKey: ['blunders'] });
+      // Endgame scenarios are derived from the new endgame blunders when this
+      // query runs, so the plan's endgame step appears without a reload.
+      void queryClient.invalidateQueries({ queryKey: ['endgameScenarios'] });
     }
+    // Every finished sync (re)starts the openings scan, whatever page is open:
+    // a caught-up account may still have games the scan hasn't checked.
+    kickOpeningScan();
     // Only incremental syncs celebrate: `since` is null for a backlog import.
     if (since && result.inserted.length > 0) {
       const ids = result.inserted.map((g) => g.id);
@@ -275,6 +301,8 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     if (get().lastTriggeredFor === fp) return;
     if (recentlyAutoSynced(fp)) {
       set({ lastTriggeredFor: fp });
+      // No sync this load, but a reload may have cut the last openings pass short.
+      kickOpeningScan();
       return;
     }
     // Claim the fingerprint synchronously — buildTasks awaits (resolveSince),

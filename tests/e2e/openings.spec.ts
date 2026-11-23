@@ -176,22 +176,33 @@ test('empty state points at the dashboard', async ({ page }) => {
   await expect(page.getByRole('link', { name: /Go to dashboard/i })).toBeVisible();
 });
 
-test('holds the report behind a progress checklist until every game is analyzed', async ({ page }) => {
-  const state = await stubAuth(page, ROWS, { unanalyzed: 3 });
+test('shows the progress checklist only while no opening has data yet', async ({ page }) => {
+  await stubAuth(page, [], { unanalyzed: 3 });
   await page.goto('/openings');
   const panel = page.getByTestId('openings-building');
   await expect(panel).toContainText('Building your openings report');
   await expect(panel).toContainText('3 games are waiting to be analyzed');
-  await expect(panel).toContainText('Starts once every game is analyzed');
-  // No partial results, and never a "Paused" that reads like it stopped.
-  await expect(page.getByTestId('opening-section')).toHaveCount(0);
-  await expect(page.getByTestId('openings-hero')).toHaveCount(0);
+  await expect(panel).toContainText('Your most-played opening shows up here first');
+  // Never a "Paused" that reads like it stopped.
+  await expect(page.locator('body')).not.toContainText('Paused');
+});
+
+test('shows the first openings while the rest are still being checked', async ({ page }) => {
+  const state = await stubAuth(page, ROWS, { unanalyzed: 3 });
+  await page.goto('/openings');
+  // The openings with data show at once, under a slim banner instead of the checklist.
+  await expect(page.getByTestId('opening-section')).toHaveCount(3);
+  await expect(page.getByTestId('openings-hero')).toBeVisible();
+  const banner = page.getByTestId('openings-checking');
+  await expect(banner).toContainText('Checking more openings…');
+  await expect(banner).toContainText('3 games are waiting to be analyzed.');
+  await expect(page.getByTestId('openings-building')).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText('Paused');
 
-  // Sync analysis finishes: the scan resumes by itself and the report appears, no reload.
+  // Sync analysis finishes: the scan completes by itself and the banner goes, no reload.
   state.unanalyzed = 0;
-  await expect(page.getByTestId('opening-section')).toHaveCount(3, { timeout: 20_000 });
-  await expect(panel).toHaveCount(0);
+  await expect(banner).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.getByTestId('opening-section')).toHaveCount(3);
 });
 
 test('after the first report, new games show a banner instead of hiding it', async ({ page }) => {

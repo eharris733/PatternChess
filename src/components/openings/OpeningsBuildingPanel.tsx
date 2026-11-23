@@ -31,7 +31,8 @@ export function OpeningsBuildingPanel({
   // The queue shrinks as games are checked: measure against its high-water mark.
   const peak = useRef(0);
   peak.current = Math.max(peak.current, left);
-  const checking = analysisDone && scan.phase !== 'done';
+  // The walk (and the most-played opening's engine checks) run during sync too.
+  const checking = scan.phase === 'checking' || (analysisDone && scan.phase !== 'done');
 
   const analyzeDetail = analyzing
     ? `${library.analyzed} / ${library.analyzeTotal} games`
@@ -44,7 +45,9 @@ export function OpeningsBuildingPanel({
           : 'All games analyzed';
 
   const checkDetail = !analysisDone
-    ? 'Starts once every game is analyzed'
+    ? scan.phase === 'checking' || scan.phase === 'waiting'
+      ? 'Your most-played opening first'
+      : 'Starts as your games come in'
     : scan.bookUnavailable
       ? "Can't reach the opening book right now. Retrying shortly."
       : scan.phase === 'done'
@@ -59,8 +62,8 @@ export function OpeningsBuildingPanel({
         <h2 className="heading-md">Building your openings report</h2>
         <p className="text-text-primary text-sm">
           We compare every game you've played with master theory to find where you leave the book and
-          which of those exits cost you. That needs all of your games analyzed first, so your report
-          appears here once the steps below are done.
+          which of those exits cost you. Your most-played opening shows up here first, as soon as it's
+          checked.
         </p>
       </div>
 
@@ -104,8 +107,7 @@ export function OpeningsBuildingPanel({
       )}
 
       <p className="text-text-primary text-sm">
-        This keeps running while this page or the dashboard is open, and the page updates by itself when
-        it's ready.
+        This keeps running in the background while you use the app, and the page updates by itself.
       </p>
 
       {onShowPartial && (scan.bookUnavailable || scan.phase === 'stopped') && (

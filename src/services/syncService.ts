@@ -1,6 +1,7 @@
 import {
   fetchChessComGames,
   fetchLichessGames,
+  type FetchProgress,
   ImportedGame,
   RateLimitError,
   TimeControlCategory,
@@ -14,9 +15,18 @@ export type Platform = 'lichess' | 'chess.com';
 
 export interface ProviderProgress {
   phase: 'idle' | 'fetching' | 'inserting' | 'analyzing' | 'done' | 'error';
+  /** Games fetched so far (live while `fetching`). */
   fetched: number;
   inserted: number;
+  /**
+   * While `fetching`: the game cap of a backlog import (null when open-ended,
+   * i.e. an incremental sync). From `inserting` on: the games fetched.
+   */
   total: number | null;
+  /** chess.com while `fetching`: monthly archives read so far. */
+  monthsDone?: number;
+  /** chess.com while `fetching`: archives in an incremental sync's window (null on a backlog import). */
+  monthsTotal?: number | null;
   error: string | null;
   /** Set when the error was a provider rate-limit (429) — lets the UI tell the user to wait. */
   rateLimited?: boolean;
@@ -67,12 +77,25 @@ export async function syncProvider(
   const ratedOnly = filters.ratedOnly ?? false;
   const timeControls = filters.timeControls ?? [];
 
+  // Live count while the provider's API streams (Lichess) or pages by month (chess.com).
+  const onFetchProgress = (p: FetchProgress) =>
+    onProgress({
+      phase: 'fetching',
+      fetched: p.fetched,
+      inserted: 0,
+      total: p.target,
+      error: null,
+      monthsDone: p.monthsDone,
+      monthsTotal: p.monthsTotal,
+      ...initial,
+    });
+
   let fetched: ImportedGame[];
   try {
     fetched =
       platform === 'lichess'
-        ? await fetchLichessGames(username, { since, ratedOnly, timeControls })
-        : await fetchChessComGames(username, { since, ratedOnly, timeControls });
+        ? await fetchLichessGames(username, { since, ratedOnly, timeControls, onProgress: onFetchProgress })
+        : await fetchChessComGames(username, { since, ratedOnly, timeControls, onProgress: onFetchProgress });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Fetch failed';
     onProgress({

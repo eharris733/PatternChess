@@ -15,6 +15,20 @@ export interface ImportedGame {
   result: string | null;
   played_at: string | null;
   external_game_id: string;
+  /**
+   * The side the synced account played, stored at insert so the openings
+   * walk (which runs during sync analysis) knows it before analysis writes
+   * the game's metadata. Null when neither player name matches.
+   */
+  user_color: 'white' | 'black' | null;
+}
+
+/** Which side `username` played, by the players' names (case-insensitive). */
+export function sideOf(username: string, white: string, black: string): 'white' | 'black' | null {
+  const u = username.toLowerCase();
+  if (white.toLowerCase() === u) return 'white';
+  if (black.toLowerCase() === u) return 'black';
+  return null;
 }
 
 export interface FetchOpts {
@@ -23,7 +37,27 @@ export interface FetchOpts {
   timeControls?: TimeControlCategory[];
   /** When set, only return games strictly newer than this timestamp. */
   since?: Date | null;
+  /** Live fetch progress: called as games arrive (Lichess) or per month (chess.com). */
+  onProgress?: (p: FetchProgress) => void;
 }
+
+export interface FetchProgress {
+  /** Games kept so far (after the rated / time-control filters). */
+  fetched: number;
+  /** The most this fetch returns (the game cap), or null when it is open-ended (incremental sync). */
+  target: number | null;
+  /** chess.com only: monthly archives read so far. */
+  monthsDone?: number;
+  /**
+   * chess.com only: archives in the window, when that bounds the fetch
+   * (incremental sync). Null on a backlog import, which stops at `target`
+   * games long before it runs out of months.
+   */
+  monthsTotal?: number | null;
+}
+
+/** Minimum gap between streamed Lichess progress callbacks. */
+const LICHESS_PROGRESS_MS = 200;
 
 /** Thrown when a provider keeps returning 429 after our retries are exhausted. */
 export class RateLimitError extends Error {
@@ -89,7 +123,7 @@ export async function fetchChessComGames(
   username: string,
   opts: FetchOpts = {},
 ): Promise<ImportedGame[]> {
-  const { maxGames = 200, ratedOnly = false, timeControls = [], since = null } = opts;
+  const { maxGames = 200, ratedOnly = false, timeControls = [], since = null, onProgress } = opts;
   const sinceMs = since?.getTime() ?? null;
   const sinceMonthKey = since ? archiveKeyFromDate(since) : null;
 
@@ -104,22 +138,34 @@ export async function fetchChessComGames(
 
   const out: ImportedGame[] = [];
   const cap = since ? Math.max(maxGames, 500) : maxGames;
+  // The months this fetch may read: newest first, back to the `since` month.
+  const window = sinceMonthKey
+    ? archives.filter((url) => {
+        const key = archiveKeyFromUrl(url);
+        return !key || key >= sinceMonthKey;
+      })
+    : archives;
+  const target = since ? null : cap;
+  const monthsTotal = since ? window.length : null;
+  let monthsDone = 0;
+  const report = () => onProgress?.({ fetched: out.length, target, monthsDone, monthsTotal });
+  report();
 
   let fetchedAnyMonth = false;
-  for (const archiveUrl of archives) {
+  for (const archiveUrl of window) {
     if (out.length >= cap) break;
-    if (sinceMonthKey) {
-      const archiveKey = archiveKeyFromUrl(archiveUrl);
-      if (archiveKey && archiveKey < sinceMonthKey) break;
-    }
 
     // Space out month fetches so a large backlog doesn't trip Cloudflare.
     if (fetchedAnyMonth) await sleep(CHESSCOM_ARCHIVE_SPACING_MS);
     const monthRes = await fetchWithRetry(archiveUrl, undefined, 'Chess.com');
     fetchedAnyMonth = true;
+    monthsDone++;
     // A persistent 429 throws RateLimitError inside fetchWithRetry; a genuine
     // non-OK (e.g. 404) is skipped rather than failing the whole sync.
-    if (!monthRes.ok) continue;
+    if (!monthRes.ok) {
+      report();
+      continue;
+    }
     const monthJson = (await monthRes.json()) as { games: any[] };
     const games = [...(monthJson.games ?? [])].sort(
       (a, b) => (b.end_time ?? 0) - (a.end_time ?? 0),
@@ -168,8 +214,10 @@ export async function fetchChessComGames(
             ? new Date(game.end_time * 1000).toISOString()
             : null,
         external_game_id: externalId,
+        user_color: sideOf(username, white.username, black.username),
       });
     }
+    report();
   }
   return out;
 }
@@ -178,7 +226,7 @@ export async function fetchLichessGames(
   username: string,
   opts: FetchOpts = {},
 ): Promise<ImportedGame[]> {
-  const { maxGames = 200, ratedOnly = false, timeControls = [], since = null } = opts;
+  const { maxGames = 200, ratedOnly = false, timeControls = [], since = null, onProgress } = opts;
   const effectiveMax = since ? Math.max(maxGames, 200) : maxGames;
   const params = new URLSearchParams({
     max: String(effectiveMax),
@@ -196,7 +244,9 @@ export async function fetchLichessGames(
     'Lichess',
   );
   if (!res.ok) throw new Error(`Failed to fetch lichess games for ${username}`);
-  const text = await res.text();
+  const target = since ? null : effectiveMax;
+  onProgress?.({ fetched: 0, target });
+  const text = await readStreamWithProgress(res, (games) => onProgress?.({ fetched: games, target }));
   if (text.trim().length === 0) return [];
 
   const pgns = splitPgnGames(text);
@@ -226,6 +276,7 @@ export async function fetchLichessGames(
           ? parseLichessDateTime(headers.UTCDate, headers.UTCTime)
           : null,
       external_game_id: externalId,
+      user_color: sideOf(username, white, black),
     });
   }
   // Every game unreadable means the export format moved under us (it did on
@@ -233,7 +284,54 @@ export async function fetchLichessGames(
   if (pgns.length > 0 && out.length === 0) {
     throw new Error(`Couldn't read any of the ${pgns.length} games Lichess returned`);
   }
+  onProgress?.({ fetched: out.length, target });
   return out;
+}
+
+/**
+ * Read a streamed PGN export, reporting how many games have fully arrived
+ * (Lichess streams the export at a few dozen games a second, so a 200-game
+ * import takes long enough to want a live count). A game is complete once
+ * the next one's `[Event` header starts. Falls back to `text()` when the
+ * body can't be streamed.
+ */
+export async function readStreamWithProgress(
+  res: Response,
+  onGames: (completeGames: number) => void,
+): Promise<string> {
+  const reader = res.body?.getReader();
+  if (!reader) return res.text();
+  const decoder = new TextDecoder();
+  let text = '';
+  let starts = 0;
+  let scanFrom = 0;
+  let lastReported = -1;
+  let lastAt = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+    // Count new game starts since the last chunk. Resume 7 characters back
+    // (one short of the 8-character marker) so a header split across chunks
+    // is seen exactly once.
+    const re = /(?:^|\n)\[Event /g;
+    re.lastIndex = scanFrom;
+    let matchEnd = 0;
+    while (re.exec(text) !== null) {
+      starts++;
+      matchEnd = re.lastIndex;
+    }
+    scanFrom = Math.max(matchEnd, text.length - 7, 0);
+    const complete = Math.max(0, starts - 1);
+    const now = Date.now();
+    if (complete !== lastReported && now - lastAt >= LICHESS_PROGRESS_MS) {
+      lastReported = complete;
+      lastAt = now;
+      onGames(complete);
+    }
+  }
+  text += decoder.decode();
+  return text;
 }
 
 /**
