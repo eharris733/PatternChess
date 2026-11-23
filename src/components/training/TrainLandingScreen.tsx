@@ -232,7 +232,7 @@ export function TrainLandingScreen({
           title={t('landingTrain.endgamePositions')}
           offer={endgamesOffer}
           testId="focus-endgames"
-          lockedUntil={positionsLocked ? quota.resetsAt : null}
+          lockedUntil={positionsLocked || quota.endgames.locked ? quota.resetsAt : null}
           onPick={() => pickTile(ENDGAMES_FOCUS, endgamesOffer, '/endgames')}
         />
       </div>

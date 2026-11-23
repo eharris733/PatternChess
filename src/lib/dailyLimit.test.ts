@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCountdown, nextLocalMidnight } from './dailyLimit';
+import { formatCountdown, nextLocalMidnight, quotaKindsFor } from './dailyLimit';
 
 describe('nextLocalMidnight', () => {
   it('is the coming midnight in the player timezone', () => {
@@ -13,6 +13,15 @@ describe('nextLocalMidnight', () => {
   it('falls back to UTC for an unknown zone', () => {
     const now = new Date('2026-01-15T03:30:00.000Z');
     expect(nextLocalMidnight('Not/AZone', now).toISOString()).toBe('2026-01-16T00:00:00.000Z');
+  });
+});
+
+describe('quotaKindsFor', () => {
+  it('maps a focus to the limits it draws on', () => {
+    expect(quotaKindsFor({})).toEqual(['positions']);
+    expect(quotaKindsFor({ kindFilter: 'opening' })).toEqual(['openings']);
+    expect(quotaKindsFor({ phaseFilter: 'endgame' })).toEqual(['positions', 'endgames']);
+    expect(quotaKindsFor({ phaseFilter: 'middlegame' })).toEqual(['positions']);
   });
 });
 

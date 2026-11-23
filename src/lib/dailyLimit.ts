@@ -8,6 +8,18 @@ import { OPENINGS_PER_DAY, PLAYOUTS_PER_DAY } from './dailyGoal';
  */
 export type QuotaKind = 'positions' | 'openings' | 'endgames';
 
+/**
+ * Which limits a /training focus draws on. Opening sessions use the openings
+ * limit. Everything else trains positions, and an endgame focus (the
+ * "Endgame positions" tile, the Endgame phase chip) also stops once the
+ * day's endgames are done: players count it as their endgames.
+ */
+export function quotaKindsFor(focus: { kindFilter?: string | null; phaseFilter?: string | null }): QuotaKind[] {
+  if (focus.kindFilter === 'opening') return ['openings'];
+  if (focus.phaseFilter === 'endgame') return ['positions', 'endgames'];
+  return ['positions'];
+}
+
 export const FIXED_DAILY_LIMIT: Record<Exclude<QuotaKind, 'positions'>, number> = {
   openings: OPENINGS_PER_DAY,
   endgames: PLAYOUTS_PER_DAY,
