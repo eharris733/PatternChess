@@ -131,6 +131,8 @@ test('signed out, the demo shows a plan: blunders, a playable position, the open
 
   // The playable blunder sits under the plan.
   await expect(page.getByText(/Find the better move/i)).toBeVisible();
+  // Two sentences, never run together in the text or the accessibility tree.
+  await expect(page.getByTestId('demo-puzzle')).toContainText(/here\. Find the better move\./i);
 
   const cta = page.getByTestId('demo-plan-cta');
   await expect(cta).toContainText('Blunders cost you more rating than any opening');

@@ -146,12 +146,11 @@ export function BlunderPreview({ blunder, moveLabel }: Props) {
           {phase === 'solving' || phase === 'checking' || phase === 'wrong' ? (
             <div className="flex flex-col gap-3" data-testid="demo-puzzle">
               <div className="font-mono uppercase text-base sm:text-lg leading-relaxed text-text-primary">
-                {t.rich('puzzle.youPlayedHere', { san: <span className="font-bold">{playedSan}</span> })}
-                <br />
+                <p>{t.rich('puzzle.youPlayedHere', { san: <span className="font-bold">{playedSan}</span> })}</p>{' '}
                 {phase === 'wrong' && tried ? (
-                  t.rich('puzzle.notItEither', { san: <span className="font-bold">{tried.san}</span> })
+                  <p>{t.rich('puzzle.notItEither', { san: <span className="font-bold">{tried.san}</span> })}</p>
                 ) : (
-                  <span className="text-gold-dark">{t('puzzle.findBetter')}</span>
+                  <p className="text-gold-dark">{t('puzzle.findBetter')}</p>
                 )}
               </div>
               {phase === 'checking' && (
@@ -185,22 +184,23 @@ export function BlunderPreview({ blunder, moveLabel }: Props) {
                 </div>
               )}
               <div className="font-mono uppercase text-base sm:text-lg leading-relaxed text-text-primary">
-                {t.rich('puzzle.youPlayed', { san: <span className="font-bold">{playedSan}</span> })}
-                <br />
-                {cost.kind === 'allowsMate'
-                  ? t.rich('puzzle.allowsMate', {
-                      mate: <span className="text-gold-dark font-bold">{mateInPhrase(cost.moves, t)}</span>,
-                      best: <span className="text-gold-dark">{bestSan}</span>,
-                    })
-                  : cost.kind === 'missedMate'
-                    ? t.rich('puzzle.wasMate', {
-                        best: <span className="text-gold-dark">{bestSan}</span>,
+                <p>{t.rich('puzzle.youPlayed', { san: <span className="font-bold">{playedSan}</span> })}</p>{' '}
+                <p>
+                  {cost.kind === 'allowsMate'
+                    ? t.rich('puzzle.allowsMate', {
                         mate: <span className="text-gold-dark font-bold">{mateInPhrase(cost.moves, t)}</span>,
-                      })
-                    : t.rich('puzzle.wasStronger', {
                         best: <span className="text-gold-dark">{bestSan}</span>,
-                        cp: <span className="text-gold-dark font-bold">{Math.round(Math.abs(cost.cp))}cp</span>,
-                      })}
+                      })
+                    : cost.kind === 'missedMate'
+                      ? t.rich('puzzle.wasMate', {
+                          best: <span className="text-gold-dark">{bestSan}</span>,
+                          mate: <span className="text-gold-dark font-bold">{mateInPhrase(cost.moves, t)}</span>,
+                        })
+                      : t.rich('puzzle.wasStronger', {
+                          best: <span className="text-gold-dark">{bestSan}</span>,
+                          cp: <span className="text-gold-dark font-bold">{Math.round(Math.abs(cost.cp))}cp</span>,
+                        })}
+                </p>
               </div>
             </>
           )}
