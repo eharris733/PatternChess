@@ -145,7 +145,7 @@ tests/e2e/       Playwright specs (+ helpers/api.ts backend stubs)
     - Each run reads back the last 14 days (`postState`: sent / error / `externalLink`) and pulls Reel insights by permalink when an Instagram token is in KV.
     - The direct Instagram / TikTok posting code is no longer called.
   - **Posting is gated by `SOCIAL_MODE`** (repository variable): `live` schedules, `draft` makes Buffer drafts, and anything else only logs.
-  - Fixed copy (templates, end card, caption tail, tags) comes only from `copy.ts`. The script's `hookStyle` is stored as `hook_template`, so insights compare hooks. Never name the opponent.
+  - Fixed copy (templates, end card, caption tail, tags) comes only from `copy.ts`. The script's `hookStyle` is the assigned **hook angle** (`hooks.ts`: least recently used of the eligible angles over the last 14 days, with the recent hooks in the fact sheet so the wording differs too), stored as `hook_template`, so insights compare angles. The narrator is an AI voice for PatternChess: **never first person** (`validateScript` rejects I/me/my). Never name the opponent.
   - Review on `/analytics` with `SocialQueueCard` (admin RPCs `admin.socialQueue` / `admin.socialSetStatus` in `functions/_shared/rpc/social.ts`):
     - format, the folded voiceover script, and Buffer status
     - Veto / Restore, Copy TikTok caption, Download MP4

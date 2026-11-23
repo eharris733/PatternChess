@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { templateScript } from './copy.ts';
 import { env } from './env.ts';
+import { openingWords, pickAngle, type RecentHook } from './hooks.ts';
 import { sideLabel, type Ply, type Puzzle } from './puzzle.ts';
 import { spokenSan } from './spoken.ts';
 
@@ -49,7 +50,7 @@ export interface Facts {
   timeControl: string | null;
   /** fall: how many different PatternChess players played the tempting move here. */
   fellCount: number | null;
-  /** blunder: the move I played. fall: the move most people play. */
+  /** blunder: the move that was played. fall: the move most people play. */
   played: MoveFact;
   /** fall: how the opponent punishes it. */
   refutation: MoveFact[];
@@ -65,6 +66,10 @@ export interface Facts {
   allowedSquares: string[];
   /** Every number the script may say. */
   allowedNumbers: number[];
+  /** The hook angle this video must use (rotated, see hooks.ts). */
+  angle: { id: string; brief: string; example: string };
+  /** The hooks already in the queue, newest first: open differently from all of them. */
+  recentHooks: { headline: string; hook: string }[];
 }
 
 const VALUE: Record<string, number> = { pawn: 1, knight: 3, bishop: 3, rook: 5, queen: 9, king: 100 };
@@ -86,7 +91,7 @@ function biggestCapture(moves: readonly MoveFact[], by: MoveFact['by']): string 
   return top === 'pawn' ? 'a pawn' : `the ${top}`;
 }
 
-export function buildFacts(p: Puzzle, countdownSeconds: number): Facts {
+export function buildFacts(p: Puzzle, countdownSeconds: number, recent: readonly RecentHook[] = []): Facts {
   const played: MoveFact = { ...moveFacts([p.played], 'viewer')[0] };
   const refutation = moveFacts(p.refutation, 'opponent');
   const solution = moveFacts(p.solution, 'viewer');
@@ -96,22 +101,32 @@ export function buildFacts(p: Puzzle, countdownSeconds: number): Facts {
   const numbers = new Set<number>([1, countdownSeconds, viewerMoves]);
   if (p.rating) numbers.add(p.rating);
   if (p.fellCount) numbers.add(p.fellCount);
+  const rating = p.format === 'blunder' ? p.rating : null;
+  const endsInMate = p.mate || (p.refutation.length > 0 && p.refutation[p.refutation.length - 1].san.endsWith('#'));
+  const solutionWins = biggestCapture(solution, 'viewer');
+  const angle = pickAngle(
+    { format: p.format, rating, endsInMate, solutionWins, fellCount: p.fellCount },
+    recent.map((r) => r.hookStyle),
+    p.blunderId,
+  );
   return {
     format: p.format,
     sideToMove: sideLabel(p.side),
-    rating: p.format === 'blunder' ? p.rating : null,
+    rating,
     timeControl: p.format === 'blunder' && p.timeControl && p.timeControl !== 'unknown' ? p.timeControl : null,
     fellCount: p.fellCount,
     played,
     refutation,
     solution,
     motif: p.motifLabel,
-    endsInMate: p.mate || (p.refutation.length > 0 && p.refutation[p.refutation.length - 1].san.endsWith('#')),
+    endsInMate,
     refutationWins: biggestCapture(refutation, 'opponent'),
-    solutionWins: biggestCapture(solution, 'viewer'),
+    solutionWins,
     countdownSeconds,
     allowedSquares: [...squares].sort(),
     allowedNumbers: [...numbers].sort((a, b) => a - b),
+    angle: { id: angle.id, brief: angle.brief, example: angle.example },
+    recentHooks: recent.slice(0, 14).map((r) => ({ headline: r.headline, hook: r.hook })),
   };
 }
 
@@ -124,6 +139,9 @@ const NUMBER_WORDS: Record<string, number> = {
   thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20,
   thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90, hundred: 100, thousand: 1000, million: 1e6,
 };
+
+const FIRST_PERSON = /\b(I|I'm|I’m|I've|I'd|I'll)(?![\w'’])/;
+const FIRST_PERSON_CI = /\b(me|my|mine|myself)\b/i;
 
 const words = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 
@@ -146,6 +164,8 @@ function checkText(label: string, text: string, facts: Facts, errors: string[]):
     if (n !== undefined && !facts.allowedNumbers.includes(n)) errors.push(`${label}: "${m[0]}" is a number not in the facts`);
   }
   if (/\bElo\b/.test(text) && !facts.rating) errors.push(`${label}: no rating in the facts, so no Elo`);
+  const me = FIRST_PERSON.exec(text) ?? FIRST_PERSON_CI.exec(text);
+  if (me) errors.push(`${label}: "${me[0]}" is first person; the narrator never says I, me or my`);
 }
 
 export type Checked = { ok: true; script: VideoScript } | { ok: false; errors: string[] };
@@ -172,7 +192,10 @@ export function validateScript(raw: unknown, facts: Facts): Checked {
   if (errors.length) return { ok: false, errors };
   if (facts.format === 'blunder' && s.beats.refutation) errors.push('beats.refutation: only for the fall format');
   if (!/PatternChess/.test(s.beats.cta!)) errors.push('beats.cta: must name PatternChess');
-  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(s.hookStyle!) || s.hookStyle!.length > 32) errors.push('hookStyle: short kebab-case id');
+  if (s.hookStyle !== facts.angle.id) errors.push(`hookStyle: must be "${facts.angle.id}" (the assigned angle)`);
+  const opening = openingWords(s.headline!);
+  const clash = facts.recentHooks.find((r) => openingWords(r.headline) === opening || openingWords(r.hook) === openingWords(s.beats!.hook!));
+  if (clash) errors.push(`headline / beats.hook: opens like a recent video ("${clash.headline}" / "${clash.hook}"); start differently`);
   if (words(s.headline!) > 7 || s.headline!.length > 34) errors.push('headline: at most 7 words / 34 characters');
   if (/\b[a-h][1-8]\b/.test(s.headline!)) errors.push('headline: no squares or moves (it is shown in capitals)');
   if (words(s.subline!) > 8 || s.subline!.length > 40) errors.push('subline: at most 8 words / 40 characters');
@@ -222,28 +245,28 @@ export const SCRIPT_SCHEMA = {
   },
 } as const;
 
-export const SYSTEM_PROMPT = `You write the voiceover for a 20-35 second vertical chess video (Instagram Reels, TikTok) for PatternChess, an app that turns your own blunders into spaced-repetition puzzles.
+export const SYSTEM_PROMPT = `You write the voiceover for a 20-35 second vertical chess video (Instagram Reels, TikTok, YouTube Shorts) for PatternChess, an app that turns your own blunders into spaced-repetition puzzles.
 
-The video is narrated by an AI voice and the same words appear on screen as captions. Scenes, in order:
-- hook (0-3s): the scroll-stopper. Provocative, a little cocky, rage-bait energy, but every claim true. Say it in the first breath.
+The video is narrated by an AI voice speaking for PatternChess, and the same words appear on screen as captions. Scenes, in order:
+- hook (0-3s): the scroll-stopper, in the angle you are given (facts.angle). Provocative, a little cocky, but every claim true. Say it in the first breath.
 - challenge: the countdown starts. Tell the viewer to pause and find the move. Very short.
-- played: show the move that was played (blunder format: "I played ...", fall format: "Most people play ..."). Say why it looks natural, then that it loses.
+- played: show the move that was played (blunder format: "White played ...", fall format: "Most people play ..."). Say why it looks natural, then that it loses.
 - refutation (fall format only): narrate how the opponent punishes it, move by move.
 - reveal: the right move and why it works (name the idea: fork, pin, mate, the hanging piece).
 - cta: one line that names PatternChess and what it does (it finds the blunders and traps in YOUR games and drills them until they stick).
 
 Rules:
+- The narrator is not a person and never speaks in the first person: no "I", "I'm", "me", "my" anywhere (beats, headline, subline, captionLead). Talk about the side ("White played..."), "the player", "a 2056 player", or the viewer ("you", "your move").
 - Use ONLY the facts given. Never invent statistics, percentages, ratings, player counts, move counts or names. The only numbers you may say are in allowedNumbers; the only squares are in allowedSquares.
 - Say moves the way they are spoken in the facts ("queen takes h7, check"), never in raw notation like Qxh7+.
 - Voice: direct, warm, chess-literate. Playful provocation aimed at the viewer is good ("you'd fall for this too"); insults, swearing and mocking real people are not. Never mention other chess sites, streamers or players.
 - Write "Elo" (never "ELO"). No emoji, no hashtags, no links.
-- The blunder format is the narrator's own game: first person ("I"). The fall format talks about PatternChess players as a group ("11 PatternChess players played this").
-- headline: at most 7 words AND at most 34 characters, the rage-bait line shown big on screen the whole video (e.g. "I'm 2056 and I hung this"; write it in normal case, no moves or squares). subline: at most 8 words and 40 characters, the challenge (e.g. "White to move. Find it.").
+- The fall format talks about PatternChess players as a group ("11 PatternChess players played this").
+- Hook angle: use facts.angle (its brief and example; adapt the example, don't copy it word for word). hookStyle must be exactly facts.angle.id.
+- Variety: facts.recentHooks are the videos already in the feed. Your headline and hook must not start with the same three words as any of them, and should not reuse their phrasing.
+- headline: at most 7 words AND at most 34 characters, the hook line shown big on screen the whole video, in the same angle (normal case, no moves or squares). subline: at most 8 words and 40 characters, the challenge (e.g. "White to move. Find it.").
 - captionLead: one or two sentences for the post caption that invite a comment.
-- Never give the answer away before the reveal: the right move must not appear in headline, subline, hook, challenge or captionLead (people read the caption before the video ends).
-- hookStyle: a short kebab-case id naming the hook angle (e.g. "rating-shame", "most-people-fail", "would-you-fall").
-
-Hook examples (adapt, don't copy): "I'm rated 2056 and I hung my queen in one move." / "11 PatternChess players fell for this. Would you?" / "Everyone plays this move. It loses on the spot." / "Pause the video. Most people get this wrong."`;
+- Never give the answer away before the reveal: the right move must not appear in headline, subline, hook, challenge or captionLead (people read the caption before the video ends).`;
 
 function runClaude(prompt: string, timeoutMs = 180_000): Promise<unknown> {
   // An empty working directory, so no project CLAUDE.md or settings ride along.
@@ -313,8 +336,8 @@ export interface WrittenScript {
  * Claude first (one retry with the checker's errors), then the template.
  * SOCIAL_SCRIPT_WRITER=template skips Claude (tests, offline renders).
  */
-export async function writeScript(p: Puzzle, countdownSeconds: number): Promise<WrittenScript> {
-  const facts = buildFacts(p, countdownSeconds);
+export async function writeScript(p: Puzzle, countdownSeconds: number, recent: readonly RecentHook[] = []): Promise<WrittenScript> {
+  const facts = buildFacts(p, countdownSeconds, recent);
   const errors: string[] = [];
   if (env('SOCIAL_SCRIPT_WRITER') !== 'template') {
     let last: string[] | undefined;
@@ -330,8 +353,9 @@ export async function writeScript(p: Puzzle, countdownSeconds: number): Promise<
       }
     }
   }
-  const template = templateScript(p, countdownSeconds);
-  const checked = validateScript(template, facts);
+  // The template follows the assigned angle; its wording is fixed, so it skips the "open differently" check.
+  const template = templateScript(p, countdownSeconds, facts);
+  const checked = validateScript(template, { ...facts, recentHooks: [] });
   if (!checked.ok) throw new Error(`template script fails its own checks: ${checked.errors.join('; ')}`);
   return { script: checked.script, source: 'template', errors };
 }
