@@ -291,6 +291,33 @@ describe('blunders', () => {
     expect(await call<unknown[]>(alice, 'blunders.byIds', { ids: [...ids, ...bobIds] })).toHaveLength(3);
   });
 
+  it('upcoming (practice ahead) returns not-yet-due live rows, soonest first, scoped and narrowed', async () => {
+    const past = '2026-01-01T00:00:00.000Z';
+    await call(alice, 'blunders.insert', {
+      blunders: [
+        blunder('due', { next_drill_at: past }),
+        blunder('t-soon', { next_drill_at: '2999-01-02T00:00:00.000Z' }),
+        blunder('t-later', { next_drill_at: '2999-01-05T00:00:00.000Z' }),
+        blunder('e-mid', { phase: 'endgame', next_drill_at: '2999-01-03T00:00:00.000Z' }),
+        blunder('o-soon', { kind: 'opening', next_drill_at: '2999-01-01T00:00:00.000Z' }),
+        blunder('retired', { next_drill_at: '2999-01-01T00:00:00.000Z', retired_at: past }),
+      ],
+    });
+    await call(bob, 'blunders.insert', { blunders: [blunder('bob', { next_drill_at: '2999-01-01T00:00:00.000Z' })] });
+    const fens = async (args: object) =>
+      (await call<{ fen: string }[]>(alice, 'blunders.upcoming', args)).map((b) => b.fen);
+    expect(await fens({})).toEqual(['o-soon', 't-soon', 'e-mid', 't-later']);
+    expect(await fens({ limit: 2 })).toEqual(['o-soon', 't-soon']);
+    expect(await fens({ excludeKind: 'opening' })).toEqual(['t-soon', 'e-mid', 't-later']);
+    expect(await fens({ kind: 'opening' })).toEqual(['o-soon']);
+    expect(await fens({ phase: 'endgame' })).toEqual(['e-mid']);
+    expect(await call<unknown[]>(bob, 'blunders.upcoming', { kind: 'opening' })).toEqual([]);
+    // A user id in args is ignored: the session user is the only scope.
+    expect(await call<{ fen: string }[]>(bob, 'blunders.upcoming', { userId: alice.id })).toHaveLength(1);
+    await expect(call(alice, 'blunders.upcoming', { kind: 'weird' })).rejects.toThrow();
+    await expect(call(alice, 'blunders.upcoming', { phase: 'weird' })).rejects.toThrow();
+  });
+
   it('updates are allow-listed and scoped; deletes report rows removed', async () => {
     await call(alice, 'blunders.insert', { blunders: [blunder('f1'), blunder('f2', { phase: 'endgame' })] });
     const [b1] = (await call<{ id: string; fen: string }[]>(alice, 'blunders.allLive')).filter((b) => b.fen === 'f1');

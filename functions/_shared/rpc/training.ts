@@ -159,6 +159,7 @@ const SCENARIO_INSERT_DEFAULTS: Record<string, () => unknown> = {
 const SCENARIO_REQUIRED = ['game_id', 'start_fen', 'user_color', 'deserved_result', 'actual_result'] as const;
 
 const DRILL_KINDS = ['tactic', 'endgame', 'opening'] as const;
+const PHASES = ['opening', 'middlegame', 'endgame'] as const;
 
 // ---------------------------------------------------------------------------
 // helpers (exported for tests)
@@ -639,6 +640,51 @@ const blunders: RpcRegistry = {
       `SELECT COUNT(*) FROM blunders WHERE user_id = ? AND next_drill_at <= ? AND retired_at IS NULL
        ${exclude ? 'AND kind <> ?' : ''}`,
       exclude ? [ctx.user.id, nowIso(), exclude] : [ctx.user.id, nowIso()],
+    );
+  }),
+
+  /**
+   * getUpcomingBlunders ("Practice ahead"): live drills that are NOT due yet,
+   * soonest next_drill_at first, so a player with an empty queue can keep
+   * training. Optional `kind` / `excludeKind` / `phase` narrow it the same way
+   * the training focus does. Results go through applyDrillResult like any
+   * other drill.
+   */
+  'blunders.upcoming': userRpc<Args>(async (ctx, args) => {
+    const kind = argOptString(args, 'kind');
+    const exclude = argOptString(args, 'excludeKind');
+    const phase = argOptString(args, 'phase');
+    for (const [key, v] of [
+      ['kind', kind],
+      ['excludeKind', exclude],
+    ] as const) {
+      if (v !== null && !DRILL_KINDS.includes(v as (typeof DRILL_KINDS)[number])) {
+        throw badRequest(`${key} must be tactic | endgame | opening`);
+      }
+    }
+    if (phase !== null && !PHASES.includes(phase as (typeof PHASES)[number])) {
+      throw badRequest('phase must be opening | middlegame | endgame');
+    }
+    const where: string[] = ['user_id = ?', 'retired_at IS NULL', 'next_drill_at > ?'];
+    const params: SqlParam[] = [ctx.user.id, nowIso()];
+    if (kind) {
+      where.push('kind = ?');
+      params.push(kind);
+    }
+    if (exclude) {
+      where.push('kind <> ?');
+      params.push(exclude);
+    }
+    if (phase) {
+      where.push('phase = ?');
+      params.push(phase);
+    }
+    params.push(argLimit(args, 'limit', 10, 200));
+    return all(
+      ctx.db,
+      `SELECT * FROM blunders WHERE ${where.join(' AND ')} ORDER BY next_drill_at, id LIMIT ?`,
+      params,
+      'blunders',
     );
   }),
 

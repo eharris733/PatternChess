@@ -360,10 +360,12 @@ export const handlers: RpcRegistry = {
   /**
    * training_totals(): minutes = finished sessions' durations, each capped at
    * 120, rounded once over the sum; activeDays = distinct local dates with a
-   * correct drill.
+   * correct drill; positions = lifetime first-attempt positions trained, the
+   * daily goal's count summed over every session (openings excluded, like the
+   * goal) — the /path metric.
    */
   'profile.trainingTotals': userRpc(async (ctx) => {
-    const row = await first<{ minutes: number | null; activeDays: number | null }>(
+    const row = await first<{ minutes: number | null; activeDays: number | null; positions: number | null }>(
       ctx.db,
       `SELECT
          (SELECT CAST(round(sum(min((julianday(ended_at) - julianday(started_at)) * 1440.0, 120))) AS INTEGER)
@@ -371,10 +373,13 @@ export const handlers: RpcRegistry = {
            WHERE user_id = ?1 AND ended_at IS NOT NULL AND ended_at > started_at) AS minutes,
          (SELECT count(DISTINCT local_date)
             FROM training_sessions
-           WHERE user_id = ?1 AND blunders_correct > 0) AS activeDays`,
+           WHERE user_id = ?1 AND blunders_correct > 0) AS activeDays,
+         (SELECT coalesce(sum(blunders_attempted), 0)
+            FROM training_sessions
+           WHERE user_id = ?1) AS positions`,
       [ctx.user.id],
     );
-    return { minutes: row?.minutes ?? 0, activeDays: row?.activeDays ?? 0 };
+    return { minutes: row?.minutes ?? 0, activeDays: row?.activeDays ?? 0, positions: row?.positions ?? 0 };
   }),
 
   /**

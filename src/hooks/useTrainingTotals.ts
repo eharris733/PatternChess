@@ -1,14 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
-import { authService } from '../services/authService';
 import { supabaseService } from '../services/supabaseService';
 
-/** Lifetime training minutes + distinct active days (training_totals RPC). */
+/**
+ * Lifetime training minutes, distinct active days and first-attempt positions
+ * trained (`profile.trainingTotals`). `positions` is the /path metric.
+ */
 export function useTrainingTotals() {
   const { user } = useAuth();
   return useQuery({
     queryKey: ['training', 'totals', user?.id],
-    queryFn: () => authService.getTrainingTotals(),
+    queryFn: () => supabaseService.getTrainingTotals(),
     enabled: !!user,
     staleTime: 5 * 60_000,
   });

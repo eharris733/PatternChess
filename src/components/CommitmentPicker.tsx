@@ -11,14 +11,10 @@ import {
   GAMES_PER_DAY_RANGE,
   POSITIONS_PER_DAY_RANGE,
   goalsFor,
+  planSummary,
   type CommitmentLevel,
   type DailyGoals,
 } from '../lib/dailyGoal';
-
-/** One line per tier: what the daily plan asks for. */
-function presetSummary(positions: number, games: number): string {
-  return `${positions} positions + ${games} ${games === 1 ? 'game' : 'games'} a day`;
-}
 
 /**
  * Pick a commitment level (preset or custom). Saves on every change
@@ -93,7 +89,7 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
               )}
             >
               <span className="text-sm font-semibold text-text-primary">{COMMITMENT_LABEL[level]}</span>
-              <span className="text-xs text-text-primary">{presetSummary(p.positionsPerDay, p.gamesPerDay)}</span>
+              <span className="text-xs text-text-primary">{planSummary(p)}</span>
               <span className="text-xs text-text-secondary">{COMMITMENT_TAGLINE[level]}</span>
             </button>
           );
@@ -147,6 +143,9 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
           </>
         )}
       </div>
+      <p className="text-sm text-text-primary" data-testid="commitment-summary">
+        Your day: {planSummary(goals)}.
+      </p>
       <p className="text-xs text-text-secondary">Smaller plans you actually finish beat big ones you skip.</p>
       {error && <p className="text-incorrect text-sm">{error}</p>}
     </div>

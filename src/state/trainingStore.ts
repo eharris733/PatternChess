@@ -51,11 +51,23 @@ async function flushDrillWritesAndRefreshDue(): Promise<void> {
   }
   queryClient.removeQueries({ queryKey: ['blunders', 'due'] });
   queryClient.removeQueries({ queryKey: ['blunders', 'forGames'] });
+  // Practice ahead is a queue too: never restart it from the pre-session list.
+  queryClient.removeQueries({ queryKey: ['blunders', 'upcoming'] });
   // Active queries refetch now; inactive ones (dashboard stats, vault) are
   // marked stale and refetch when next mounted, instead of all firing at once
   // the moment you leave training.
   void queryClient.invalidateQueries({ queryKey: ['blunders'] });
+  // Session counts feed the daily plan and the /path total.
+  void queryClient.invalidateQueries({ queryKey: ['training', 'drillsToday'] });
+  void queryClient.invalidateQueries({ queryKey: ['training', 'totals'] });
 }
+
+/**
+ * Wait for every in-flight drill/session write, then drop the cached queues —
+ * for restarting a session in place ("Keep training"), where the next queue
+ * must reflect the one just finished.
+ */
+export const flushTrainingWrites = flushDrillWritesAndRefreshDue;
 
 export type TrainingPhase =
   | 'loading'
@@ -453,13 +465,14 @@ function goalCounts(
 function endActiveSession(state: TrainingStateShape): void {
   if (!state.sessionId) return;
   if (state.goalAttempted === 0) return;
-  void supabaseService
-    .updateTrainingSession(state.sessionId, {
+  trackDrillWrite(
+    supabaseService.updateTrainingSession(state.sessionId, {
       blundersAttempted: state.goalAttempted,
       blundersCorrect: state.goalCorrect,
       endedAt: new Date(),
     })
-    .catch((err) => notePersistFailure('endActiveSession', err));
+      .catch((err) => notePersistFailure('endActiveSession', err)),
+  );
 }
 
 async function applyStreakUpdate(snapshot: StreakSnapshot): Promise<void> {
@@ -651,6 +664,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         phase: 'empty',
         contextFilter: get().contextFilter,
         revealBeforeSolve: get().revealBeforeSolve,
+        repertoire: get().repertoire,
       });
       return;
     }
@@ -1160,12 +1174,13 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
 
       const afterCorrect = get();
       if (afterCorrect.sessionId) {
-        void supabaseService
-          .updateTrainingSession(afterCorrect.sessionId, {
+        trackDrillWrite(
+          supabaseService.updateTrainingSession(afterCorrect.sessionId, {
             blundersAttempted: afterCorrect.goalAttempted,
             blundersCorrect: afterCorrect.goalCorrect,
           })
-          .catch((err) => notePersistFailure('updateTrainingSession (correct)', err));
+            .catch((err) => notePersistFailure('updateTrainingSession (correct)', err)),
+        );
       }
       if (!afterCorrect.streakApplied && afterCorrect.streakSnapshot) {
         set({ streakApplied: true });
@@ -1256,12 +1271,13 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
 
       const afterIncorrect = get();
       if (afterIncorrect.sessionId && isFirstAttempt && countsTowardGoal(blunder)) {
-        void supabaseService
-          .updateTrainingSession(afterIncorrect.sessionId, {
+        trackDrillWrite(
+          supabaseService.updateTrainingSession(afterIncorrect.sessionId, {
             blundersAttempted: afterIncorrect.goalAttempted + 1,
             blundersCorrect: afterIncorrect.goalCorrect + (firstAttemptRecalled ? 1 : 0),
           })
-          .catch((err) => notePersistFailure('updateTrainingSession (incorrect)', err));
+            .catch((err) => notePersistFailure('updateTrainingSession (incorrect)', err)),
+        );
       }
 
       set((s) => {
@@ -1336,12 +1352,13 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
 
     const after = get();
     if (after.sessionId) {
-      void supabaseService
-        .updateTrainingSession(after.sessionId, {
+      trackDrillWrite(
+        supabaseService.updateTrainingSession(after.sessionId, {
           blundersAttempted: after.goalAttempted,
           blundersCorrect: after.goalCorrect,
         })
-        .catch((err) => notePersistFailure('updateTrainingSession (external)', err));
+          .catch((err) => notePersistFailure('updateTrainingSession (external)', err)),
+      );
     }
     if (!after.streakApplied && after.streakSnapshot) {
       set({ streakApplied: true });

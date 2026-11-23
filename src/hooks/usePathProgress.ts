@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
 import { useAuth } from '../auth/useAuth';
-import { useBlunderStats } from './useBlunderStats';
+import { useTrainingTotals } from './useTrainingTotals';
 import { useSupporter } from './useSupporter';
 import { pathProgress, pathRungs, type PathProgress, type PathRung } from '../lib/progression';
 import { playSound } from '../lib/sounds';
 import { useFeature } from './useFeature';
 
 export interface PathState extends PathProgress {
-  /** Lifetime positions trained (BlunderStats.reviewed). */
+  /** Lifetime first-attempt positions trained: the daily goal's count, summed (trainingTotals.positions). */
   trained: number;
   rungs: PathRung[];
   isSupporter: boolean;
@@ -21,9 +21,9 @@ export interface PathState extends PathProgress {
  */
 export function usePathProgress(): PathState {
   const { profile } = useAuth();
-  const stats = useBlunderStats();
+  const stats = useTrainingTotals();
   const { isSupporter, isPending: supporterPending } = useSupporter();
-  const trained = stats.data?.reviewed ?? 0;
+  const trained = stats.data?.positions ?? 0;
   const rungs = pathRungs();
   const progress = pathProgress(trained, rungs);
   const pathOn = useFeature('path');
@@ -31,7 +31,9 @@ export function usePathProgress(): PathState {
   useEffect(() => {
     // Unreleased for this user: no chime, and the high-water mark stays unseeded.
     if (!pathOn || !profile?.id || stats.isPending || !stats.data) return;
-    const key = `pc:path-seen:${profile.id}`;
+    // v2: the metric moved from times_correct to first-attempt positions
+    // (2026-11-22); a fresh key re-seeds instead of chiming for the switch.
+    const key = `pc:path-seen:v2:${profile.id}`;
     let seen: number | null = null;
     try {
       const raw = localStorage.getItem(key);

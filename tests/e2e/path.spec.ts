@@ -5,7 +5,8 @@ import { ADMIN_EMAILS } from '../../src/auth/admin';
 // /path is unreleased (src/lib/features.ts): admins only, so these specs sign in as one.
 const ADMIN_USER = { ...E2E_USER, email: ADMIN_EMAILS[0] };
 
-// The progression ladder: /path counts lifetime positions trained, the daily
+// The progression ladder: /path counts lifetime first-attempt positions (the
+// daily goal's count, summed over every session), the daily
 // plan shows the next unlock, and supporters can open every rung.
 
 function daysAgo(n: number): string {
@@ -41,14 +42,21 @@ async function stub(
   opts: { signedIn?: boolean; supporter?: Record<string, unknown> | null; opens?: number; profile?: Record<string, unknown>; solved?: number } = {},
 ) {
   const solved = opts.solved ?? 0;
-  // One row carrying all the first-attempt solves: BlunderStats.reviewed = sum(times_correct).
-  const blunders = solved
-    ? [{ id: 'b1', fen: '8/8/8/8/8/8/8/8 w - - 0 1', kind: 'tactic', times_correct: solved, times_attempted: solved, cycle_number: 1, last_drilled_at: new Date().toISOString(), next_drill_at: new Date(Date.now() + 86_400_000).toISOString() }]
+  // The path counts first-attempt positions like the daily goal: the sum of
+  // training_sessions.blunders_attempted (profile.trainingTotals → positions).
+  // Two past sessions, so the total is cumulative rather than one day's count.
+  const first = Math.floor(solved / 2);
+  const sessions = solved
+    ? [
+        { id: 's1', local_date: daysAgo(2), started_at: new Date().toISOString(), ended_at: null, blunders_attempted: first, blunders_correct: first, cycles_completed: 0 },
+        { id: 's2', local_date: daysAgo(1), started_at: new Date().toISOString(), ended_at: null, blunders_attempted: solved - first, blunders_correct: 0, cycles_completed: 0 },
+      ]
     : [];
   const rec = await stubApp(page, {
     user: (opts.signedIn ?? true) ? ADMIN_USER : null,
     profile: { ...BASE_PROFILE, email_opt_in: true, app_opens: (opts.opens ?? 1) - 1, ...opts.profile },
-    blunders,
+    blunders: [],
+    sessions,
     gameCount: 1,
     rpc: {
       'profile.bumpAppOpen': () => opts.opens ?? 1,
