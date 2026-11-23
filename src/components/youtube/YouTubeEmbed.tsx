@@ -78,7 +78,6 @@ export function YouTubeEmbed({
         title={title}
         className="absolute inset-0 w-full h-full"
         allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-        allowFullScreen
         referrerPolicy="strict-origin-when-cross-origin"
         {...{ credentialless: '' }}
       />

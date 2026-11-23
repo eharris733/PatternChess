@@ -129,6 +129,7 @@ export function useCourseRecommendations(courses: readonly Course[] = AVAILABLE_
     return recommendCourses(courses, {
       openings: openingStats,
       motifCounts: motifs.data?.counts ?? {},
+      motifTagged: motifs.data?.tagged,
       phaseCounts: phases.data ?? { opening: 0, middlegame: 0, endgame: 0 },
       endgameTypeCounts,
       finished,

@@ -8,7 +8,13 @@ import { HeartIcon } from '../components/icons/HeartIcon';
 import { LockIcon } from '../components/icons/LockIcon';
 import { TrainIcon } from '../components/icons/TrainIcon';
 import { LessonPlayer } from '../components/courses/LessonPlayer';
-import { YouTubeEmbed, useYouTubePlayer, youtubeWatchUrl, type YouTubePlayer } from '../components/youtube/YouTubeEmbed';
+import {
+  YouTubeEmbed,
+  useYouTubePlayer,
+  youtubeIdFromUrl,
+  youtubeWatchUrl,
+  type YouTubePlayer,
+} from '../components/youtube/YouTubeEmbed';
 import { useAuth } from '../auth/useAuth';
 import { availableCourse, courseTopicLabel } from '../lib/courses';
 import { isSupporterDay, type Course, type CourseSegment } from '../lib/courseCatalog';
@@ -43,6 +49,11 @@ function emptyDrillText(course: Course): string {
   }
   const what = endgameType ? ENDGAME_TYPE_LABEL[endgameType].toLowerCase() : keys[0] === 'endgame' ? 'endgame' : keys[0];
   return `No ${what} mistakes from your games yet. Longer games reach them more often, so play a few and check back.`;
+}
+
+/** "Hanging Pawns'" / "ChessNetwork's". */
+function possessive(name: string): string {
+  return name.endsWith('s') ? `${name}'` : `${name}'s`;
 }
 
 function playUrl(lichess: string | null, chesscom: string | null): string | null {
@@ -210,6 +221,7 @@ export function CourseDayRoute() {
         : null;
   const lessonSlug = segment?.lesson && hasLesson(segment.lesson) ? segment.lesson : null;
   const lesson = useCourseLesson(lessonSlug);
+  const lessonVideoId = lesson.data?.source ? youtubeIdFromUrl(lesson.data.source.url) : null;
   const player = useYouTubePlayer(segment?.youtubeId ?? null, { start: segment?.start, end: segment?.end });
 
   if (!course) {
@@ -311,14 +323,17 @@ export function CourseDayRoute() {
         <LessonPlayer
           key={replay ? 'replay' : 'first'}
           study={lesson.data}
-          video={player}
+          // The lesson's [%ts] moments point into its own source video: share
+          // the day's clip only when it is that video.
+          video={lessonVideoId === segment.youtubeId ? player : undefined}
           videoTitle={dayTitle}
+          narrow
           finishLabel={lessonDone ? 'Done' : 'Finish the lesson'}
           onFinish={markDone}
           header={
             <p className="text-sm text-text-primary">
-              Play through {course.creator.name}'s positions from the video. Every move is checked by the engine, and
-              the notes paraphrase the video, with a link to each moment.
+              Play through the positions from {possessive(course.creator.name)} video. Stockfish checked every move,
+              and each note links back to its moment in the video.
             </p>
           }
         />

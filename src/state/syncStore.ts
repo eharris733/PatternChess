@@ -203,6 +203,9 @@ async function runOneUnlocked(
       // Endgame scenarios are derived from the new endgame blunders when this
       // query runs, so the plan's endgame step appears without a reload.
       void queryClient.invalidateQueries({ queryKey: ['endgameScenarios'] });
+      // Dashboard insights and the course recommendations (opening shares,
+      // motif and phase counts) read the same games and blunders.
+      void queryClient.invalidateQueries({ queryKey: ['insights'] });
     }
     // Every finished sync (re)starts the openings scan, whatever page is open:
     // a caught-up account may still have games the scan hasn't checked.

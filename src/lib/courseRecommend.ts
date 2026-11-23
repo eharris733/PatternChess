@@ -28,6 +28,8 @@ export interface RecommendInput {
   openings: readonly OpeningStat[];
   /** Live tactic blunders per motif id (stats.motifCounts). */
   motifCounts: Readonly<Record<string, number>>;
+  /** Tactic blunders that could carry motif tags (stats.motifCounts `tagged`): the motif share's denominator. */
+  motifTagged?: number;
   /** Tactic blunders per phase. */
   phaseCounts: { opening: number; middlegame: number; endgame: number };
   /** Endgames you let slip, per material family; unknown = a prior split. */
@@ -122,8 +124,9 @@ function scoreMotif(course: Course, input: RecommendInput): Omit<CourseRecommend
   const count = sum(hits.map((h) => h.n));
   if (count < MIN_MOTIF_BLUNDERS) return null;
   const total = sum(Object.values(input.motifCounts));
-  // The share is of your tactic blunders (a blunder can carry several tags).
-  const blunders = Math.max(phaseTotal(input.phaseCounts), count);
+  // The share is of your tagged tactic blunders, from the same query as the
+  // counts (a blunder can carry several tags, so never above 100%).
+  const blunders = Math.max(input.motifTagged || phaseTotal(input.phaseCounts), count);
   const labels = hits.map((h) => `"${MOTIF_LABEL[h.k as keyof typeof MOTIF_LABEL] ?? h.k}"`);
   const reason = `${count.toLocaleString()} of your blunders (${percent(count, blunders)}) ${count === 1 ? 'is' : 'are'} tagged ${orList(labels)}.`;
   return { score: (WEIGHT.motif * count) / Math.max(1, total), reason };

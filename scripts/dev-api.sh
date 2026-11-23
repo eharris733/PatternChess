@@ -21,8 +21,13 @@ CONTENT_ID=d4683ee908184d24a880ed39b4ebedaf # patternchess-content (local copy k
 # Idempotent: applies only migrations the local DB hasn't seen.
 npx wrangler d1 migrations apply patternchess-app --local --config d1/wrangler.jsonc --persist-to "$STATE"
 
+# Courses waiting on creator permission: `npm run dev` shows them, so the
+# courses RPCs here accept them too (VITE_SHOW_PENDING_COURSES=0 to mimic production).
+SHOW_PENDING="${VITE_SHOW_PENDING_COURSES:-1}"
+
 # Pages dev serves dist/ too; an empty dir is enough when Vite serves the SPA.
 mkdir -p dist
 exec npx wrangler pages dev dist --port "$API_PORT" \
   --compatibility-date=2026-06-18 --compatibility-flags=nodejs_compat \
-  --d1 "DB=$DB_ID" --kv AUTH_KV --kv "CONTENT=$CONTENT_ID" --persist-to "$STATE"
+  --d1 "DB=$DB_ID" --kv AUTH_KV --kv "CONTENT=$CONTENT_ID" --persist-to "$STATE" \
+  --binding "VITE_SHOW_PENDING_COURSES=$SHOW_PENDING"

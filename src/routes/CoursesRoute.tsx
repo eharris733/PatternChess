@@ -80,6 +80,12 @@ export function CoursesRoute() {
         </section>
       )}
 
+      {setFocus.isError && (
+        <p role="alert" className="text-incorrect text-sm">
+          Couldn't start that course. Try again in a moment.
+        </p>
+      )}
+
       <section className="flex flex-col gap-3" data-testid="course-recommendations">
         <h2 className="heading-md">Recommended for you</h2>
         {recPending || progress.isPending ? (

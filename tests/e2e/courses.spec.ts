@@ -167,6 +167,14 @@ const TINY_LESSON = {
   studyUrl: 'https://www.youtube.com/watch?v=FGx28GrVrY8',
   description: '',
   permissionNote: '',
+  // Built from the day's own video, so the day's clip plays alongside.
+  source: {
+    kind: 'youtube',
+    url: 'https://www.youtube.com/watch?v=Jiz7KLKjLas',
+    channel: 'Hanging Pawns',
+    channelUrl: 'https://www.youtube.com/@HangingPawns',
+    title: 'Caro-Kann Defense',
+  },
   chapters: [{ id: 'c1', name: 'Take the centre' }],
   chapterData: [
     {
@@ -240,7 +248,9 @@ test.describe('courses', () => {
     await expect(recs.locator('[data-testid=course-card][data-slug=sicilian-essentials]')).toContainText(
       'You play the Sicilian Defense in 60% of your games as Black.',
     );
-    await expect(recs.getByTestId('course-card').filter({ hasText: 'tagged "Allowed fork" or "Missed fork"' })).toHaveCount(1);
+    await expect(recs.locator('[data-testid=course-card][data-slug=avoid-knight-forks]')).toContainText(
+      '14 of your blunders (70%) are tagged "Allowed fork" or "Missed fork".',
+    );
     await expect(page.getByRole('link', { name: 'Courses', exact: true })).toBeVisible();
   });
 

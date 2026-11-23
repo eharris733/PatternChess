@@ -64,6 +64,11 @@ export interface LessonPlayerProps {
   video?: YouTubePlayer;
   /** Title for the embedded video frame. */
   videoTitle?: string;
+  /**
+   * The player sits in a narrow column (a course day, beside the lesson
+   * list): stack the board over the coach until the screen is very wide.
+   */
+  narrow?: boolean;
 }
 
 /**
@@ -72,7 +77,15 @@ export interface LessonPlayerProps {
  * then `learnDrillStore` drills the main line, pausing on the creator's notes
  * (paraphrased in the PGN comments, `[%ts]` links back to the video).
  */
-export function LessonPlayer({ study: course, onFinish, finishLabel = 'Finish', header, video: videoProp, videoTitle }: LessonPlayerProps) {
+export function LessonPlayer({
+  study: course,
+  onFinish,
+  finishLabel = 'Finish',
+  header,
+  video: videoProp,
+  videoTitle,
+  narrow = false,
+}: LessonPlayerProps) {
   const chapters = course.chapterData;
   const [index, setIndex] = useState(0);
   // Plies of the chapter's lead-in shown so far; null once the drill runs.
@@ -227,7 +240,14 @@ export function LessonPlayer({ study: course, onFinish, finishLabel = 'Finish', 
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(360px,500px)] gap-4">
+      <div
+        className={clsx(
+          'grid grid-cols-1 gap-4',
+          narrow
+            ? '2xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]'
+            : 'lg:grid-cols-[minmax(0,1fr)_minmax(360px,500px)]',
+        )}
+      >
           {/* Keep the whole board above the fold: header + progress take ~230px. */}
           <div className="w-full mx-auto" style={{ maxWidth: 'max(320px, calc(100vh - 240px))' }}>
             <BoardPanel

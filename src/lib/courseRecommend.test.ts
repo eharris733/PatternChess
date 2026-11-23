@@ -101,6 +101,9 @@ describe('rankCourses', () => {
     expect(ranked[1].reason).toBe('6 of your blunders (100%) are tagged "Allowed fork".');
     const withTotals = rankCourses(ALL, { ...input, phaseCounts: { opening: 10, middlegame: 60, endgame: 30 } });
     expect(withTotals[0].reason).toBe('24 of your blunders (24%) are tagged "Left a piece hanging" or "Missed hanging piece".');
+    // The motif query's own tagged total wins over the phase counts.
+    const tagged = rankCourses(ALL, { ...input, motifTagged: 48, phaseCounts: { opening: 1, middlegame: 2, endgame: 3 } });
+    expect(tagged[0].reason).toBe('24 of your blunders (50%) are tagged "Left a piece hanging" or "Missed hanging piece".');
   });
 
   it('narrows endgame courses by the endgames you let slip', () => {
