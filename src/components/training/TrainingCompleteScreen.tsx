@@ -6,7 +6,9 @@ import { useDailyPlan, type DailyPlan, type PlanStepId } from '../../hooks/useDa
 import type { TrainingFocus } from '../../routes/training/trainingFocus';
 import { TrophyIcon } from '../icons/TrophyIcon';
 import { useT, type Translator } from '../../i18n/useT';
-import { openSupporterUnlock } from '../../state/supporterUnlockStore';
+import { openDailyLimit } from '../../state/supporterUnlockStore';
+import { FIXED_DAILY_LIMIT } from '../../lib/dailyLimit';
+import { DailyLimitCountdown } from '../supporter/DailyLimitCountdown';
 
 // The first session that finishes the whole plan says so; later ones say "Session done".
 const PLAN_DONE_KEY = 'pc:plan-done-shown';
@@ -62,6 +64,8 @@ export function TrainingCompleteScreen({
   onStartFocus,
   sessionFocused = false,
   cappedOut = false,
+  cappedKind = null,
+  limitResetsAt = null,
 }: {
   totalCorrect: number;
   totalAttempted: number;
@@ -81,6 +85,10 @@ export function TrainingCompleteScreen({
    * day's positions are done, more training is a Supporter perk.
    */
   cappedOut?: boolean;
+  /** Which daily limit capped the session (trainingStore.cappedKind). */
+  cappedKind?: 'positions' | 'openings' | null;
+  /** When the limits reset (useDailyQuota().resetsAt), for the countdown. */
+  limitResetsAt?: number | null;
 }) {
   const { profile } = useAuth();
   const t = useT();
@@ -119,12 +127,19 @@ export function TrainingCompleteScreen({
   const streak = profile?.currentStreakDays ?? 0;
   const streakToday = streak > 0 && profile?.lastDrillLocalDate === today;
 
+  const limitKind = cappedKind ?? 'positions';
+  const limitCount = limitKind === 'positions' ? plan.goals.positionsPerDay : FIXED_DAILY_LIMIT.openings;
+
   const pct = totalAttempted > 0 ? Math.round((totalCorrect / totalAttempted) * 100) : 0;
   return (
     <div className="max-w-md mx-auto card text-center flex flex-col gap-4" data-testid="training-complete">
       <TrophyIcon className="h-14 w-14 self-center text-gold-dark" />
       <h1 className="heading-lg">
-        {planDone ? t('train.complete.planDone') : cappedOut ? t('train.capped.title') : t('train.complete.sessionDone')}
+        {planDone
+          ? t('train.complete.planDone')
+          : cappedOut
+            ? t(limitKind === 'positions' ? 'limit.title.positions' : 'limit.title.openings')
+            : t('train.complete.sessionDone')}
       </h1>
       {totalAttempted > 0 && (
         <p className="text-text-primary">
@@ -132,9 +147,12 @@ export function TrainingCompleteScreen({
         </p>
       )}
       {cappedOut && (
-        <p className="text-text-primary" data-testid="training-capped">
-          {t('train.capped.body', { count: plan.goals.positionsPerDay })}
-        </p>
+        <div className="flex flex-col items-center gap-2" data-testid="training-capped">
+          <p className="text-text-primary">
+            {t(limitKind === 'positions' ? 'limit.body.positions' : 'limit.body.openings', { count: limitCount })}
+          </p>
+          {limitResetsAt != null && <DailyLimitCountdown resetsAt={limitResetsAt} className="text-sm" />}
+        </div>
       )}
       {streakToday && <p className="text-text-primary">{t('train.complete.day', { count: streak })}</p>}
       {focusLabel && (
@@ -176,9 +194,11 @@ export function TrainingCompleteScreen({
         <button
           className="btn-primary"
           data-testid="training-capped-upsell"
-          onClick={() => openSupporterUnlock({ item: t('train.capped.item') })}
+          onClick={() =>
+            openDailyLimit({ kind: limitKind, limit: limitCount, resetsAt: limitResetsAt ?? Date.now() })
+          }
         >
-          {t('train.capped.cta')}
+          {t('limit.cta')}
         </button>
       ) : (
         <button className="btn-primary" onClick={onKeepTraining}>

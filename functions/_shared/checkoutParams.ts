@@ -1,4 +1,5 @@
 import type Stripe from 'stripe';
+import { SUPPORTER_PRICING, type SupporterPlan } from '../../src/lib/supporterPricing';
 
 /**
  * PatternChess look for the hosted Checkout page: each session carries its own
@@ -15,9 +16,11 @@ export const CHECKOUT_BRANDING = {
   font_family: 'inter',
 } as const satisfies Stripe.Checkout.SessionCreateParams.BrandingSettings;
 
-/** Shown above the pay button. */
-export const CHECKOUT_SUBMIT_MESSAGE =
-  'PatternChess Supporter: $5 a month to keep daily training free for everyone. Cancel any time from your profile.';
+/** Shown above the pay button, per plan (prices from src/lib/supporterPricing.ts). */
+export const CHECKOUT_SUBMIT_MESSAGE: Record<SupporterPlan, string> = {
+  annual: `PatternChess Supporter: $${SUPPORTER_PRICING.annual.perYear} a year ($${SUPPORTER_PRICING.annual.perMonth} a month, billed annually). Unlimited training for you, and daily training stays free for everyone. Cancel any time from your profile.`,
+  monthly: `PatternChess Supporter: $${SUPPORTER_PRICING.monthly.perMonth} a month. Unlimited training for you, and daily training stays free for everyone. Cancel any time from your profile.`,
+};
 
 /** Shown under the pay button, before payment. */
 export const CHECKOUT_AFTER_SUBMIT_MESSAGE =
@@ -70,6 +73,8 @@ export interface CheckoutInput {
   customerId: string;
   userId: string;
   priceId: string;
+  /** Which plan `priceId` is (picks the copy). */
+  plan: SupporterPlan;
   /** Suffix for Stripe's integration_identifier. */
   integrationSuffix: string;
 }
@@ -91,7 +96,7 @@ export function supporterCheckoutParams(input: CheckoutInput): Stripe.Checkout.S
       ...(icon ? { icon: { type: 'url', url: icon } } : {}),
     },
     custom_text: {
-      submit: { message: CHECKOUT_SUBMIT_MESSAGE },
+      submit: { message: CHECKOUT_SUBMIT_MESSAGE[input.plan] },
       after_submit: { message: CHECKOUT_AFTER_SUBMIT_MESSAGE },
     },
   };

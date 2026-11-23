@@ -64,12 +64,15 @@ export function TermsRoute() {
 
       <LegalSection heading="6. Supporter subscription" id="supporter">
         <p>
-          PatternChess is free to use. You may choose to become a supporter for $5 (USD) a month.
+          PatternChess is free to use, up to a daily training limit. You may choose to become a
+          supporter for $60 (USD) a year, billed annually (shown as $5 a month), or $12 (USD) a month,
+          billed monthly. Supporters who joined on the original $5 a month plan keep it.
           Payments are processed by Stripe on behalf of EH Solutions LLC; we never see or store your
           card number.
         </p>
         <p>
-          Your subscription renews automatically each month until you cancel. You can cancel any time
+          Your subscription renews automatically at the end of each billing period (a year or a month)
+          until you cancel. You can cancel any time
           from "Manage subscription" in your profile; you keep supporter perks until the end of the
           period you have paid for, and you are not charged again. Payments already made are not
           refunded, except where the law requires it. If you think you were charged in error, email us

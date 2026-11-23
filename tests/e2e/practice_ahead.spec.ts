@@ -361,21 +361,131 @@ test('"Today\'s plan: done" shows once every plan step is done', async ({ page }
   await expect(done.getByTestId('complete-next')).toHaveCount(0);
 });
 
-test('a free player stops at the day\'s goal, with Supporter offered for more', async ({ page }) => {
-  // An opening still to review keeps the whole plan open, so the headline is about positions.
+test('a free player at the day\'s goal sees the lock and its countdown, and a click opens the daily-limit sheet', async ({ page }) => {
+  // An opening still to review keeps the whole plan open, so the lock is about positions.
   const rec = await stub(page, [tactic(), UPCOMING_OPENING], {
     profile: { commitment_level: 'custom', daily_positions_goal: 1, daily_games_goal: 0 },
     sessions: goalMetToday(),
   });
   await page.goto('/training');
+  const banner = page.getByTestId('limit-banner-positions');
+  await expect(banner).toContainText("Today's positions: done");
+  await expect(banner.getByTestId('daily-limit-countdown')).toContainText(/Unlocks in (\d+h \d\dm|\d+m \d\ds|\d+s)/);
   await page.getByRole('button', { name: 'Review 1 position' }).click();
-  const done = page.getByTestId('training-complete');
-  await expect(done.getByRole('heading', { name: "Today's positions: done" })).toBeVisible();
-  await expect(done.getByTestId('training-capped')).toContainText('You trained your 1 position for today.');
-  // Nothing was handed out, so nothing was written.
+
+  const sheet = page.getByTestId('daily-limit');
+  await expect(sheet).toContainText('You trained your 1 position for today.');
+  await expect(sheet.getByTestId('daily-limit-timer')).toHaveText(/^(\d+h \d\dm|\d+m \d\ds|\d+s)$/);
+  // Annual is preselected: $5/month, billed annually; monthly is $12.
+  await expect(sheet.getByTestId('supporter-plan-annual')).toHaveAttribute('aria-checked', 'true');
+  await expect(sheet.getByTestId('supporter-plan-annual')).toContainText('$5/month');
+  await expect(sheet.getByTestId('supporter-plan-annual')).toContainText('Billed annually ($60/year)');
+  await expect(sheet.getByTestId('supporter-plan-monthly')).toContainText('$12/month');
+  await expect(sheet.getByTestId('supporter-unlock-checkout')).toHaveText('Train unlimited');
+  // No session started: the board never showed and nothing was written.
+  await expect(page.locator('cg-board')).toHaveCount(0);
   expect(rec.callsTo('blunders.updateAfterDrill')).toHaveLength(0);
+  await sheet.getByTestId('daily-limit-dismiss').click();
+  await expect(sheet).toHaveCount(0);
+});
+
+test('the plan card locks a finished step with a countdown; supporters are never locked', async ({ page }) => {
+  await stub(page, [tactic(), UPCOMING_OPENING], {
+    profile: { commitment_level: 'custom', daily_positions_goal: 1, daily_games_goal: 0 },
+    sessions: goalMetToday(),
+  });
+  await page.goto('/dashboard');
+  const step = page.getByTestId('plan-step-train');
+  await expect(step.getByTestId('plan-step-train-unlocks')).toContainText('Unlocks in');
+  await step.locator('[data-locked="daily-limit"]').click();
+  await expect(page.getByTestId('daily-limit')).toContainText("Today's positions: done");
+  await expect(page).toHaveURL(/\/dashboard$/);
+});
+
+test('supporters keep training past the goal with no lock', async ({ page }) => {
+  await stub(page, [tactic(), UPCOMING_OPENING], {
+    profile: { commitment_level: 'custom', daily_positions_goal: 1, daily_games_goal: 0 },
+    sessions: goalMetToday(),
+    supporter: true,
+  });
+  await page.goto('/dashboard');
+  await expect(page.getByTestId('plan-step-train-unlocks')).toHaveCount(0);
+  await page.goto('/training');
+  await expect(page.getByTestId('limit-banner-positions')).toHaveCount(0);
+});
+
+test('the sidebar meter counts today\'s positions, then shows the countdown and opens the sheet', async ({ page }) => {
+  await stub(page, [tactic(), UPCOMING_OPENING], {
+    profile: { commitment_level: 'custom', daily_positions_goal: 2, daily_games_goal: 0 },
+    sessions: goalMetToday(), // 1 of 2
+  });
+  await page.goto('/dashboard');
+  const meter = page.locator('aside').getByTestId('usage-meter');
+  await expect(meter.getByTestId('usage-meter-count')).toHaveText('1/2');
+  await expect(meter).toHaveAttribute('data-locked', 'false');
+  await meter.click();
+  await expect(page).toHaveURL(/\/training$/);
+});
+
+test('a used-up meter shows the countdown and Go unlimited; supporters see a heart instead', async ({ page }) => {
+  await stub(page, [tactic()], {
+    profile: { commitment_level: 'custom', daily_positions_goal: 1, daily_games_goal: 0 },
+    sessions: goalMetToday(),
+  });
+  await page.goto('/dashboard');
+  const meter = page.locator('aside').getByTestId('usage-meter');
+  await expect(meter).toHaveAttribute('data-locked', 'true');
+  await expect(meter.getByTestId('usage-meter-unlocks')).toContainText('Unlocks in');
+  await expect(meter.getByTestId('usage-meter-cta')).toHaveText('Go unlimited');
+  await expect(page.locator('aside').getByTestId('nav-supporter-mark')).toHaveCount(0);
+  await meter.click();
+  await expect(page.getByTestId('daily-limit')).toContainText("Today's positions: done");
+  await expect(page).toHaveURL(/\/dashboard$/);
+});
+
+test('supporters get no meter, just the heart by their name', async ({ page }) => {
+  await stub(page, [tactic()], {
+    profile: { commitment_level: 'custom', daily_positions_goal: 1, daily_games_goal: 0 },
+    sessions: goalMetToday(),
+    supporter: true,
+  });
+  await page.goto('/dashboard');
+  await expect(page.locator('aside').getByTestId('nav-supporter-mark')).toBeVisible();
+  await expect(page.getByTestId('usage-meter')).toHaveCount(0);
+});
+
+const NOW = new Date().toISOString();
+const reviewedToday = (id: string) => opening({ id, last_drilled_at: NOW, next_drill_at: SOON, cycle_number: 1, times_attempted: 1, times_correct: 1 });
+
+test('opening reviews stop at 3 a day for free players, mid-session too', async ({ page }) => {
+  // Two reviewed today, two due (the same position twice, so either order solves the same way).
+  const rec = await stub(page, [reviewedToday('od1'), reviewedToday('od2'), opening(), opening({ id: 'o3' })]);
+  await page.goto('/openings');
+  await page.getByTestId('review-due').click();
+  await expect(page.getByTestId('training-focus-banner')).toContainText('Opening reviews · 2 positions');
+  await page.getByTestId('skip-intro').click();
+  await expect(page.getByTestId('drill-prompt')).toHaveText('Play the move for White');
+  await dragMove(page, { file: 6, rank: 1 }, { file: 5, rank: 3 }); // Nf3
+  await expect(page.getByTestId('opening-verdict')).toContainText('Great!');
+  await page.keyboard.press('Space');
+
+  // The third review of the day was the last one: the second due drill waits.
+  const done = page.getByTestId('training-complete');
+  await expect(done.getByRole('heading', { name: "Today's opening reviews: done" })).toBeVisible();
+  await expect(done.getByTestId('training-capped')).toContainText('You reviewed your 3 openings for today.');
+  await expect(done.getByTestId('daily-limit-countdown')).toContainText('Unlocks in');
+  expect(rec.callsTo('blunders.updateAfterDrill')).toHaveLength(1);
   await done.getByTestId('training-capped-upsell').click();
-  await expect(page.getByTestId('supporter-unlock')).toContainText('Training past your daily plan');
+  await expect(page.getByTestId('daily-limit')).toContainText("Today's opening reviews: done");
+});
+
+test('with 3 openings reviewed today, Review on /openings opens the daily-limit sheet', async ({ page }) => {
+  await stub(page, [reviewedToday('od1'), reviewedToday('od2'), reviewedToday('od3'), opening()]);
+  await page.goto('/openings');
+  await expect(page.getByTestId('openings-unlocks')).toContainText('Unlocks in');
+  await page.getByTestId('review-due').click();
+  await expect(page.getByTestId('daily-limit')).toContainText('You reviewed your 3 openings for today.');
+  await expect(page).toHaveURL(/\/openings$/);
 });
 
 test('a focus with no positions at all says "None yet" and leads to its page', async ({ page }) => {

@@ -22,10 +22,11 @@ export function SupporterAskCard({ onClose }: { onClose: () => void }) {
         <h2 className="heading-md">Enjoying the plan? Help keep it running.</h2>
         <p className="text-sm text-text-primary">
           Your daily training on PatternChess is free, for you and for everyone else, and it stays that
-          way. If it's helping your chess, $5 a month keeps the site running and new features coming.
+          way. If it's helping your chess, $5 a month (billed annually) keeps the site running and new
+          features coming.
         </p>
         <p className="text-sm text-text-primary">
-          Supporters get flair next to their name, early access to the mobile app beta, and our thanks.
+          Supporters train without a daily limit, get flair next to their name, early access to the mobile app beta, and our thanks.
           Having a stake in your training is one more reason to show up for it.
         </p>
         <div className="flex flex-wrap items-center gap-3">
@@ -38,7 +39,7 @@ export function SupporterAskCard({ onClose }: { onClose: () => void }) {
               checkout();
             }}
           >
-            {pending === 'checkout' ? 'Opening checkout…' : 'Become a supporter, $5/mo'}
+            {pending === 'checkout' ? 'Opening checkout…' : 'Become a supporter'}
           </button>
           <button type="button" className="btn-ghost" onClick={dismiss}>
             Maybe later

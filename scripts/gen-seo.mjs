@@ -115,7 +115,7 @@ function main() {
     `- [About & glossary](${SITE_URL}/about): What the app is, the Woodpecker Method, and definitions of blunder, spaced repetition, winning chances, daily plan, and streak.\n` +
     `- [FAQ](${SITE_URL}/faq): Answers to common questions about PatternChess and chess improvement.\n` +
     `- [Chess GIF maker](${SITE_URL}/moments): Free tool that turns a PGN move sequence into an animated, shareable chess GIF or board screenshot.\n` +
-    `- [Support PatternChess](${SITE_URL}/supporter): Optional $5/month supporter tier. Daily training stays free; supporters get flair, early access to the mobile app beta, and our thanks.\n\n` +
+    `- [Support PatternChess](${SITE_URL}/supporter): Optional supporter tier: $5/month billed annually, or $12 monthly. The daily plan stays free; supporters train without a daily limit and get flair, early access to the mobile app beta, and our thanks.\n\n` +
     `## Blog\n` +
     posts.map((p) => `- [${p.title}](${SITE_URL}/blog/${p.slug}): ${p.description}`).join('\n') +
     `\n\n## Machine-readable\n` +

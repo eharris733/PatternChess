@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { E2E_USER, stubApp } from './helpers/api';
 
-// $5/month supporter tier: /supporter hands off to Stripe Checkout through
+// Supporter tier ($5/month billed annually, or $12 monthly): /supporter hands off to Stripe Checkout through
 // /api/stripe/checkout, shows the thank-you state for active supporters,
 // /profile carries "Manage subscription", and the dashboard ask appears from
 // the 4th open after a finished session.
@@ -65,8 +65,11 @@ test('signed out, /supporter sends sign-in back to checkout', async ({ page }) =
   await page.goto('/supporter');
   await expect(page.getByRole('heading', { name: "Back the thing that's backing your chess." })).toBeVisible();
   await expect(page.getByText('First in line for the beta when it opens.')).toBeVisible();
+  // Annual is preselected; picking monthly carries through sign-in.
+  await expect(page.getByTestId('supporter-plan-annual')).toHaveAttribute('aria-checked', 'true');
+  await page.getByTestId('supporter-plan-monthly').click();
   const link = page.getByTestId('supporter-cta').getByRole('link', { name: 'Sign in to support' });
-  await expect(link).toHaveAttribute('href', '/login?next=%2Fsupporter%3Fcheckout%3D1');
+  await expect(link).toHaveAttribute('href', '/login?next=%2Fsupporter%3Fcheckout%3Dmonthly');
   await link.click();
   await expect(page).toHaveURL(/\/login\?next=/);
   await expect(page.getByTestId('login-lede')).toHaveText("Sign in and we'll take you straight to checkout.");
@@ -78,22 +81,26 @@ test('signed out, /supporter sends sign-in back to checkout', async ({ page }) =
     await route.fulfill({ json: { url: '/__oauth-stub', redirect: false } });
   });
   await page.getByRole('button', { name: /Continue with Google/i }).click();
-  await expect.poll(() => body?.callbackURL ?? null).toMatch(/^http:\/\/localhost:\d+\/supporter\?checkout=1$/);
+  await expect.poll(() => body?.callbackURL ?? null).toMatch(/^http:\/\/localhost:\d+\/supporter\?checkout=monthly$/);
   expect(body!.provider).toBe('google');
-  expect(String(body!.errorCallbackURL)).toContain('/login?next=%2Fsupporter%3Fcheckout%3D1');
+  expect(String(body!.errorCallbackURL)).toContain('/login?next=%2Fsupporter%3Fcheckout%3Dmonthly');
 });
 
 test('back from sign-in, /supporter?checkout=1 starts checkout by itself', async ({ page }) => {
   await stub(page);
   let posts = 0;
+  let plan: unknown = null;
   await page.route('**/api/stripe/checkout', async (route) => {
     posts++;
+    plan = (route.request().postDataJSON() as { plan?: unknown }).plan;
     await route.fulfill({ json: { url: 'https://checkout.stripe.com/c/pay/cs_test_resume' } });
   });
   await page.route('https://checkout.stripe.com/**', (route) => route.fulfill({ body: '<h1>Stripe Checkout</h1>', contentType: 'text/html' }));
   await page.goto('/supporter?checkout=1');
   await page.waitForURL('https://checkout.stripe.com/**');
   expect(posts).toBe(1);
+  // Older `checkout=1` links mean the default plan.
+  expect(plan).toBe('annual');
 });
 
 test('an active supporter coming back with ?checkout=1 is not sent to Stripe', async ({ page }) => {

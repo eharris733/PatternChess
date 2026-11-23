@@ -1,4 +1,5 @@
 import { rpc } from '../../lib/api';
+import { DEFAULT_SUPPORTER_PLAN, type SupporterPlan } from '../../lib/supporterPricing';
 
 interface SupporterRow {
   status: string;
@@ -61,11 +62,11 @@ async function postStripe(path: 'checkout' | 'portal', payload?: Record<string, 
   return body.url;
 }
 
-/** URL of a Stripe Checkout page for the $5/month supporter subscription (returns to the current page). */
-export function createSupporterCheckout(): Promise<string> {
+/** URL of a Stripe Checkout page for the supporter subscription on `plan` (returns to the current page). */
+export function createSupporterCheckout(plan: SupporterPlan = DEFAULT_SUPPORTER_PLAN): Promise<string> {
   // Back/cancel on Stripe returns to this page; success adds ?supporter=thanks
   // (SupporterThanksNotice). The server only keeps same-origin paths.
-  return postStripe('checkout', { returnTo: window.location.pathname + window.location.search });
+  return postStripe('checkout', { returnTo: window.location.pathname + window.location.search, plan });
 }
 
 /** URL of the Stripe Customer Portal (update card, cancel, invoices). */

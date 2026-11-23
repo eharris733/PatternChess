@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuotaGuard } from '../../hooks/useDailyQuota';
 import { useNavigate } from 'react-router-dom';
 import { MOTIF_LABEL, type Motif } from '../../chess/motifs';
 import { useMotifInsight } from '../../hooks/useInsights';
@@ -16,6 +17,7 @@ const TOP_N = 5;
  */
 export function MotifWeaknessCard() {
   const navigate = useNavigate();
+  const { guard } = useQuotaGuard();
   const insight = useMotifInsight();
   const [showAll, setShowAll] = useState(false);
   if (insight.isPending) return <InsightCardSkeleton rows={3} />;
@@ -30,7 +32,7 @@ export function MotifWeaknessCard() {
   const top = showAll ? all : all.slice(0, TOP_N);
   const maxCount = all[0][1];
 
-  const drill = (motif: Motif) => navigate('/training', { state: { motifFilter: motif } });
+  const drill = (motif: Motif) => guard('positions') && navigate('/training', { state: { motifFilter: motif } });
 
   return (
     <section className="card flex flex-col gap-4">

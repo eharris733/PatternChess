@@ -2,7 +2,8 @@ import Stripe from 'stripe';
 import { first, insertStmt, nowIso, updateStmt } from './db';
 
 /**
- * Shared server code for the $5/month supporter tier (functions/api/stripe/*)
+ * Shared server code for the supporter tier ($60/year or $12/month; the
+ * original $5/month price stays valid for its subscribers) (functions/api/stripe/*)
  * and the supporter-only articles. No route handlers here, so Pages doesn't
  * mount this file.
  *
@@ -20,8 +21,12 @@ export interface StripeEnv extends SupporterDbEnv {
   /** Restricted key (rk_…): Customers, Checkout Sessions, Subscriptions, Customer portal. */
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
-  /** The "PatternChess Supporter" $5/mo price. */
+  /** The original "PatternChess Supporter" $5/mo price; existing subscribers keep it. */
   STRIPE_PRICE_ID: string;
+  /** $60/year ("$5 a month, billed annually"), the default plan. */
+  STRIPE_PRICE_ID_ANNUAL?: string;
+  /** $12/month. */
+  STRIPE_PRICE_ID_MONTHLY?: string;
   /** The PatternChess Customer Portal configuration (bpc_…). */
   STRIPE_PORTAL_CONFIG_ID: string;
 }
@@ -98,8 +103,22 @@ async function patchSupporter(env: SupporterDbEnv, userId: string, patch: Partia
   await updateStmt(env.DB, 'supporters', { ...patch, updated_at: nowIso() }, 'user_id = ?', [userId]).run();
 }
 
-function hasPrice(sub: Stripe.Subscription, priceId: string): boolean {
-  return sub.items.data.some((item) => item.price.id === priceId);
+type PriceEnv = Pick<StripeEnv, 'STRIPE_PRICE_ID' | 'STRIPE_PRICE_ID_ANNUAL' | 'STRIPE_PRICE_ID_MONTHLY'>;
+
+/** Every supporter price this deployment knows: the legacy monthly, annual and monthly. */
+export function supporterPriceIds(env: PriceEnv): Set<string> {
+  return new Set(
+    [env.STRIPE_PRICE_ID, env.STRIPE_PRICE_ID_ANNUAL, env.STRIPE_PRICE_ID_MONTHLY].filter((id): id is string => !!id),
+  );
+}
+
+/** The Stripe price for a new checkout on `plan`, or null when this deployment lacks it. */
+export function checkoutPriceId(env: PriceEnv, plan: 'annual' | 'monthly'): string | null {
+  return (plan === 'annual' ? env.STRIPE_PRICE_ID_ANNUAL : env.STRIPE_PRICE_ID_MONTHLY) || null;
+}
+
+function hasPrice(sub: Stripe.Subscription, priceIds: Set<string>): boolean {
+  return sub.items.data.some((item) => priceIds.has(item.price.id));
 }
 
 /**
@@ -109,7 +128,7 @@ function hasPrice(sub: Stripe.Subscription, priceId: string): boolean {
  */
 export async function syncSubscription(env: StripeEnv, stripe: Stripe, subscriptionId: string): Promise<string> {
   const sub = await stripe.subscriptions.retrieve(subscriptionId);
-  if (!hasPrice(sub, env.STRIPE_PRICE_ID)) return 'ignored: other product';
+  if (!hasPrice(sub, supporterPriceIds(env))) return 'ignored: other product';
 
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
   const row = await supporterBy(env, 'stripe_customer_id', customerId);

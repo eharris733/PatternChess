@@ -12,6 +12,10 @@ import { OpeningIcon } from '../icons/OpeningIcon';
 import { EndgameIcon } from '../icons/EndgameIcon';
 import { useLabel, useT } from '../../i18n/useT';
 import type { MessageKey } from '../../i18n/i18n';
+import { useDailyQuota } from '../../hooks/useDailyQuota';
+import { DailyLimitBanner } from '../supporter/DailyLimitBanner';
+import { DailyLimitCountdown } from '../supporter/DailyLimitCountdown';
+import { LockIcon } from '../icons/LockIcon';
 
 /**
  * What a focus tile offers: positions due now, practice ahead (nothing due,
@@ -26,12 +30,15 @@ function FocusTile({
   offer,
   onPick,
   testId,
+  lockedUntil = null,
 }: {
   icon: React.ReactNode;
   title: string;
   offer: TileOffer;
   onPick: () => void;
   testId: string;
+  /** The daily limit for this tile is used up (free players): countdown to the reset. */
+  lockedUntil?: number | null;
 }) {
   const t = useT();
   return (
@@ -46,7 +53,9 @@ function FocusTile({
       <span className="shrink-0 text-gold-dark">{icon}</span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-sm font-semibold text-text-primary">{title}</span>
-        {offer.kind === 'pending' ? (
+        {lockedUntil != null ? (
+          <DailyLimitCountdown resetsAt={lockedUntil} className="mt-0.5" testId={`${testId}-unlocks`} />
+        ) : offer.kind === 'pending' ? (
           <Skeleton className="mt-1 h-3 w-20" />
         ) : (
           <span className="text-xs text-text-primary">
@@ -165,6 +174,8 @@ export function TrainLandingScreen({
   const label = useLabel();
   const navigate = useNavigate();
   const dueCount = due?.length ?? 0;
+  const quota = useDailyQuota();
+  const positionsLocked = quota.positions.locked;
   const openingsOffer = useTileOffer(OPENINGS_FOCUS, due ? due.filter((b) => b.kind === 'opening').length : null);
   const endgamesOffer = useTileOffer(ENDGAMES_FOCUS, due ? due.filter((b) => b.phase === 'endgame').length : null);
   // Due → review; coming up → practice ahead; nothing yet → the focus's own page.
@@ -183,18 +194,24 @@ export function TrainLandingScreen({
         </p>
       </div>
 
+      {positionsLocked && (
+        <DailyLimitBanner kind="positions" limit={quota.positions.limit} resetsAt={quota.resetsAt} />
+      )}
+
       {due == null ? (
         <Skeleton className="h-14 w-full" />
       ) : dueCount > 0 ? (
-        <button type="button" onClick={() => onPick({})} className="btn-primary w-full py-4 text-base">
+        <button type="button" onClick={() => onPick({})} className="btn-primary w-full py-4 text-base gap-2">
+          {positionsLocked && <LockIcon className="h-4 w-4" />}
           {t('landingTrain.review', { count: dueCount })}
         </button>
       ) : (
         <button
           type="button"
           onClick={() => onPick({ practiceAhead: true })}
-          className="btn-primary w-full py-4 text-base"
+          className="btn-primary w-full py-4 text-base gap-2"
         >
+          {positionsLocked && <LockIcon className="h-4 w-4" />}
           {t('plan.practiceAhead')}
         </button>
       )}
@@ -205,6 +222,7 @@ export function TrainLandingScreen({
           title={t('landingTrain.openingReviews')}
           offer={openingsOffer}
           testId="focus-openings"
+          lockedUntil={quota.openings.locked ? quota.resetsAt : null}
           onPick={() => pickTile(OPENINGS_FOCUS, openingsOffer, '/openings')}
         />
         <FocusTile
@@ -214,6 +232,7 @@ export function TrainLandingScreen({
           title={t('landingTrain.endgamePositions')}
           offer={endgamesOffer}
           testId="focus-endgames"
+          lockedUntil={positionsLocked ? quota.resetsAt : null}
           onPick={() => pickTile(ENDGAMES_FOCUS, endgamesOffer, '/endgames')}
         />
       </div>

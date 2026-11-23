@@ -23,6 +23,8 @@ import type { TrainingFocus } from '../../routes/training/trainingFocus';
 import { CourseIcon } from '../icons/CourseIcon';
 import { useAuth } from '../../auth/useAuth';
 import { useLabel, useT } from '../../i18n/useT';
+import { useQuotaGuard } from '../../hooks/useDailyQuota';
+import { DailyLimitCountdown } from '../supporter/DailyLimitCountdown';
 
 function PlanStep({
   icon,
@@ -37,6 +39,7 @@ function PlanStep({
   loading,
   idle,
   locked,
+  limitResetsAt,
   testId,
 }: {
   icon: React.ReactNode;
@@ -55,6 +58,12 @@ function PlanStep({
   idle?: boolean;
   /** Visible but closed until the rest of the plan is done. */
   locked?: boolean;
+  /**
+   * A free player's daily limit for this step is used up: the countdown to
+   * the reset replaces the detail line and the button (still clickable, it
+   * opens the daily-limit sheet) carries a lock.
+   */
+  limitResetsAt?: number | null;
   testId?: string;
 }) {
   const t = useT();
@@ -92,10 +101,10 @@ function PlanStep({
         <span className={clsx('block text-sm', complete ? 'text-text-secondary line-through' : 'text-text-primary')}>
           {title}
         </span>
-        {detail && (
-          <span className="block text-xs text-text-primary">
-            {detail}
-          </span>
+        {limitResetsAt != null ? (
+          <DailyLimitCountdown resetsAt={limitResetsAt} className="mt-0.5" testId={testId ? `${testId}-unlocks` : undefined} />
+        ) : (
+          detail && <span className="block text-xs text-text-primary">{detail}</span>
         )}
       </span>
       {loading ? (
@@ -117,6 +126,16 @@ function PlanStep({
         >
           <LockIcon className="h-3.5 w-3.5" />
           {action}
+        </button>
+      ) : limitResetsAt != null ? (
+        <button
+          type="button"
+          className="btn-outline h-9 px-3 text-xs shrink-0 gap-1.5 whitespace-nowrap"
+          onClick={onAction}
+          data-locked="daily-limit"
+        >
+          <LockIcon className="h-3.5 w-3.5" />
+          {label}
         </button>
       ) : href ? (
         <a
@@ -176,6 +195,7 @@ export function DailyHabitCard() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const plan = useDailyPlan();
+  const { quota, guard } = useQuotaGuard();
   const { achievements } = useAchievements();
   const syncing = useSyncStore((s) =>
     Object.values(s.providers).some((p) => p.phase === 'fetching' || p.phase === 'inserting' || p.phase === 'analyzing'),
@@ -237,6 +257,8 @@ export function DailyHabitCard() {
   }
 
   const train = (focus?: TrainingFocus) => navigate('/training', focus ? { state: focus } : undefined);
+  // Free players' daily limits: a used-up step shows its countdown and opens the sheet.
+  const lockedUntil = (kind: 'positions' | 'openings' | 'endgames') => (quota[kind].locked ? quota.resetsAt : null);
 
   const lessonDetail = !lessonCourse
     ? null
@@ -321,9 +343,10 @@ export function DailyHabitCard() {
           done={drillsToday}
           goal={goals.positionsPerDay}
           idle={trainIdle && drillsToday === 0}
+          limitResetsAt={lockedUntil('positions')}
           action={practiceNext ? t('plan.practiceAhead') : t('common.train')}
           actionShort={practiceNext ? t('plan.practice') : undefined}
-          onAction={() => train(practiceNext ? { practiceAhead: true } : undefined)}
+          onAction={() => guard('positions') && train(practiceNext ? { practiceAhead: true } : undefined)}
         />
         {openingsPending ? (
           <PlanStepSkeleton />
@@ -347,8 +370,10 @@ export function DailyHabitCard() {
             detail={openingsDue > 0 ? t('plan.inQueue', { count: openingsDue }) : t('plan.queueClear')}
             done={openingsToday}
             goal={openingsGoal}
+            limitResetsAt={lockedUntil('openings')}
             action={openingsDue > 0 ? t('common.review') : t('plan.practice')}
             onAction={() =>
+              guard('openings') &&
               train({
                 kindFilter: 'opening',
                 returnTo: '/openings',
@@ -379,8 +404,9 @@ export function DailyHabitCard() {
             detail={playoutsDue > 0 ? t('plan.inQueue', { count: playoutsDue }) : t('plan.queueClear')}
             done={playoutsToday}
             goal={endgamesGoal}
+            limitResetsAt={lockedUntil('endgames')}
             action={t('common.play')}
-            onAction={() => navigate('/endgames')}
+            onAction={() => guard('endgames') && navigate('/endgames')}
           />
         )}
         {showPlay && playHref && profile && (
@@ -423,8 +449,9 @@ export function DailyHabitCard() {
           <button
             type="button"
             className="btn-outline h-9 px-4 text-xs shrink-0"
-            onClick={() => train(practiceNext ? { practiceAhead: true } : undefined)}
+            onClick={() => guard('positions') && train(practiceNext ? { practiceAhead: true } : undefined)}
           >
+            {quota.positions.locked && <LockIcon className="h-3.5 w-3.5 mr-1.5" />}
             {practiceNext ? t('plan.practiceAhead') : t('plan.keepGoing')}
           </button>
         </div>

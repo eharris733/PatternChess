@@ -38,7 +38,7 @@ Secrets (Production) — `npx wrangler pages secret put <NAME> --project-name pa
 | `BETTER_AUTH_URL` | `https://patternchess.com` |
 | `GOOGLE_CLIENT_ID` | `904456723586-nedgnl7nc0utc00dnvu3tmjgd216lk22.apps.googleusercontent.com` |
 | `GOOGLE_CLIENT_SECRET` | from Google Cloud Console |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`, `STRIPE_PORTAL_CONFIG_ID` | live values |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`, `STRIPE_PRICE_ID_ANNUAL`, `STRIPE_PRICE_ID_MONTHLY`, `STRIPE_PORTAL_CONFIG_ID` | live values |
 | `EVENTS_DIGEST_SECRET` | `openssl rand -hex 32` (same value goes to ChessEventsData in step 6) |
 
 Do **not** set `AUTH_TEST_MODE` on production.

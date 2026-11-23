@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuotaGuard } from '../hooks/useDailyQuota';
+import { DailyLimitCountdown } from '../components/supporter/DailyLimitCountdown';
+import { LockIcon } from '../components/icons/LockIcon';
 import { playersHeading } from '../components/openings/TheoryMovesLine';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
@@ -467,7 +470,11 @@ export function OpeningsRoute() {
   const masteredCount = allDrills.filter((d) => srBucket(d) === 'mastered').length;
 
   const countReview = () => recordOpeningReview(() => void refreshProfile());
+  // Free players review OPENINGS_PER_DAY openings a day (dailyLimit.ts).
+  const { quota, guard } = useQuotaGuard();
+  const openingsLocked = quota.openings.locked;
   const drill = (ids: string[], label: string) => {
+    if (!guard('openings')) return;
     countReview();
     navigate('/training', { state: { blunderIds: ids, focusLabel: label } });
   };
@@ -506,17 +513,22 @@ export function OpeningsRoute() {
           )}
         </div>
         {dueCount > 0 && (
-          <button
-            type="button"
-            className="btn-primary"
-            data-testid="review-due"
-            onClick={() => {
-              countReview();
-              navigate('/training', { state: { kindFilter: 'opening' } });
-            }}
-          >
-            {t('openings.reviewDue', { count: dueCount })}
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              type="button"
+              className="btn-primary gap-2"
+              data-testid="review-due"
+              onClick={() => {
+                if (!guard('openings')) return;
+                countReview();
+                navigate('/training', { state: { kindFilter: 'opening' } });
+              }}
+            >
+              {openingsLocked && <LockIcon className="h-4 w-4" />}
+              {t('openings.reviewDue', { count: dueCount })}
+            </button>
+            {openingsLocked && <DailyLimitCountdown resetsAt={quota.resetsAt} testId="openings-unlocks" />}
+          </div>
         )}
       </header>
 

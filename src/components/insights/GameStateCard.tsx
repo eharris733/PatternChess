@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useQuotaGuard } from '../../hooks/useDailyQuota';
 import clsx from 'clsx';
 import {
   GAME_STATE_LABEL,
@@ -22,6 +23,7 @@ const BAR_COLOR: Record<GameStateBucket, string> = {
 
 export function GameStateCard() {
   const navigate = useNavigate();
+  const { guard } = useQuotaGuard();
   const insight = useGameStateInsight();
   if (insight.isPending) return <InsightCardSkeleton rows={3} />;
   if (!insight.data) return null;
@@ -45,7 +47,7 @@ export function GameStateCard() {
               key={bucket}
               type="button"
               onClick={() =>
-                navigate('/training', { state: { contextFilter: bucket } })
+                guard('positions') && navigate('/training', { state: { contextFilter: bucket } })
               }
               className="flex flex-col gap-1.5 py-2.5 px-1 text-left hover:bg-text-primary/5 rounded-none transition-colors"
             >

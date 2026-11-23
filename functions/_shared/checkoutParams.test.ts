@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CHECKOUT_BRANDING, checkoutReturnPath, supporterCheckoutParams } from './checkoutParams';
 
-const base = { returnPath: '/dashboard', customerId: 'cus_1', userId: 'u-1', priceId: 'price_1', integrationSuffix: 'abcdefgh' };
+const base = { returnPath: '/dashboard', customerId: 'cus_1', userId: 'u-1', priceId: 'price_1', plan: 'annual' as const, integrationSuffix: 'abcdefgh' };
 
 describe('supporterCheckoutParams', () => {
   it('brands the session as PatternChess with its own copy', () => {
@@ -17,6 +17,13 @@ describe('supporterCheckoutParams', () => {
     for (const t of [p.custom_text?.submit, p.custom_text?.after_submit]) {
       expect((t as { message: string }).message.length).toBeLessThanOrEqual(1200); // Stripe's limit
     }
+  });
+
+  it('names the plan and its billing above the pay button', () => {
+    const annual = supporterCheckoutParams({ ...base, origin: 'https://patternchess.com' });
+    expect((annual.custom_text?.submit as { message: string }).message).toContain('$60 a year ($5 a month, billed annually)');
+    const monthly = supporterCheckoutParams({ ...base, plan: 'monthly', origin: 'https://patternchess.com' });
+    expect((monthly.custom_text?.submit as { message: string }).message).toContain('$12 a month');
   });
 
   it('keeps the subscription wiring unchanged', () => {

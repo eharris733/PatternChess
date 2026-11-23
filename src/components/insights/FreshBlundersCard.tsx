@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuotaGuard } from '../../hooks/useDailyQuota';
 import { useNavigate } from 'react-router-dom';
 import { useSyncStore } from '../../state/syncStore';
 import { supabaseService } from '../../services/supabaseService';
@@ -19,12 +20,14 @@ export function FreshBlundersCard() {
   const finds = useSyncStore((s) => s.freshFinds);
   const clear = useSyncStore((s) => s.clearFreshFinds);
   const [starting, setStarting] = useState(false);
+  const { guard } = useQuotaGuard();
 
   if (!finds || finds.games === 0) return null;
 
   const line = freshBlunderLine(finds.blunders, finds.games, finds.at, t);
 
   const train = async () => {
+    if (!guard('positions')) return;
     setStarting(true);
     try {
       const ids = await supabaseService.getLiveBlunderIdsForGames(finds.gameIds);
