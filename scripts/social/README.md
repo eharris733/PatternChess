@@ -56,11 +56,15 @@ You need `ffmpeg` and `stockfish` on your PATH (`brew install ffmpeg stockfish`)
 3. Create an API token with **D1 Edit** (patternchess-app), **Workers R2 Storage Edit** and **Workers KV Storage Edit**. That is the secret `CLOUDFLARE_API_TOKEN`; `CLOUDFLARE_ACCOUNT_ID` is the other secret.
 4. Apply migration 0003 to the remote D1 (see CLAUDE.md, "Database migrations").
 
-### Instagram (Instagram API with Instagram Login, no Facebook Page)
+### Instagram (Meta app "PatternChess", Unified login)
 
-1. Switch @patternchess to a professional account (Creator or Business).
-2. Go to developers.facebook.com, create an app (Business), and add the **Instagram** product. Under **API setup with Instagram login**, add @patternchess and generate a token with `instagram_business_basic` + `instagram_business_content_publish`. Development mode is enough to post to an account that has a role on the app.
-3. Run `SOCIAL_KV_NAMESPACE_ID=<id> node scripts/social/set-token.ts` and paste the token. It verifies the token with `/me` and stores it in KV.
+Meta no longer offers "API setup with Instagram login" to new apps. The app (1709951037306424) uses the Instagram API use case with **Unified login**, managed by the "Elliot Harris" business portfolio:
+
+1. @patternchess is a professional account with the **Instagram Tester** role (App roles; accepted under Instagram → Settings → Apps and websites → Tester invites).
+2. Use cases → Instagram API → configuration "Instagram API (Unified Login)": a **system-user token that never expires**.
+3. "Generate access tokens" → **Generate token** for @patternchess (account id 17841418773297346), then store it:
+   `pbpaste | node scripts/social/set-token.ts --ig-user-id 17841418773297346`.
+   It is saved in KV `ig` with `host: graph.facebook.com`; publish.ts never refreshes these tokens. (An "IG…" Instagram Login token still works: no `--ig-user-id`, host graph.instagram.com, refreshed weekly.)
 
 ### TikTok (Content Posting API, Upload mode)
 
@@ -72,7 +76,9 @@ You need `ffmpeg` and `stockfish` on your PATH (`brew install ffmpeg stockfish`)
 2. Test in **Sandbox** first, with @patternchess as a target user, then submit for review.
    - Unverified: whether review accepts a single-account uploader. If it doesn't, leave the TikTok secrets unset. The job skips TikTok and you post from **Download MP4**.
 3. Add the secrets `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET`.
-4. Run `TIKTOK_CLIENT_KEY=… TIKTOK_CLIENT_SECRET=… SOCIAL_KV_NAMESPACE_ID=<id> node scripts/social/tiktok-auth.ts`, open the link, approve, and paste the address you land on.
+4. With `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET` in `.env.local`: run `node scripts/social/tiktok-auth.ts`, open the link, approve, copy the address you land on, then `pbpaste | node scripts/social/tiktok-auth.ts --finish`.
+
+The app (7711150289977804820) runs in its **Sandbox** "patternchess-social" (Login Kit + Content Posting API, `user.info.basic` + `video.upload`, Direct Post off, domain patternchess.com verified by DNS TXT). Its target user is the TikTok account mr_chess_. Use the Sandbox's client key / secret.
 
 ### GitHub
 

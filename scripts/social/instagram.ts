@@ -1,11 +1,14 @@
-// Instagram API with Instagram Login (graph.instagram.com): publish a Reel,
-// read its insights, keep the long-lived token fresh. The token (60 days,
-// refreshable after 24h) lives in KV `ig` as { access_token, refreshed_at,
-// user_id, username }, written by set-token.ts and refreshed by publish.ts.
+// Instagram API: publish a Reel, read its insights, keep the token fresh.
+// Two token kinds, both stored in KV `ig` by set-token.ts:
+// - Instagram Login (graph.instagram.com): a 60-day token, refreshed by publish.ts.
+// - Unified login (graph.facebook.com): a system-user token from a business
+//   portfolio that never expires (Meta's only option for apps created since
+//   late 2026). `user_id` is then the Instagram professional account id.
+// Same endpoints on both hosts: {ig-user}/media, media_publish, insights.
 import { kvGetJson, kvPutJson, type Target } from './cloudflare.ts';
 import { env } from './env.ts';
 
-const GRAPH = 'https://graph.instagram.com';
+export type IgHost = 'graph.instagram.com' | 'graph.facebook.com';
 const version = () => env('IG_API_VERSION') ?? 'v24.0';
 const TOKENS: Target = { remote: true };
 
@@ -14,12 +17,16 @@ export interface IgToken {
   refreshed_at: string;
   user_id: string;
   username?: string;
+  /** Missing on tokens saved before Unified login support = graph.instagram.com. */
+  host?: IgHost;
 }
+
+const hostOf = (t: Pick<IgToken, 'host'>): IgHost => t.host ?? 'graph.instagram.com';
 
 export class IgError extends Error {}
 
-async function call<T>(method: 'GET' | 'POST', path: string, params: Record<string, string>, token: string): Promise<T> {
-  const url = new URL(`${GRAPH}/${version()}/${path}`);
+async function call<T>(method: 'GET' | 'POST', path: string, params: Record<string, string>, token: string, host: IgHost = 'graph.instagram.com'): Promise<T> {
+  const url = new URL(`https://${host}/${version()}/${path}`);
   const body = new URLSearchParams({ ...params, access_token: token });
   const res =
     method === 'GET'
@@ -44,11 +51,17 @@ export async function whoAmI(token: string): Promise<{ user_id: string; username
   return call('GET', 'me', { fields: 'user_id,username' }, token);
 }
 
+/** Unified login: the account's username, which also proves the token can read it. */
+export async function igAccount(token: string, igUserId: string): Promise<{ id: string; username: string }> {
+  return call('GET', igUserId, { fields: 'id,username' }, token, 'graph.facebook.com');
+}
+
 /** Refresh when the token is older than `maxAgeDays` (it must be ≥ 24h old to refresh). */
 export async function refreshIgTokenIfStale(maxAgeDays = 7): Promise<boolean> {
   const t = loadIgToken();
+  if (hostOf(t) === 'graph.facebook.com') return false; // system-user tokens never expire
   if (Date.now() - Date.parse(t.refreshed_at) < maxAgeDays * 86400_000) return false;
-  const res = await fetch(`${GRAPH}/refresh_access_token?${new URLSearchParams({ grant_type: 'ig_refresh_token', access_token: t.access_token })}`);
+  const res = await fetch(`https://graph.instagram.com/refresh_access_token?${new URLSearchParams({ grant_type: 'ig_refresh_token', access_token: t.access_token })}`);
   const json = (await res.json()) as { access_token?: string; error?: { message?: string } };
   if (!res.ok || !json.access_token) throw new IgError(`refresh: ${json.error?.message ?? `HTTP ${res.status}`}`);
   saveIgToken({ ...t, access_token: json.access_token, refreshed_at: new Date().toISOString() });
@@ -71,17 +84,18 @@ export async function publishReel(opts: { videoUrl: string; caption: string; thu
       thumb_offset: String(opts.thumbOffsetMs ?? 500),
     },
     t.access_token,
+    hostOf(t),
   );
   const deadline = Date.now() + 10 * 60_000;
   for (;;) {
-    const s = await call<{ status_code?: string; status?: string }>('GET', container.id, { fields: 'status_code,status' }, t.access_token);
+    const s = await call<{ status_code?: string; status?: string }>('GET', container.id, { fields: 'status_code,status' }, t.access_token, hostOf(t));
     if (s.status_code === 'FINISHED') break;
     if (s.status_code === 'ERROR' || s.status_code === 'EXPIRED') throw new IgError(`container ${s.status_code}: ${s.status ?? ''}`);
     if (Date.now() > deadline) throw new IgError('container still processing after 10 minutes');
     await sleep(5000);
   }
-  const media = await call<{ id: string }>('POST', `${t.user_id}/media_publish`, { creation_id: container.id }, t.access_token);
-  const info = await call<{ permalink?: string }>('GET', media.id, { fields: 'permalink' }, t.access_token).catch(() => ({ permalink: undefined }));
+  const media = await call<{ id: string }>('POST', `${t.user_id}/media_publish`, { creation_id: container.id }, t.access_token, hostOf(t));
+  const info = await call<{ permalink?: string }>('GET', media.id, { fields: 'permalink' }, t.access_token, hostOf(t)).catch(() => ({ permalink: undefined }));
   return { id: media.id, permalink: info.permalink ?? null };
 }
 
@@ -101,6 +115,7 @@ export async function reelInsights(mediaId: string): Promise<ReelInsights> {
     `${mediaId}/insights`,
     { metric: 'views,reach,likes,comments,saved,shares' },
     t.access_token,
+    hostOf(t),
   );
   const get = (name: string) => {
     const m = res.data.find((d) => d.name === name);
