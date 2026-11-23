@@ -6,7 +6,17 @@ import { trackCtaClick } from '../../services/funnelService';
 import type { PublicLeaderboardRow } from '../../services/db/leaderboard';
 import { useT } from '../../i18n/useT';
 
-const numberFormat = new Intl.NumberFormat('en-US');
+// en-US for English (stable prerendered HTML); the visitor's language otherwise.
+const formats = new Map<string, Intl.NumberFormat>();
+function numberFormat(locale: string): Intl.NumberFormat {
+  const tag = locale === 'en' ? 'en-US' : locale;
+  let f = formats.get(tag);
+  if (!f) {
+    f = new Intl.NumberFormat(tag);
+    formats.set(tag, f);
+  }
+  return f;
+}
 
 /** Fewer rows than this reads as an empty gym; hide the section instead. */
 const MIN_ROWS = 3;
@@ -79,7 +89,7 @@ export function WeeklyLeaderboard() {
                       )}
                     </span>
                     <span className="font-mono tabular-nums text-lg text-text-primary">
-                      {numberFormat.format(r.value)}
+                      {numberFormat(t.locale).format(r.value)}
                     </span>
                   </li>
                 );

@@ -6,6 +6,7 @@ import { useCountUp } from '../../hooks/useCountUp';
 import { rankFor } from '../../lib/ranks';
 import { Skeleton } from '../Skeleton';
 import { TrendChip } from './TrendChip';
+import { useT } from '../../i18n/useT';
 
 function StatTile({
   label,
@@ -56,14 +57,18 @@ function StatTile({
  * next piece. Lives under the mastered count so the number has a goal.
  */
 function RankLadder({ mastered }: { mastered: number }) {
+  const t = useT();
   const progress = rankFor(mastered);
+  const rankName = (name: string) => t.label('rank', name, name);
   const pct = Math.min(100, Math.round(progress.fraction * 100));
   return (
     <span className="flex w-full flex-col gap-1" data-testid="rank-ladder">
       <span className="flex items-baseline justify-between gap-2 flex-wrap">
-        <span className="text-xs font-semibold text-text-primary">{progress.current.name}</span>
+        <span className="text-xs font-semibold text-text-primary">{rankName(progress.current.name)}</span>
         <span className="text-xs text-text-primary tabular-nums">
-          {progress.next ? `${progress.remainingToNext} to ${progress.next.name}` : 'Top tier'}
+          {progress.next
+            ? t('stats.toNext', { count: progress.remainingToNext, name: rankName(progress.next.name) })
+            : t('stats.topTier')}
         </span>
       </span>
       <span
@@ -71,8 +76,12 @@ function RankLadder({ mastered }: { mastered: number }) {
         role="progressbar"
         aria-label={
           progress.next
-            ? `${progress.current.name}: ${progress.remainingToNext} more mastered until ${progress.next.name}`
-            : `${progress.current.name}: top tier reached`
+            ? t('stats.ariaNext', {
+                rank: rankName(progress.current.name),
+                count: progress.remainingToNext,
+                name: rankName(progress.next.name),
+              })
+            : t('stats.ariaTop', { rank: rankName(progress.current.name) })
         }
         aria-valuemin={0}
         aria-valuemax={100}
@@ -101,6 +110,7 @@ const formatSigned = (n: number) => (n > 0 ? `+${n.toLocaleString()}` : n.toLoca
  */
 export function StatStrip() {
   const navigate = useNavigate();
+  const t = useT();
   const stats = useBlunderStats();
   const rating = useRatingProgress();
 
@@ -126,27 +136,27 @@ export function StatStrip() {
   };
 
   return (
-    <div className="grid grid-cols-3 gap-3" data-testid="stat-strip" aria-label="Your numbers">
+    <div className="grid grid-cols-3 gap-3" data-testid="stat-strip" aria-label={t('stats.yourNumbers')}>
       <StatTile
-        label="Mastered"
+        label={t('stats.mastered')}
         value={mastered}
-        chip={masteredRecently > 0 ? `+${masteredRecently} this week` : null}
+        chip={masteredRecently > 0 ? t('stats.thisWeek', { count: masteredRecently }) : null}
         footer={<RankLadder mastered={mastered} />}
         onClick={() => navigate('/achievements')}
         loading={!mounted || stats.isPending}
       />
       <StatTile
-        label="Positions solved"
+        label={t('stats.solved')}
         value={solved}
-        footer={<FooterLine>{(stats.data?.totalBlunders ?? 0).toLocaleString()} in your vault</FooterLine>}
+        footer={<FooterLine>{t('stats.inVault', { count: stats.data?.totalBlunders ?? 0 })}</FooterLine>}
         onClick={() => navigate('/training')}
         loading={!mounted || stats.isPending}
       />
       <StatTile
-        label="Elo gained"
+        label={t('stats.eloGained')}
         value={eloGained}
         format={formatSigned}
-        footer={<FooterLine>Since you joined</FooterLine>}
+        footer={<FooterLine>{t('stats.sinceJoined')}</FooterLine>}
         onClick={showRatingProgress}
         loading={!mounted || rating.isPending}
       />

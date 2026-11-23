@@ -28,7 +28,7 @@ export function RankBadge({ variant = 'full' }: RankBadgeProps) {
     return (
       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-none border-2 border-text-primary bg-surface">
         <span className="font-mono uppercase text-xs tracking-tight text-gold-dark">
-          {progress.current.name}
+          {t.label('rank', progress.current.name, progress.current.name)}
         </span>
         <span className="text-xs text-text-primary tabular-nums">
           {t('rank.masteredShort', { count: mastered })}
@@ -59,12 +59,12 @@ export function RankBadge({ variant = 'full' }: RankBadgeProps) {
         <span className="label">{t('rank.label')}</span>
         <span className="text-text-primary text-xs">
           {progress.next
-            ? t('rank.untilNext', { count: progress.remainingToNext, name: progress.next.name })
+            ? t('rank.untilNext', { count: progress.remainingToNext, name: t.label('rank', progress.next.name, progress.next.name) })
             : t('rank.topTier')}
         </span>
       </header>
       <div>
-        <p className="heading-lg text-gold-dark">{progress.current.name}</p>
+        <p className="heading-lg text-gold-dark">{t.label('rank', progress.current.name, progress.current.name)}</p>
         <p className="text-text-primary text-sm mt-1">
           {t.rich(
             'rank.mastered',

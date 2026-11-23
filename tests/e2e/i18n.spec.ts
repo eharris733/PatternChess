@@ -1,5 +1,5 @@
 import { expect, test, type ConsoleMessage, type Page } from '@playwright/test';
-import { stubApp } from './helpers/api';
+import { stubApp, stubRpc, stubSession } from './helpers/api';
 
 // Translation smoke: the app follows the browser language by default, the
 // /profile picker switches it (remembered per device), and the dashboard plan
@@ -80,4 +80,18 @@ test.describe('with a Brazilian browser', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'pt');
     expect(problems).toEqual([]);
   });
+});
+
+test('signed-out visitors switch the landing page from the footer', async ({ page }) => {
+  const problems = watchConsole(page);
+  await stubSession(page, null);
+  await stubRpc(page);
+  await page.goto('/');
+  await expect(page.locator('h1')).toHaveText(/Stop procrastinating your improvement/i);
+  await page.getByTestId('footer-language').selectOption('es');
+  await expect(page.locator('h1')).toHaveText(/Deja de posponer tu mejora/i);
+  await expect(page.getByRole('button', { name: /Quiero mi plan/i })).toBeVisible();
+  await page.getByTestId('footer-language').selectOption('pt');
+  await expect(page.locator('h1')).toHaveText(/Pare de adiar a sua evolução/i);
+  expect(problems).toEqual([]);
 });

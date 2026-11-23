@@ -3,7 +3,17 @@ import { useInView } from '../../hooks/useInView';
 import { LANDING_STATS_SNAPSHOT, useLandingStats } from '../../hooks/useLandingStats';
 import { useT } from '../../i18n/useT';
 
-const numberFormat = new Intl.NumberFormat('en-US');
+// en-US for English (stable prerendered HTML); the visitor's language otherwise.
+const formats = new Map<string, Intl.NumberFormat>();
+function numberFormat(locale: string): Intl.NumberFormat {
+  const tag = locale === 'en' ? 'en-US' : locale;
+  let f = formats.get(tag);
+  if (!f) {
+    f = new Intl.NumberFormat(tag);
+    formats.set(tag, f);
+  }
+  return f;
+}
 
 /**
  * Social-proof stat card: global positions-reviewed and ELO-gained totals
@@ -63,6 +73,7 @@ function Stat({
   accent?: boolean;
 }) {
   const value = useCountUp(target, active);
+  const t = useT();
   return (
     <div className="flex flex-col items-center gap-2 px-6 py-8 lg:py-10 text-center">
       <div
@@ -72,7 +83,7 @@ function Stat({
         }
       >
         {prefix}
-        {numberFormat.format(value)}
+        {numberFormat(t.locale).format(value)}
       </div>
       <div className="font-mono uppercase text-[11px] tracking-[0.12em] text-text-secondary">
         {label}

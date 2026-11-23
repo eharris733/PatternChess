@@ -19,6 +19,7 @@ import { BlogPost } from './routes/BlogPost';
 import { NotFoundRoute } from './routes/NotFoundRoute';
 import { useFeature } from './hooks/useFeature';
 import type { Feature } from './lib/features';
+import { useT } from './i18n/useT';
 
 // /p (shared puzzles) is public but not prerendered, and it is the only eager
 // route that pulls in chessground; lazy-loading it keeps the board library
@@ -86,9 +87,10 @@ function AchievementsOrLeaderboards() {
 }
 
 function RouteFallback() {
+  const t = useT();
   return (
     <div className="flex items-center justify-center min-h-[40vh]">
-      <div className="text-text-secondary text-sm">Loading…</div>
+      <div className="text-text-secondary text-sm">{t('common.loading')}</div>
     </div>
   );
 }

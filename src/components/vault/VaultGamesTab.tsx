@@ -437,7 +437,7 @@ const GameRow = memo(function GameRow({
           </span>
           <span className="text-xs text-text-primary mt-0.5">
             {g.platform} · {g.timeControl ?? '—'} ·{' '}
-            {g.playedAt ? formatDate(g.playedAt) : t('vault.games.unknownDate')}
+            {g.playedAt ? formatDate(g.playedAt, t.locale) : t('vault.games.unknownDate')}
           </span>
         </div>
         <div className="flex items-center gap-3 shrink-0">

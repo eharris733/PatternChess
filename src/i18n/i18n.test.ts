@@ -20,6 +20,7 @@ import { GAME_STATE_LABEL } from '../chess/blunderContext';
 import { COLOR_LABEL } from '../components/vault/vaultFilters';
 import { BOOK_TIER_LABEL } from '../chess/bookFormat';
 import { AVATAR_PART_LABEL } from '../lib/avatar';
+import { RANKS } from '../lib/ranks';
 
 /**
  * Every English label map that `useLabel(family, id, english)` translates.
@@ -40,6 +41,8 @@ const LABEL_FAMILIES: Record<string, Record<string, string>> = {
   color: COLOR_LABEL,
   bookTier: BOOK_TIER_LABEL,
   avatarPart: AVATAR_PART_LABEL,
+  // Rank names are their own ids.
+  rank: Object.fromEntries(RANKS.map((r) => [r.name, r.name])),
 };
 
 const labelKeys = Object.entries(LABEL_FAMILIES).flatMap(([family, map]) =>
@@ -122,6 +125,9 @@ describe('resolveTemplate', () => {
     expect(resolveTemplate(EN, 'en', 'plan.train.title', { count: 5 })).toBe(EN['plan.train.title_other']);
     expect(resolveTemplate(es, 'es', 'plan.train.title', { count: 5 })).toBe(es['plan.train.title_other']);
     expect(resolveTemplate(es, 'es', 'plan.train.title', { count: 1_000_000 })).toBe(es['plan.train.title_other']);
+    // CLDR pt makes 0 singular; the catalogs read 0 as plural ("0 posições").
+    expect(resolveTemplate(pt, 'pt', 'plan.train.title', { count: 0 })).toBe(pt['plan.train.title_other']);
+    expect(resolveTemplate(pt, 'pt', 'plan.train.title', { count: 1 })).toBe(pt['plan.train.title_one']);
   });
 
   it('falls back to English and reports the miss', () => {

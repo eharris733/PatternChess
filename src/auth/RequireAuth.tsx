@@ -4,6 +4,7 @@ import { useOnboardingGate } from '../hooks/useOnboardingGate';
 import { OnboardingFlow } from '../components/OnboardingFlow';
 import { OnboardingEmail } from '../components/OnboardingEmail';
 import { useEmailGate } from '../hooks/useEmailGate';
+import { useT } from '../i18n/useT';
 
 // Routes that bypass the onboarding gate even when it would otherwise fire.
 // /profile is essential so the user can fix a typo in their username; the
@@ -14,6 +15,7 @@ const EMAIL_GATE_BYPASS = new Set(['/__sandbox', '/__engine-test']);
 
 export function RequireAuth() {
   const { session, loading } = useAuth();
+  const t = useT();
   const location = useLocation();
   const gate = useOnboardingGate();
   const emailGate = useEmailGate();
@@ -22,7 +24,7 @@ export function RequireAuth() {
   if (loading || (session && emailGated && emailGate === 'loading')) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
-        <div className="text-text-secondary text-sm">Loading…</div>
+        <div className="text-text-secondary text-sm">{t('common.loading')}</div>
       </div>
     );
   }

@@ -93,12 +93,10 @@ export function resolveTemplate(
 ): string {
   const count = vars?.count;
   if (typeof count === 'number' && EN_CATALOG[`${key}_one`] !== undefined) {
-    const cat = pluralCategory(locale, count);
     // es/pt also have a "many" category (1 000 000 de ...); our catalogs only
-    // carry one/other, so anything but "one" reads the "other" form.
-    const form = cat === 'one' ? 'one' : 'other';
-    // English decides "one" by its own rule; a locale whose "one" differs
-    // (pt treats 0 as one) gets its own answer here.
+    // carry one/other, so anything but "one" reads the "other" form. CLDR's pt
+    // counts 0 as "one" ("0 posição"); every catalog here reads 0 as plural.
+    const form = count !== 0 && pluralCategory(locale, count) === 'one' ? 'one' : 'other';
     const t = lookup(catalog, locale, `${key}_${form}`, onMissing);
     if (t !== undefined) return t;
   }

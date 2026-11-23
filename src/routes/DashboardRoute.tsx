@@ -25,6 +25,7 @@ import { FreshBlundersCard } from '../components/insights/FreshBlundersCard';
 import { NextAskSlot } from '../components/email/NextAskSlot';
 import { streakStatus } from '../services/streakService';
 import type { UserProfile } from '../models/userProfile';
+import { useT, type Translator } from '../i18n/useT';
 
 // Background jobs wait this long after the dashboard mounts.
 const JOB_START_DELAY_MS = 3_000;
@@ -42,6 +43,7 @@ function deferJob(start: () => () => void): () => void {
 }
 
 export function DashboardRoute() {
+  const t = useT();
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const gameCountQuery = useGameCount();
@@ -88,11 +90,11 @@ export function DashboardRoute() {
       <header className="flex flex-col gap-1">
         {isFirstRun ? (
           <>
-            <span className="label">Welcome to PatternChess</span>
-            <h1 className="heading-xl">{firstName}, let's get started.</h1>
+            <span className="label">{t('dash.welcome')}</span>
+            <h1 className="heading-xl">{t('dash.getStarted', { name: firstName })}</h1>
           </>
         ) : (
-          <h1 className="heading-xl">{greeting(profile, firstName)}</h1>
+          <h1 className="heading-xl">{greeting(profile, firstName, t)}</h1>
         )}
       </header>
 
@@ -129,11 +131,15 @@ export function DashboardRoute() {
               className="card block text-left hover:border-accent transition"
               onClick={() => navigate('/vault?tab=games')}
             >
-              <span className="label">Vault</span>
+              <span className="label">{t('nav.vault')}</span>
               <p className="heading-md mt-1">
-                <span className="font-mono">{gamesCount.toLocaleString()}</span> games
+                {t.rich(
+                  'dash.vaultGames',
+                  { count: <span className="font-mono">{gamesCount.toLocaleString()}</span> },
+                  gamesCount,
+                )}
               </p>
-              <p className="text-text-primary text-sm mt-1">Every game you've imported, and the blunders in each.</p>
+              <p className="text-text-primary text-sm mt-1">{t('dash.vaultHelp')}</p>
             </button>
           )}
         </div>
@@ -143,7 +149,7 @@ export function DashboardRoute() {
 }
 
 // The most-seen line carries the streak; a lapsed streak gets a welcome back.
-function greeting(profile: UserProfile | null, firstName: string): string {
+function greeting(profile: UserProfile | null, firstName: string, t: Translator): string {
   if (profile && profile.currentStreakDays > 0) {
     const { alive } = streakStatus({
       currentStreakDays: profile.currentStreakDays,
@@ -151,8 +157,8 @@ function greeting(profile: UserProfile | null, firstName: string): string {
       timezone: profile.timezone,
       streakFreezes: profile.streakFreezes,
     });
-    if (!alive) return `Welcome back, ${firstName}.`;
-    if (profile.currentStreakDays >= 2) return `Day ${profile.currentStreakDays}, ${firstName}. Keep it going.`;
+    if (!alive) return t('dash.welcomeBack', { name: firstName });
+    if (profile.currentStreakDays >= 2) return t('dash.dayStreak', { count: profile.currentStreakDays, name: firstName });
   }
-  return `Hey ${firstName}`;
+  return t('dash.hey', { name: firstName });
 }

@@ -64,6 +64,7 @@ export function blunderOrientation(game: GameRecord, blunder: Blunder): 'white' 
   return game.userColor ?? fenSideToMove(blunder.fen);
 }
 
-export function formatDate(d: Date): string {
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+/** Short date in the app language (`locale`), or the browser's when omitted. */
+export function formatDate(d: Date, locale?: string): string {
+  return d.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
 }

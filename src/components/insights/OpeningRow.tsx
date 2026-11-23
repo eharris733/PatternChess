@@ -1,6 +1,7 @@
 import { formatOpeningDisplay } from '../../chess/openingNames';
 import { KingIcon } from '../icons/KingIcon';
 import type { OpeningInsightRow } from '../../hooks/useInsights';
+import { useT } from '../../i18n/useT';
 
 function formatPct(v: number): string {
   return `${Math.round(v * 100)}%`;
@@ -14,6 +15,7 @@ export function openingDisplayName(
 }
 
 export function OpeningRow({ row, onClick }: { row: OpeningInsightRow; onClick: () => void }) {
+  const t = useT();
   const openingName = openingDisplayName(row);
   return (
     <li>
@@ -27,7 +29,7 @@ export function OpeningRow({ row, onClick }: { row: OpeningInsightRow; onClick: 
             {row.userColor ? (
               <KingIcon
                 color={row.userColor}
-                title={`Played as ${row.userColor === 'white' ? 'White' : 'Black'}`}
+                title={row.userColor === 'white' ? t('openingRow.playedAs.white') : t('openingRow.playedAs.black')}
                 className="h-5 w-5 shrink-0"
               />
             ) : (
@@ -38,8 +40,12 @@ export function OpeningRow({ row, onClick }: { row: OpeningInsightRow; onClick: 
             <span className="truncate">{openingName}</span>
           </p>
           <p className="text-text-primary text-xs tabular-nums">
-            {row.wins}W / {row.losses}L / {row.draws}D · {Math.round(row.blunderRate * 10) / 10}{' '}
-            blunders/game
+            {t('openingRow.record', {
+              w: row.wins,
+              l: row.losses,
+              d: row.draws,
+              rate: Math.round(row.blunderRate * 10) / 10,
+            })}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">

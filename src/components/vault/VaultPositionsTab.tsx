@@ -221,7 +221,7 @@ function PositionCard({
           <p className="text-xs text-text-primary truncate">
             {label('drillKind', blunder.kind, DRILL_KIND_LABEL[blunder.kind])}
             {game && ` · ${t('vault.pos.vs', { name: game.opponent })}`}
-            {game?.playedAt && ` · ${formatDate(game.playedAt)}`}
+            {game?.playedAt && ` · ${formatDate(game.playedAt, t.locale)}`}
           </p>
         </div>
         <span
