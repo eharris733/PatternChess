@@ -112,7 +112,11 @@ export function resolveTemplate(
 
 const PLACEHOLDER = /\{(\w+)\}/g;
 
-/** Fills `{name}` placeholders with plain values. Unknown names are left as is. */
+/**
+ * Fills `{name}` placeholders with plain values. Unknown names are left as is.
+ * Numbers get locale grouping (1,234 / 1.234); pass a string for ratings,
+ * years or ids that must print as is.
+ */
 export function interpolate(template: string, vars?: TVars): string {
   if (!vars) return template;
   return template.replace(PLACEHOLDER, (m, name: string) => {
