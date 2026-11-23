@@ -148,7 +148,7 @@ It goes in KV `ig`. Without it, no stats show on `/analytics`.
 
 1. Run the workflow by hand with step `refresh`. This re-renders the queued week in the new look.
 2. Review the week on `/analytics`.
-3. Set `SOCIAL_MODE=draft`, run step `publish`, and check both drafts in Buffer.
+3. Set `SOCIAL_MODE=draft`, run step `publish`, and check both drafts in Buffer. The `day` input (`--day YYYY-MM-DD`, draft / dry only) previews an upcoming day's video when today has none. A live run always posts today's.
 4. Set `SOCIAL_MODE=live`.
 
 The old direct posting code (`tiktok.ts`, `tiktok-auth.ts`, `publishReel` in `instagram.ts`) is no longer called.

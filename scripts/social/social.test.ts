@@ -5,6 +5,7 @@ import { endCardLines, instagramCaption, ratingLabel, templateScript, tiktokCapt
 import { judge, judgeTrap, parseInfo } from './engine.ts';
 import { shortcodeOf } from './instagram.ts';
 import { addDays, emptySlots, formatForDay } from './plan.ts';
+import { publishDay } from './publish.ts';
 import {
   buildFallPuzzle,
   buildPuzzle,
@@ -431,6 +432,17 @@ describe('buffer', () => {
     expect(shortcodeOf('https://www.instagram.com/reel/DeJYa-egCjC/')).toBe('DeJYa-egCjC');
     expect(shortcodeOf('https://www.instagram.com/patternchess/p/abc_1/')).toBe('abc_1');
     expect(shortcodeOf('https://example.com/x')).toBeNull();
+  });
+});
+
+describe('publish day', () => {
+  it('previews another day only in draft or dry mode', () => {
+    expect(publishDay('live', null, '2026-11-23')).toBe('2026-11-23');
+    expect(publishDay('draft', '2026-11-24', '2026-11-23')).toBe('2026-11-24');
+    expect(publishDay('dry', '2026-11-24', '2026-11-23')).toBe('2026-11-24');
+    expect(publishDay('live', '2026-11-23', '2026-11-23')).toBe('2026-11-23');
+    expect(() => publishDay('live', '2026-11-24', '2026-11-23')).toThrow(/live only posts today/);
+    expect(() => publishDay('draft', 'tomorrow', '2026-11-23')).toThrow(/YYYY-MM-DD/);
   });
 });
 
