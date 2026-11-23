@@ -64,6 +64,32 @@
       "author": "",
       "permission": null,
       "enabled": false
+    },
+    {
+      "slug": "hp-sicilian-pin-dzp2it",
+      "studyId": "yt-QFggixdt3JQ",
+      "title": "Punishing the Sicilian Pin Variation",
+      "category": "openings",
+      "openingFamilies": ["Sicilian Defense"],
+      "color": "white",
+      "level": "intermediate",
+      "author": "Hanging Pawns",
+      "description": "An interactive course built from Stjepan Tomić's video. Learn the one move that punishes 5...Bb4, and what to do against every Black reply.",
+      "pgnFile": "content/courses/hanging-pawns-sicilian-pin.pgn",
+      "permission": {
+        "kind": "outreach-demo",
+        "note": "Private demo built from this video to show its creator. Not published.",
+        "grantedAt": "2026-10-17"
+      },
+      "unlisted": true,
+      "source": {
+        "kind": "youtube",
+        "url": "https://www.youtube.com/watch?v=QFggixdt3JQ",
+        "channel": "Hanging Pawns",
+        "channelUrl": "https://www.youtube.com/@HangingPawns",
+        "title": "Sicilian Pin Variation (and why it's bad for black)"
+      },
+      "enabled": true
     }
   ]
 }

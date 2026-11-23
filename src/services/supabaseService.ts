@@ -17,6 +17,7 @@ import * as repertoireDb from './db/repertoire';
 import * as supportersDb from './db/supporters';
 import * as vaultDb from './db/vault';
 import * as cosmeticsDb from './db/cosmetics';
+import * as coursesDb from './db/courses';
 
 export * from './db/games';
 export * from './db/blunders';
@@ -32,6 +33,7 @@ export * from './db/repertoire';
 export * from './db/supporters';
 export * from './db/vault';
 export * from './db/cosmetics';
+export * from './db/courses';
 
 export const supabaseService = {
   ...gamesDb,
@@ -48,4 +50,5 @@ export const supabaseService = {
   ...supportersDb,
   ...vaultDb,
   ...cosmeticsDb,
+  ...coursesDb,
 };

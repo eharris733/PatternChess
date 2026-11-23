@@ -87,6 +87,8 @@ export interface UserProfile {
   appOpens: number;
   /** Staged dashboard asks (src/lib/asks.ts): last answer/dismissal and how many times. */
   asks: Record<'email' | 'course' | 'supporter', { promptedAt: Date | null; count: number }>;
+  /** The course the player follows (catalog slug; D1 migration 0003). Write via `setCourseFocus`. */
+  courseFocus: string | null;
 }
 
 function parseBoardTheme(v: unknown): BoardTheme {
@@ -164,6 +166,7 @@ export function userProfileFromJson(json: any): UserProfile {
     contactEmailVerifiedAt: parseDate(json.contact_email_verified_at),
     emailUnsubscribedAt: parseDate(json.email_unsubscribed_at),
     appOpens: (json.app_opens as number | null) ?? 0,
+    courseFocus: typeof json.course_focus === 'string' && json.course_focus ? json.course_focus : null,
     asks: {
       email: { promptedAt: parseDate(json.email_prompted_at), count: (json.email_prompt_count as number | null) ?? 0 },
       course: { promptedAt: parseDate(json.course_prompted_at), count: (json.course_prompt_count as number | null) ?? 0 },

@@ -3,8 +3,8 @@
 // the daily plan, never a modal and never mid-drill:
 //
 //   open ≥ 2  email      turn reminders on / add an address (Lichess sign-ins)
-//   open ≥ 3  course     "we picked a course from your games" (once courses ship)
-//   open ≥ 4  supporter  after at least one finished session (once Stripe ships)
+//   open ≥ 3  course     "we picked a course from your games" (a course is live, none followed)
+//   open ≥ 4  supporter  after at least one finished session
 //
 // An answered or dismissed ask comes back once, 14 days later, then never.
 

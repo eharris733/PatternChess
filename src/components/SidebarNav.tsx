@@ -14,6 +14,8 @@ import { EndgameIcon } from './icons/EndgameIcon';
 import { OpeningIcon } from './icons/OpeningIcon';
 import { PathIcon } from './icons/PathIcon';
 import { featureVisible, type Feature } from '../lib/features';
+import { CourseIcon } from './icons/CourseIcon';
+import { AVAILABLE_COURSES } from '../lib/courses';
 import { SettingsLink } from './SettingsLink';
 import { MyAvatar } from './avatar/PixelAvatar';
 
@@ -24,6 +26,8 @@ const NAV_ITEMS = [
   { to: '/openings', label: 'Openings', Icon: OpeningIcon },
   { to: '/endgames', label: 'Endgames', Icon: EndgameIcon },
   { to: '/path', label: 'Path', Icon: PathIcon, feature: 'path' as Feature },
+  // Only once a course is live in this build (production: creator permission granted).
+  ...(AVAILABLE_COURSES.length > 0 ? [{ to: '/courses', label: 'Courses', Icon: CourseIcon }] : []),
   { to: '/leaderboards', label: 'Leaderboards', Icon: TrophyIcon },
 ];
 

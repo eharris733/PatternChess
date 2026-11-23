@@ -94,6 +94,8 @@ export const TABLES: Record<string, TableSpec> = {
   social_posts: spec({ json: ['puzzle'], ts: ['insights_at', 'posted_at', 'created_at'] }),
   // D1-native (0005): Supporter perks granted without Stripe (the referral reward).
   supporter_grants: spec({ ts: ['starts_at', 'ends_at', 'created_at'] }),
+  // D1-native (0006_courses.sql): one row per finished course day.
+  course_progress: spec({ ts: ['completed_at'] }),
   // better-auth tables (camelCase columns; better-auth's own adapter handles
   // them, these entries exist for admin queries and the importer).
   user: spec({ bool: ['emailVerified'], ts: ['createdAt', 'updatedAt'] }),
@@ -106,7 +108,7 @@ export const TABLES: Record<string, TableSpec> = {
 
 /** The 17 app tables ported from Supabase `public` (excludes better-auth's and the D1-native ones). */
 export const APP_TABLES: readonly string[] = Object.keys(TABLES).filter(
-  (t) => !['user', 'session', 'account', 'verification', 'social_posts', 'supporter_grants'].includes(t),
+  (t) => !['user', 'session', 'account', 'verification', 'social_posts', 'supporter_grants', 'course_progress'].includes(t),
 );
 
 function tableSpec(table: string): TableSpec {

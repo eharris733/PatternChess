@@ -184,8 +184,8 @@ describe('TABLES vs d1/migrations', () => {
     return cols;
   }
 
-  it('lists all 17 app tables', () => {
-    expect(APP_TABLES).toHaveLength(17);
+  it('lists all 18 app tables', () => {
+    expect(APP_TABLES).toHaveLength(18);
     for (const t of APP_TABLES) expect(sql).toContain(`CREATE TABLE ${t} (`);
   });
 

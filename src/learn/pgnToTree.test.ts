@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parse } from '@mliebelt/pgn-parser';
-import { chapterFromGame, cleanComment, isStandardChapter, type ParsedGame } from './pgnToTree';
+import { chapterFromGame, cleanComment, isStandardChapter, parseTimestamp, type ParsedGame } from './pgnToTree';
 
 const pgn = readFileSync(new URL('./__fixtures__/sample-study.pgn', import.meta.url), 'utf8');
 const games = parse(pgn, { startRule: 'games' }) as unknown as ParsedGame[];
@@ -59,5 +59,48 @@ describe('cleanComment', () => {
   it('strips Lichess commands', () => {
     expect(cleanComment('[%clk 0:05:00] Nice [%eval 0.3] move')).toBe('Nice move');
     expect(cleanComment('[%anno "x", x]')).toBeUndefined();
+  });
+});
+
+describe('[%ts] video timestamps', () => {
+  it('parses m:ss on moves and the intro, and keeps it out of the prose', () => {
+    const [game] = parse(
+      '[Event "x"]\n{ [%ts 0:09] Intro. } 1. e4 { [%ts 4:12] [%cal Ge2e4] Centre. } e5 { [%ts 1:02:03] Late. } *',
+      { startRule: 'games' },
+    ) as unknown as ParsedGame[];
+    const ch = chapterFromGame(game, 0);
+    expect(ch.intro).toBe('Intro.');
+    expect(ch.introTs).toBe(9);
+    expect(ch.moves[0].ts).toBe(252);
+    expect(ch.moves[0].comment).toBe('Centre.');
+    expect(ch.moves[0].children[0].ts).toBe(3723);
+  });
+
+  it('ignores malformed timestamps', () => {
+    expect(parseTimestamp('soon')).toBeUndefined();
+    expect(parseTimestamp('4:7:')).toBeUndefined();
+    expect(parseTimestamp('12:05')).toBe(725);
+  });
+});
+
+describe('LeadIn tag', () => {
+  const one = (src: string) => (parse(src, { startRule: 'games' }) as unknown as ParsedGame[])[0];
+
+  it('replays the lead-in to the chapter start', () => {
+    const ch = chapterFromGame(
+      one('[LeadIn "1.e4 c5 2.Nf3"]\n[SetUp "1"]\n[FEN "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2"]\n\n2... d6 *'),
+      0,
+    );
+    expect(ch.leadIn?.map((m) => m.san)).toEqual(['e4', 'c5', 'Nf3']);
+    expect(ch.moves[0].san).toBe('d6');
+  });
+
+  it('rejects a lead-in that misses the start position', () => {
+    expect(() =>
+      chapterFromGame(
+        one('[LeadIn "1.e4 c5 2.Nc3"]\n[SetUp "1"]\n[FEN "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2"]\n\n2... d6 *'),
+        0,
+      ),
+    ).toThrow(/lead-in/);
   });
 });
