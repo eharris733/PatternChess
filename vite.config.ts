@@ -23,6 +23,12 @@ const crossOriginIsolation = {
   },
 };
 
+// Parallel local dev: PORT picks the Vite port (default 5173; when set, it is
+// strict so a busy port fails instead of hopping) and PC_API_PORT the
+// `scripts/dev-api.sh` port the /api proxy forwards to (default 8788).
+const devPort = Number(process.env.PORT) || 5173;
+const apiTarget = `http://localhost:${Number(process.env.PC_API_PORT) || 8788}`;
+
 export default defineConfig((): UserConfig => {
   return {
     plugins: [
@@ -36,15 +42,16 @@ export default defineConfig((): UserConfig => {
       },
     },
     server: {
-      port: 5173,
+      port: devPort,
+      strictPort: !!process.env.PORT,
       // Pages Functions don't run under Vite: forward auth + RPC to
-      // `wrangler pages dev` on :8788 (see CLAUDE.md). The Host header is kept
+      // `wrangler pages dev` on :8788 by default (see CLAUDE.md). The Host header is kept
       // (no changeOrigin) so better-auth builds localhost:5173 URLs and cookies.
       proxy: {
-        '/api/auth': { target: 'http://localhost:8788' },
-        '/api/rpc': { target: 'http://localhost:8788' },
-        '/api/stripe': { target: 'http://localhost:8788' },
-        '/api/articles': { target: 'http://localhost:8788' },
+        '/api/auth': { target: apiTarget },
+        '/api/rpc': { target: apiTarget },
+        '/api/stripe': { target: apiTarget },
+        '/api/articles': { target: apiTarget },
       },
     },
     preview: { port: 4173 },

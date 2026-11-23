@@ -1,5 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// PW_PORT runs the suite against its own dev server (default 5173), so several
+// checkouts can run e2e at once; the started `npm run dev` gets it as PORT.
+const port = Number(process.env.PW_PORT) || 5173;
+const baseURL = `http://localhost:${port}`;
+
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 60_000,
@@ -9,7 +14,7 @@ export default defineConfig({
   retries: 0,
   reporter: process.env.CI ? 'list' : [['list']],
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL,
     trace: 'retain-on-failure',
     headless: true,
   },
@@ -21,7 +26,8 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:5173',
+    url: baseURL,
+    env: { PORT: String(port) },
     reuseExistingServer: true,
     timeout: 60_000,
   },
