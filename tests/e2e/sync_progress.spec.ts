@@ -153,3 +153,65 @@ test('the onboarding import screen shows the live fetch line', async ({ page }) 
   await expect(page.getByText('Fetching games… 4 of 200 (1 month back)')).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText('Fetching games… 7 of 200 (2 months back)')).toBeVisible({ timeout: 10_000 });
 });
+
+test('a big chess.com month counts up while its body downloads', async ({ page }) => {
+  // One month holds every game (a busy player): the count must move during
+  // that single download, not jump from 0 to the cap at the end.
+  await page.addInitScript(() => {
+    const archive = 'https://api.chess.com/pub/player/busy-player/games/2026/11';
+    const base = Date.UTC(2026, 10, 15) / 1000;
+    const games = Array.from({ length: 240 }, (_, i) => ({
+      url: `https://www.chess.com/game/live/${base + i}`,
+      pgn: '[Event "Live Chess"]\n[White "busy-player"]\n[Black "them"]\n[Result "1-0"]\n\n1. e4 e5 1-0',
+      time_control: '180',
+      rated: true,
+      end_time: base + i,
+      white: { username: 'busy-player', result: 'win' },
+      black: { username: 'them', result: 'resigned' },
+    }));
+    const body = JSON.stringify({ games });
+    const origFetch = window.fetch.bind(window);
+    window.fetch = (input: any, init?: any) => {
+      const url: string = typeof input === 'string' ? input : input?.url ?? '';
+      if (url.endsWith('/games/archives') && url.includes('api.chess.com')) {
+        return Promise.resolve(new Response(JSON.stringify({ archives: [archive] }), { status: 200 }));
+      }
+      if (url === archive) {
+        const enc = new TextEncoder();
+        const parts = 6;
+        const size = Math.ceil(body.length / parts);
+        const stream = new ReadableStream({
+          async start(c) {
+            for (let i = 0; i < parts; i++) {
+              c.enqueue(enc.encode(body.slice(i * size, (i + 1) * size)));
+              await new Promise((r) => setTimeout(r, 700));
+            }
+            c.close();
+          },
+        });
+        return Promise.resolve(new Response(stream, { status: 200 }));
+      }
+      return origFetch(input, init);
+    };
+  });
+  await stubApp(page, {
+    user: USER,
+    profile: { ...PROFILE, chesscom_username: 'busy-player' },
+    gameCount: 200,
+  });
+  await page.goto('/dashboard');
+  const pill = page.getByRole('button', { name: /^Sync:/ });
+  const counts = new Set<number>();
+  await expect
+    .poll(
+      async () => {
+        const name = (await pill.getAttribute('aria-label')) ?? (await pill.textContent()) ?? '';
+        const m = /Fetching (\d+) of 200/.exec(name);
+        if (m) counts.add(Number(m[1]));
+        return [...counts].filter((n) => n > 0 && n < 200).length;
+      },
+      { timeout: 10_000, intervals: [100] },
+    )
+    .toBeGreaterThanOrEqual(2);
+  await expect(pill).toContainText('Tap to sync now', { timeout: 15_000 });
+});

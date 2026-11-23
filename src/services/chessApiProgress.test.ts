@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   fetchChessComGames,
   fetchLichessGames,
+  readChessComMonthWithProgress,
   readStreamWithProgress,
   sideOf,
   type FetchProgress,
@@ -59,6 +60,43 @@ describe('readStreamWithProgress', () => {
   it('falls back to text() without a body stream', async () => {
     const res = new Response(null, { status: 200 });
     expect(await readStreamWithProgress(res, () => {})).toBe('');
+  });
+});
+
+describe('readChessComMonthWithProgress', () => {
+  const game = (i: number, rated: boolean) => ({
+    url: `https://www.chess.com/game/live/${i}`,
+    // Braces, brackets, quotes and backslashes inside strings must not confuse the scan.
+    pgn: `[Event "Live {x} [y]"]\n[Annotator "a\\"b"]\n\n1. e4 {"hi"} *`,
+    rated,
+    white: { username: 'me', result: 'win' },
+    black: { username: 'them', result: 'checkmated' },
+  });
+
+  it('counts kept games as the month body streams, objects split across chunks once', async () => {
+    const body = JSON.stringify({ games: [game(1, true), game(2, false), game(3, true), game(4, true)] });
+    const size = Math.ceil(body.length / 5);
+    const chunks = Array.from({ length: 5 }, (_, i) => body.slice(i * size, (i + 1) * size));
+    let clock = 0;
+    vi.spyOn(Date, 'now').mockImplementation(() => (clock += 1000));
+    const seen: number[] = [];
+    const text = await readChessComMonthWithProgress(
+      streamed(chunks),
+      (g) => (g as { rated: boolean }).rated,
+      (n) => seen.push(n),
+    );
+    expect(text).toBe(body);
+    // Monotone, ends at the three rated games, never counts the unrated one.
+    expect(seen.length).toBeGreaterThan(1);
+    expect([...seen].sort((a, b) => a - b)).toEqual(seen);
+    expect(seen.at(-1)).toBe(3);
+  });
+
+  it('returns an unexpected body untouched with no count', async () => {
+    const seen: number[] = [];
+    const body = '{"code":0,"message":"not found"}';
+    expect(await readChessComMonthWithProgress(streamed([body]), () => true, (n) => seen.push(n))).toBe(body);
+    expect(seen).toEqual([]);
   });
 });
 

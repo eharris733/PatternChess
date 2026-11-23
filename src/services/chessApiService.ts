@@ -37,7 +37,7 @@ export interface FetchOpts {
   timeControls?: TimeControlCategory[];
   /** When set, only return games strictly newer than this timestamp. */
   since?: Date | null;
-  /** Live fetch progress: called as games arrive (Lichess) or per month (chess.com). */
+  /** Live fetch progress: called as games arrive (Lichess stream, chess.com month bodies). */
   onProgress?: (p: FetchProgress) => void;
 }
 
@@ -148,8 +148,33 @@ export async function fetchChessComGames(
   const target = since ? null : cap;
   const monthsTotal = since ? window.length : null;
   let monthsDone = 0;
-  const report = () => onProgress?.({ fetched: out.length, target, monthsDone, monthsTotal });
+  let lastKey = '';
+  const emit = (fetched: number) => {
+    const key = `${fetched}|${monthsDone}`;
+    if (key === lastKey) return;
+    lastKey = key;
+    onProgress?.({ fetched, target, monthsDone, monthsTotal });
+  };
+  const report = () => emit(out.length);
   report();
+
+  // The same filters the month loop applies, so the live count while a
+  // month downloads only counts games this fetch will keep.
+  const keepable = (game: any): boolean => {
+    if (!game?.pgn) return false;
+    if (ratedOnly && game.rated !== true) return false;
+    if (
+      timeControls.length > 0 &&
+      !timeControls.some((tc) => matchesTimeCategory(game.time_control ?? '', tc))
+    ) {
+      return false;
+    }
+    if (sinceMs !== null) {
+      const endMs = typeof game.end_time === 'number' ? game.end_time * 1000 : null;
+      if (endMs === null || endMs <= sinceMs) return false;
+    }
+    return true;
+  };
 
   let fetchedAnyMonth = false;
   for (const archiveUrl of window) {
@@ -166,25 +191,21 @@ export async function fetchChessComGames(
       report();
       continue;
     }
-    const monthJson = (await monthRes.json()) as { games: any[] };
+    // One month can hold hundreds of games (several MB): count them as the
+    // body streams so the pill moves during a big month, not only after it.
+    const base = out.length;
+    const room = cap - base;
+    const monthText = await readChessComMonthWithProgress(monthRes, keepable, (kept) =>
+      emit(base + Math.min(room, kept)),
+    );
+    const monthJson = JSON.parse(monthText) as { games: any[] };
     const games = [...(monthJson.games ?? [])].sort(
       (a, b) => (b.end_time ?? 0) - (a.end_time ?? 0),
     );
 
     for (const game of games) {
       if (out.length >= cap) break;
-      if (!game.pgn) continue;
-      if (ratedOnly && game.rated !== true) continue;
-      if (
-        timeControls.length > 0 &&
-        !timeControls.some((tc) => matchesTimeCategory(game.time_control ?? '', tc))
-      ) {
-        continue;
-      }
-      if (sinceMs !== null) {
-        const endMs = typeof game.end_time === 'number' ? game.end_time * 1000 : null;
-        if (endMs === null || endMs <= sinceMs) continue;
-      }
+      if (!keepable(game)) continue;
 
       const white = game.white as { username: string; result: string | null };
       const black = game.black as { username: string; result: string | null };
@@ -328,6 +349,73 @@ export async function readStreamWithProgress(
       lastReported = complete;
       lastAt = now;
       onGames(complete);
+    }
+  }
+  text += decoder.decode();
+  return text;
+}
+
+/**
+ * Reads a chess.com monthly archive (`{"games":[{...},{...}]}`) as it streams
+ * and calls `onKept` with how many complete games so far pass `keep`
+ * (throttled like the Lichess stream). Each game object is cut out by a
+ * string-aware brace scan and parsed on its own; the caller still parses the
+ * returned text as a whole, so a malformed or unexpected body only loses the
+ * live count, never games.
+ */
+export async function readChessComMonthWithProgress(
+  res: Response,
+  keep: (game: unknown) => boolean,
+  onKept: (kept: number) => void,
+): Promise<string> {
+  const reader = res.body?.getReader();
+  if (!reader) return res.text();
+  const decoder = new TextDecoder();
+  let text = '';
+  let pos = 0;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let itemStart = -1;
+  let kept = 0;
+  // The caller has already shown the count before this month.
+  let lastReported = 0;
+  let lastAt = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+    for (; pos < text.length; pos++) {
+      const ch = text.charCodeAt(pos);
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === 92 /* backslash */) escaped = true;
+        else if (ch === 34 /* " */) inString = false;
+        continue;
+      }
+      if (ch === 34) {
+        inString = true;
+      } else if (ch === 123 /* { */ || ch === 91 /* [ */) {
+        depth++;
+        // {"games":[ puts each game object at depth 3.
+        if (ch === 123 && depth === 3) itemStart = pos;
+      } else if (ch === 125 /* } */ || ch === 93 /* ] */) {
+        if (ch === 125 && depth === 3 && itemStart >= 0) {
+          try {
+            if (keep(JSON.parse(text.slice(itemStart, pos + 1)))) kept++;
+          } catch {
+            // Not a game object after all; the whole-body parse decides.
+          }
+          itemStart = -1;
+        }
+        depth--;
+      }
+    }
+    const now = Date.now();
+    if (kept !== lastReported && now - lastAt >= LICHESS_PROGRESS_MS) {
+      lastReported = kept;
+      lastAt = now;
+      onKept(kept);
     }
   }
   text += decoder.decode();
