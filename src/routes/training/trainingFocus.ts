@@ -7,13 +7,15 @@ import {
   type UpcomingParams,
 } from '../../hooks/useUpcomingBlunders';
 
-/** Pages a focused session can send you back to. */
-export type ReturnPath = '/openings' | '/endgames';
+/** Pages a focused session can send you back to (a course day: `/courses/<slug>/<day>`). */
+export type ReturnPath = '/openings' | '/endgames' | `/courses/${string}`;
 
-export const RETURN_LABEL: Record<ReturnPath, string> = {
-  '/openings': 'Back to Openings',
-  '/endgames': 'Back to Endgames',
-};
+/** The "Back to …" label for a return page. */
+export function returnLabel(path: ReturnPath): string {
+  if (path === '/openings') return 'Back to Openings';
+  if (path === '/endgames') return 'Back to Endgames';
+  return 'Back to the lesson';
+}
 
 /**
  * What a /training session drills: `location.state` from a deep link, or the
@@ -40,7 +42,7 @@ export interface TrainingFocus {
 }
 
 function isReturnPath(v: unknown): v is ReturnPath {
-  return v === '/openings' || v === '/endgames';
+  return v === '/openings' || v === '/endgames' || (typeof v === 'string' && /^\/courses\/[a-z0-9-]+(\/\d+)?$/.test(v));
 }
 
 /** Any filter that narrows the queue (practice-ahead alone is not a filter). */

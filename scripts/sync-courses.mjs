@@ -3,7 +3,7 @@
 //   content/courses/catalog.json         public catalog: every course, its topic,
 //                                         creator, permission, days 1-2 in full and
 //                                         the titles of the later days (committed)
-//   content/supporter/courses/<slug>.json days 3+ (youtubeId/start/end/takeaway),
+//   content/supporter/courses/<slug>.json days 3+ (youtubeId/start/end/takeaway/lesson),
 //                                         gitignored: this repo is public
 //   src/generated/courses-catalog.json   what the app bundles (committed)
 //   KV patternchess-content              `course-day:<slug>:<n>` → JSON day content,
@@ -68,11 +68,20 @@ function checkSegment(slug, n, d) {
   }
   if (d.start != null && d.end != null && d.end <= d.start) fail(slug, `day ${n} ends before it starts`);
   if (!String(d.takeaway ?? '').trim()) fail(slug, `day ${n} needs a takeaway`);
+  if (d.lesson != null) {
+    // The interactive lesson: an annotated PGN built by `npm run learn:sync`
+    // (an unlisted content/learn/catalog.json entry) into src/generated/courses/.
+    if (!/^[a-z0-9-]{1,80}$/.test(String(d.lesson))) fail(slug, `day ${n} lesson must be a slug`);
+    if (!existsSync(join(root, 'src', 'generated', 'courses', `${d.lesson}.json`))) {
+      fail(slug, `day ${n} lesson "${d.lesson}" is not built: add it to content/learn/catalog.json (unlisted) and run npm run learn:sync`);
+    }
+  }
   return {
     youtubeId: d.youtubeId,
     ...(d.start != null ? { start: d.start } : {}),
     ...(d.end != null ? { end: d.end } : {}),
     takeaway: String(d.takeaway).trim(),
+    ...(d.lesson != null ? { lesson: String(d.lesson) } : {}),
   };
 }
 

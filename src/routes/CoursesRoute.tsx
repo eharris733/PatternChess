@@ -4,20 +4,15 @@ import { Skeleton } from '../components/Skeleton';
 import { AVAILABLE_COURSES, COURSE_TYPE_HEADING, availableCourse } from '../lib/courses';
 import { FREE_COURSE_DAYS, type Course } from '../lib/courseCatalog';
 import { nextDay } from '../lib/coursePacing';
-import {
-  useCourseProgress,
-  useCourseRecommendations,
-  useCourseToday,
-  useSetCourseFocus,
-} from '../hooks/useCourses';
+import { useCourseProgress, useCourseRecommendations, useSetCourseFocus } from '../hooks/useCourses';
 import { useSupporter } from '../hooks/useSupporter';
 
 const TYPES: Course['topic']['type'][] = ['opening', 'motif', 'phase'];
 
 /**
- * /courses: short video lessons from chess creators, one a day, each followed
- * by positions from your own games. "Recommended for you" ranks the catalog
- * by your games (src/lib/courseRecommend.ts).
+ * /courses: short video lessons from chess creators, each followed by the
+ * mistakes from your own games on the same idea. "Recommended for you" ranks
+ * the catalog by your games (src/lib/courseRecommend.ts).
  */
 export function CoursesRoute() {
   const navigate = useNavigate();
@@ -25,7 +20,6 @@ export function CoursesRoute() {
   const { recommendations, isPending: recPending } = useCourseRecommendations();
   const setFocus = useSetCourseFocus();
   const supporter = useSupporter();
-  const today = useCourseToday();
 
   const focus = availableCourse(progress.data?.focus);
   const done = (slug: string) => progress.data?.byCourse.get(slug) ?? [];
@@ -42,16 +36,17 @@ export function CoursesRoute() {
     );
   }
 
-  const focusNext = focus ? nextDay(focus.days.length, done(focus.slug), today) : null;
+  const focusNext = focus ? nextDay(focus.days.length, done(focus.slug)) : null;
 
   return (
     <div className="max-w-5xl mx-auto flex flex-col gap-8" data-testid="courses-page">
       <header className="flex flex-col gap-2 max-w-3xl">
         <span className="label">Courses</span>
-        <h1 className="heading-xl">One short lesson a day, picked from your games</h1>
+        <h1 className="heading-xl">Short lessons, matched to your games</h1>
         <p className="text-text-primary">
-          Each course cuts a chess creator's YouTube lessons into a clip a day. After the clip, you drill positions from
-          your own games on the same idea, so the lesson lands where you actually lose points.
+          Each course turns a chess creator's YouTube videos into short lessons. Watch or play through the lesson, then
+          drill the mistakes from your own games on the same idea, so it lands where you actually lose points. The next
+          lesson is ready as soon as you finish one.
         </p>
         {!supporter.isPending && !supporter.isSupporter && (
           <p className="text-sm text-text-primary">
@@ -75,13 +70,11 @@ export function CoursesRoute() {
           <p className="text-sm text-text-primary">
             {focusNext == null
               ? 'You finished this course. Pick your next one below.'
-              : focusNext.status === 'open'
-                ? `Today: day ${focusNext.day}, ${focus.days[focusNext.day - 1].title}.`
-                : `Day ${focusNext.day} opens tomorrow. Today's lesson is done.`}
+              : `Next: day ${focusNext.day}, ${focus.days[focusNext.day - 1].title}.`}
           </p>
           <div>
             <Link to={`/courses/${focus.slug}`} className="btn-primary">
-              {focusNext?.status === 'open' ? "Watch today's lesson" : 'Open course'}
+              {focusNext ? 'Continue' : 'Open course'}
             </Link>
           </div>
         </section>
@@ -97,8 +90,8 @@ export function CoursesRoute() {
           </div>
         ) : recommendations.length === 0 ? (
           <p className="text-text-primary">
-            Once a few of your games are synced and analyzed, we'll match courses to the openings you play and the
-            mistakes that cost you. Until then, any course below is a good start.
+            Once a few of your games are analyzed, we'll match courses to the openings you play and the mistakes that
+            cost you. Until then, any course below is a good start.
           </p>
         ) : (
           <div className="grid gap-4 md:grid-cols-3">

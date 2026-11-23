@@ -39,7 +39,7 @@ export interface RecommendInput {
 export interface CourseRecommendation {
   course: Course;
   score: number;
-  /** One sentence on why, from the player's numbers. */
+  /** One sentence on why, from the player's own numbers (shares, never invented ratings). */
   reason: string;
 }
 
@@ -72,6 +72,24 @@ function sum(xs: Iterable<number>): number {
   return s;
 }
 
+/** "40%", or "under 1%" so a real share never rounds to a misleading 0%. */
+export function percent(part: number, whole: number): string {
+  if (whole <= 0) return '0%';
+  const p = (100 * part) / whole;
+  if (p > 0 && p < 1) return 'under 1%';
+  return `${Math.min(100, Math.round(p))}%`;
+}
+
+/** "A", "A or B", "A, B or C". */
+function orList(items: string[]): string {
+  return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} or ${items.at(-1)}`;
+}
+
+/** Tactic blunders across the three phases (the hook's counts also carry a `total`). */
+function phaseTotal(c: RecommendInput['phaseCounts']): number {
+  return c.opening + c.middlegame + c.endgame;
+}
+
 function scoreOpening(course: Course, input: RecommendInput): Omit<CourseRecommendation, 'course'> | null {
   const { keys, color } = course.topic;
   const matched = input.openings.filter((o) => keys.includes(o.family) && (!color || o.color === color));
@@ -86,11 +104,13 @@ function scoreOpening(course: Course, input: RecommendInput): Omit<CourseRecomme
   const byFamily = new Map<string, number>();
   for (const o of matched) byFamily.set(o.family, (byFamily.get(o.family) ?? 0) + o.games);
   const family = [...byFamily.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  // The share is of your games with the course's colour (all your games for a
+  // course that teaches both sides).
+  const sideGames = color ? sum(input.openings.filter((o) => o.color === color).map((o) => o.games)) : totalGames;
   const side = color ? ` as ${COLOR_NAME[color]}` : '';
+  const share = `You play the ${family} in ${percent(games, sideGames)} of your games${side}`;
   const reason =
-    costly > 0
-      ? `You've played the ${family}${side} in ${plural(games, 'game')}, and left theory at a cost in ${costly}.`
-      : `You've played the ${family}${side} in ${plural(games, 'game')}.`;
+    costly > 0 ? `${share}, and left theory with a mistake in ${costly} of them.` : `${share}.`;
   return { score: WEIGHT.opening * (0.5 * gameShare + 0.5 * leakShare), reason };
 }
 
@@ -102,19 +122,22 @@ function scoreMotif(course: Course, input: RecommendInput): Omit<CourseRecommend
   const count = sum(hits.map((h) => h.n));
   if (count < MIN_MOTIF_BLUNDERS) return null;
   const total = sum(Object.values(input.motifCounts));
+  // The share is of your tactic blunders (a blunder can carry several tags).
+  const blunders = Math.max(phaseTotal(input.phaseCounts), count);
   const labels = hits.map((h) => `"${MOTIF_LABEL[h.k as keyof typeof MOTIF_LABEL] ?? h.k}"`);
-  const reason = `${labels.join(' and ')} ${hits.length === 1 ? 'tags' : 'tag'} ${plural(count, 'blunder')} from your games.`;
+  const reason = `${count.toLocaleString()} of your blunders (${percent(count, blunders)}) ${count === 1 ? 'is' : 'are'} tagged ${orList(labels)}.`;
   return { score: (WEIGHT.motif * count) / Math.max(1, total), reason };
 }
 
+const PHASE_WORDS = { opening: 'the opening', middlegame: 'the middlegame', endgame: 'the endgame' } as const;
+
 function scorePhase(course: Course, input: RecommendInput): Omit<CourseRecommendation, 'course'> | null {
-  const phase = course.topic.keys[0] as keyof RecommendInput['phaseCounts'];
+  const phase = course.topic.keys[0] as keyof typeof PHASE_WORDS;
   const count = input.phaseCounts[phase] ?? 0;
   if (count < MIN_PHASE_BLUNDERS) return null;
-  const total = sum(Object.values(input.phaseCounts));
+  const total = phaseTotal(input.phaseCounts);
   let share = count / Math.max(1, total);
-  const pct = Math.round(share * 100);
-  let reason = `${plural(count, 'blunder')} (${pct}% of yours) came in the ${phase}.`;
+  let reason = `${percent(count, total)} of your blunders came in ${PHASE_WORDS[phase] ?? phase}: ${plural(count, 'position')}.`;
   const type = course.topic.endgameType;
   if (type) {
     const typeCounts = input.endgameTypeCounts;
@@ -123,7 +146,7 @@ function scorePhase(course: Course, input: RecommendInput): Omit<CourseRecommend
       const n = typeCounts[type] ?? 0;
       if (n === 0) return null;
       share *= n / typeTotal;
-      reason = `${plural(n, 'endgame')} you let slip ${n === 1 ? 'was' : 'were'} ${ENDGAME_TYPE_LABEL[type].toLowerCase()}.`;
+      reason = `${ENDGAME_TYPE_LABEL[type]}: ${n.toLocaleString()} of the ${plural(typeTotal, 'endgame')} you let slip (${percent(n, typeTotal)}).`;
     } else {
       share *= ENDGAME_TYPE_PRIOR[type];
     }

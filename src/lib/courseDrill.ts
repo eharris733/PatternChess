@@ -70,3 +70,23 @@ export function courseDrillPositions(
     .slice(0, opts.limit ?? COURSE_DRILL_SIZE)
     .map((x) => x.b);
 }
+
+const PHASE_PLACE: Record<string, string> = {
+  opening: 'the opening',
+  middlegame: 'the middlegame',
+  endgame: 'the endgame',
+};
+
+/**
+ * The "Now your games" heading: "12 mistakes in this opening", "3 mistakes
+ * with this pattern", "5 mistakes in these endgames". `n` is every match
+ * (matchCourseBlunders), not just today's drill.
+ */
+export function courseMistakesLabel(course: Course, n: number): string {
+  const count = `${n.toLocaleString()} ${n === 1 ? 'mistake' : 'mistakes'}`;
+  const { type, keys, endgameType } = course.topic;
+  if (type === 'opening') return `${count} in this opening`;
+  if (type === 'motif') return `${count} with this pattern`;
+  if (endgameType) return `${count} in these endgames`;
+  return `${count} in ${PHASE_PLACE[keys[0]] ?? keys[0]}`;
+}

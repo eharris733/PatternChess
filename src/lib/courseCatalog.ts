@@ -32,6 +32,13 @@ export interface CourseSegment {
   start?: number;
   end?: number;
   takeaway: string;
+  /**
+   * The lesson's interactive drill: the slug of an annotated PGN built by
+   * `npm run learn:sync` into src/generated/courses/<slug>.json (comments
+   * paraphrase the video, `[%ts m:ss]` links each moment back to it). Unset =
+   * watch the clip and read the takeaway.
+   */
+  lesson?: string;
 }
 
 export interface CourseDay extends Partial<CourseSegment> {

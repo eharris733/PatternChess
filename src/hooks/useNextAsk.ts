@@ -5,6 +5,7 @@ import { useSupporter } from './useSupporter';
 import { supabaseService } from '../services/supabaseService';
 import { emailAskVariant, nextAsk, type AskKind, type EmailAskVariant } from '../lib/asks';
 import { AVAILABLE_COURSES } from '../lib/courses';
+import { useCourseProgress } from './useCourses';
 
 // One open per tab session: reloads and route changes don't count.
 const COUNTED_KEY = 'pc:open-counted';
@@ -62,6 +63,8 @@ export function useNextAsk(): NextAsk {
   const { user, profile } = useAuth();
   const opens = useAppOpens();
   const supporter = useSupporter();
+  // Off (never fetched) in builds without courses.
+  const courseProgress = useCourseProgress();
   const [closed, setClosed] = useState(() => readSession(ANSWERED_KEY) === '1');
   const close = useCallback(() => {
     writeSession(ANSWERED_KEY, '1');
@@ -89,8 +92,9 @@ export function useNextAsk(): NextAsk {
     eligible: {
       // Someone who unsubscribed from an email has answered for good.
       email: emailVariant != null && !profile.emailUnsubscribedAt,
-      // Courses live in this build and none followed yet.
-      course: AVAILABLE_COURSES.length > 0 && !profile.courseFocus,
+      // Only while courses are visible in this build (production: once a
+      // creator's permission lands) and no course is followed yet.
+      course: AVAILABLE_COURSES.length > 0 && courseProgress.isSuccess && !courseProgress.data.focus,
       // After a finished session, never to someone who is (or was) a supporter.
       supporter:
         !supporter.isPending && !supporter.status?.active && !supporter.status?.early && profile.lastDrillLocalDate != null,

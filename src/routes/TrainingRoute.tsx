@@ -18,7 +18,7 @@ import { useLineAutoplay, type AutoplaySegment } from '../hooks/useLineAutoplay'
 import { useRepertoire } from '../hooks/useRepertoire';
 import { fetchGamesByIds, applyContextFilter, filterLabel } from './training/trainingQueue';
 import {
-  RETURN_LABEL,
+  returnLabel,
   continueFocus,
   practiceAheadFocus,
   practiceAheadParams,
@@ -498,7 +498,7 @@ function TrainingSession({
     const canPractice = !practiceAhead && offer.length > 0;
     const returnBack = returnPath ? (
       <button className={canPractice ? 'btn-outline' : 'btn-primary'} onClick={() => navigate(returnPath)}>
-        {RETURN_LABEL[returnPath]}
+        {returnLabel(returnPath)}
       </button>
     ) : null;
     const syncButton = hasAccount ? (
@@ -562,7 +562,7 @@ function TrainingSession({
         totalCorrect={state.totalCorrect}
         totalAttempted={state.totalAttempted}
         focusLabel={focusFilterLabel}
-        returnLabel={returnPath ? RETURN_LABEL[returnPath] : null}
+        returnLabel={returnPath ? returnLabel(returnPath) : null}
         onReturn={returnPath ? () => navigate(returnPath) : null}
         onKeepTraining={keepTraining}
         onBackToDashboard={() => navigate('/dashboard')}
@@ -587,7 +587,7 @@ function TrainingSession({
             className="font-mono text-xs uppercase tracking-tight text-text-primary hover:text-gold-dark"
             onClick={() => navigate(returnPath)}
           >
-            {RETURN_LABEL[returnPath]}
+            {returnLabel(returnPath)}
           </button>
         )}
         <button

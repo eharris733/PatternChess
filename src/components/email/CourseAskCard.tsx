@@ -34,10 +34,10 @@ export function CourseAskCard({ onClose }: { onClose: () => void }) {
       <CourseIcon className="mt-1 h-5 w-5 shrink-0 text-gold-dark" />
       <div className="flex flex-1 flex-col gap-3 min-w-0">
         <span className="label">Courses</span>
-        <h2 className="heading-md">{picked || isPending ? 'We picked a course from your games' : 'Learn from a creator, one lesson a day'}</h2>
+        <h2 className="heading-md">{picked || isPending ? 'We picked a course from your games' : 'Learn from a chess creator'}</h2>
         <p className="text-sm text-text-primary">
-          Each course is one short video lesson a day from a chess creator, then positions from your own games on the
-          same idea. Its lesson joins your daily plan.
+          Short video lessons from chess creators, each followed by the mistakes from your own games on the same idea.
+          The next lesson joins your daily plan.
         </p>
         {isPending ? (
           <div className="flex flex-col gap-2">

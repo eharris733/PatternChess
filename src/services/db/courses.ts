@@ -33,7 +33,7 @@ export async function getCourseProgress(): Promise<CourseProgress> {
   return { focus: data?.focus ?? null, byCourse: group(data?.days ?? []) };
 }
 
-/** Marks a lesson watched on the player's local date; returns that course's finished days. */
+/** Marks a lesson finished on the player's local date; returns that course's finished days. */
 export async function completeCourseDay(slug: string, day: number, localDate: string): Promise<DayDone[]> {
   const rows = await rpc<ProgressRow[]>('courses.completeDay', { slug, day, localDate });
   return group(rows ?? []).get(slug) ?? [];
@@ -43,16 +43,20 @@ export async function setCourseFocus(slug: string | null): Promise<string | null
   return (await rpc<{ focus: string | null }>('courses.setFocus', { slug }))?.focus ?? null;
 }
 
-/** A supporter-only lesson (throws ApiError 403 `supporters_only` / `not_open_yet` otherwise). */
-export async function getCourseDayContent(slug: string, day: number, localDate: string): Promise<CourseSegment> {
-  const d = await rpc<{ youtubeId: string; start: number | null; end: number | null; takeaway: string }>(
-    'courses.dayContent',
-    { slug, day, localDate },
-  );
+/** A supporter-only lesson (throws ApiError 403 `supporters_only` / `not_open` otherwise). */
+export async function getCourseDayContent(slug: string, day: number): Promise<CourseSegment> {
+  const d = await rpc<{
+    youtubeId: string;
+    start: number | null;
+    end: number | null;
+    takeaway: string;
+    lesson?: string | null;
+  }>('courses.dayContent', { slug, day });
   return {
     youtubeId: d.youtubeId,
     ...(d.start != null ? { start: d.start } : {}),
     ...(d.end != null ? { end: d.end } : {}),
     takeaway: d.takeaway,
+    ...(d.lesson ? { lesson: d.lesson } : {}),
   };
 }

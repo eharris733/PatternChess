@@ -5,6 +5,7 @@ import {
   hasFilter,
   practiceAheadFocus,
   practiceAheadParams,
+  returnLabel,
   returnPathFor,
 } from './trainingFocus';
 
@@ -25,6 +26,18 @@ describe('returnPathFor', () => {
     expect(returnPathFor({ blunderIds: ['a', 'b'] }, [b('opening'), b('tactic')])).toBeNull();
     // An unknown path from location.state is ignored.
     expect(returnPathFor({ returnTo: '/elsewhere' as never })).toBeNull();
+    expect(returnPathFor({ returnTo: '/courses/../admin' as never })).toBeNull();
+  });
+});
+
+describe('course days', () => {
+  it('returns a course drill to its lesson', () => {
+    const f = { blunderIds: ['a'], returnTo: '/courses/avoid-knight-forks/2' as const };
+    expect(returnPathFor(f, [b('opening')])).toBe('/courses/avoid-knight-forks/2');
+    expect(returnLabel('/courses/avoid-knight-forks/2')).toBe('Back to the lesson');
+    expect(returnLabel('/openings')).toBe('Back to Openings');
+    // "Keep training" after a course drill goes back to the picker.
+    expect(continueFocus(f, [b('opening')])).toBeNull();
   });
 });
 

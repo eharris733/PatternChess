@@ -7,7 +7,8 @@ import { detectTimezone, localDate } from '../services/streakService';
 import { costlyExitGames } from '../chess/openingDeviation';
 import { classifyEndgameType, type EndgameType } from '../chess/endgameType';
 import { recommendCourses, type CourseRecommendation, type OpeningStat } from '../lib/courseRecommend';
-import { courseDrillPositions, type DrillGameMeta } from '../lib/courseDrill';
+import { courseDrillPositions, matchCourseBlunders, type DrillGameMeta } from '../lib/courseDrill';
+import { loadLesson } from '../lib/courseLessons';
 import type { Course } from '../lib/courseCatalog';
 import { AVAILABLE_COURSES } from '../lib/courses';
 import type { DayDone } from '../lib/coursePacing';
@@ -18,18 +19,19 @@ import { useEndgameScenarios } from './useEndgameScenarios';
 
 export const COURSE_PROGRESS_KEY = ['courses', 'progress'] as const;
 
-/** The player's local date (YYYY-MM-DD): pacing opens one new lesson per date. */
+/** The player's local date (YYYY-MM-DD), stored with each finished lesson for the plan's lesson step. */
 export function useCourseToday(): string {
   const { profile } = useAuth();
   return localDate(profile?.timezone ?? detectTimezone());
 }
 
+/** Finished lessons + the followed course. Off when this build has no courses (production until permissions land). */
 export function useCourseProgress(enabled = true) {
   const { user } = useAuth();
   return useQuery({
     queryKey: [...COURSE_PROGRESS_KEY, user?.id],
     queryFn: () => supabaseService.getCourseProgress(),
-    enabled: !!user && enabled,
+    enabled: !!user && enabled && AVAILABLE_COURSES.length > 0,
     staleTime: 60_000,
   });
 }
@@ -50,27 +52,27 @@ export function useCompleteCourseDay() {
   });
 }
 
-/** Follow a course (or `null` to stop); refreshes the profile so the plan and the ask see it. */
+/** Follow a course (or `null` to stop); the plan and the dashboard ask read it from the progress query. */
 export function useSetCourseFocus() {
-  const { user, refreshProfile } = useAuth();
+  const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (slug: string | null) => supabaseService.setCourseFocus(slug),
-    onSuccess: async (focus) => {
-      qc.setQueryData<CourseProgress>([...COURSE_PROGRESS_KEY, user?.id], (old) =>
-        old ? { ...old, focus } : old,
-      );
-      await refreshProfile();
+    onSuccess: (focus) => {
+      qc.setQueryData<CourseProgress>([...COURSE_PROGRESS_KEY, user?.id], (old) => ({
+        focus,
+        byCourse: old?.byCourse ?? new Map(),
+      }));
     },
   });
 }
 
 /** A supporter-only lesson's video segment + takeaway (enable only for supporters on an open day). */
-export function useCourseDayContent(slug: string, day: number, today: string, enabled: boolean) {
+export function useCourseDayContent(slug: string, day: number, enabled: boolean) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ['courses', 'day', slug, day, user?.id],
-    queryFn: () => supabaseService.getCourseDayContent(slug, day, today),
+    queryFn: () => supabaseService.getCourseDayContent(slug, day),
     enabled: !!user && enabled,
     staleTime: 60 * 60_000,
     retry: false,
@@ -136,8 +138,22 @@ export function useCourseRecommendations(courses: readonly Course[] = AVAILABLE_
   return { recommendations, isPending };
 }
 
-/** Today's drill for a course: matching positions from your own live blunders. */
-export function useCourseDrill(course: Course | null): { positions: Blunder[]; isPending: boolean } {
+/** A day's interactive lesson (src/generated/courses/<slug>.json), or null for a watch-only day. */
+export function useCourseLesson(slug: string | null | undefined) {
+  return useQuery({
+    queryKey: ['courses', 'lesson', slug],
+    queryFn: () => loadLesson(slug!),
+    enabled: !!slug,
+    staleTime: Infinity,
+  });
+}
+
+/**
+ * "Now your games": every live position from your own games that matches the
+ * course topic (`total`) and the ones to drill now (`positions`, up to
+ * COURSE_DRILL_SIZE, the most useful first).
+ */
+export function useCourseDrill(course: Course | null): { positions: Blunder[]; total: number; isPending: boolean } {
   const { user } = useAuth();
   const blunders = useQuery({
     // Same key as the Vault's list, so the two share one fetch.
@@ -164,9 +180,13 @@ export function useCourseDrill(course: Course | null): { positions: Blunder[]; i
   });
   const needsGames = course?.topic.type === 'opening';
   const isPending = !!course && (blunders.isPending || (needsGames && games.isPending));
-  const positions = useMemo(
-    () => (course && !isPending ? courseDrillPositions(course, blunders.data ?? [], games.data ?? new Map()) : []),
-    [course, isPending, blunders.data, games.data],
-  );
-  return { positions, isPending };
+  const { positions, total } = useMemo(() => {
+    if (!course || isPending) return { positions: [] as Blunder[], total: 0 };
+    const meta = games.data ?? new Map<string, DrillGameMeta>();
+    return {
+      positions: courseDrillPositions(course, blunders.data ?? [], meta),
+      total: matchCourseBlunders(course, blunders.data ?? [], meta).length,
+    };
+  }, [course, isPending, blunders.data, games.data]);
+  return { positions, total, isPending };
 }

@@ -33,6 +33,12 @@ import { Skeleton } from '../Skeleton';
 import { usePathProgress } from '../../hooks/usePathProgress';
 import { useFeature } from '../../hooks/useFeature';
 import type { TrainingFocus } from '../../routes/training/trainingFocus';
+import { CourseIcon } from '../icons/CourseIcon';
+import { useCourseProgress } from '../../hooks/useCourses';
+import { useSupporter } from '../../hooks/useSupporter';
+import { availableCourse } from '../../lib/courses';
+import { isSupporterDay } from '../../lib/courseCatalog';
+import { completedOn, nextDay } from '../../lib/coursePacing';
 
 function PlanStep({
   icon,
@@ -176,7 +182,10 @@ function playTarget(
 
 /**
  * Today's plan: a checklist sized by the player's commitment level, in order
- * Train → Openings → Endgames → Play. Every step always shows (a skeleton
+ * (Lesson →) Train → Openings → Endgames → Play. "Today's lesson" shows only
+ * while you follow a course (/courses): it walks the lesson, its drill and
+ * your own mistakes on the same idea, and is done once a lesson is finished
+ * today (the next one is open right away). Every other step always shows (a skeleton
  * while its data loads); with nothing due, Train and Openings offer "Practice
  * ahead" and Endgames a replay, so the plan never dead-ends. Play stays
  * locked until the rest is done. A step with no material at all (no games
@@ -208,6 +217,9 @@ export function DailyHabitCard() {
   const clearNotice = useStreakNoticeStore((s) => s.clear);
   const path = usePathProgress();
   const pathOn = useFeature('path');
+  // Never fetched in builds without courses (production until creators agree).
+  const courseProgressQuery = useCourseProgress();
+  const supporter = useSupporter();
   const goals = profile?.dailyGoals ?? DEFAULT_DAILY_GOALS;
   const play = playTarget(profile?.lichessUsername ?? null, profile?.chesscomUsername ?? null);
   const playHref = play?.href ?? null;
@@ -269,14 +281,43 @@ export function DailyHabitCard() {
   const endgamesIdle = !scenariosPending && scenarios.length === 0;
   const endgamesDone = playoutsToday >= endgamesGoal;
 
+  // --- Today's lesson (the followed course; first) --------------------------
+  const lessonPending = courseProgressQuery.isLoading;
+  const lessonCourse = availableCourse(courseProgressQuery.data?.focus);
+  const lessonDays = (lessonCourse && courseProgressQuery.data?.byCourse.get(lessonCourse.slug)) || [];
+  const lessonDoneToday = completedOn(lessonDays, today);
+  const lessonNext = lessonCourse ? nextDay(lessonCourse.days.length, lessonDays) : null;
+  // A supporter-only next lesson stays off the plan for free players (the course page explains).
+  const lessonNextOpen =
+    lessonNext?.status === 'open' && !(isSupporterDay(lessonNext.day) && !supporter.isSupporter);
+  const showLesson = !!lessonCourse && (lessonDoneToday || lessonNextOpen);
+  const lastDoneDay = lessonDays.reduce((m, d) => Math.max(m, d.day), 0);
+  const lessonTarget = lessonCourse
+    ? `/courses/${lessonCourse.slug}/${lessonNextOpen && lessonNext ? lessonNext.day : Math.max(1, lastDoneDay)}`
+    : null;
+  const lessonDetail = !lessonCourse
+    ? null
+    : lessonDoneToday
+      ? lessonNextOpen && lessonNext
+        ? `${lessonCourse.title}: done for today. Day ${lessonNext.day} is ready whenever you are.`
+        : `${lessonCourse.title}: done for today.`
+      : lessonNext
+        ? `${lessonCourse.title}, day ${lessonNext.day}: ${lessonCourse.days[lessonNext.day - 1].title}. Then your own mistakes on it.`
+        : null;
+
   // --- Play (last; opens once the rest is done) ----------------------------
   const gamesToday = gamesTodayQuery.data ?? 0;
-  const restPending = trainPending || openingsPending || scenariosPending;
+  const restPending = trainPending || openingsPending || scenariosPending || lessonPending;
   const restDone =
-    !restPending && (trainDone || trainIdle) && (openingsDone || openingsIdle) && (endgamesDone || endgamesIdle);
+    !restPending &&
+    (lessonDoneToday || !showLesson) &&
+    (trainDone || trainIdle) &&
+    (openingsDone || openingsIdle) &&
+    (endgamesDone || endgamesIdle);
   const playLocked = !restDone;
 
   const steps = [
+    ...(showLesson ? [lessonDoneToday] : []),
     ...(trainIdle && !trainDone ? [] : [trainDone]),
     ...(openingsIdle ? [] : [openingsDone]),
     ...(endgamesIdle ? [] : [endgamesDone]),
@@ -328,6 +369,25 @@ export function DailyHabitCard() {
       )}
 
       <ul className="flex flex-col divide-y-2 divide-text-primary/10 border-y-2 border-text-primary/10">
+        {lessonPending ? (
+          <PlanStepSkeleton />
+        ) : (
+          showLesson &&
+          lessonCourse &&
+          lessonTarget && (
+            <PlanStep
+              testId="plan-step-lesson"
+              icon={<CourseIcon className="h-4 w-4" />}
+              title="Today's lesson"
+              detail={lessonDetail}
+              done={lessonDoneToday ? 1 : 0}
+              goal={1}
+              action={lessonDoneToday ? (lessonNextOpen ? 'Next lesson' : 'Review') : 'Start'}
+              actionShort={lessonDoneToday && lessonNextOpen ? 'Next' : undefined}
+              onAction={() => navigate(lessonTarget)}
+            />
+          )
+        )}
         <PlanStep
           testId="plan-step-train"
           icon={<TrainIcon className="h-4 w-4" />}

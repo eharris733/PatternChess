@@ -11,8 +11,9 @@ import { argNumber, argString, badRequest, forbidden, notFound, userRpc, type Rp
  * here too, so every handler validates slugs and day numbers against it.
  * Lessons past the free days live only in KV `patternchess-content` as
  * `course-day:<slug>:<n>` (npm run courses:sync) and are served to active
- * supporters only, checked here in code. Pacing (one new lesson per local
- * date, src/lib/coursePacing.ts) applies to everyone, supporters included.
+ * supporters only, checked here in code. Pacing (lessons open in order, the
+ * next one as soon as the previous is done; src/lib/coursePacing.ts) applies
+ * to everyone, supporters included.
  */
 
 type CoursesEnv = AppEnv & {
@@ -73,22 +74,22 @@ async function courseDone(ctx: UserRpcContext, slug: string): Promise<DayDone[]>
 export const handlers: RpcRegistry = {
   /** Every completed lesson (all courses) plus the active course. */
   'courses.progress': userRpc(async (ctx) => {
-    const [rows, profile] = await Promise.all([
+    const [rows, focus] = await Promise.all([
       all<ProgressRow>(
         ctx.db,
         'SELECT course_slug, day, local_date, completed_at FROM course_progress WHERE user_id = ? ORDER BY course_slug, day',
         [ctx.user.id],
         'course_progress',
       ),
-      first<{ course_focus: string | null }>(ctx.db, 'SELECT course_focus FROM profiles WHERE id = ?', [ctx.user.id]),
+      first<{ course_slug: string }>(ctx.db, 'SELECT course_slug FROM course_focus WHERE user_id = ?', [ctx.user.id]),
     ]);
-    return { focus: profile?.course_focus ?? null, days: rows };
+    return { focus: focus?.course_slug ?? null, days: rows };
   }),
 
   /**
-   * Marks one lesson watched on the player's local date. The day must be open
-   * (day 1, or the previous day finished on an earlier local date); days past
-   * the free ones need an active supporter. Completing a day twice is a no-op.
+   * Marks one lesson finished on the player's local date. The day must be
+   * open (day 1, or the previous day finished); days past the free ones need
+   * an active supporter. Completing a day twice is a no-op.
    */
   'courses.completeDay': userRpc<{ slug: string; day: number; localDate: string }>(async (ctx, args) => {
     const env = ctx.env as CoursesEnv;
@@ -97,7 +98,7 @@ export const handlers: RpcRegistry = {
     const localDate = argLocalDate(args);
     if (isSupporterDay(day) && !(await isActiveSupporter(ctx))) throw forbidden('This lesson is for supporters', 'supporters_only');
     const done = await courseDone(ctx, course.slug);
-    if (!dayOpen(day, course.days.length, done, localDate)) throw forbidden('This lesson opens tomorrow', 'not_open_yet');
+    if (!dayOpen(day, course.days.length, done)) throw forbidden('Finish the lesson before this one first', 'not_open');
     await run(
       ctx.db,
       `INSERT INTO course_progress (user_id, course_slug, day, local_date, completed_at)
@@ -117,7 +118,16 @@ export const handlers: RpcRegistry = {
     const raw = args.slug;
     if (raw != null && typeof raw !== 'string') throw badRequest('slug must be a string or null');
     const slug = raw ? visibleCourse(ctx.env as CoursesEnv, raw).slug : null;
-    await run(ctx.db, 'UPDATE profiles SET course_focus = ? WHERE id = ?', [slug, ctx.user.id]);
+    if (slug) {
+      await run(
+        ctx.db,
+        `INSERT INTO course_focus (user_id, course_slug, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT (user_id) DO UPDATE SET course_slug = excluded.course_slug, updated_at = excluded.updated_at`,
+        [ctx.user.id, slug, nowIso()],
+      );
+    } else {
+      await run(ctx.db, 'DELETE FROM course_focus WHERE user_id = ?', [ctx.user.id]);
+    }
     return { focus: slug };
   }),
 
@@ -125,15 +135,14 @@ export const handlers: RpcRegistry = {
    * A supporter-only lesson (day past the free ones): video segment +
    * takeaway from KV. Active supporters only, and only once the day is open.
    */
-  'courses.dayContent': userRpc<{ slug: string; day: number; localDate: string }>(async (ctx, args) => {
+  'courses.dayContent': userRpc<{ slug: string; day: number }>(async (ctx, args) => {
     const env = ctx.env as CoursesEnv;
     const course = visibleCourse(env, argString(args, 'slug'));
     const day = argDay(args, course);
     if (!isSupporterDay(day)) throw badRequest('Free lessons are in the public catalog');
-    const localDate = argLocalDate(args);
     if (!(await isActiveSupporter(ctx))) throw forbidden('This lesson is for supporters', 'supporters_only');
-    if (!dayOpen(day, course.days.length, await courseDone(ctx, course.slug), localDate)) {
-      throw forbidden('This lesson opens tomorrow', 'not_open_yet');
+    if (!dayOpen(day, course.days.length, await courseDone(ctx, course.slug))) {
+      throw forbidden('Finish the lesson before this one first', 'not_open');
     }
     const raw = await env.CONTENT?.get(`course-day:${course.slug}:${day}`);
     if (raw == null) throw notFound('Lesson not available');
@@ -143,6 +152,7 @@ export const handlers: RpcRegistry = {
       start: seg.start ?? null,
       end: seg.end ?? null,
       takeaway: seg.takeaway,
+      lesson: seg.lesson ?? null,
     };
   }),
 };

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_COURSES, type Course, type CourseTopic } from './courseCatalog';
 import { rankCourses, recommendCourses, type RecommendInput } from './courseRecommend';
-import { courseDrillPositions, matchCourseBlunders, type DrillGameMeta } from './courseDrill';
+import { courseDrillPositions, courseMistakesLabel, matchCourseBlunders, type DrillGameMeta } from './courseDrill';
 import type { Blunder } from '../models/blunder';
 
 function course(slug: string, topic: CourseTopic): Course {
@@ -54,7 +54,7 @@ describe('rankCourses', () => {
     };
     const [top] = rankCourses(ALL, asBlack);
     expect(top.course.slug).toBe('caro');
-    expect(top.reason).toBe("You've played the Caro-Kann Defense as Black in 40 games, and left theory at a cost in 5.");
+    expect(top.reason).toBe('You play the Caro-Kann Defense in 100% of your games as Black, and left theory with a mistake in 5 of them.');
   });
 
   it('matches any of a course key set and a colourless course from either side', () => {
@@ -68,7 +68,9 @@ describe('rankCourses', () => {
     };
     const ranked = rankCourses(ALL, input);
     expect(ranked.map((r) => r.course.slug)).toEqual(['london', 'italian']);
-    expect(ranked[0].reason).toBe("You've played the Queen's Pawn Game as White in 15 games.");
+    // 15 of the 15 games as White; the Italian (no colour) counts all 21 games.
+    expect(ranked[0].reason).toBe("You play the Queen's Pawn Game in 100% of your games as White.");
+    expect(ranked[1].reason).toBe('You play the Italian Game in 29% of your games.');
   });
 
   it('ignores openings under the minimum games', () => {
@@ -94,8 +96,11 @@ describe('rankCourses', () => {
     };
     const ranked = rankCourses(ALL, input);
     expect(ranked.map((r) => r.course.slug)).toEqual(['hanging', 'forks']);
-    expect(ranked[0].reason).toBe('"Left a piece hanging" and "Missed hanging piece" tag 24 blunders from your games.');
-    expect(ranked[1].reason).toBe('"Allowed fork" tags 6 blunders from your games.');
+    // No phase counts here, so the share falls back to the tagged count itself.
+    expect(ranked[0].reason).toBe('24 of your blunders (100%) are tagged "Left a piece hanging" or "Missed hanging piece".');
+    expect(ranked[1].reason).toBe('6 of your blunders (100%) are tagged "Allowed fork".');
+    const withTotals = rankCourses(ALL, { ...input, phaseCounts: { opening: 10, middlegame: 60, endgame: 30 } });
+    expect(withTotals[0].reason).toBe('24 of your blunders (24%) are tagged "Left a piece hanging" or "Missed hanging piece".');
   });
 
   it('narrows endgame courses by the endgames you let slip', () => {
@@ -108,7 +113,7 @@ describe('rankCourses', () => {
     expect(slugs).toContain('pawn');
     expect(slugs).not.toContain('rook');
     expect(rankCourses(ALL, input).find((r) => r.course.slug === 'pawn')!.reason).toBe(
-      '3 endgames you let slip were pawn endgames.',
+      'Pawn endgames: 3 of the 3 endgames you let slip (100%).',
     );
   });
 
@@ -117,6 +122,28 @@ describe('rankCourses', () => {
     const slugs = rankCourses(ALL, input).map((r) => r.course.slug);
     expect(slugs.indexOf('rook')).toBeLessThan(slugs.indexOf('pawn'));
     expect(slugs[0]).toBe('middle');
+    expect(rankCourses(ALL, input).find((r) => r.course.slug === 'middle')!.reason).toBe(
+      '50% of your blunders came in the middlegame: 10 positions.',
+    );
+  });
+
+  it("ignores the hook's extra `total` when computing phase shares", () => {
+    const phaseCounts = { opening: 0, middlegame: 10, endgame: 10, total: 20 };
+    const [top] = rankCourses(ALL, { ...empty, phaseCounts });
+    expect(top.reason).toBe('50% of your blunders came in the middlegame: 10 positions.');
+  });
+
+  it('never rounds a real share down to 0%', () => {
+    const input: RecommendInput = {
+      ...empty,
+      openings: [
+        { family: 'French Defense', color: 'black', games: 5, costlyExits: 0 },
+        { family: 'Sicilian Defense', color: 'black', games: 995, costlyExits: 0 },
+      ],
+    };
+    expect(rankCourses(ALL, input).find((r) => r.course.slug === 'french')!.reason).toBe(
+      'You play the French Defense in under 1% of your games as Black.',
+    );
   });
 
   it('skips finished courses', () => {
@@ -261,5 +288,15 @@ describe('courseDrill', () => {
       'not-due',
     ]);
     expect(courseDrillPositions(CARO, bs, games, { now, limit: 2 })).toHaveLength(2);
+  });
+});
+
+describe('courseMistakesLabel', () => {
+  it('names the topic the count belongs to', () => {
+    expect(courseMistakesLabel(CARO, 12)).toBe('12 mistakes in this opening');
+    expect(courseMistakesLabel(CARO, 1)).toBe('1 mistake in this opening');
+    expect(courseMistakesLabel(FORKS, 3)).toBe('3 mistakes with this pattern');
+    expect(courseMistakesLabel(ROOK, 5)).toBe('5 mistakes in these endgames');
+    expect(courseMistakesLabel(MIDDLE, 0)).toBe('0 mistakes in the middlegame');
   });
 });

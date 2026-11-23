@@ -37,7 +37,7 @@ export function CourseCard({
         </span>
         {isFocus && <span className="label text-gold-dark">Your course</span>}
         {course.permission.status !== 'granted' && (
-          <span className="font-mono text-[11px] uppercase tracking-tight text-text-secondary" title="Hidden in production until the creator agrees">
+          <span className="font-mono text-[11px] uppercase tracking-tight text-text-primary" title="Hidden in production until the creator agrees">
             Awaiting creator OK
           </span>
         )}
@@ -57,7 +57,7 @@ export function CourseCard({
         </span>
         {onStart && !isFocus && !finished ? (
           <button type="button" className="btn-primary h-9 px-4 text-xs" onClick={onStart} disabled={starting} data-testid="course-start">
-            {starting ? 'Starting…' : doneDays > 0 ? 'Make it my course' : 'Start'}
+            {starting ? 'Starting…' : doneDays > 0 ? 'Follow' : 'Start'}
           </button>
         ) : (
           <Link to={`/courses/${course.slug}`} className="btn-outline h-9 px-4 text-xs" data-testid="course-open">
