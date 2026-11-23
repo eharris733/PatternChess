@@ -11,6 +11,7 @@ import { halfmoveClock } from '../../chess/material';
 import type { PlayoutSlip, SlipLogStatus } from '../../state/endgamePlayoutStore';
 import { useDrillFeedbackPrefs } from '../../hooks/useDrillFeedbackPrefs';
 import { useLineAutoplay } from '../../hooks/useLineAutoplay';
+import { useT } from '../../i18n/useT';
 
 /** Board override while the user steps through the refutation line. */
 export interface SlipPreview {
@@ -77,13 +78,14 @@ export function HeldMeter({
   holdTarget: number;
   depth?: number | null;
 }) {
+  const t = useT();
   const pct = Math.round((heldStreak / holdTarget) * 100);
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
-        <span className="label">Held</span>
+        <span className="label">{t('playout.held')}</span>
         <span className="font-mono text-xs tabular-nums text-text-primary">
-          {heldStreak}/{holdTarget} moves
+          {t('playout.heldMoves', { done: heldStreak, total: holdTarget })}
         </span>
       </div>
       <div className="h-2 w-full border-2 border-text-primary bg-surface">
@@ -91,7 +93,7 @@ export function HeldMeter({
       </div>
       {depth != null && (
         <p className="font-mono text-xs tabular-nums text-text-primary">
-          Engine depth {depth}
+          {t('playout.depth', { depth })}
         </p>
       )}
     </div>
@@ -152,6 +154,7 @@ export function useSlipLineViewer({
   active: boolean;
   onPreview: (preview: SlipPreview | null) => void;
 }): SlipLineViewer {
+  const t = useT();
   const { showAnswer, autoplay } = useDrillFeedbackPrefs();
   // Which line is on the board, and the index within it. r0 = the slip itself,
   // already on the board when the fail panel appears. Solution index -1 = the
@@ -178,10 +181,10 @@ export function useSlipLineViewer({
       sideToMove: userColor,
       firstSan: slip.playedSan ?? slip.playedUci,
       firstUci: slip.playedUci,
-      tag: target === 'win' ? 'Drops the win' : 'Drops the draw',
+      tag: target === 'win' ? t('playout.dropsWin') : t('playout.dropsDraw'),
       pvMoves: buildLineMoves(afterFen, slip.refutationPv),
     });
-  }, [slip, target, userColor]);
+  }, [slip, target, userColor, t]);
 
   const fullSolution = useMemo(() => {
     if (!slip?.bestUci) return null;
@@ -195,10 +198,10 @@ export function useSlipLineViewer({
       sideToMove: userColor,
       firstSan: first.san,
       firstUci: first.uci,
-      tag: target === 'win' ? 'Keeps the win' : 'Holds the draw',
+      tag: target === 'win' ? t('playout.keepsWin') : t('playout.holdsDraw'),
       pvMoves: moves.slice(1),
     });
-  }, [slip, target, userColor]);
+  }, [slip, target, userColor, t]);
   const solutionLine = showAnswer ? fullSolution : null;
 
   const selectMove = (key: string) => {
@@ -358,18 +361,19 @@ export function SlipReport({
   onLog: () => void;
   viewer: SlipLineViewer;
 }) {
+  const t = useT();
   const { line, solutionLine, activeKey, activeSolutionKey, selectMove, selectSolutionMove, stepLine } =
     viewer;
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm">
-        <span className="text-text-primary">You played </span>
+        <span className="text-text-primary">{t('playout.youPlayed')} </span>
         <span className="font-mono font-bold text-incorrect">
           {slip.playedSan ?? slip.playedUci}
         </span>
         {slip.bestSan && (
           <>
-            <span className="text-text-primary">. The engine holds with </span>
+            <span className="text-text-primary">{t('playout.engineHolds')} </span>
             <span className="font-mono font-bold text-correct">{slip.bestSan}</span>
           </>
         )}
@@ -380,13 +384,13 @@ export function SlipReport({
           evalBefore={slip.refEvalAtSlip.scoreCp}
           evalAfter={slip.evalAfterSlip}
           mover={userColor}
-          label={`Your move: ${slip.playedSan ?? slip.playedUci}`}
+          label={t('train.panel.yourMoveSan', { san: slip.playedSan ?? slip.playedUci })}
         />
       )}
 
       {line && slip.refutationPv.length > 0 && (
         <div className="flex flex-col gap-1">
-          <span className="label">{target === 'win' ? 'Why the win is gone' : 'Why the draw is gone'}</span>
+          <span className="label">{target === 'win' ? t('playout.whyWinGone') : t('playout.whyDrawGone')}</span>
           <MoveSequencePanel
             pairs={line.pairs}
             activeKey={activeKey}
@@ -400,7 +404,7 @@ export function SlipReport({
 
       {solutionLine && (
         <div className="flex flex-col gap-1">
-          <span className="label">What holds</span>
+          <span className="label">{t('playout.whatHolds')}</span>
           <MoveSequencePanel
             pairs={solutionLine.pairs}
             activeKey={activeSolutionKey}
@@ -414,7 +418,7 @@ export function SlipReport({
 
       {logStatus === 'saved' ? (
         <p className="text-text-primary text-xs">
-          Added to your training queue.
+          {t('playout.added')}
         </p>
       ) : logStatus !== 'unavailable' ? (
         <button
@@ -424,10 +428,10 @@ export function SlipReport({
           onClick={onLog}
         >
           {logStatus === 'saving'
-            ? 'Adding…'
+            ? t('playout.adding')
             : logStatus === 'error'
-              ? 'Could not save — try again'
-              : 'Add to training queue'}
+              ? t('playout.addError')
+              : t('playout.add')}
         </button>
       ) : null}
     </div>
@@ -458,34 +462,35 @@ export function PlayoutProgress({
   /** True while the engine is still forming its view of the position. */
   pending: boolean;
 }) {
+  const t = useT();
   const quietMoves = Math.floor(halfmoveClock(fen) / 2);
   const quietTarget = DRAW_ACCEPT_QUIET_PLIES / 2;
   const level = evalCp != null && Math.abs(evalCp) <= DRAW_ACCEPT_CP;
   const resignable = evalCp != null && evalCp >= RESIGN_CP;
 
   let evalText: string;
-  if (evalCp == null) evalText = pending ? 'Engine thinking…' : 'No eval';
-  else if (target === 'win' && resignable) evalText = `${formatPawns(evalCp)} · engine would resign`;
-  else if (target === 'draw' && level) evalText = `${formatPawns(evalCp)} · level`;
+  if (evalCp == null) evalText = pending ? t('playout.engineThinking') : t('playout.noEval');
+  else if (target === 'win' && resignable) evalText = t('playout.wouldResign', { eval: formatPawns(evalCp) });
+  else if (target === 'draw' && level) evalText = t('playout.level', { eval: formatPawns(evalCp) });
   else evalText = formatPawns(evalCp);
 
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
-        <span className="label">Progress</span>
+        <span className="label">{t('playout.progress')}</span>
         <span className="font-mono text-xs tabular-nums text-text-primary">
-          {userMovesPlayed} move{userMovesPlayed === 1 ? '' : 's'} played
+          {t('playout.movesPlayed', { count: userMovesPlayed })}
         </span>
       </div>
       <p className="font-mono text-sm tabular-nums text-text-primary">{evalText}</p>
       <p className="text-text-primary text-xs">
         {target === 'win'
-          ? 'Deliver checkmate to rescue the point.'
-          : `${Math.min(quietMoves, quietTarget)}/${quietTarget} quiet moves toward an accepted draw.`}
+          ? t('playout.deliverMate')
+          : t('playout.quietMoves', { done: Math.min(quietMoves, quietTarget), total: quietTarget })}
       </p>
       {depth != null && (
         <p className="font-mono text-xs tabular-nums text-text-primary">
-          Engine depth {depth}
+          {t('playout.depth', { depth })}
         </p>
       )}
     </div>
