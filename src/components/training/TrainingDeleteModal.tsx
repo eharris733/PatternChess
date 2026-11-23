@@ -1,4 +1,5 @@
 import { TrashIcon } from '../icons/TrashIcon';
+import { useT } from '../../i18n/useT';
 
 /** Confirmation dialog for permanently deleting the current training position. */
 export function TrainingDeleteModal({
@@ -12,12 +13,13 @@ export function TrainingDeleteModal({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useT();
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Delete position"
+      aria-label={t('train.panel.delete')}
       onClick={() => !deleting && onCancel()}
     >
       <div
@@ -25,11 +27,10 @@ export function TrainingDeleteModal({
         onClick={(e) => e.stopPropagation()}
       >
         <header>
-          <h2 className="heading-lg">Delete this position?</h2>
+          <h2 className="heading-lg">{t('deleteModal.title')}</h2>
         </header>
         <p className="text-text-primary text-sm">
-          This permanently removes the position from your training. You won't be
-          asked to drill it again. This can't be undone.
+          {t('deleteModal.body')}
         </p>
         {deleteError && (
           <div className="bg-incorrect/10 border-2 border-incorrect/50 text-incorrect rounded-none p-3 text-sm">
@@ -38,7 +39,7 @@ export function TrainingDeleteModal({
         )}
         <div className="flex items-center justify-end gap-3">
           <button type="button" className="btn-ghost" disabled={deleting} onClick={onCancel}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -47,7 +48,7 @@ export function TrainingDeleteModal({
             onClick={onConfirm}
           >
             <TrashIcon className="h-4 w-4" />
-            {deleting ? 'Deleting…' : 'Delete'}
+            {deleting ? t('deleteModal.deleting') : t('common.delete')}
           </button>
         </div>
       </div>

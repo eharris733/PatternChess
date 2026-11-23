@@ -44,6 +44,7 @@ import {
   sharePlayersLabelFor,
 } from '../services/puzzleShareService';
 import { playSound } from '../lib/sounds';
+import { useT } from '../i18n/useT';
 
 /** Opening intro pace, and the pause on the final position before the prompt. */
 const INTRO_STEP_MS = 400;
@@ -70,6 +71,7 @@ function TrainingSession({
   onRestart: (picker: boolean) => void;
 }) {
   const navigate = useNavigate();
+  const t = useT();
   const location = useLocation() as { state?: TrainingFocus | null };
   const { profile, refreshProfile } = useAuth();
 
@@ -194,20 +196,24 @@ function TrainingSession({
   // Whichever drill filter is active (only one is set at a time in practice) —
   // drives the filter chip and empty-state copy.
   const focusFilterLabel = focusIds
-    ? (focusLabel ?? 'Selected positions')
+    ? (focusLabel ?? t('train.selectedPositions'))
     : kindFilter
-      ? `${DRILL_KIND_LABEL[kindFilter]} reviews`
+      ? t('train.kindReviews', { kind: t.label('drillKind', kindFilter, DRILL_KIND_LABEL[kindFilter]) })
       : contextFilter
-    ? filterLabel(contextFilter)
+    ? filterLabel(contextFilter, t)
     : openingFilter
       ? openingLabel ?? openingFilter
       : phaseFilter
-        ? PHASE_LABEL[phaseFilter]
+        ? t.label('phase', phaseFilter, PHASE_LABEL[phaseFilter])
         : motifFilter
-          ? MOTIF_LABEL[motifFilter]
+          ? t.label('motif', motifFilter, MOTIF_LABEL[motifFilter])
           : null;
   const activeFilterLabel =
-    practiceAhead && focusFilterLabel ? `${focusFilterLabel} · practice ahead` : practiceAhead ? 'Practice ahead' : focusFilterLabel;
+    practiceAhead && focusFilterLabel
+      ? t('train.practiceAheadSuffix', { focus: focusFilterLabel })
+      : practiceAhead
+        ? t('plan.practiceAhead')
+        : focusFilterLabel;
   // Where "Back to …" goes for this focus (/openings, /endgames), if anywhere.
   const returnPath = returnPathFor(effectiveState, state.blunders.length > 0 ? state.blunders : (sourceData ?? null));
 
@@ -464,7 +470,7 @@ function TrainingSession({
       <div
         className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6"
         aria-busy="true"
-        aria-label="Loading position"
+        aria-label={t('train.loadingPosition')}
       >
         <div className="flex flex-col gap-3">
           <Skeleton className="aspect-square w-full" />
@@ -498,7 +504,7 @@ function TrainingSession({
     const canPractice = !practiceAhead && offer.length > 0;
     const returnBack = returnPath ? (
       <button className={canPractice ? 'btn-outline' : 'btn-primary'} onClick={() => navigate(returnPath)}>
-        {returnLabel(returnPath)}
+        {returnLabel(returnPath, t)}
       </button>
     ) : null;
     const syncButton = hasAccount ? (
@@ -507,11 +513,11 @@ function TrainingSession({
         disabled={isSyncing || !profile}
         onClick={() => profile && void triggerNow(profile)}
       >
-        {isSyncing ? 'Checking for new games…' : 'Check for new games'}
+        {isSyncing ? t('plan.play.checking') : t('plan.play.check')}
       </button>
     ) : (
       <button className="btn-outline" onClick={() => navigate('/profile')}>
-        Link an account
+        {t('train.linkAccount')}
       </button>
     );
     return (
@@ -519,36 +525,36 @@ function TrainingSession({
         <h1 className="heading-lg">
           {practiceAhead
             ? focusFilterLabel
-              ? `Nothing coming up in ${focusFilterLabel}`
-              : 'Nothing left to practice'
+              ? t('train.empty.nothingComingIn', { focus: focusFilterLabel })
+              : t('train.empty.nothingLeft')
             : focusFilterLabel
-              ? `Nothing due in ${focusFilterLabel}`
-              : "You're caught up"}
+              ? t('train.empty.nothingDueIn', { focus: focusFilterLabel })
+              : t('train.empty.caughtUp')}
         </h1>
         <p className="text-text-primary text-sm">
           {canPractice
-            ? 'Keep going with the positions due next. Results count like any review.'
+            ? t('train.empty.keepGoing')
             : practiceAhead
-              ? "You've drilled every position here. Play a game and we'll find fresh material."
+              ? t('train.empty.drilledAll')
               : hasAccount
-                ? "Nothing to drill yet. Play a game and we'll find fresh material."
-                : 'Link a Lichess or Chess.com account to start.'}
+                ? t('train.empty.nothingYet')
+                : t('train.empty.linkToStart')}
         </p>
         {upcoming.isPending && !practiceAhead && <Skeleton className="h-10 w-full" />}
         {canPractice && (
           <button className="btn-primary" onClick={startPracticeAhead} data-testid="practice-ahead">
-            Practice ahead
+            {t('plan.practiceAhead')}
           </button>
         )}
         {returnBack}
         {focusFilterLabel && !returnPath && !kindFilter && (
           <button className="btn-outline" onClick={resetToUnfiltered}>
-            Train everything due
+            {t('train.empty.everythingDue')}
           </button>
         )}
         {!focusFilterLabel && (
           <button className="btn-outline" onClick={backToPicker}>
-            Pick a focus
+            {t('train.empty.pickFocus')}
           </button>
         )}
         {syncButton}
@@ -562,7 +568,7 @@ function TrainingSession({
         totalCorrect={state.totalCorrect}
         totalAttempted={state.totalAttempted}
         focusLabel={focusFilterLabel}
-        returnLabel={returnPath ? returnLabel(returnPath) : null}
+        returnLabel={returnPath ? returnLabel(returnPath, t) : null}
         onReturn={returnPath ? () => navigate(returnPath) : null}
         onKeepTraining={keepTraining}
         onBackToDashboard={() => navigate('/dashboard')}
@@ -578,8 +584,7 @@ function TrainingSession({
       data-testid="training-focus-banner"
     >
       <span className="font-mono text-xs uppercase tracking-tight text-gold-dark">
-        {activeFilterLabel} · {state.blunders.length} position
-        {state.blunders.length === 1 ? '' : 's'}
+        {t('train.banner.positions', { focus: activeFilterLabel, count: state.blunders.length })}
       </span>
       <span className="flex items-baseline gap-3">
         {returnPath && (
@@ -587,14 +592,14 @@ function TrainingSession({
             className="font-mono text-xs uppercase tracking-tight text-text-primary hover:text-gold-dark"
             onClick={() => navigate(returnPath)}
           >
-            {returnLabel(returnPath)}
+            {returnLabel(returnPath, t)}
           </button>
         )}
         <button
           className="font-mono text-xs uppercase tracking-tight text-text-primary hover:text-gold-dark"
           onClick={backToPicker}
         >
-          Change focus
+          {t('train.changeFocus')}
         </button>
       </span>
     </div>
@@ -617,7 +622,7 @@ function TrainingSession({
   // "Why it loses" misstates missed wins — there the engine line shows the
   // win that was still available, not a losing sequence.
   const refutationLabel =
-    state.currentContext?.gameState === 'missedWin' ? 'Engine line' : 'Why it loses';
+    state.currentContext?.gameState === 'missedWin' ? t('train.engineLine') : t('train.whyItLoses');
   const triedSan = state.playedRefutationMoves[0]?.san ?? null;
 
   const sharePlayersLabel = blunder ? sharePlayersLabelFor(blunder, state.game) : null;
@@ -697,7 +702,7 @@ function TrainingSession({
               onClick={() => state.clearPersistError()}
               className="shrink-0 text-xs underline hover:no-underline"
             >
-              Dismiss
+              {t('common.dismiss')}
             </button>
           </div>
         )}
@@ -712,7 +717,7 @@ function TrainingSession({
               // end and brings the result cover up right away.
               <button
                 type="button"
-                aria-label="Skip refutation"
+                aria-label={t('train.skipRefutation')}
                 onClick={skipAutoplay}
                 className="absolute inset-0 z-10 bg-transparent"
               />
@@ -722,24 +727,24 @@ function TrainingSession({
                   state.phase === 'correct'
                     ? state.openingVerdict
                       ? state.openingVerdict.kind === 'sound'
-                        ? 'Good move'
-                        : 'Great!'
-                      : 'Solution correct'
-                    : state.incorrectFeedback?.message ?? 'Not the best move'
+                        ? t('train.goodMove')
+                        : t('train.great')
+                      : t('train.solutionCorrect')
+                    : state.incorrectFeedback?.message ?? t('train.notBest')
                 }
                 actionLabel={
                   state.phase === 'correct'
-                    ? 'Next'
+                    ? t('common.next')
                     : state.incorrectRequeue && blunder?.kind !== 'opening'
-                      ? 'Continue'
-                      : 'Try again'
+                      ? t('train.continue')
+                      : t('common.tryAgain')
                 }
                 onAction={() => {
                   if (state.phase === 'correct') state.advance();
                   else if (state.incorrectRequeue && blunder?.kind !== 'opening') state.requeueAndAdvance();
                   else state.retry();
                 }}
-                dismissLabel="Review the lines"
+                dismissLabel={t('train.reviewLines')}
                 onDismiss={overlay.dismiss}
               />
             ))
@@ -811,7 +816,7 @@ function TrainingSession({
               if (res.ok) {
                 setConfirmDelete(false);
               } else {
-                setDeleteError(res.error ?? 'Delete failed.');
+                setDeleteError(res.error ?? t('train.deleteFailed'));
               }
             } finally {
               setDeleting(false);

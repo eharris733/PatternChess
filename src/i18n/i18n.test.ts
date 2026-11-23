@@ -84,7 +84,7 @@ describe('i18n catalogs', () => {
       });
 
       it('keeps "Elo" as is', () => {
-        const bad = Object.entries(catalog).filter(([, v]) => /\b(ELO|elo)\b/.test(v));
+        const bad = Object.entries(catalog).filter(([, v]) => /\b(ELO|elo)\b/.test(v.replace(/\{\w+\}/g, '')));
         expect(bad).toEqual([]);
       });
     });

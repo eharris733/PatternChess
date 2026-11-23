@@ -32,6 +32,7 @@ import { queryClient } from '../lib/queryClient';
 import { parseGame } from '../services/pgnParserService';
 import { introLineTo, type IntroLine } from '../chess/openingLine';
 import { repertoireMoveFor, type RepertoireMap } from '../models/repertoire';
+import { currentT } from '../i18n/useT';
 
 // Per-drill SR writes are fire-and-forget, but leaving a session (e.g. to change
 // the theme) must not drop them or re-serve a stale "due" list on return. Track
@@ -434,7 +435,6 @@ function buildSolutionLine(opts: {
   });
 }
 
-const PERSIST_ERROR_MESSAGE = 'Some progress may not have saved — check your connection.';
 
 /**
  * Report a failed background persistence write: log it and surface a
@@ -444,7 +444,7 @@ const PERSIST_ERROR_MESSAGE = 'Some progress may not have saved — check your c
  */
 function notePersistFailure(label: string, err: unknown): void {
   console.warn(`[training] ${label} failed`, err);
-  useTrainingStore.setState({ persistError: PERSIST_ERROR_MESSAGE });
+  useTrainingStore.setState({ persistError: currentT()('train.store.persistError') });
 }
 
 /** Opening drills have their own daily step; they never fill "Train N positions". */
@@ -1038,7 +1038,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         activePlayedRefutationIndex: null,
         incorrectRequeue: false,
         incorrectFeedback: {
-          message: `Good move, but your repertoire move is ${repertoireMove.san}`,
+          message: currentT()('train.store.repertoireNudge', { san: repertoireMove.san }),
           tone: 'success',
         },
         livePlayedEval,
@@ -1083,7 +1083,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         activePlayedRefutationIndex: null,
         incorrectRequeue: false,
         incorrectFeedback: {
-          message: 'Good move, but keep looking for the best one',
+          message: currentT()('train.store.keepLooking'),
           tone: 'success',
         },
         livePlayedEval,
@@ -1225,17 +1225,17 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
 
       let feedback: IncorrectFeedback;
       if (isRepeatedBlunder) {
-        feedback = { message: 'This was the move you played in the game', tone: 'danger' };
+        feedback = { message: currentT()('train.store.gameMove'), tone: 'danger' };
       } else if (chancesLost !== null) {
         const cl = classify(chancesLost);
         feedback =
           cl === 'blunder'
-            ? { message: "That's a blunder", tone: 'danger' }
+            ? { message: currentT()('train.store.blunder'), tone: 'danger' }
             : cl === 'mistake'
-              ? { message: "That's a mistake", tone: 'warning' }
-              : { message: "That's an inaccuracy", tone: 'info' };
+              ? { message: currentT()('train.store.mistake'), tone: 'warning' }
+              : { message: currentT()('train.store.inaccuracy'), tone: 'info' };
       } else {
-        feedback = { message: 'Incorrect', tone: 'danger' };
+        feedback = { message: currentT()('train.store.incorrect'), tone: 'danger' };
       }
 
       // Engine refutation of the move the user just played — the PV from the
@@ -1344,7 +1344,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         lastAttemptWasFirst: isFirstAttempt,
         incorrectFeedback: opts.success
           ? null
-          : (opts.feedback ?? { message: 'Incorrect', tone: 'danger' }),
+          : (opts.feedback ?? { message: currentT()('train.store.incorrect'), tone: 'danger' }),
         livePlayedEval: null,
         stepFeedback: null,
       };
@@ -1413,7 +1413,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
   deleteCurrent: async () => {
     const { blunders, currentIndex } = get();
     const target = blunders[currentIndex];
-    if (!target) return { ok: false, error: 'No position selected.' };
+    if (!target) return { ok: false, error: currentT()('train.store.noPosition') };
 
     // Delete the row first and only drop it from the session if it actually
     // went away. A 0-row delete (e.g. blocked by a row-level policy) reports no
@@ -1424,7 +1424,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
       deleted = await supabaseService.deleteBlunder(target.id);
     } catch (err) {
       console.error('Failed to delete blunder', err);
-      return { ok: false, error: err instanceof Error ? err.message : 'Delete failed.' };
+      return { ok: false, error: err instanceof Error ? err.message : currentT()('train.deleteFailed') };
     }
     if (deleted === 0) {
       return {

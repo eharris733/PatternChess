@@ -8,6 +8,8 @@ import { PHASE_LABEL, PHASE_ORDER, type Blunder } from '../../models/blunder';
 import type { TrainingFocus } from '../../routes/training/trainingFocus';
 import { OpeningIcon } from '../icons/OpeningIcon';
 import { EndgameIcon } from '../icons/EndgameIcon';
+import { useLabel, useT } from '../../i18n/useT';
+import type { MessageKey } from '../../i18n/i18n';
 
 /** One of the two big focus tiles: what's due, or practice ahead when nothing is. */
 function FocusTile({
@@ -23,6 +25,7 @@ function FocusTile({
   onPick: () => void;
   testId: string;
 }) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -33,15 +36,15 @@ function FocusTile({
       <span className="shrink-0 text-gold-dark">{icon}</span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-sm font-semibold text-text-primary">{title}</span>
-        <span className="text-xs text-text-primary">{due > 0 ? `${due} due` : 'Practice ahead'}</span>
+        <span className="text-xs text-text-primary">{due > 0 ? t('landingTrain.due', { count: due }) : t('plan.practiceAhead')}</span>
       </span>
     </button>
   );
 }
 
-const CONTEXT_LABEL: Record<'timeTrouble' | 'longThink', string> = {
-  timeTrouble: 'Time trouble',
-  longThink: 'Long think',
+const CONTEXT_LABEL: Record<'timeTrouble' | 'longThink', MessageKey> = {
+  timeTrouble: 'train.timeTrouble',
+  longThink: 'train.longThink',
 };
 
 // A row needs at least this many games before it's trustworthy enough to
@@ -50,10 +53,10 @@ const MIN_GAMES_FOR_RANKING = 3;
 
 type OpeningTab = 'weakest' | 'strongest' | 'mostPlayed';
 
-const OPENING_TABS: { key: OpeningTab; label: string }[] = [
-  { key: 'weakest', label: 'Weakest' },
-  { key: 'strongest', label: 'Strongest' },
-  { key: 'mostPlayed', label: 'Most played' },
+const OPENING_TABS: { key: OpeningTab; label: MessageKey }[] = [
+  { key: 'weakest', label: 'landingTrain.weakest' },
+  { key: 'strongest', label: 'landingTrain.strongest' },
+  { key: 'mostPlayed', label: 'landingTrain.mostPlayed' },
 ];
 
 function sortRows(rows: OpeningInsightRow[], tab: OpeningTab): OpeningInsightRow[] {
@@ -66,6 +69,7 @@ function sortRows(rows: OpeningInsightRow[], tab: OpeningTab): OpeningInsightRow
 }
 
 function OpeningPicker({ onPick }: { onPick: (row: OpeningInsightRow) => void }) {
+  const t = useT();
   const [tab, setTab] = useState<OpeningTab>('weakest');
   const insight = useOpeningInsight();
 
@@ -75,7 +79,7 @@ function OpeningPicker({ onPick }: { onPick: (row: OpeningInsightRow) => void })
   if (eligible.length === 0) {
     return (
       <p className="text-text-primary text-sm">
-        Not enough games yet to rank your openings.
+        {t('landingTrain.notEnough')}
       </p>
     );
   }
@@ -85,18 +89,18 @@ function OpeningPicker({ onPick }: { onPick: (row: OpeningInsightRow) => void })
   return (
     <div className="flex flex-col gap-3">
       <div className="flex gap-1.5">
-        {OPENING_TABS.map((t) => (
+        {OPENING_TABS.map((ot) => (
           <button
-            key={t.key}
+            key={ot.key}
             type="button"
-            onClick={() => setTab(t.key)}
+            onClick={() => setTab(ot.key)}
             className={`font-mono uppercase text-[10px] tracking-tight px-2 py-1 rounded-none border-2 transition-colors ${
-              tab === t.key
+              tab === ot.key
                 ? 'bg-accent/15 border-accent text-text-primary'
                 : 'border-text-primary text-text-primary hover:bg-accent/10'
             }`}
           >
-            {t.label}
+            {t(ot.label)}
           </button>
         ))}
       </div>
@@ -121,17 +125,19 @@ export function TrainLandingScreen({
   due: readonly Blunder[] | null;
   onPick: (filter: TrainingFocus) => void;
 }) {
+  const t = useT();
+  const label = useLabel();
   const dueCount = due?.length ?? 0;
   const openingsDue = due?.filter((b) => b.kind === 'opening').length ?? 0;
   const endgamesDue = due?.filter((b) => b.phase === 'endgame').length ?? 0;
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-6">
       <div className="text-center flex flex-col gap-2">
-        <h1 className="heading-lg">What do you want to train?</h1>
+        <h1 className="heading-lg">{t('landingTrain.title')}</h1>
         <p className="text-text-primary text-sm">
           {due && dueCount === 0
-            ? 'Nothing is due. Practice the positions coming up next, or pick a focus.'
-            : "Review what's due, or pick a focus instead."}
+            ? t('landingTrain.nothingDue')
+            : t('landingTrain.reviewOrFocus')}
         </p>
       </div>
 
@@ -139,7 +145,7 @@ export function TrainLandingScreen({
         <Skeleton className="h-14 w-full" />
       ) : dueCount > 0 ? (
         <button type="button" onClick={() => onPick({})} className="btn-primary w-full py-4 text-base">
-          Review {dueCount} position{dueCount === 1 ? '' : 's'}
+          {t('landingTrain.review', { count: dueCount })}
         </button>
       ) : (
         <button
@@ -147,14 +153,14 @@ export function TrainLandingScreen({
           onClick={() => onPick({ practiceAhead: true })}
           className="btn-primary w-full py-4 text-base"
         >
-          Practice ahead
+          {t('plan.practiceAhead')}
         </button>
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <FocusTile
           icon={<OpeningIcon className="h-5 w-5" />}
-          title="Openings"
+          title={t('nav.openings')}
           due={openingsDue}
           testId="focus-openings"
           onPick={() =>
@@ -163,7 +169,7 @@ export function TrainLandingScreen({
         />
         <FocusTile
           icon={<EndgameIcon className="h-5 w-5" />}
-          title="Endgames"
+          title={t('nav.endgames')}
           due={endgamesDue}
           testId="focus-endgames"
           onPick={() =>
@@ -173,7 +179,7 @@ export function TrainLandingScreen({
       </div>
 
       <section className="card flex flex-col gap-3">
-        <span className="label">By opening</span>
+        <span className="label">{t('landingTrain.byOpening')}</span>
         <OpeningPicker
           onPick={(row) =>
             onPick({
@@ -186,7 +192,7 @@ export function TrainLandingScreen({
       </section>
 
       <section className="card flex flex-col gap-3">
-        <span className="label">By phase</span>
+        <span className="label">{t('landingTrain.byPhase')}</span>
         <div className="flex flex-wrap gap-1.5">
           {PHASE_ORDER.map((phase) => (
             <button
@@ -195,14 +201,14 @@ export function TrainLandingScreen({
               onClick={() => onPick({ phaseFilter: phase })}
               className="font-mono uppercase text-[10px] tracking-tight px-2.5 py-1.5 rounded-none border-2 border-text-primary text-text-primary hover:bg-accent/10 transition-colors"
             >
-              {PHASE_LABEL[phase]}
+              {label('phase', phase, PHASE_LABEL[phase])}
             </button>
           ))}
         </div>
       </section>
 
       <section className="card flex flex-col gap-3">
-        <span className="label">By pattern</span>
+        <span className="label">{t('landingTrain.byPattern')}</span>
         <div className="flex flex-wrap gap-1.5">
           {ALL_MOTIFS.map((motif) => (
             <button
@@ -211,14 +217,14 @@ export function TrainLandingScreen({
               onClick={() => onPick({ motifFilter: motif })}
               className="font-mono uppercase text-[10px] tracking-tight px-2.5 py-1.5 rounded-none border-2 border-text-primary text-text-primary hover:bg-accent/10 transition-colors"
             >
-              {MOTIF_LABEL[motif]}
+              {label('motif', motif, MOTIF_LABEL[motif])}
             </button>
           ))}
         </div>
       </section>
 
       <section className="card flex flex-col gap-3">
-        <span className="label">By situation</span>
+        <span className="label">{t('landingTrain.bySituation')}</span>
         <div className="flex flex-wrap gap-1.5">
           {(['timeTrouble', 'longThink'] as const).map((ctx) => (
             <button
@@ -227,7 +233,7 @@ export function TrainLandingScreen({
               onClick={() => onPick({ contextFilter: ctx })}
               className="font-mono uppercase text-[10px] tracking-tight px-2.5 py-1.5 rounded-none border-2 border-text-primary text-text-primary hover:bg-accent/10 transition-colors"
             >
-              {CONTEXT_LABEL[ctx]}
+              {t(CONTEXT_LABEL[ctx])}
             </button>
           ))}
           {GAME_STATE_ORDER.map((bucket) => (
@@ -237,7 +243,7 @@ export function TrainLandingScreen({
               onClick={() => onPick({ contextFilter: bucket })}
               className="font-mono uppercase text-[10px] tracking-tight px-2.5 py-1.5 rounded-none border-2 border-text-primary text-text-primary hover:bg-accent/10 transition-colors"
             >
-              {GAME_STATE_LABEL[bucket]}
+              {label('gameState', bucket, GAME_STATE_LABEL[bucket])}
             </button>
           ))}
         </div>

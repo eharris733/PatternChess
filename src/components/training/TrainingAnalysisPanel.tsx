@@ -13,6 +13,7 @@ import { TrashIcon } from '../icons/TrashIcon';
 import { orderedPlayers } from '../../models/gameRecord';
 import { Blunder } from '../../models/blunder';
 import type { TrainingStateShape } from '../../state/trainingStore';
+import { useT } from '../../i18n/useT';
 
 interface TrainingAnalysisPanelProps {
   state: TrainingStateShape;
@@ -66,6 +67,7 @@ export function TrainingAnalysisPanel({
   onShareClick,
   onDeleteClick,
 }: TrainingAnalysisPanelProps) {
+  const t = useT();
   const solutionVisible = showAnswer && state.solutionMoves.length > 0;
   // Opening drills reveal their kind through the intro, so they can be named
   // throughout; tactics and endgames stay concealed until the first move.
@@ -74,7 +76,6 @@ export function TrainingAnalysisPanel({
       ? blunder.drillData
       : null;
   const isOpening = blunder?.kind === 'opening';
-  const sideName = blunder?.sideToMove === 'white' ? 'White' : 'Black';
   return (
     <aside className="card flex flex-col gap-4 sticky top-6 self-start max-h-[calc(100vh-3rem)] overflow-y-auto [&_.btn-primary]:mr-[3px] [&_.btn-primary]:mb-[3px]">
       <header className="flex items-center justify-between">
@@ -84,10 +85,10 @@ export function TrainingAnalysisPanel({
                 state.game.username,
                 state.game.opponent,
                 blunder.sideToMove === 'white' ? 'white' : 'black',
-              ).join(' vs ')
+              ).reduce((a, b) => t('train.panel.vs', { a, b }))
             : state.game
-              ? `${state.game.username} vs ${state.game.opponent}`
-              : 'Training'}
+              ? t('train.panel.vs', { a: state.game.username, b: state.game.opponent })
+              : t('train.panel.training')}
         </span>
         <span className="font-mono text-xs tabular-nums text-gold-dark">
           {`${state.currentIndex + 1}/${state.blunders.length}`}
@@ -97,9 +98,9 @@ export function TrainingAnalysisPanel({
       {state.pendingTryAgain && (
         <div className="flex items-center gap-2 rounded-none border-2 border-mistake/50 bg-mistake/15 px-3 py-2">
           <span className="px-2 py-0.5 rounded-none font-mono text-[10px] uppercase tracking-tight bg-mistake/30 text-mistake border-2 border-mistake/60">
-            Retry
+            {t('train.panel.retry')}
           </span>
-          <span className="text-xs text-text-primary">You missed this last time</span>
+          <span className="text-xs text-text-primary">{t('train.panel.missedLastTime')}</span>
         </div>
       )}
 
@@ -121,9 +122,9 @@ export function TrainingAnalysisPanel({
 
       {state.phase === 'introducing' && (
         <>
-          <p className="text-text-primary">Your game, up to the move you missed.</p>
+          <p className="text-text-primary">{t('train.panel.introGame')}</p>
           <button type="button" className="btn-outline self-start" onClick={onSkipIntro} data-testid="skip-intro">
-            Skip to the position<span className="hidden lg:inline ml-1.5"> (Space)</span>
+            {t('train.panel.skipIntro')}<span className="hidden lg:inline ml-1.5"> {t('train.panel.space')}</span>
           </button>
         </>
       )}
@@ -142,9 +143,11 @@ export function TrainingAnalysisPanel({
               mover={blunder.sideToMove === 'white' ? 'white' : 'black'}
               label={
                 live
-                  ? `Your move${live.san ? `: ${live.san}` : ''}`
+                  ? live.san
+                    ? t('train.panel.yourMoveSan', { san: live.san })
+                    : t('train.panel.yourMove')
                   : state.blunderSan
-                    ? `Your game: ${state.blunderSan}`
+                    ? t('train.panel.yourGameSan', { san: state.blunderSan })
                     : null
               }
               showEngineEvals={showEngineEvals}
@@ -156,12 +159,12 @@ export function TrainingAnalysisPanel({
       {state.phase === 'reviewing' && blunder && (
         <>
           <div className="bg-surface-3 rounded-none border-2 border-text-primary p-3 text-sm">
-            <span className="text-text-primary">You played </span>
+            <span className="text-text-primary">{t('train.panel.youPlayed')} </span>
             <span className="font-mono font-bold text-incorrect">{state.blunderSan}</span>
           </div>
           {state.refutationPairs.length > 0 && (
             <div>
-              <p className="label mb-2">Engine refutation</p>
+              <p className="label mb-2">{t('train.panel.engineRefutation')}</p>
               <MoveSequencePanel
                 pairs={state.refutationPairs}
                 onStep={stepRefutation}
@@ -179,10 +182,10 @@ export function TrainingAnalysisPanel({
             </div>
           )}
           <p className="text-text-primary font-semibold">
-            Find a better move for {blunder.sideToMove === 'white' ? 'White' : 'Black'}.
+            {blunder.sideToMove === 'white' ? t('train.panel.findBetterWhite') : t('train.panel.findBetterBlack')}
           </p>
           <button className="btn-primary" onClick={() => state.proceedFromReview()}>
-            I'm ready<span className="hidden lg:inline ml-1.5"> (Space)</span>
+            {t('train.panel.ready')}<span className="hidden lg:inline ml-1.5"> {t('train.panel.space')}</span>
           </button>
         </>
       )}
@@ -197,11 +200,17 @@ export function TrainingAnalysisPanel({
               )}
             />
             <span className="font-medium" data-testid="drill-prompt">
-              {isOpening ? `Play the move for ${sideName}` : `${sideName} to play`}
+              {blunder.sideToMove === 'white'
+                ? isOpening
+                  ? t('train.panel.playMoveWhite')
+                  : t('train.panel.whiteToPlay')
+                : isOpening
+                  ? t('train.panel.playMoveBlack')
+                  : t('train.panel.blackToPlay')}
             </span>
             {state.userMovesRequired > 1 && (
               <span className="ml-auto font-mono text-xs tabular-nums text-text-primary">
-                Move {Math.floor(state.drillPly / 2) + 1} of {state.userMovesRequired}
+                {t('train.panel.moveOf', { at: Math.floor(state.drillPly / 2) + 1, total: state.userMovesRequired })}
               </span>
             )}
           </div>
@@ -217,7 +226,7 @@ export function TrainingAnalysisPanel({
               type="button"
             >
               <span className="text-xs font-semibold text-text-primary">
-                {state.showWhatYouPlayed ? 'Hide' : 'See'} what you played
+                {state.showWhatYouPlayed ? t('train.panel.hideWhatPlayed') : t('train.panel.seeWhatPlayed')}
               </span>
               {state.showWhatYouPlayed && (
                 <p className="font-mono font-bold text-incorrect mt-1">{state.blunderSan}</p>
@@ -226,14 +235,14 @@ export function TrainingAnalysisPanel({
           )}
 
           {state.hintLevel === 1 && (
-            <p className="text-text-primary text-xs">Piece highlighted. Find the move for full credit.</p>
+            <p className="text-text-primary text-xs">{t('train.panel.hint1')}</p>
           )}
           {state.hintLevel === 2 && (
-            <p className="text-text-primary text-xs">Move shown. No credit for this attempt.</p>
+            <p className="text-text-primary text-xs">{t('train.panel.hint2')}</p>
           )}
 
           {state.evaluating && (
-            <FeedbackBadge tone="info">Analyzing your move…</FeedbackBadge>
+            <FeedbackBadge tone="info">{t('train.panel.analyzing')}</FeedbackBadge>
           )}
         </>
       )}
@@ -244,14 +253,14 @@ export function TrainingAnalysisPanel({
             <OpeningVerdictPanel blunder={blunder} verdict={state.openingVerdict} />
           ) : (
             <>
-              <FeedbackBadge tone="success">Solution correct</FeedbackBadge>
+              <FeedbackBadge tone="success">{t('train.solutionCorrect')}</FeedbackBadge>
               {blunder && <OpeningTheoryNote blunder={blunder} />}
             </>
           )}
           <LineTabs
             tabs={[
-              { key: 'continuation', label: 'Continuation' },
-              { key: 'refutation', label: `Your game: ${state.blunderSan}` },
+              { key: 'continuation', label: t('train.panel.continuation') },
+              { key: 'refutation', label: t('train.panel.yourGameSan', { san: state.blunderSan }) },
             ]}
             active={activeTab === 'refutation' ? 'refutation' : 'continuation'}
             onSelect={setActiveTab}
@@ -269,7 +278,7 @@ export function TrainingAnalysisPanel({
                       : 'text-text-primary',
                   )}
                 >
-                  Puzzle start
+                  {t('train.panel.puzzleStart')}
                 </button>
                 <MoveSequencePanel
                   pairs={state.postCorrectPairs}
@@ -287,7 +296,7 @@ export function TrainingAnalysisPanel({
                 />
               </div>
             ) : (
-              <p className="text-text-primary text-sm">Calculating continuation…</p>
+              <p className="text-text-primary text-sm">{t('train.panel.calcContinuation')}</p>
             )
           ) : (
             <div>
@@ -308,12 +317,12 @@ export function TrainingAnalysisPanel({
                   }}
                 />
               ) : (
-                <p className="text-text-primary text-sm">Calculating…</p>
+                <p className="text-text-primary text-sm">{t('train.panel.calculating')}</p>
               )}
             </div>
           )}
           <button className="btn-primary mt-auto" onClick={() => state.advance()}>
-            Next<span className="hidden lg:inline ml-1.5"> (Space)</span>
+            {t('common.next')}<span className="hidden lg:inline ml-1.5"> {t('train.panel.space')}</span>
           </button>
         </>
       )}
@@ -332,17 +341,17 @@ export function TrainingAnalysisPanel({
                 tabs={[
                   {
                     key: 'playedRefutation',
-                    label: triedSan ? `Your try: ${triedSan}` : 'Your try',
+                    label: triedSan ? t('train.panel.yourTrySan', { san: triedSan }) : t('train.panel.yourTry'),
                   },
                   ...(solutionVisible
                     ? [
                         {
                           key: 'solution' as const,
-                          label: `Solution: ${state.solutionMoves[0].san}`,
+                          label: t('train.panel.solutionSan', { san: state.solutionMoves[0].san }),
                         },
                       ]
                     : []),
-                  { key: 'refutation', label: `Your game: ${state.blunderSan}` },
+                  { key: 'refutation', label: t('train.panel.yourGameSan', { san: state.blunderSan }) },
                 ]}
                 active={
                   activeTab === 'refutation' || (activeTab === 'solution' && solutionVisible)
@@ -393,7 +402,7 @@ export function TrainingAnalysisPanel({
                     }}
                   />
                 ) : (
-                  <p className="text-text-primary text-sm">No engine line for this move.</p>
+                  <p className="text-text-primary text-sm">{t('train.panel.noEngineLine')}</p>
                 )
               ) : (
                 <div>
@@ -414,7 +423,7 @@ export function TrainingAnalysisPanel({
                       }}
                     />
                   ) : (
-                    <p className="text-text-primary text-sm">Calculating…</p>
+                    <p className="text-text-primary text-sm">{t('train.panel.calculating')}</p>
                   )}
                 </div>
               )}
@@ -426,12 +435,12 @@ export function TrainingAnalysisPanel({
               state.incorrectRequeue && !isOpening ? state.requeueAndAdvance() : state.retry()
             }
           >
-            {state.incorrectRequeue && !isOpening ? 'Continue' : 'Try again'}
-            <span className="hidden lg:inline ml-1.5"> (Space)</span>
+            {state.incorrectRequeue && !isOpening ? t('train.continue') : t('common.tryAgain')}
+            <span className="hidden lg:inline ml-1.5"> {t('train.panel.space')}</span>
           </button>
           {state.incorrectRequeue && !isOpening && (
             <p className="text-text-primary text-xs text-center -mt-1">
-              Comes back later this session
+              {t('train.panel.comesBack')}
             </p>
           )}
         </>
@@ -443,7 +452,7 @@ export function TrainingAnalysisPanel({
             state.totalAttempted > 0 ? (state.totalCorrect / state.totalAttempted) * 100 : 0,
           )}
           total={100}
-          label="Recall rate"
+          label={t('train.panel.recallRate')}
         />
         {blunder && (
           <div className="flex items-center justify-between gap-3">
@@ -453,7 +462,7 @@ export function TrainingAnalysisPanel({
               onClick={onShareClick}
             >
               <ShareIcon className="h-3.5 w-3.5" />
-              Share puzzle
+              {t('train.panel.share')}
             </button>
             <button
               type="button"
@@ -462,7 +471,7 @@ export function TrainingAnalysisPanel({
               disabled={state.evaluating || paused || deleting}
             >
               <TrashIcon className="h-3.5 w-3.5" />
-              Delete position
+              {t('train.panel.delete')}
             </button>
           </div>
         )}

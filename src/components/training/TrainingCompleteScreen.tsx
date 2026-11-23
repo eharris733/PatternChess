@@ -5,6 +5,7 @@ import { useDrillsToday } from '../../hooks/useTrainingActivity';
 import { DEFAULT_DAILY_GOALS } from '../../lib/dailyGoal';
 import { detectTimezone, localDate } from '../../services/streakService';
 import { TrophyIcon } from '../icons/TrophyIcon';
+import { useT } from '../../i18n/useT';
 
 // The first session that meets today's goal says so; later ones say "Session done".
 const PLAN_DONE_KEY = 'pc:plan-done-shown';
@@ -44,6 +45,7 @@ export function TrainingCompleteScreen({
   onBackToDashboard: () => void;
 }) {
   const { profile } = useAuth();
+  const t = useT();
   const queryClient = useQueryClient();
   const tz = profile?.timezone ?? detectTimezone();
   const today = localDate(tz);
@@ -67,18 +69,18 @@ export function TrainingCompleteScreen({
   return (
     <div className="max-w-md mx-auto card text-center flex flex-col gap-4" data-testid="training-complete">
       <TrophyIcon className="h-14 w-14 self-center text-gold-dark" />
-      <h1 className="heading-lg">{planDone ? "Today's plan: done" : 'Session done'}</h1>
+      <h1 className="heading-lg">{planDone ? t('train.complete.planDone') : t('train.complete.sessionDone')}</h1>
       <p className="text-text-primary">
-        {pct}% recall · {totalCorrect}/{totalAttempted} correct
+        {t('train.complete.recall', { pct, correct: totalCorrect, total: totalAttempted })}
       </p>
-      {streakToday && <p className="text-text-primary">Day {streak} in the books.</p>}
+      {streakToday && <p className="text-text-primary">{t('train.complete.day', { count: streak })}</p>}
       {focusLabel && (
         <p className="text-sm text-text-primary" data-testid="complete-focus">
-          Focus: {focusLabel}
+          {t('train.complete.focus', { focus: focusLabel })}
         </p>
       )}
       <button className="btn-primary" onClick={onKeepTraining}>
-        Keep training
+        {t('train.complete.keepTraining')}
       </button>
       {onReturn && returnLabel && (
         <button className="btn-outline" onClick={onReturn}>
@@ -86,7 +88,7 @@ export function TrainingCompleteScreen({
         </button>
       )}
       <button className="btn-outline" onClick={onBackToDashboard}>
-        Back to dashboard
+        {t('train.complete.backToDashboard')}
       </button>
     </div>
   );

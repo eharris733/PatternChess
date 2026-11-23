@@ -3,6 +3,7 @@ import { HintIcon } from './icons/HintIcon';
 import { ChevronIcon } from './icons/ChevronIcon';
 import { UndoIcon } from './icons/UndoIcon';
 import { DrillSettingsMenu } from './training/DrillSettingsMenu';
+import { useT } from '../i18n/useT';
 
 interface BoardActionBarProps {
   /** Resets the timer when this changes (e.g. blunder index advances). */
@@ -47,6 +48,7 @@ export function BoardActionBar({
   onTakeBack,
   takeBackDisabled = false,
 }: BoardActionBarProps) {
+  const t = useT();
   const [elapsed, setElapsed] = useState(0);
   const startRef = useRef<number | null>(null);
 
@@ -67,21 +69,21 @@ export function BoardActionBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, resetKey]);
 
-  const hintLabel = hintLevel === 0 ? 'Hint' : hintLevel === 1 ? 'Show move' : 'Hint shown';
+  const hintLabel = hintLevel === 0 ? t('board.hint') : hintLevel === 1 ? t('board.showMove') : t('board.hintShown');
   // The cost is stated before the click: level 1 is free, level 2 forfeits credit.
   const hintTitle =
     hintLevel === 0
-      ? 'Highlight the piece to move (free)'
+      ? t('board.hintTitle1')
       : hintLevel === 1
-        ? 'Show the full move (no credit for this attempt)'
-        : 'Hint shown';
+        ? t('board.hintTitle2')
+        : t('board.hintShown');
 
   return (
     <div className="flex items-center gap-2 max-w-[min(640px,calc(100vh-5rem))] mx-auto w-full">
       <span
         className="font-mono text-sm text-text-secondary tabular-nums px-2"
-        aria-label="Elapsed time"
-        title="Elapsed time"
+        aria-label={t('board.elapsed')}
+        title={t('board.elapsed')}
       >
         {formatElapsed(elapsed)}
       </span>
@@ -90,8 +92,8 @@ export function BoardActionBar({
         type="button"
         className="btn-ghost text-sm h-8 lg:h-10"
         onClick={onTogglePaused}
-        aria-label={paused ? 'Resume' : 'Pause'}
-        title={paused ? 'Resume' : 'Pause'}
+        aria-label={paused ? t('board.resume') : t('board.pause')}
+        title={paused ? t('board.resume') : t('board.pause')}
       >
         {paused ? '▶' : '⏸'}
       </button>
@@ -102,7 +104,7 @@ export function BoardActionBar({
         <>
           <button
             type="button"
-            aria-label="Previous move"
+            aria-label={t('board.prevMove')}
             onClick={() => onStepLine(-1)}
             className="btn-ghost h-8 px-3 lg:hidden"
           >
@@ -110,7 +112,7 @@ export function BoardActionBar({
           </button>
           <button
             type="button"
-            aria-label="Next move"
+            aria-label={t('board.nextMove')}
             onClick={() => onStepLine(1)}
             className="btn-ghost h-8 px-3 lg:hidden"
           >
@@ -125,10 +127,10 @@ export function BoardActionBar({
           className="btn-ghost text-sm h-8 lg:h-10 inline-flex items-center gap-1.5"
           onClick={onTakeBack}
           disabled={takeBackDisabled}
-          title="Take back your last move and the engine's reply"
+          title={t('board.takeBackTitle')}
         >
           <UndoIcon className="h-4 w-4" />
-          Take back
+          {t('board.takeBack')}
         </button>
       )}
 
@@ -151,9 +153,9 @@ export function BoardActionBar({
           href={externalUrl}
           target="_blank"
           rel="noopener noreferrer"
-          title={externalLabel ?? 'Analyze this position'}
+          title={externalLabel ?? t('board.analyze')}
         >
-          Analyze ↗
+          {t('board.analyzeShort')}
         </a>
       )}
 

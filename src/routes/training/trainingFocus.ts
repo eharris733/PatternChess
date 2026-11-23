@@ -6,15 +6,16 @@ import {
   PRACTICE_AHEAD_FILTER_POOL,
   type UpcomingParams,
 } from '../../hooks/useUpcomingBlunders';
+import type { Translator } from '../../i18n/useT';
 
 /** Pages a focused session can send you back to (a course day: `/courses/<slug>/<day>`). */
 export type ReturnPath = '/openings' | '/endgames' | `/courses/${string}`;
 
 /** The "Back to …" label for a return page. */
-export function returnLabel(path: ReturnPath): string {
-  if (path === '/openings') return 'Back to Openings';
-  if (path === '/endgames') return 'Back to Endgames';
-  return 'Back to the lesson';
+export function returnLabel(path: ReturnPath, t?: Translator): string {
+  if (path === '/openings') return t ? t('train.backToOpenings') : 'Back to Openings';
+  if (path === '/endgames') return t ? t('train.backToEndgames') : 'Back to Endgames';
+  return t ? t('train.backToLesson') : 'Back to the lesson';
 }
 
 /**

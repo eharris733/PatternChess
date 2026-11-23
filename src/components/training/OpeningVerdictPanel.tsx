@@ -6,17 +6,18 @@ import { useAddToRepertoire, useRepertoire } from '../../hooks/useRepertoire';
 import type { OpeningVerdict } from '../../state/trainingStore';
 import { CheckIcon } from '../icons/CheckIcon';
 import { TheoryMovesLine } from '../openings/TheoryMovesLine';
+import { useT, type Translator } from '../../i18n/useT';
 
-function headline(v: OpeningVerdict): string {
+function headline(v: OpeningVerdict, t: Translator): string {
   switch (v.kind) {
     case 'repertoire':
-      return `Great! ${v.san} is your repertoire move.`;
+      return t('verdict.repertoire', { san: v.san });
     case 'book':
-      return `Great! ${v.san} is book.`;
+      return t('verdict.book', { san: v.san });
     case 'best':
-      return `Great! ${v.san} is the engine's top move.`;
+      return t('verdict.engine', { san: v.san });
     case 'sound':
-      return `Good move. ${v.san} holds up.`;
+      return t('verdict.sound', { san: v.san });
   }
 }
 
@@ -26,6 +27,7 @@ function sameUci(a: string, b: string): boolean {
 
 /** One-line verdict + "Add to repertoire" after a correct opening answer. */
 export function OpeningVerdictPanel({ blunder, verdict }: { blunder: Blunder; verdict: OpeningVerdict }) {
+  const t = useT();
   const color: 'white' | 'black' = blunder.sideToMove === 'white' ? 'white' : 'black';
   const repertoire = useRepertoire();
   const add = useAddToRepertoire();
@@ -41,7 +43,7 @@ export function OpeningVerdictPanel({ blunder, verdict }: { blunder: Blunder; ve
           verdict.kind === 'sound' ? 'text-text-primary' : 'text-correct',
         )}
       >
-        {headline(verdict)}
+        {headline(verdict, t)}
       </p>
       {/* Who plays it: the chart (book moves) — the headline stays short. */}
       {data && data.theoryMoves.length > 0 ? (
@@ -50,7 +52,7 @@ export function OpeningVerdictPanel({ blunder, verdict }: { blunder: Blunder; ve
         verdict.theorySan &&
         verdict.kind !== 'repertoire' && (
           <p className="text-text-primary text-sm">
-            The main line is <span className="font-mono font-semibold">{verdict.theorySan}</span>.
+            {t.rich('verdict.mainLine', { san: <span className="font-mono font-semibold">{verdict.theorySan}</span> })}
           </p>
         )
       )}
@@ -58,7 +60,7 @@ export function OpeningVerdictPanel({ blunder, verdict }: { blunder: Blunder; ve
       {isSaved ? (
         <p className="inline-flex items-center gap-2 text-sm font-semibold text-correct" data-testid="in-repertoire">
           <CheckIcon className="h-4 w-4" />
-          In your repertoire
+          {t('verdict.inRepertoire')}
         </p>
       ) : (
         <button
@@ -68,10 +70,10 @@ export function OpeningVerdictPanel({ blunder, verdict }: { blunder: Blunder; ve
           disabled={add.isPending || repertoire.isPending}
           onClick={() => add.mutate({ color, fen: verdict.fen, uci: verdict.uci, san: verdict.san })}
         >
-          {saved ? `Make ${verdict.san} my move (instead of ${saved.san})` : 'Add to repertoire'}
+          {saved ? t('verdict.makeMine', { san: verdict.san, saved: saved.san }) : t('verdict.add')}
         </button>
       )}
-      {add.isError && <p className="text-incorrect text-sm">Couldn't save that. Try again.</p>}
+      {add.isError && <p className="text-incorrect text-sm">{t('verdict.saveError')}</p>}
     </div>
   );
 }

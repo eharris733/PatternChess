@@ -26,7 +26,20 @@ export interface Translator {
    * to pick the plural form when `{count}` itself is a node.
    */
   rich: (key: TKey, vars: Record<string, ReactNode>, count?: number) => ReactNode;
+  /** An entry of an English label map (see `useLabel`). */
+  label: (family: string, id: string, english: string) => string;
   locale: Locale;
+}
+
+function labelFor(catalog: Catalog, locale: Locale, family: string, id: string, english: string): string {
+  if (locale === 'en') return english;
+  const key = `label.${family}.${id}`;
+  const hit = catalog[key];
+  if (hit === undefined) {
+    warnMissing(key, locale);
+    return english;
+  }
+  return hit;
 }
 
 function makeTranslator(catalog: Catalog, locale: Locale): Translator {
@@ -39,6 +52,7 @@ function makeTranslator(catalog: Catalog, locale: Locale): Translator {
       vars,
     );
   };
+  t.label = (family, id, english) => labelFor(catalog, locale, family, id, english);
   t.locale = locale;
   return t;
 }
@@ -59,16 +73,7 @@ export function useLabel(): (family: string, id: string, english: string) => str
   const catalog = useLocaleStore((s) => s.catalog);
   const locale = useLocaleStore((s) => s.locale);
   return useCallback(
-    (family: string, id: string, english: string) => {
-      if (locale === 'en') return english;
-      const key = `label.${family}.${id}`;
-      const hit = catalog[key];
-      if (hit === undefined) {
-        warnMissing(key, locale);
-        return english;
-      }
-      return hit;
-    },
+    (family: string, id: string, english: string) => labelFor(catalog, locale, family, id, english),
     [catalog, locale],
   );
 }

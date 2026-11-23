@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import { winPercent } from '../chess/winningChances';
 import { formatEval, formatMoveCost, moveCost } from '../chess/formatEval';
 import { InfoTip } from './InfoTip';
+import { useT } from '../i18n/useT';
 
 /** One-decimal, bare `#` mate — the compact engine-swing presentation. */
 const formatSwingEval = (cp: number) => formatEval(cp, { decimals: 1, mate: 'symbol' });
@@ -49,6 +50,7 @@ export function WinningChancesDisplay({
   showEngineEvals?: boolean;
   className?: string;
 }) {
+  const t = useT();
   const left = orientation ?? mover;
   const right: Side = left === 'white' ? 'black' : 'white';
   const moverBefore = winPercent(evalBefore);
@@ -65,13 +67,13 @@ export function WinningChancesDisplay({
 
   const whiteBeforeCp = mover === 'white' ? evalBefore : -evalBefore;
   const whiteAfterCp = mover === 'white' ? -evalAfter : evalAfter;
-  const moverName = mover === 'white' ? 'White' : 'Black';
+  const moverName = mover === 'white' ? t('common.white') : t('common.black');
 
   return (
     <div className={clsx('flex flex-col gap-1.5', className)} data-testid="engine-swing">
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="flex min-w-0 items-baseline gap-2">
-          <span className="label shrink-0 text-text-primary">Engine swing</span>
+          <span className="label shrink-0 text-text-primary">{t('swing.title')}</span>
           {label && (
             <span className="truncate font-mono text-xs text-text-primary" data-testid="engine-swing-move">
               {label}
@@ -80,20 +82,16 @@ export function WinningChancesDisplay({
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <span className={clsx('font-mono font-semibold tabular-nums', tone.text)}>
-            {formatMoveCost(cost)}
+            {formatMoveCost(cost, t)}
           </span>
-          <InfoTip label="What does this mean?">
-            An evaluation bar: White's winning chances fill from one end, Black's from the other.
-            The coloured stretch is what this move changed. The number is the swing in centipawns
-            (100cp ≈ one pawn), or the forced mate the move allowed or missed.
-          </InfoTip>
+          <InfoTip label={t('swing.what')}>{t('swing.help')}</InfoTip>
         </span>
       </div>
       <div
         className="relative h-3.5 overflow-hidden border-2 border-text-primary"
         style={{ backgroundColor: SIDE_FILL[right] }}
         role="img"
-        aria-label={`${moverName}'s winning chances ${Math.round(moverBefore)}% to ${Math.round(moverAfter)}%`}
+        aria-label={t('swing.aria', { side: moverName, before: Math.round(moverBefore), after: Math.round(moverAfter) })}
       >
         <div className="absolute inset-y-0 left-0" style={{ width: `${leftAfter}%`, backgroundColor: SIDE_FILL[left] }} />
         <div

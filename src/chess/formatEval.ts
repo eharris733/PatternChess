@@ -80,8 +80,12 @@ export function moveCost(evalBefore: number, evalAfter: number): MoveCost {
 }
 
 /** Short label for a `MoveCost`: "−320cp", "allows M1", "missed M3". */
-export function formatMoveCost(cost: MoveCost): string {
+export function formatMoveCost(cost: MoveCost, t?: Translator): string {
   if (cost.kind === 'cp') return `${cost.cp > 0 ? '−' : '+'}${Math.round(Math.abs(cost.cp))}cp`;
+  if (t) {
+    const m = cost.moves ? `M${cost.moves}` : t('swing.mate');
+    return cost.kind === 'allowsMate' ? t('swing.allowsMate', { m }) : t('swing.missedMate', { m });
+  }
   const m = cost.moves ? `M${cost.moves}` : 'mate';
   return cost.kind === 'allowsMate' ? `allows ${m}` : `missed ${m}`;
 }
