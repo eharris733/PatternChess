@@ -133,11 +133,16 @@ const GAME = {
   parsed_metadata_at: null,
 };
 
-async function stub(page: Page, blunders: Record<string, unknown>[]) {
+async function stub(
+  page: Page,
+  blunders: Record<string, unknown>[],
+  opts: { profile?: Record<string, unknown>; sessions?: Record<string, unknown>[] } = {},
+) {
   const rec = await stubApp(page, {
-    profile: PROFILE,
+    profile: { ...PROFILE, ...opts.profile },
     blunders,
     games: [GAME],
+    ...(opts.sessions ? { sessions: opts.sessions } : {}),
     rpc: {
       // The SR write lands on the seeded row, so the next queue sees it.
       'blunders.updateAfterDrill': (a) => {
@@ -265,4 +270,73 @@ test('the landing has Openings and Endgames focuses that lead back to their page
   await expect(banner).toContainText('Endgame · practice ahead · 1 position');
   await banner.getByRole('button', { name: 'Back to Endgames' }).click();
   await expect(page).toHaveURL(/\/endgames$/);
+});
+
+// Today's positions goal (1) is already met by an earlier session, so the
+// session below finishes the Train step and nothing else.
+function goalMetToday() {
+  return [
+    {
+      id: 's0',
+      user_id: 'e2e-user',
+      started_at: new Date().toISOString(),
+      ended_at: new Date().toISOString(),
+      local_date: new Date().toLocaleDateString('en-CA'),
+      blunders_attempted: 1,
+      blunders_correct: 1,
+      cycles_completed: 0,
+    },
+  ];
+}
+
+async function solveFreeQueen(page: Page) {
+  await expect(page.getByText('White to play')).toBeVisible();
+  await dragMove(page, { file: 6, rank: 4 }, { file: 7, rank: 5 }); // gxh5
+  await expect(page.getByText('Solution correct')).toBeVisible();
+  await page.keyboard.press('Space');
+}
+
+test('a finished session says "Session done" and points at the next step while the plan is open', async ({ page }) => {
+  await page.addInitScript(() => localStorage.removeItem('pc:plan-done-shown'));
+  await stub(page, [tactic(), UPCOMING_OPENING], {
+    profile: { commitment_level: 'custom', daily_positions_goal: 1, daily_games_goal: 0 },
+    sessions: goalMetToday(),
+  });
+  await page.goto('/training');
+  await page.getByRole('button', { name: 'Review 1 position' }).click();
+  await solveFreeQueen(page);
+
+  const done = page.getByTestId('training-complete');
+  await expect(done).toBeVisible();
+  // The positions goal is met, but the Openings step isn't: not "Today's plan: done".
+  const next = done.getByTestId('complete-next');
+  await expect(next).toContainText('Review 1 opening');
+  await expect(done.getByRole('heading', { name: 'Session done' })).toBeVisible();
+  await expect(done.getByRole('heading', { name: "Today's plan: done" })).toHaveCount(0);
+  await next.getByRole('button', { name: 'Practice' }).click();
+  await expect(page.getByTestId('training-focus-banner')).toContainText('Opening reviews · practice ahead · 1 position');
+});
+
+test('"Today\'s plan: done" shows once every plan step is done', async ({ page }) => {
+  await page.addInitScript(() => localStorage.removeItem('pc:plan-done-shown'));
+  await stub(page, [tactic()], {
+    profile: { commitment_level: 'custom', daily_positions_goal: 1, daily_games_goal: 0 },
+    sessions: goalMetToday(),
+  });
+  await page.goto('/training');
+  await page.getByRole('button', { name: 'Review 1 position' }).click();
+  await solveFreeQueen(page);
+  const done = page.getByTestId('training-complete');
+  await expect(done.getByRole('heading', { name: "Today's plan: done" })).toBeVisible();
+  await expect(done.getByTestId('complete-next')).toHaveCount(0);
+});
+
+test('a focus with no positions at all says "None yet" and leads to its page', async ({ page }) => {
+  await stub(page, [tactic()]);
+  await page.goto('/training');
+  await expect(page.getByTestId('focus-openings')).toContainText('None yet');
+  await expect(page.getByTestId('focus-endgames')).toContainText('None yet');
+  await expect(page.getByText('Practice ahead')).toHaveCount(0);
+  await page.getByTestId('focus-openings').click();
+  await expect(page).toHaveURL(/\/openings$/);
 });

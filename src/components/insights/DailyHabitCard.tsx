@@ -1,31 +1,18 @@
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { useAuth } from '../../auth/useAuth';
-import { useDrillsToday } from '../../hooks/useTrainingActivity';
 import { useAchievements } from '../../hooks/useAchievements';
-import { useDueCount } from '../../hooks/useDueCount';
-import { useEndgameScenarios } from '../../hooks/useEndgameScenarios';
-import { useDrillsOfKind } from '../../hooks/useDrillsOfKind';
-import { useUpcomingBlunders } from '../../hooks/useUpcomingBlunders';
-import { isScenarioDue } from '../../models/endgameScenario';
-import {
-  COMMITMENT_LABEL,
-  DEFAULT_DAILY_GOALS,
-  OPENINGS_PER_DAY,
-  PLAYOUTS_PER_DAY,
-} from '../../lib/dailyGoal';
-import { useGamesPlayedToday } from '../../hooks/useGamesPlayedToday';
+import { useDailyPlan } from '../../hooks/useDailyPlan';
+import { COMMITMENT_LABEL } from '../../lib/dailyGoal';
 import { useSyncStore } from '../../state/syncStore';
 import { streakNoticeText, useStreakNoticeStore } from '../../state/streakNoticeStore';
 import { nearestAchievement } from '../../lib/achievements';
-import { detectTimezone, localDate } from '../../services/streakService';
 import { CheckIcon } from '../icons/CheckIcon';
 import { TrophyIcon } from '../icons/TrophyIcon';
 import { EndgameIcon } from '../icons/EndgameIcon';
 import { TrainIcon } from '../icons/TrainIcon';
 import { OpeningIcon } from '../icons/OpeningIcon';
 import { KingIcon } from '../icons/KingIcon';
-import { PlatformLogo, type PlatformId } from '../icons/PlatformLogos';
+import { PlatformLogo } from '../icons/PlatformLogos';
 import { LockIcon } from '../icons/LockIcon';
 import { SnowflakeIcon } from '../icons/SnowflakeIcon';
 import { CloseIcon } from '../icons/CloseIcon';
@@ -34,11 +21,7 @@ import { usePathProgress } from '../../hooks/usePathProgress';
 import { useFeature } from '../../hooks/useFeature';
 import type { TrainingFocus } from '../../routes/training/trainingFocus';
 import { CourseIcon } from '../icons/CourseIcon';
-import { useCourseProgress } from '../../hooks/useCourseProgress';
-import { useSupporter } from '../../hooks/useSupporter';
-import { availableCourse } from '../../lib/courses';
-import { isSupporterDay } from '../../lib/courseCatalog';
-import { completedOn, nextDay } from '../../lib/coursePacing';
+import { useAuth } from '../../auth/useAuth';
 import { useLabel, useT } from '../../i18n/useT';
 
 function PlanStep({
@@ -172,16 +155,6 @@ function PlanStepSkeleton() {
   );
 }
 
-/** Where the Play step sends you: the platform you sync from (Lichess first). */
-function playTarget(
-  lichess: string | null,
-  chesscom: string | null,
-): { platform: PlatformId; href: string } | null {
-  if (lichess) return { platform: 'lichess', href: 'https://lichess.org/' };
-  if (chesscom) return { platform: 'chesscom', href: 'https://www.chess.com/play/online' };
-  return null;
-}
-
 /**
  * Today's plan: a checklist sized by the player's commitment level, in order
  * (Lesson →) Train → Openings → Endgames → Play. "Today's lesson" shows only
@@ -199,20 +172,8 @@ export function DailyHabitCard() {
   const label = useLabel();
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const drillsQuery = useDrillsToday();
-  // Count only: the full due list (solution lines, drill data) was downloaded
-  // here just to show its length.
-  const dueQuery = useDueCount({ excludeKind: 'opening' });
-  const dueCount = dueQuery.data ?? 0;
-  // Same params as /training's main "Practice ahead", so the cache is shared.
-  const upcomingQuery = useUpcomingBlunders(
-    { excludeKind: 'opening' },
-    { enabled: dueQuery.isSuccess && dueCount === 0 },
-  );
-  const scenariosQuery = useEndgameScenarios();
-  const openingDrillsQuery = useDrillsOfKind('opening');
+  const plan = useDailyPlan();
   const { achievements } = useAchievements();
-  const gamesTodayQuery = useGamesPlayedToday();
   const syncing = useSyncStore((s) =>
     Object.values(s.providers).some((p) => p.phase === 'fetching' || p.phase === 'inserting' || p.phase === 'analyzing'),
   );
@@ -221,19 +182,44 @@ export function DailyHabitCard() {
   const clearNotice = useStreakNoticeStore((s) => s.clear);
   const path = usePathProgress();
   const pathOn = useFeature('path');
-  // Never fetched in builds without courses (production until creators agree).
-  const courseProgressQuery = useCourseProgress();
-  const supporter = useSupporter();
-  const goals = profile?.dailyGoals ?? DEFAULT_DAILY_GOALS;
-  const play = playTarget(profile?.lichessUsername ?? null, profile?.chesscomUsername ?? null);
-  const playHref = play?.href ?? null;
-  // PGN-only players have nothing to sync, so the Play step can't detect games.
-  const showPlay = goals.gamesPerDay > 0 && playHref != null;
+  const {
+    goals,
+    play,
+    playHref,
+    showPlay,
+    drillsToday,
+    dueCount,
+    upcomingCount,
+    trainPending,
+    trainIdle,
+    practiceNext,
+    openingsPending,
+    openingsToday,
+    openingsDue,
+    openingsGoal,
+    openingsIdle,
+    scenariosPending,
+    playoutsToday,
+    playoutsDue,
+    endgamesGoal,
+    endgamesIdle,
+    lessonPending,
+    lessonCourse,
+    lessonDoneToday,
+    lessonNext,
+    lessonNextOpen,
+    showLesson,
+    lessonTarget,
+    gamesToday,
+    gamesTodayPending,
+    playLocked,
+    restPending,
+    stepsDone,
+    stepsTotal,
+    allDone,
+  } = plan;
 
-  const tz = profile?.timezone ?? detectTimezone();
-  const today = localDate(tz);
-
-  if (drillsQuery.isPending) {
+  if (plan.drillsPending) {
     return (
       <section className="card flex flex-col gap-4" aria-busy="true">
         <header className="flex items-baseline justify-between">
@@ -249,56 +235,6 @@ export function DailyHabitCard() {
 
   const train = (focus?: TrainingFocus) => navigate('/training', focus ? { state: focus } : undefined);
 
-  // --- Train ---------------------------------------------------------------
-  const drillsToday = drillsQuery.data ?? 0;
-  const upcomingCount = upcomingQuery.data?.length ?? 0;
-  const trainPending = dueQuery.isPending || (dueCount === 0 && upcomingQuery.isPending);
-  // Openings have their own step; the train step's "due" excludes them.
-  // Nothing due and nothing coming up: no positions at all yet, so the step
-  // can't be finished today and must not hold Play back.
-  const trainIdle = !trainPending && dueCount === 0 && upcomingCount === 0;
-  const trainDone = drillsToday >= goals.positionsPerDay;
-  const practiceNext = dueCount === 0 && upcomingCount > 0;
-
-  // --- Openings ------------------------------------------------------------
-  // Opening drills done today vs the daily ask (capped by the drills you
-  // have). Practice ahead keeps the step doable when nothing is due.
-  const openingsPending = openingDrillsQuery.isPending;
-  const openingDrills = [...(openingDrillsQuery.data?.values() ?? [])].filter((b) => b.kind === 'opening');
-  const openingsToday = openingDrills.filter(
-    (b) => b.lastDrilledAt && localDate(tz, b.lastDrilledAt) === today,
-  ).length;
-  const now = Date.now();
-  // Same rule as the due queue: next_drill_at <= now (retired rows are
-  // already excluded by useDrillsOfKind).
-  const openingsDue = openingDrills.filter((b) => b.nextDrillAt && b.nextDrillAt.getTime() <= now).length;
-  const openingsGoal = Math.min(OPENINGS_PER_DAY, openingDrills.length);
-  const openingsIdle = !openingsPending && openingDrills.length === 0;
-  const openingsDone = openingsToday >= openingsGoal;
-
-  // --- Endgames ------------------------------------------------------------
-  const scenariosPending = scenariosQuery.isPending;
-  const scenarios = scenariosQuery.data ?? [];
-  const playoutsToday = scenarios.filter((s) => s.lastPlayedAt && localDate(tz, s.lastPlayedAt) === today).length;
-  const playoutsDue = scenarios.filter((s) => isScenarioDue(s)).length;
-  const endgamesGoal = Math.min(PLAYOUTS_PER_DAY, scenarios.length);
-  const endgamesIdle = !scenariosPending && scenarios.length === 0;
-  const endgamesDone = playoutsToday >= endgamesGoal;
-
-  // --- Today's lesson (the followed course; first) --------------------------
-  const lessonPending = courseProgressQuery.isLoading;
-  const lessonCourse = availableCourse(courseProgressQuery.data?.focus);
-  const lessonDays = (lessonCourse && courseProgressQuery.data?.byCourse.get(lessonCourse.slug)) || [];
-  const lessonDoneToday = completedOn(lessonDays, today);
-  const lessonNext = lessonCourse ? nextDay(lessonCourse.days.length, lessonDays) : null;
-  // A supporter-only next lesson stays off the plan for free players (the course page explains).
-  const lessonNextOpen =
-    lessonNext?.status === 'open' && !(isSupporterDay(lessonNext.day) && !supporter.isSupporter);
-  const showLesson = !!lessonCourse && (lessonDoneToday || lessonNextOpen);
-  const lastDoneDay = lessonDays.reduce((m, d) => Math.max(m, d.day), 0);
-  const lessonTarget = lessonCourse
-    ? `/courses/${lessonCourse.slug}/${lessonNextOpen && lessonNext ? lessonNext.day : Math.max(1, lastDoneDay)}`
-    : null;
   const lessonDetail = !lessonCourse
     ? null
     : lessonDoneToday
@@ -313,26 +249,6 @@ export function DailyHabitCard() {
           })
         : null;
 
-  // --- Play (last; opens once the rest is done) ----------------------------
-  const gamesToday = gamesTodayQuery.data ?? 0;
-  const restPending = trainPending || openingsPending || scenariosPending || lessonPending;
-  const restDone =
-    !restPending &&
-    (lessonDoneToday || !showLesson) &&
-    (trainDone || trainIdle) &&
-    (openingsDone || openingsIdle) &&
-    (endgamesDone || endgamesIdle);
-  const playLocked = !restDone;
-
-  const steps = [
-    ...(showLesson ? [lessonDoneToday] : []),
-    ...(trainIdle && !trainDone ? [] : [trainDone]),
-    ...(openingsIdle ? [] : [openingsDone]),
-    ...(endgamesIdle ? [] : [endgamesDone]),
-    ...(showPlay ? [gamesToday >= goals.gamesPerDay] : []),
-  ];
-  const stepsDone = steps.filter(Boolean).length;
-  const allDone = !restPending && stepsDone === steps.length;
   const next = nearestAchievement(achievements);
 
   return (
@@ -360,7 +276,7 @@ export function DailyHabitCard() {
             data-testid="plan-progress"
           >
             {allDone && <CheckIcon className="h-3.5 w-3.5" />}
-            {allDone ? t('plan.done') : t('plan.progress', { done: stepsDone, total: steps.length })}
+            {allDone ? t('plan.done') : t('plan.progress', { done: stepsDone, total: stepsTotal })}
           </span>
         )}
       </header>
@@ -501,7 +417,7 @@ export function DailyHabitCard() {
             }
             done={gamesToday}
             goal={goals.gamesPerDay}
-            loading={gamesTodayQuery.isPending}
+            loading={gamesTodayPending}
             locked={playLocked}
             action={t('common.play')}
             href={playHref}

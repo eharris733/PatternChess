@@ -1,27 +1,35 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useOpeningInsight, type OpeningInsightRow } from '../../hooks/useInsights';
 import { OpeningRow, openingDisplayName } from '../insights/OpeningRow';
 import { InsightCardSkeleton, Skeleton } from '../Skeleton';
 import { MOTIF_LABEL, ALL_MOTIFS } from '../../chess/motifs';
 import { GAME_STATE_LABEL, GAME_STATE_ORDER } from '../../chess/blunderContext';
 import { PHASE_LABEL, PHASE_ORDER, type Blunder } from '../../models/blunder';
-import type { TrainingFocus } from '../../routes/training/trainingFocus';
+import { practiceAheadParams, type TrainingFocus } from '../../routes/training/trainingFocus';
+import { useUpcomingBlunders } from '../../hooks/useUpcomingBlunders';
 import { OpeningIcon } from '../icons/OpeningIcon';
 import { EndgameIcon } from '../icons/EndgameIcon';
 import { useLabel, useT } from '../../i18n/useT';
 import type { MessageKey } from '../../i18n/i18n';
 
-/** One of the two big focus tiles: what's due, or practice ahead when nothing is. */
+/**
+ * What a focus tile offers: positions due now, practice ahead (nothing due,
+ * some coming up), or nothing at all yet (the tile then leads to its page).
+ */
+type TileOffer = { kind: 'due'; count: number } | { kind: 'ahead' } | { kind: 'none' } | { kind: 'pending' };
+
+/** One of the two big focus tiles: what's due, practice ahead, or "None yet". */
 function FocusTile({
   icon,
   title,
-  due,
+  offer,
   onPick,
   testId,
 }: {
   icon: React.ReactNode;
   title: string;
-  due: number;
+  offer: TileOffer;
   onPick: () => void;
   testId: string;
 }) {
@@ -30,17 +38,45 @@ function FocusTile({
     <button
       type="button"
       onClick={onPick}
+      disabled={offer.kind === 'pending'}
       data-testid={testId}
+      data-offer={offer.kind}
       className="flex items-center gap-3 border-2 border-text-primary/20 px-4 py-3 text-left transition-colors hover:border-gold-dark hover:bg-gold-dark/10"
     >
       <span className="shrink-0 text-gold-dark">{icon}</span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-sm font-semibold text-text-primary">{title}</span>
-        <span className="text-xs text-text-primary">{due > 0 ? t('landingTrain.due', { count: due }) : t('plan.practiceAhead')}</span>
+        {offer.kind === 'pending' ? (
+          <Skeleton className="mt-1 h-3 w-20" />
+        ) : (
+          <span className="text-xs text-text-primary">
+            {offer.kind === 'due'
+              ? t('landingTrain.due', { count: offer.count })
+              : offer.kind === 'ahead'
+                ? t('plan.practiceAhead')
+                : t('landingTrain.noneYet')}
+          </span>
+        )}
       </span>
     </button>
   );
 }
+
+/**
+ * The offer for one focus: due positions first; with none due, whether
+ * practice ahead has anything (same query key /training uses for that focus,
+ * so picking it starts instantly).
+ */
+function useTileOffer(focus: TrainingFocus, dueCount: number | null): TileOffer {
+  const upcoming = useUpcomingBlunders(practiceAheadParams(focus), { enabled: dueCount === 0 });
+  if (dueCount == null) return { kind: 'pending' };
+  if (dueCount > 0) return { kind: 'due', count: dueCount };
+  if (upcoming.isPending) return { kind: 'pending' };
+  return (upcoming.data?.length ?? 0) > 0 ? { kind: 'ahead' } : { kind: 'none' };
+}
+
+const OPENINGS_FOCUS: TrainingFocus = { kindFilter: 'opening', returnTo: '/openings' };
+const ENDGAMES_FOCUS: TrainingFocus = { phaseFilter: 'endgame', returnTo: '/endgames' };
 
 const CONTEXT_LABEL: Record<'timeTrouble' | 'longThink', MessageKey> = {
   timeTrouble: 'train.timeTrouble',
@@ -127,9 +163,15 @@ export function TrainLandingScreen({
 }) {
   const t = useT();
   const label = useLabel();
+  const navigate = useNavigate();
   const dueCount = due?.length ?? 0;
-  const openingsDue = due?.filter((b) => b.kind === 'opening').length ?? 0;
-  const endgamesDue = due?.filter((b) => b.phase === 'endgame').length ?? 0;
+  const openingsOffer = useTileOffer(OPENINGS_FOCUS, due ? due.filter((b) => b.kind === 'opening').length : null);
+  const endgamesOffer = useTileOffer(ENDGAMES_FOCUS, due ? due.filter((b) => b.phase === 'endgame').length : null);
+  // Due → review; coming up → practice ahead; nothing yet → the focus's own page.
+  const pickTile = (focus: TrainingFocus, offer: TileOffer, home: '/openings' | '/endgames') => {
+    if (offer.kind === 'none') navigate(home);
+    else onPick({ ...focus, ...(offer.kind === 'ahead' ? { practiceAhead: true } : {}) });
+  };
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-6">
       <div className="text-center flex flex-col gap-2">
@@ -161,20 +203,16 @@ export function TrainLandingScreen({
         <FocusTile
           icon={<OpeningIcon className="h-5 w-5" />}
           title={t('nav.openings')}
-          due={openingsDue}
+          offer={openingsOffer}
           testId="focus-openings"
-          onPick={() =>
-            onPick({ kindFilter: 'opening', returnTo: '/openings', ...(openingsDue === 0 ? { practiceAhead: true } : {}) })
-          }
+          onPick={() => pickTile(OPENINGS_FOCUS, openingsOffer, '/openings')}
         />
         <FocusTile
           icon={<EndgameIcon className="h-5 w-5" />}
           title={t('nav.endgames')}
-          due={endgamesDue}
+          offer={endgamesOffer}
           testId="focus-endgames"
-          onPick={() =>
-            onPick({ phaseFilter: 'endgame', returnTo: '/endgames', ...(endgamesDue === 0 ? { practiceAhead: true } : {}) })
-          }
+          onPick={() => pickTile(ENDGAMES_FOCUS, endgamesOffer, '/endgames')}
         />
       </div>
 

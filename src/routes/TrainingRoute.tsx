@@ -20,6 +20,7 @@ import { fetchGamesByIds, applyContextFilter, filterLabel } from './training/tra
 import {
   returnLabel,
   continueFocus,
+  hasFilter,
   practiceAheadFocus,
   practiceAheadParams,
   returnPathFor,
@@ -532,13 +533,13 @@ function TrainingSession({
               : t('train.empty.caughtUp')}
         </h1>
         <p className="text-text-primary text-sm">
+          {/* Practice ahead lists every live position that isn't due, so an
+              empty practice-ahead queue means this focus has none at all yet. */}
           {canPractice
             ? t('train.empty.keepGoing')
-            : practiceAhead
-              ? t('train.empty.drilledAll')
-              : hasAccount
-                ? t('train.empty.nothingYet')
-                : t('train.empty.linkToStart')}
+            : hasAccount
+              ? t('train.empty.nothingYet')
+              : t('train.empty.linkToStart')}
         </p>
         {upcoming.isPending && !practiceAhead && <Skeleton className="h-10 w-full" />}
         {canPractice && (
@@ -572,6 +573,8 @@ function TrainingSession({
         onReturn={returnPath ? () => navigate(returnPath) : null}
         onKeepTraining={keepTraining}
         onBackToDashboard={() => navigate('/dashboard')}
+        onStartFocus={(focus) => restartWith(focus)}
+        sessionFocused={hasFilter(effectiveState)}
       />
     );
   }
