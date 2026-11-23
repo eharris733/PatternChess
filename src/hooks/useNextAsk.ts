@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
+import { useSupporter } from './useSupporter';
 import { supabaseService } from '../services/supabaseService';
 import { emailAskVariant, nextAsk, type AskKind, type EmailAskVariant } from '../lib/asks';
 
@@ -59,6 +60,7 @@ export interface NextAsk {
 export function useNextAsk(): NextAsk {
   const { user, profile } = useAuth();
   const opens = useAppOpens();
+  const supporter = useSupporter();
   const [closed, setClosed] = useState(() => readSession(ANSWERED_KEY) === '1');
   const close = useCallback(() => {
     writeSession(ANSWERED_KEY, '1');
@@ -86,9 +88,11 @@ export function useNextAsk(): NextAsk {
     eligible: {
       // Someone who unsubscribed from an email has answered for good.
       email: emailVariant != null && !profile.emailUnsubscribedAt,
-      // Turned on by the courses and supporter PRs.
+      // Turned on by the courses PR.
       course: false,
-      supporter: false,
+      // After a finished session, never to someone who is (or was) a supporter.
+      supporter:
+        !supporter.isPending && !supporter.status?.active && !supporter.status?.early && profile.lastDrillLocalDate != null,
     },
   });
   return { kind, emailVariant: kind === 'email' ? emailVariant : null, close };

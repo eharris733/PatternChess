@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { SupporterMark } from '../SupporterMark';
 import { FlairBadge } from '../FlairBadge';
 import { PUBLIC_LEADERBOARD_SNAPSHOT, usePublicLeaderboard } from '../../hooks/usePublicLeaderboard';
 import { trackCtaClick } from '../../services/funnelService';
@@ -66,6 +67,7 @@ export function WeeklyLeaderboard() {
                     <span className="flex-1 min-w-0 flex flex-col">
                       <span className="flex items-center gap-2 min-w-0">
                         <span className="truncate text-text-primary">{r.label}</span>
+                        <SupporterMark badge={r.supporter} className="shrink-0 inline-flex" />
                         <FlairBadge flair={r.flair} className="hidden sm:inline-flex" />
                       </span>
                       {detail && (

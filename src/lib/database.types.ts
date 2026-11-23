@@ -842,6 +842,45 @@ export type Database = {
         }
         Relationships: []
       }
+      supporters: {
+        Row: {
+          beta_invited_at: string | null
+          cancel_at_period_end: boolean
+          created_at: string
+          current_period_end: string | null
+          first_supported_at: string | null
+          status: string
+          stripe_customer_id: string
+          stripe_subscription_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          beta_invited_at?: string | null
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          first_supported_at?: string | null
+          status?: string
+          stripe_customer_id: string
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          beta_invited_at?: string | null
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          first_supported_at?: string | null
+          status?: string
+          stripe_customer_id?: string
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       training_sessions: {
         Row: {
           blunders_attempted: number
@@ -889,6 +928,19 @@ export type Database = {
       }
       admin_outreach_leads: { Args: { segment: string }; Returns: Json }
       admin_retention: { Args: never; Returns: Json }
+      admin_supporters: {
+        Args: never
+        Returns: {
+          beta_invited_at: string
+          cancel_at_period_end: boolean
+          current_period_end: string
+          email: string
+          first_supported_at: string
+          label: string
+          status: string
+          user_id: string
+        }[]
+      }
       admin_unmark_contacted: { Args: { lead_key: string }; Returns: undefined }
       admin_user_list: { Args: { category: string }; Returns: Json }
       apply_game_openings: { Args: { p_rows: Json }; Returns: number }
@@ -946,6 +998,7 @@ export type Database = {
       increment_opening_reviews: { Args: never; Returns: number }
       increment_shares_count: { Args: never; Returns: number }
       is_admin: { Args: never; Returns: boolean }
+      is_supporter: { Args: { uid: string }; Returns: boolean }
       landing_stats: { Args: never; Returns: Json }
       leaderboard: {
         Args: { limit_n?: number; metric: string; win: string }
@@ -968,6 +1021,7 @@ export type Database = {
           unsub_token: string
         }[]
       }
+      supporter_badge: { Args: { uid: string }; Returns: string }
       training_totals: { Args: never; Returns: Json }
       unsubscribe_event_digest: { Args: { p_token: string }; Returns: boolean }
     }

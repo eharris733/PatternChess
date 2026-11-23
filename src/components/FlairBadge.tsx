@@ -4,6 +4,7 @@ import { CalendarIcon } from './icons/CalendarIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { EndgameIcon } from './icons/EndgameIcon';
 import { FlameIcon } from './icons/FlameIcon';
+import { HeartIcon } from './icons/HeartIcon';
 import { OpeningIcon } from './icons/OpeningIcon';
 import { TrophyIcon } from './icons/TrophyIcon';
 
@@ -14,6 +15,7 @@ const ICON: Record<FlairIcon, (p: { className?: string }) => JSX.Element> = {
   opening: OpeningIcon,
   endgame: EndgameIcon,
   trophy: TrophyIcon,
+  heart: HeartIcon,
 };
 
 /** Pill colours per tone (full class strings so Tailwind keeps them). */

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
 import { useAchievements } from '../hooks/useAchievements';
+import { useSupporter } from '../hooks/useSupporter';
 import { evaluateFlairs, FLAIR_TRACK_LABEL, FLAIR_TRACK_ORDER } from '../lib/flair';
 import { authService } from '../services/authService';
 import { FlairBadge } from './FlairBadge';
@@ -55,7 +56,11 @@ function FlairPickerGrid() {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => setSelected(profile?.flair ?? null), [profile?.flair]);
 
-  const flairs = evaluateFlairs(achievements);
+  const { status: supporter } = useSupporter();
+  const flairs = evaluateFlairs(achievements, {
+    active: !!supporter?.active,
+    early: !!supporter?.early,
+  });
   const unlockedCount = flairs.filter((f) => f.unlocked).length;
 
   const choose = (id: string | null) => {
@@ -120,7 +125,9 @@ function FlairPickerGrid() {
                                 : 'Unlocked'
                               : req
                                 ? `${req.description} (${Math.min(req.value, req.threshold).toLocaleString()}/${req.threshold.toLocaleString()})`
-                                : 'Locked'}
+                                : f.track === 'supporter'
+                                  ? 'For supporters'
+                                  : 'Locked'}
                           </span>
                         </button>
                       </li>

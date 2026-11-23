@@ -28,6 +28,7 @@ const STATIC_ROUTES = [
   { path: '/events', changefreq: 'monthly', priority: '0.7' },
   { path: '/moments', changefreq: 'monthly', priority: '0.7' },
   { path: '/watch', changefreq: 'monthly', priority: '0.6' },
+  { path: '/supporter', changefreq: 'monthly', priority: '0.4' },
   { path: '/terms', changefreq: 'yearly', priority: '0.3' },
   { path: '/privacy', changefreq: 'yearly', priority: '0.3' },
 ];
@@ -111,7 +112,8 @@ function main() {
     `- [Home](${SITE_URL}/): What PatternChess is: a free daily training plan built from the blunders in your own games.\n` +
     `- [About & glossary](${SITE_URL}/about): What the app is, the Woodpecker Method, and definitions of blunder, spaced repetition, winning chances, daily plan, and streak.\n` +
     `- [FAQ](${SITE_URL}/faq): Answers to common questions about PatternChess and chess improvement.\n` +
-    `- [Chess GIF maker](${SITE_URL}/moments): Free tool that turns a PGN move sequence into an animated, shareable chess GIF or board screenshot.\n\n` +
+    `- [Chess GIF maker](${SITE_URL}/moments): Free tool that turns a PGN move sequence into an animated, shareable chess GIF or board screenshot.\n` +
+    `- [Support PatternChess](${SITE_URL}/supporter): Optional $5/month supporter tier. Daily training stays free; supporters get flair, early access to the mobile app beta, and our thanks.\n\n` +
     `## Blog\n` +
     posts.map((p) => `- [${p.title}](${SITE_URL}/blog/${p.slug}): ${p.description}`).join('\n') +
     `\n\n## Machine-readable\n` +

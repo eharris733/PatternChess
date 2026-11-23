@@ -23,6 +23,7 @@ import { useDrillFeedbackPrefs } from '../hooks/useDrillFeedbackPrefs';
 import { useThemeStore, type BoardTheme } from '../state/themeStore';
 import { CommitmentPicker } from '../components/CommitmentPicker';
 import { EmailRemindersSetting } from '../components/EmailRemindersSetting';
+import { SupporterSetting } from '../components/SupporterSetting';
 
 export function ProfileRoute() {
   const { profile, refreshProfile, user } = useAuth();
@@ -373,6 +374,8 @@ export function ProfileRoute() {
       </section>
 
       <EmailRemindersSetting />
+
+      <SupporterSetting />
 
       <section className="card flex flex-col gap-4">
         <h2 className="heading-md">Community</h2>

@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { LegalPage, LegalSection } from '../components/legal/LegalPage';
 import { useHead } from '../seo/useHead';
 
-const EFFECTIVE_DATE = 'November 21, 2026';
+const EFFECTIVE_DATE = 'November 24, 2026';
 const CONTACT_EMAIL = 'elliot@patternchess.com';
 
 export function PrivacyRoute() {
@@ -75,6 +75,11 @@ export function PrivacyRoute() {
           </li>
           <li>
             <strong>Cloudflare</strong> — hosts the website and delivers our emails.
+          </li>
+          <li>
+            <strong>Stripe</strong> — processes supporter payments. If you become a supporter, Stripe
+            receives your email address and payment details; we store only your Stripe customer ID and
+            subscription status, never your card number.
           </li>
           <li>
             <strong>Lichess Opening Explorer</strong> — queried to show opening reference data.

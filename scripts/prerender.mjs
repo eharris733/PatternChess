@@ -37,6 +37,7 @@ const routes = [
   '/events',
   '/moments',
   '/watch',
+  '/supporter',
   '/blog',
   '/terms',
   '/privacy',

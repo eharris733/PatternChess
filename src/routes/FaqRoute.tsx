@@ -28,7 +28,7 @@ const FAQS: FaqItem[] = [
   {
     question: 'Is PatternChess free?',
     answer:
-      'Yes, all the training is free (including the plan!). Sign in with Google or Lichess, connect your Chess.com or Lichess username, and start training on your own games.',
+      "Yes, all the training is free (including the plan!). Sign in with Google or Lichess, connect your Chess.com or Lichess username, and start training on your own games. If you'd like to help keep it running, you can become a supporter for $5 a month. Supporters get flair and early access to the mobile app beta.",
   },
   {
     question: 'How much time does it take each day?',
