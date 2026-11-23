@@ -503,6 +503,10 @@ function TrainingSession({
         : upcoming.data
       : [];
     const canPractice = !practiceAhead && offer.length > 0;
+    // Until the practice-ahead lookup answers we can't tell "keep going" from
+    // "nothing to drill yet" (it just ran out after a finished focus, too), so
+    // show a placeholder instead of the dead-end copy and buttons.
+    const offerPending = !practiceAhead && upcoming.isPending;
     const returnBack = returnPath ? (
       <button className={canPractice ? 'btn-outline' : 'btn-primary'} onClick={() => navigate(returnPath)}>
         {returnLabel(returnPath, t)}
@@ -532,33 +536,43 @@ function TrainingSession({
               ? t('train.empty.nothingDueIn', { focus: focusFilterLabel })
               : t('train.empty.caughtUp')}
         </h1>
-        <p className="text-text-primary text-sm">
-          {/* Practice ahead lists every live position that isn't due, so an
-              empty practice-ahead queue means this focus has none at all yet. */}
-          {canPractice
-            ? t('train.empty.keepGoing')
-            : hasAccount
-              ? t('train.empty.nothingYet')
-              : t('train.empty.linkToStart')}
-        </p>
-        {upcoming.isPending && !practiceAhead && <Skeleton className="h-10 w-full" />}
-        {canPractice && (
+        {offerPending ? (
+          <div className="flex flex-col gap-4" aria-busy="true" data-testid="training-empty-pending">
+            <Skeleton className="h-4 w-3/4 mx-auto" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : (
+          <p className="text-text-primary text-sm">
+            {/* Practice ahead lists every live position that isn't due, so an
+                empty practice-ahead queue means this focus has none at all yet. */}
+            {canPractice
+              ? t('train.empty.keepGoing')
+              : hasAccount
+                ? t('train.empty.nothingYet')
+                : t('train.empty.linkToStart')}
+          </p>
+        )}
+        {!offerPending && canPractice && (
           <button className="btn-primary" onClick={startPracticeAhead} data-testid="practice-ahead">
             {t('plan.practiceAhead')}
           </button>
         )}
-        {returnBack}
-        {focusFilterLabel && !returnPath && !kindFilter && (
-          <button className="btn-outline" onClick={resetToUnfiltered}>
-            {t('train.empty.everythingDue')}
-          </button>
+        {!offerPending && (
+          <>
+            {returnBack}
+            {focusFilterLabel && !returnPath && !kindFilter && (
+              <button className="btn-outline" onClick={resetToUnfiltered}>
+                {t('train.empty.everythingDue')}
+              </button>
+            )}
+            {!focusFilterLabel && (
+              <button className="btn-outline" onClick={backToPicker}>
+                {t('train.empty.pickFocus')}
+              </button>
+            )}
+            {syncButton}
+          </>
         )}
-        {!focusFilterLabel && (
-          <button className="btn-outline" onClick={backToPicker}>
-            {t('train.empty.pickFocus')}
-          </button>
-        )}
-        {syncButton}
       </div>
     );
   }

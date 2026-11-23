@@ -255,6 +255,27 @@ test('an empty /training offers Practice ahead instead of a dead end', async ({ 
   await expect(page.getByText('White to play')).toBeVisible();
 });
 
+test('the empty state waits for the practice-ahead lookup instead of flashing a dead end', async ({ page }) => {
+  await stub(page, [tactic({ next_drill_at: SOON })]);
+  // Hold blunders.upcoming back, as after a finished focus whose writes just
+  // dropped the cached lookup.
+  let release: () => void = () => {};
+  const held = new Promise<void>((r) => (release = r));
+  await page.route('**/api/rpc/blunders.upcoming', async (route) => {
+    await held;
+    await route.fallback();
+  });
+  await page.goto('/training');
+  const empty = page.getByTestId('training-empty');
+  await expect(empty.getByTestId('training-empty-pending')).toBeVisible();
+  await expect(empty.getByText("Nothing to drill yet. Play a game and we'll find fresh material.")).toHaveCount(0);
+  await expect(empty.getByRole('button', { name: /Check for new games|Pick a focus/ })).toHaveCount(0);
+  release();
+  await expect(empty.getByTestId('practice-ahead')).toBeVisible();
+  await expect(empty.getByTestId('training-empty-pending')).toHaveCount(0);
+  await expect(empty.getByText('Keep going with the positions due next. Results count like any review.')).toBeVisible();
+});
+
 test('the landing has Openings and Endgames focuses that lead back to their pages', async ({ page }) => {
   await stub(page, [
     tactic(),
