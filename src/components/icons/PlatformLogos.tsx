@@ -28,6 +28,12 @@ const CHESSCOM_PATH =
 /** Chess.com's pawn green (Simple Icons brand hex). Lichess is monochrome. */
 export const CHESSCOM_GREEN = '#81B64C';
 
+/**
+ * Darker chess.com green for filled surfaces (the active platform pill): the
+ * pawn hex reads as neon at button size and fails contrast with light text.
+ */
+export const CHESSCOM_GREEN_DARK = '#4E7A31';
+
 function Mark({ d, fill, className, title, testId }: { d: string; fill: string; className?: string; title?: string; testId: string }) {
   return (
     <svg

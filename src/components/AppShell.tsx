@@ -62,7 +62,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           type="button"
           onClick={() => setCollapsed((c) => !c)}
           aria-label={collapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
-          className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 z-10 w-6 h-6 rounded-full bg-surface border-2 border-text-primary flex items-center justify-center text-text-primary hover:bg-accent/15 hover:border-accent transition-colors"
+          className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 z-10 w-6 h-6 rounded-full bg-surface border-2 border-text-primary flex items-center justify-center text-text-primary hover:bg-accent hover:text-surface hover:border-text-primary transition-colors"
         >
           <span className="text-xs leading-none">{collapsed ? '▶' : '◀'}</span>
         </button>

@@ -124,3 +124,38 @@ cg-board piece {
 .cg-wrap coords.files.black coord:nth-child(even) {
   color: rgba(255, 255, 255, 0.8);
 }
+
+/* Promotion chooser (BoardPanel): a cg-wrap overlay so the board's piece set
+   rules (`.cg-wrap piece.<role>.<color>`) draw the choices. */
+.cg-wrap.promotion-chooser {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  outline: none;
+  box-shadow: none;
+  background: rgb(var(--text-primary) / 0.45);
+  cursor: default;
+}
+.promotion-chooser .promotion-choice {
+  position: absolute;
+  width: 12.5%;
+  height: 12.5%;
+  background: rgb(var(--surface));
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px rgb(var(--text-primary));
+  transition: background-color 120ms, border-radius 120ms;
+}
+.promotion-chooser .promotion-choice:hover,
+.promotion-chooser .promotion-choice:focus-visible {
+  background: rgb(var(--accent-light));
+  border-radius: 0;
+  outline: none;
+}
+.cg-wrap.promotion-chooser piece {
+  top: 8%;
+  left: 8%;
+  width: 84%;
+  height: 84%;
+  pointer-events: none;
+  filter: var(--piece-filter, none);
+}

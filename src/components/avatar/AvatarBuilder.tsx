@@ -24,6 +24,7 @@ interface AvatarBuilderProps {
 }
 
 const COLOR_PARTS: ReadonlySet<AvatarPart> = new Set(['background', 'skin', 'hairColor', 'outfitColor']);
+const FACE_PARTS: ReadonlySet<AvatarPart> = new Set(['eyes', 'mouth']);
 
 /**
  * The pixel avatar builder on /profile: a live preview, one row of choices
@@ -58,7 +59,16 @@ export function AvatarBuilder({ value, custom, lockHint, onSave, seed }: AvatarB
   };
 
   const options = AVATAR_OPTIONS[part];
-  const previews = useMemo(() => options.map((o) => ({ ...draft, [part]: o.id }) as AvatarParts), [options, draft, part]);
+  // Glasses, shades and the eyepatch cover the eyes, so face-part choices are
+  // previewed bare: otherwise every Eyes thumbnail looks the same.
+  const previews = useMemo(
+    () =>
+      options.map(
+        (o) =>
+          ({ ...draft, ...(FACE_PARTS.has(part) ? { accessory: 'none' } : {}), [part]: o.id }) as AvatarParts,
+      ),
+    [options, draft, part],
+  );
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row" data-testid="avatar-builder">

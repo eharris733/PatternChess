@@ -4,8 +4,19 @@ import { BoardPanel } from '../components/BoardPanel';
 
 const START = new Chess().fen();
 
+/** `?fen=` sets up a position (dev-only route; used to check promotion, endgames, …). */
+function initialFen(): string {
+  const q = new URLSearchParams(window.location.search).get('fen');
+  if (!q) return START;
+  try {
+    return new Chess(q).fen();
+  } catch {
+    return START;
+  }
+}
+
 export function SandboxRoute() {
-  const [fen, setFen] = useState(START);
+  const [fen, setFen] = useState(initialFen);
   const [orientation, setOrientation] = useState<'white' | 'black'>('white');
 
   const onMove = ({ from, to, promotion }: { from: string; to: string; promotion?: string }) => {
