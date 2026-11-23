@@ -9,6 +9,7 @@ import { handlers as training } from './training';
 import { handlers as profile } from './profile';
 import { handlers as social } from './social';
 import { handlers as vault } from './vault';
+import { handlers as events } from './events';
 
 export * from './core';
 
@@ -26,6 +27,7 @@ const DOMAINS: Record<string, RpcRegistry> = {
   profile,
   social,
   vault,
+  events,
 };
 
 export function mergeRegistries(domains: Record<string, RpcRegistry>): RpcRegistry {

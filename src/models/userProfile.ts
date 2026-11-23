@@ -20,6 +20,8 @@ export interface UserProfile {
   streakFreezes: number;
   lastDrillLocalDate: string | null;
   timezone: string | null;
+  /** US state for OTB events (dashboard card + weekly email); null = not chosen. Read/write via `useEventsState`. */
+  eventsState: string | null;
   boardTheme: BoardTheme;
   /** Show raw engine evals next to win-chance percentages on the training screen. */
   showEngineEvals: boolean;
@@ -122,6 +124,7 @@ export function userProfileFromJson(json: any): UserProfile {
     streakFreezes: (json.streak_freezes as number | null) ?? 0,
     lastDrillLocalDate: (json.last_drill_local_date as string | null) ?? null,
     timezone: (json.timezone as string | null) ?? null,
+    eventsState: typeof json.events_state === 'string' && json.events_state ? json.events_state : null,
     boardTheme: parseBoardTheme(json.board_theme),
     // Columns may be absent until the 20260610 migration is applied; default off.
     showEngineEvals: Boolean(json.show_engine_evals ?? false),

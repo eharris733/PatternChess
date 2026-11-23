@@ -19,6 +19,11 @@
 //   POST /admin/send-sample?user=<uuid>&kind=<kind>&to=<addr>
 //
 // SEND_MODE gates real mail: anything but "live" sends only to TEST_RECIPIENTS.
+//
+// weekly_report adds "Events near you" for players with a saved
+// profiles.events_state, fetched from the public events API (EVENTS_URL,
+// default events.patternchess.com) once per state per run; if that API is
+// down the section is simply left out (events.ts).
 
 import {
   buildLinks,
@@ -31,6 +36,7 @@ import {
   type LinkBases,
   type OutboxRow,
 } from './outbox';
+import { EVENTS_SITE, stateEventsLoader } from './events';
 import {
   confirmEmail,
   emailCandidates,
@@ -59,6 +65,8 @@ export interface Env {
   EMAIL_URL: string;
   SEND_MODE: string;
   TEST_RECIPIENTS: string;
+  /** Events API origin for "Events near you"; defaults to https://events.patternchess.com. */
+  EVENTS_URL?: string;
 }
 
 /** Well under the account's daily quota; a backlog drains over the next hours. */
@@ -66,6 +74,11 @@ const MAX_PER_RUN = 300;
 
 function bases(env: Env): LinkBases {
   return { app: env.APP_URL.replace(/\/$/, ''), email: env.EMAIL_URL.replace(/\/$/, '') };
+}
+
+/** A fresh per-run events loader (one API call per state per run). */
+function eventsLoader(env: Env) {
+  return stateEventsLoader((input, init) => fetch(input, init), (env.EVENTS_URL || EVENTS_SITE).replace(/\/$/, ''));
 }
 
 function json(body: unknown, status = 200): Response {
@@ -108,7 +121,7 @@ interface RunSummary {
 }
 
 async function runOutbox(env: Env, now: Date, dryRun: boolean): Promise<RunSummary> {
-  const rows = await emailOutbox(env.DB, now);
+  const rows = await emailOutbox(env.DB, now, { loadEvents: eventsLoader(env) });
   const allow = parseRecipients(env.TEST_RECIPIENTS);
   const summary: RunSummary = {
     now: now.toISOString(),
@@ -149,7 +162,7 @@ async function runOutbox(env: Env, now: Date, dryRun: boolean): Promise<RunSumma
 }
 
 async function candidate(env: Env, userId: string, now: Date): Promise<OutboxRow | null> {
-  const rows = await emailCandidates(env.DB, now, userId.toLowerCase());
+  const rows = await emailCandidates(env.DB, now, userId.toLowerCase(), { loadEvents: eventsLoader(env) });
   return rows[0] ?? null;
 }
 

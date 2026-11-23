@@ -2,7 +2,9 @@
 // decided by rules.ts) into template data and links, and the test-mode
 // recipient gate. No I/O here, so it is unit-tested directly.
 
+import { EVENTS_SITE, stateEventsUrl, type NearbyEvent } from './events';
 import { MOTIF_LABEL } from './motifLabels';
+import { US_STATE_NAME } from './usStates';
 import type { EmailData, EmailKind, EmailLinks } from './templates';
 
 export const EMAIL_KINDS: EmailKind[] = ['welcome', 'ready', 'streak_at_risk', 'daily_plan', 'weekly_report', 'confirm'];
@@ -32,6 +34,10 @@ export interface OutboxData {
     /** Motif id; mapped through MOTIF_LABEL. */
     topMotif: string | null;
   };
+  /** Saved state for "Events near you" (weekly_report only; rules.ts eventsStateFor). */
+  eventsState?: string | null;
+  /** Its listing, fetched at send time; null = the events API was unavailable. */
+  events?: NearbyEvent[] | null;
 }
 
 export interface OutboxRow {
@@ -85,6 +91,14 @@ export function toEmailData(d: OutboxData): EmailData {
     freshBlunders: d.freshBlunders,
     communityElo: d.communityElo,
     report,
+    nearbyEvents:
+      d.eventsState && US_STATE_NAME[d.eventsState] && d.events?.length
+        ? {
+            stateName: US_STATE_NAME[d.eventsState],
+            items: d.events,
+            seeAllUrl: stateEventsUrl(EVENTS_SITE, d.eventsState),
+          }
+        : undefined,
   };
 }
 
