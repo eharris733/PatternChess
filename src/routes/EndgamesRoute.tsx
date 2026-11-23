@@ -21,6 +21,11 @@ import { useEndgamePlayoutStore } from '../state/endgamePlayoutStore';
 import { FINISH_RULES } from '../chess/adjudication';
 import { playSound } from '../lib/sounds';
 import { useAuth } from '../auth/useAuth';
+import { useDailyQuota } from '../hooks/useDailyQuota';
+import { openDailyLimit } from '../state/supporterUnlockStore';
+import { DailyLimitBanner } from '../components/supporter/DailyLimitBanner';
+import { LockIcon } from '../components/icons/LockIcon';
+import { detectTimezone, localDate } from '../services/streakService';
 import { recordStreakActivity } from '../services/streakUpdate';
 import { startEndgameScenarioVerification } from '../services/endgameScenarioVerifier';
 import {
@@ -167,6 +172,26 @@ export function EndgamesRoute() {
   // retries from the slip (or a restart) are practice.
   const playedThisVisit = useRef(new Set<string>());
 
+  // Free players finish PLAYOUTS_PER_DAY play-outs a day (dailyLimit.ts).
+  // Counted from the scenarios played today plus this visit's, so the limit
+  // holds before the list refetches. Retrying the current play-out is free.
+  const quota = useDailyQuota();
+  const tz = profile?.timezone ?? detectTimezone();
+  // A function, not a value: the Space handler's closure must still see this
+  // visit's play-outs (playedThisVisit is a ref).
+  const isEndgamesLocked = () => {
+    if (quota.unlimited || quota.endgames.pending) return false;
+    const today = localDate(tz);
+    const ids = new Set(
+      (scenarios ?? []).filter((s) => s.lastPlayedAt && localDate(tz, s.lastPlayedAt) === today).map((s) => s.id),
+    );
+    for (const id of playedThisVisit.current) ids.add(id);
+    return ids.size >= quota.endgames.limit;
+  };
+  const endgamesLocked = isEndgamesLocked();
+  const showEndgameLimit = () =>
+    openDailyLimit({ kind: 'endgames', limit: quota.endgames.limit, resetsAt: quota.resetsAt });
+
   const [selected, setSelected] = useState<EndgameScenario | null>(null);
   const [paused, setPaused] = useState(false);
   const [preview, setPreview] = useState<SlipPreview | null>(null);
@@ -197,6 +222,10 @@ export function EndgamesRoute() {
   }, [playout.phase]);
 
   const begin = (scenario: EndgameScenario) => {
+    if (isEndgamesLocked()) {
+      showEndgameLimit();
+      return;
+    }
     setSelected(scenario);
     setPaused(false);
     hint.reset();
@@ -249,12 +278,21 @@ export function EndgamesRoute() {
   const startReview = () => {
     const [first, ...rest] = dueScenarios;
     if (!first) return;
+    if (isEndgamesLocked()) {
+      showEndgameLimit();
+      return;
+    }
     setReviewQueue(rest.map((s) => s.id));
     begin(first);
   };
 
   // Next scenario of the review run (skipping any that left the list meanwhile).
   const nextDue = () => {
+    if (isEndgamesLocked()) {
+      backToList();
+      showEndgameLimit();
+      return;
+    }
     const queue = [...(reviewQueue ?? [])];
     while (queue.length > 0) {
       const id = queue.shift()!;
@@ -571,12 +609,17 @@ export function EndgamesRoute() {
           )}
         </div>
         {dueScenarios.length > 0 && (
-          <button type="button" className="btn-primary" onClick={startReview} data-testid="review-due">
+          <button type="button" className="btn-primary gap-2" onClick={startReview} data-testid="review-due">
+            {endgamesLocked && <LockIcon className="h-4 w-4" />}
             {t('eg.reviewDue', { count: dueScenarios.length })}
             {typeFilter !== 'all' && ` · ${t.label('endgameType', typeFilter, ENDGAME_TYPE_LABEL[typeFilter])}`}
           </button>
         )}
       </header>
+
+      {endgamesLocked && (
+        <DailyLimitBanner kind="endgames" limit={quota.endgames.limit} resetsAt={quota.resetsAt} />
+      )}
 
       {typeCounts.size > 1 && (
         <div className="flex flex-wrap gap-2" role="group" aria-label={t('eg.filterType')}>

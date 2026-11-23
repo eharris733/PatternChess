@@ -58,7 +58,7 @@ export function ArticleRoute() {
             </p>
             <p className="text-sm text-text-primary">
               {open
-                ? '$5 a month keeps PatternChess running, and supporters read every article on the path.'
+                ? 'From $5 a month (billed annually), supporters keep PatternChess running and read every article on the path.'
                 : `${(article.unlockAt - path.trained).toLocaleString()} positions to go. Supporters can read every article now.`}
             </p>
             <div>

@@ -3,7 +3,7 @@
  * leaderboard rows. Every flair is unlocked by one achievement (single
  * progress source: src/lib/achievements.ts), grouped into tracks so it
  * rewards how consistently and how long you train, not only volume. The
- * supporter track is unlocked by the $5/month tier instead (`SUPPORTER_UNLOCK`),
+ * supporter track is unlocked by the supporter tier instead (`SUPPORTER_UNLOCK`),
  * and an active supporter may wear any flair.
  *
  * `profiles.flair` stores the chosen id. Unlocks are checked client-side

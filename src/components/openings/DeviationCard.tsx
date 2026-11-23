@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useQuotaGuard } from '../../hooks/useDailyQuota';
 import { useNavigate } from 'react-router-dom';
 import type { DrawShape } from 'chessground/draw';
 import { BoardPanel } from '../BoardPanel';
@@ -46,6 +47,7 @@ export function DeviationCard({
   const navigate = useNavigate();
   const t = useT();
   const { refreshProfile } = useAuth();
+  const { guard } = useQuotaGuard();
   const shapes = useMemo(
     () => [...leak.theoryMoves.slice(0, 3).flatMap((t) => arrow(t.uci, 'green')), ...arrow(leak.playedUci, 'red')],
     [leak],
@@ -53,6 +55,7 @@ export function DeviationCard({
   const label = moveLabel(leak.fenBefore, leak.moveNumber, leak.playedSan);
   const train = drill
     ? () => {
+        if (!guard('openings')) return;
         recordOpeningReview(() => void refreshProfile());
         navigate('/training', {
           state: { blunderIds: [drill.id], focusLabel: `${openingLabel} · ${label}` },

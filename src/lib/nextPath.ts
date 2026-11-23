@@ -27,3 +27,8 @@ export function loginUrlWithNext(next: string): string {
 
 /** Signed-out /supporter → sign-in → back here with checkout starting by itself. */
 export const SUPPORTER_CHECKOUT_RESUME = '/supporter?checkout=1';
+
+/** The resume path for a picked plan (`/supporter?checkout=monthly`). */
+export function supporterCheckoutResume(plan: 'annual' | 'monthly'): string {
+  return `/supporter?checkout=${plan}`;
+}

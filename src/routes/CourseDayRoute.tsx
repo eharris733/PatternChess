@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuotaGuard } from '../hooks/useDailyQuota';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { BackLink } from '../components/BackLink';
@@ -190,6 +191,7 @@ function Takeaway({ text }: { text: string }) {
 export function CourseDayRoute() {
   const { slug, day: dayParam } = useParams();
   const navigate = useNavigate();
+  const { guard } = useQuotaGuard();
   const { profile } = useAuth();
   const course = availableCourse(slug);
   const progress = useCourseProgress();
@@ -265,6 +267,7 @@ export function CourseDayRoute() {
   };
 
   const drillMine = () => {
+    if (!guard('positions')) return;
     const focus: TrainingFocus = {
       blunderIds: ids,
       focusLabel: `${course.title}: your games`,
@@ -301,7 +304,7 @@ export function CourseDayRoute() {
           Day {day} onward is for supporters.
         </p>
         <p className="text-sm text-text-primary">
-          $5 a month keeps PatternChess running, and supporters get every lesson in every course. Your games below stay
+          From $5 a month (billed annually), supporters keep PatternChess running and get every lesson in every course. Your games below stay
           free.
         </p>
         <div>

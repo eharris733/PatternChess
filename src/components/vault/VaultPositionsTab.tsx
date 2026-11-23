@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQuotaGuard } from '../../hooks/useDailyQuota';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
@@ -100,7 +101,9 @@ export function VaultPositionsTab({ mode }: { mode: PositionsMode }) {
   );
   const items = useMemo(() => pool.filter((f) => matchesFilters(f, filters)), [pool, filters]);
 
+  const { guard } = useQuotaGuard();
   const train = (b: Blunder) =>
+    guard(b.kind === 'opening' ? 'openings' : 'positions') &&
     navigate('/training', { state: { blunderIds: [b.id], focusLabel: positionTitle(b, t) } });
 
   if (positions.isPending) {

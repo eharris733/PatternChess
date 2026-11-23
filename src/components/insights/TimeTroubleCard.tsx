@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useQuotaGuard } from '../../hooks/useDailyQuota';
 import { useTimeTroubleInsight } from '../../hooks/useInsights';
 import { InsightCardSkeleton } from '../Skeleton';
 import { PHASE_LABEL } from '../../models/blunder';
@@ -11,6 +12,7 @@ function pct(n: number, total: number): number {
 
 export function TimeTroubleCard() {
   const navigate = useNavigate();
+  const { guard } = useQuotaGuard();
   const insight = useTimeTroubleInsight();
   if (insight.isPending) return <InsightCardSkeleton rows={3} />;
   if (!insight.data) return null;
@@ -32,7 +34,7 @@ export function TimeTroubleCard() {
   return (
     <button
       type="button"
-      onClick={() => navigate('/training', { state: { contextFilter: 'timeTrouble' } })}
+      onClick={() => guard('positions') && navigate('/training', { state: { contextFilter: 'timeTrouble' } })}
       className="card flex flex-col gap-3 text-left hover:shadow-card-hover hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
     >
       <header className="flex items-baseline justify-between">

@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import { useQuotaGuard } from '../../hooks/useDailyQuota';
 import { useNavigate } from 'react-router-dom';
 import { usePhaseBlunderInsight } from '../../hooks/useInsights';
 import { InsightCardSkeleton } from '../Skeleton';
@@ -56,6 +57,7 @@ function Bar({ label, userPct, benchmarkPct, benchmarkSampleSize, onClick }: Bar
 
 export function PhaseBlunderCard() {
   const navigate = useNavigate();
+  const { guard } = useQuotaGuard();
   const insight = usePhaseBlunderInsight();
   if (insight.isPending) return <InsightCardSkeleton rows={3} />;
   if (!insight.data) return null;
@@ -80,7 +82,7 @@ export function PhaseBlunderCard() {
     }
   }
 
-  const drill = (phase: BlunderPhase) => navigate('/training', { state: { phaseFilter: phase } });
+  const drill = (phase: BlunderPhase) => guard('positions') && navigate('/training', { state: { phaseFilter: phase } });
 
   return (
     <section className={clsx('card flex flex-col gap-4')}>

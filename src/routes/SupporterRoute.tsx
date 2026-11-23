@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { LandingTopBar } from '../components/landing/LandingTopBar';
@@ -10,10 +10,12 @@ import { useSupporter } from '../hooks/useSupporter';
 import { useSupporterCheckout } from '../hooks/useSupporterCheckout';
 import { useHead } from '../seo/useHead';
 import { breadcrumbJsonLd } from '../seo/jsonLd';
-import { SUPPORTER_CHECKOUT_RESUME, loginUrlWithNext } from '../lib/nextPath';
+import { loginUrlWithNext, supporterCheckoutResume } from '../lib/nextPath';
+import { DEFAULT_SUPPORTER_PLAN, SUPPORTER_PRICING, isSupporterPlan, type SupporterPlan } from '../lib/supporterPricing';
+import { SupporterPlanChoice } from '../components/supporter/SupporterPlanChoice';
 
 const PERKS: { title: string; body: string }[] = [
-  { title: 'Train more', body: 'Keep drilling after your daily plan, and pick the Obsessed plan or a custom goal past 20.' },
+  { title: 'Unlimited training', body: 'No daily limit on positions, opening reviews or endgames, and the Obsessed plan or a custom goal past 20.' },
   { title: 'Every look', body: 'All board themes, piece sets and avatar items, without waiting for path milestones.' },
   { title: 'Courses + articles', body: 'Every course lesson and the article at each path milestone.' },
   { title: 'Flair', body: 'A badge next to your name on your profile and on the leaderboards.' },
@@ -25,7 +27,7 @@ const CTA =
   'inline-block font-mono uppercase text-xs tracking-tight border-2 border-text-primary bg-gold-dark text-bg px-5 py-3 rounded-none shadow-card hover:shadow-card-hover hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-60';
 
 /**
- * Public: the $5/month supporter tier. Checkout and the Customer Portal are
+ * Public: the supporter tier ($5/month billed annually, or $12 monthly). Checkout and the Customer Portal are
  * Stripe-hosted (functions/api/stripe/*); perks switch on from the webhook,
  * so the thank-you state polls until the `supporters` row turns active.
  */
@@ -34,7 +36,10 @@ export function SupporterRoute() {
   const [params, setParams] = useSearchParams();
   // `supporter=thanks` from Checkout (checkoutParams.withThanks); `thanks=1` from older sessions.
   const thanks = params.get('supporter') === 'thanks' || params.get('thanks') === '1';
-  const resumeCheckout = params.get('checkout') === '1';
+  // `checkout=1` (older links) means the default plan; `checkout=monthly|annual` names one.
+  const resumeParam = params.get('checkout');
+  const resumeCheckout = resumeParam === '1' || isSupporterPlan(resumeParam);
+  const [plan, setPlan] = useState<SupporterPlan>(isSupporterPlan(resumeParam) ? resumeParam : DEFAULT_SUPPORTER_PLAN);
   const { status, isSupporter, isPending: supporterPending } = useSupporter();
   const { checkout, manage, pending, error } = useSupporterCheckout();
   const resumed = useRef(false);
@@ -45,7 +50,7 @@ export function SupporterRoute() {
   useHead({
     title: 'Support PatternChess',
     description:
-      'PatternChess is a free daily chess-training plan. Supporters chip in $5 a month to keep it running, train without a daily cap, unlock every look and course, and get flair and early access to the mobile app.',
+      'PatternChess is a free daily chess-training plan. Supporters chip in from $5 a month (billed annually) to keep it running, train without a daily limit, unlock every look and course, and get flair and early access to the mobile app.',
     canonical: '/supporter',
     jsonLd: [
       breadcrumbJsonLd([
@@ -69,8 +74,8 @@ export function SupporterRoute() {
       },
       { replace: true },
     );
-    if (!isSupporter) checkout();
-  }, [resumeCheckout, session, supporterPending, isSupporter, checkout, setParams]);
+    if (!isSupporter) checkout(plan);
+  }, [resumeCheckout, session, supporterPending, isSupporter, checkout, setParams, plan]);
 
   // Back from Checkout: the webhook usually lands within seconds.
   useEffect(() => {
@@ -92,8 +97,9 @@ export function SupporterRoute() {
             <span className="font-mono uppercase text-xs tracking-tight text-gold-dark">Support PatternChess</span>
             <h1 className="text-3xl font-bold tracking-tight">Back the thing that's backing your chess.</h1>
             <p className="text-lg text-text-primary leading-relaxed">
-              Your daily plan on PatternChess is free for everyone. Supporters chip in $5 a month to keep it
-              running, train as much as they like, and unlock everything.
+              Your daily plan on PatternChess is free for everyone. Supporters chip in $
+              {SUPPORTER_PRICING.annual.perMonth} a month, billed annually, to keep it running, train without a
+              daily limit, and unlock everything.
             </p>
             {elo > 0 && (
               <p className="text-text-primary">
@@ -130,18 +136,26 @@ export function SupporterRoute() {
               </>
             ) : session ? (
               <>
+                <SupporterPlanChoice value={plan} onChange={setPlan} className="max-w-md" />
                 <div>
-                  <button type="button" className={CTA} disabled={pending != null} onClick={checkout} data-testid="supporter-checkout">
-                    {pending === 'checkout' ? 'Opening checkout…' : 'Become a supporter, $5/mo'}
+                  <button
+                    type="button"
+                    className={CTA}
+                    disabled={pending != null}
+                    onClick={() => checkout(plan)}
+                    data-testid="supporter-checkout"
+                  >
+                    {pending === 'checkout' ? 'Opening checkout…' : 'Become a supporter'}
                   </button>
                 </div>
                 <p className="text-sm text-text-primary">Cancel any time. Your daily training stays free either way.</p>
               </>
             ) : (
               <>
+                <SupporterPlanChoice value={plan} onChange={setPlan} className="max-w-md" />
                 <p className="text-text-primary">Sign in and we'll take you straight to checkout.</p>
                 <div>
-                  <Link to={loginUrlWithNext(SUPPORTER_CHECKOUT_RESUME)} className={CTA} data-testid="supporter-sign-in">
+                  <Link to={loginUrlWithNext(supporterCheckoutResume(plan))} className={CTA} data-testid="supporter-sign-in">
                     Sign in to support
                   </Link>
                 </div>

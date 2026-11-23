@@ -21,6 +21,7 @@ import { MyAvatar } from './avatar/PixelAvatar';
 import { HeartIcon } from './icons/HeartIcon';
 import { useSupporter } from '../hooks/useSupporter';
 import { useT } from '../i18n/useT';
+import { DailyUsageMeter } from './supporter/DailyUsageMeter';
 import type { MessageKey } from '../i18n/i18n';
 
 const NAV_ITEMS = [
@@ -102,22 +103,13 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
 
       <div className="mt-auto" />
 
-      {/* The constant, quiet way to support (feedback round 2): never a modal. */}
-      <NavLink
-        to="/supporter"
-        data-testid="nav-support"
-        className={({ isActive }) =>
-          clsx(
-            'mx-2 mb-2 flex items-center gap-3 py-2 rounded-none font-mono uppercase tracking-tight text-xs transition-colors',
-            collapsed ? 'justify-center px-0' : 'px-3',
-            isActive ? 'bg-accent/15 text-text-primary' : 'text-text-primary hover:bg-accent/10',
-          )
-        }
-        aria-label={isSupporter ? t('nav.supporter') : t('nav.support')}
-      >
-        <HeartIcon className="h-5 w-5 shrink-0" />
-        {!collapsed && <span>{isSupporter ? t('nav.supporter') : t('nav.support')}</span>}
-      </NavLink>
+      {/*
+        Free players: today's positions against their limit, which becomes the
+        countdown + "Go unlimited" once it's used up (the Supporter offer lives
+        here and at every lock, never as a standing button). Supporters see a
+        heart by their name instead; /profile#supporter manages it.
+      */}
+      <DailyUsageMeter collapsed={collapsed} />
 
       <SyncIndicator collapsed={collapsed} />
 
@@ -140,6 +132,11 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
             {/* The pixel avatar (src/lib/avatar.ts) replaces the OAuth photo. */}
             <MyAvatar className="w-7 h-7 shrink-0 border-2 border-text-primary" />
             {!collapsed && <span className="truncate">{firstName}</span>}
+            {!collapsed && isSupporter && (
+              <span className="shrink-0 text-gold-dark" data-testid="nav-supporter-mark">
+                <HeartIcon className="h-3.5 w-3.5" title={t('nav.supporter')} />
+              </span>
+            )}
           </NavLink>
           {/* Collapsed rail is too narrow for a second control. */}
           {!collapsed && <SettingsLink className="mr-1.5 h-8 w-8 border-0 hover:bg-accent/10" />}

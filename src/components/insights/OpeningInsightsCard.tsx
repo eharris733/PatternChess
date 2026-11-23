@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuotaGuard } from '../../hooks/useDailyQuota';
 import { useNavigate } from 'react-router-dom';
 import {
   MIN_TOTAL_GAMES_FOR_OPENING,
@@ -11,6 +12,7 @@ const TOP_N = 3;
 
 export function OpeningInsightsCard() {
   const navigate = useNavigate();
+  const { guard } = useQuotaGuard();
   const insight = useOpeningInsight();
   const [showAll, setShowAll] = useState(false);
   if (insight.isPending) return <InsightCardSkeleton rows={3} />;
@@ -32,7 +34,7 @@ export function OpeningInsightsCard() {
             key={`${row.family}-${row.userColor ?? 'unknown'}`}
             row={row}
             onClick={() =>
-              navigate('/training', {
+              guard('positions') && navigate('/training', {
                 state: {
                   openingFilter: row.family,
                   openingColor: row.userColor,

@@ -46,13 +46,17 @@ import {
 } from '../services/puzzleShareService';
 import { playSound } from '../lib/sounds';
 import { useT } from '../i18n/useT';
-import { useSupporter } from '../hooks/useSupporter';
-import { useDrillsToday } from '../hooks/useTrainingActivity';
-import { DEFAULT_DAILY_GOALS, effectiveGoals } from '../lib/dailyGoal';
+import { useQuotaGuard } from '../hooks/useDailyQuota';
+import type { QuotaKind } from '../lib/dailyLimit';
 
 /** Opening intro pace, and the pause on the final position before the prompt. */
 const INTRO_STEP_MS = 400;
 const INTRO_HOLD_MS = 500;
+
+/** Which daily limit a /training focus draws on: opening sessions use the openings one. */
+function quotaKindFor(focus: TrainingFocus): QuotaKind {
+  return focus.kindFilter === 'opening' ? 'openings' : 'positions';
+}
 
 /**
  * /training. A session is one mount of TrainingSession: "Keep training" and
@@ -78,6 +82,7 @@ function TrainingSession({
   const t = useT();
   const location = useLocation() as { state?: TrainingFocus | null };
   const { profile, refreshProfile } = useAuth();
+  const { quota, guard } = useQuotaGuard();
 
   const setBlunders = useTrainingStore((s) => s.setBlunders);
   const setContextFilter = useTrainingStore((s) => s.setContextFilter);
@@ -143,10 +148,11 @@ function TrainingSession({
   // "Keep training": the same focus (an openings session stays in openings).
   const keepTraining = () => {
     const next = continueFocus(effectiveState, state.blunders);
+    if (!guard(quotaKindFor(next ?? {}))) return;
     if (next) restartWith(next);
     else backToPicker();
   };
-  const startPracticeAhead = () => restartWith(practiceAheadFocus(effectiveState));
+  const startPracticeAhead = () => guard(quotaKindFor(effectiveState)) && restartWith(practiceAheadFocus(effectiveState));
   const resetToUnfiltered = () => restartWith({});
 
   // Context and opening filters both need the blunders' games (the per-blunder
@@ -347,13 +353,12 @@ function TrainingSession({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRealMiss, state.sequenceToken, autoplayEnabled, hasSolution]);
 
-  // Free players stop at their plan's Train goal for the day (dailyGoal.ts);
-  // the store skips new goal positions once the remaining count is used.
-  const supporter = useSupporter();
-  const drillsToday = useDrillsToday();
-  const goalPositions = effectiveGoals(profile?.dailyGoals ?? DEFAULT_DAILY_GOALS, supporter.isSupporter).positionsPerDay;
-  const capReady = !!profile && !supporter.isPending && (supporter.isSupporter || drillsToday.isSuccess);
-  const dailyCap = supporter.isSupporter ? null : Math.max(0, goalPositions - (drillsToday.data ?? 0));
+  // Free players stop at their plan's limits for the day (dailyLimit.ts): the
+  // store skips new goal positions past the Train goal and new opening drills
+  // past the openings limit, and ends the session once only those are left.
+  const capReady = !!profile && !quota.positions.pending && !quota.openings.pending;
+  const dailyCap = quota.positions.remaining;
+  const openingsCap = quota.openings.remaining;
 
   useEffect(() => {
     if (restarting || !sessionReady || !filteredBlunders || !capReady) return;
@@ -363,7 +368,7 @@ function TrainingSession({
     const { phase } = useTrainingStore.getState();
     if (phase === 'loading' || phase === 'empty') {
       useTrainingStore.getState().setRevealBeforeSolve(profile?.revealBeforeSolve ?? false);
-      useTrainingStore.getState().setDailyCap(dailyCap);
+      useTrainingStore.getState().setDailyCap(dailyCap, openingsCap);
       setBlunders(filteredBlunders);
       if (filteredBlunders.length > 0 && profile) {
         void beginSession(profile);
@@ -388,6 +393,7 @@ function TrainingSession({
     filteredBlunders,
     capReady,
     dailyCap,
+    openingsCap,
     profile,
     setBlunders,
     beginSession,
@@ -468,6 +474,7 @@ function TrainingSession({
       <TrainLandingScreen
         due={dueData ?? null}
         onPick={(filter: TrainingFocus) => {
+          if (!guard(quotaKindFor(filter))) return;
           setPickedFilter(filter);
           setPickerOpen(false);
         }}
@@ -604,6 +611,8 @@ function TrainingSession({
         onStartFocus={(focus) => restartWith(focus)}
         sessionFocused={hasFilter(effectiveState)}
         cappedOut={state.cappedOut}
+        cappedKind={state.cappedKind}
+        limitResetsAt={quota.resetsAt}
       />
     );
   }

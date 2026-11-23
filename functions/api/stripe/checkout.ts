@@ -1,8 +1,10 @@
 import { getSessionUser } from '../../_shared/auth';
 import type { AppEnv } from '../../_shared/db';
 import { checkoutReturnPath, supporterCheckoutParams } from '../../_shared/checkoutParams';
+import { DEFAULT_SUPPORTER_PLAN, isSupporterPlan } from '../../../src/lib/supporterPricing';
 import {
   PERK_STATUSES,
+  checkoutPriceId,
   crossSite,
   json,
   linkCustomer,
@@ -17,8 +19,8 @@ function randomLetters(n: number): string {
 }
 
 /**
- * POST → { url } of a Stripe Checkout Session for the $5/month supporter
- * subscription. The player's Stripe customer is created (or reused) and linked
+ * POST → { url } of a Stripe Checkout Session for the supporter subscription:
+ * `plan` 'annual' ($60/year, the default) or 'monthly' ($12/month). The player's Stripe customer is created (or reused) and linked
  * in `supporters` first, so every later webhook maps back through the customer.
  * Perks start from the webhook, never from the success page. The page carries
  * PatternChess branding and copy (supporterCheckoutParams). Body (optional):
@@ -30,7 +32,13 @@ export const onRequestPost: PagesFunction<StripeEnv & AppEnv> = async ({ request
   const user = await getSessionUser(request, env);
   if (!user) return json({ error: 'sign_in_required' }, 401);
 
-  const body = (await request.json().catch(() => ({}))) as { returnTo?: unknown };
+  const body = (await request.json().catch(() => ({}))) as { returnTo?: unknown; plan?: unknown };
+  const plan = isSupporterPlan(body.plan) ? body.plan : DEFAULT_SUPPORTER_PLAN;
+  const priceId = checkoutPriceId(env, plan);
+  if (!priceId) {
+    console.error(`[checkout] no Stripe price configured for the ${plan} plan`);
+    return json({ error: 'plan_unavailable' }, 503);
+  }
   const stripe = stripeClient(env);
   let row = await supporterBy(env, 'user_id', user.id);
   if (row && PERK_STATUSES.has(row.status)) return json({ error: 'already_supporter' }, 409);
@@ -49,7 +57,8 @@ export const onRequestPost: PagesFunction<StripeEnv & AppEnv> = async ({ request
       returnPath: checkoutReturnPath(body.returnTo),
       customerId: row.stripe_customer_id,
       userId: user.id,
-      priceId: env.STRIPE_PRICE_ID,
+      priceId,
+      plan,
       integrationSuffix: randomLetters(8),
     }),
   );

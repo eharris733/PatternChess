@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useQuotaGuard } from '../../hooks/useDailyQuota';
 import { useTimeManagementInsight } from '../../hooks/useInsights';
 import { InsightCardSkeleton } from '../Skeleton';
 
@@ -24,6 +25,7 @@ function Tile({ label, userSec, hasData }: TileProps) {
 
 export function TimeManagementCard() {
   const navigate = useNavigate();
+  const { guard } = useQuotaGuard();
   const insight = useTimeManagementInsight();
   if (insight.isPending) return <InsightCardSkeleton rows={2} />;
   if (!insight.data) return null;
@@ -64,7 +66,7 @@ export function TimeManagementCard() {
       </div>
       <button
         type="button"
-        onClick={() => navigate('/training', { state: { contextFilter: 'longThink' } })}
+        onClick={() => guard('positions') && navigate('/training', { state: { contextFilter: 'longThink' } })}
         className="self-start text-sm font-semibold text-gold-dark underline underline-offset-2 hover:text-text-primary transition-colors"
       >
         Drill long-think blunders

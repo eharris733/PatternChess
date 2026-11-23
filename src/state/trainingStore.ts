@@ -135,8 +135,15 @@ export interface TrainingStateShape {
    * day's plan is done. null = no cap (supporters). Set by TrainingRoute.
    */
   dailyCap: number | null;
+  /**
+   * Free players' opening-review cap: how many more opening drills (first
+   * attempts) this session may hand out today. null = no cap (supporters).
+   */
+  openingsCap: number | null;
   /** The session ended because the daily cap was reached (not because the queue ran out). */
   cappedOut: boolean;
+  /** Which daily limit ended it: positions if any skipped item was a goal position, else openings. */
+  cappedKind: 'positions' | 'openings' | null;
   attemptedBlunderIds: Set<string>;
   fen: string;
   orientation: 'white' | 'black';
@@ -255,8 +262,11 @@ export interface TrainingStateShape {
   /** End the intro (or skip it) and prompt for the move. */
   finishIntro: () => void;
   setRevealBeforeSolve: (value: boolean) => void;
-  /** Free players' remaining goal positions for today (null = no cap). Call before setBlunders. */
-  setDailyCap: (cap: number | null) => void;
+  /**
+   * Free players' remaining goal positions and opening reviews for today
+   * (null = no cap). Call before setBlunders.
+   */
+  setDailyCap: (cap: number | null, openingsCap?: number | null) => void;
   ensureBlunderRefutation: () => Promise<void>;
   setBlunders: (blunders: Blunder[]) => void;
   setContextFilter: (filter: ContextFilter | null) => void;
@@ -327,7 +337,9 @@ function makeInitial(): InitialShape {
     goalCorrect: 0,
     goalAttempted: 0,
     dailyCap: null,
+    openingsCap: null,
     cappedOut: false,
+    cappedKind: null,
     attemptedBlunderIds: new Set<string>(),
     fen: new Chess().fen(),
     orientation: 'white',
@@ -474,6 +486,27 @@ function countsTowardGoal(blunder: Blunder): boolean {
 /** Whether a free player's daily cap is used up for this session. */
 function capReached(s: Pick<TrainingStateShape, 'dailyCap' | 'goalAttempted'>): boolean {
   return s.dailyCap != null && s.goalAttempted >= s.dailyCap;
+}
+
+/** Opening drills first-attempted this session. */
+function openingsAttempted(s: Pick<TrainingStateShape, 'blunders' | 'attemptedBlunderIds'>): number {
+  let n = 0;
+  for (const b of s.blunders) if (b.kind === 'opening' && s.attemptedBlunderIds.has(b.id)) n++;
+  return n;
+}
+
+/**
+ * Whether a free player's daily limit keeps `blunder` from being handed out:
+ * a new goal position past the positions cap, or a new opening drill past the
+ * openings cap. Positions already tried this session (requeued misses) still play.
+ */
+function blockedByCap(
+  s: Pick<TrainingStateShape, 'dailyCap' | 'openingsCap' | 'goalAttempted' | 'blunders' | 'attemptedBlunderIds'>,
+  blunder: Blunder,
+): boolean {
+  if (s.attemptedBlunderIds.has(blunder.id)) return false;
+  if (countsTowardGoal(blunder)) return capReached(s);
+  return s.openingsCap != null && openingsAttempted(s) >= s.openingsCap;
 }
 
 function goalCounts(
@@ -709,8 +742,8 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     set({ contextFilter: filter });
   },
 
-  setDailyCap: (cap) => {
-    set({ dailyCap: cap, cappedOut: false });
+  setDailyCap: (cap, openingsCap = null) => {
+    set({ dailyCap: cap, openingsCap, cappedOut: false, cappedKind: null });
   },
 
   setRevealBeforeSolve: (value) => {
@@ -753,14 +786,21 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
   },
 
   loadCurrentBlunder: async () => {
-    // Daily cap reached: skip new goal positions (openings and already-tried
-    // retries still play), and end the session once only those are left.
-    if (capReached(get())) {
+    // Daily limits (free players): skip new positions of a kind whose limit
+    // is used up (already-tried retries still play), and end the session once
+    // only those are left.
+    {
       const s = get();
       let i = s.currentIndex;
-      while (i < s.blunders.length && countsTowardGoal(s.blunders[i]) && !s.attemptedBlunderIds.has(s.blunders[i].id)) i++;
-      if (i >= s.blunders.length) {
-        set({ phase: 'complete', cappedOut: true });
+      while (i < s.blunders.length && blockedByCap(s, s.blunders[i])) i++;
+      if (i > s.currentIndex && i >= s.blunders.length) {
+        const skipped = s.blunders.slice(s.currentIndex, i);
+        set({
+          currentIndex: i,
+          phase: 'complete',
+          cappedOut: true,
+          cappedKind: skipped.some(countsTowardGoal) ? 'positions' : 'openings',
+        });
         return;
       }
       if (i !== s.currentIndex) set({ currentIndex: i });

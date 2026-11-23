@@ -91,6 +91,15 @@ describe('syncSubscription', () => {
     expect((await rowOf())!.status).toBe('none');
   });
 
+  it('accepts the annual, monthly and original prices alike', async () => {
+    env = { ...env, STRIPE_PRICE_ID_ANNUAL: 'price_year', STRIPE_PRICE_ID_MONTHLY: 'price_month' };
+    for (const price of ['price_year', 'price_month', 'price_pc']) {
+      seedSupporter({});
+      expect(await syncSubscription(env, stripeWith(sub({ price })), 'sub_1')).toBe('synced sub_1: active');
+      db.sqlite.exec('DELETE FROM supporters');
+    }
+  });
+
   it('ignores customers with no player', async () => {
     seedSupporter({});
     expect(await syncSubscription(env, stripeWith(sub({ customer: 'cus_other' })), 'sub_1')).toMatch(/no player/);
