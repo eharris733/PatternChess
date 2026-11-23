@@ -87,11 +87,13 @@ function hi(d: EmailData): string {
   return d.firstName ? `Hi ${esc(d.firstName)},` : 'Hi,';
 }
 
-/** Today's plan as a sentence, sized by the player's commitment level. */
+/**
+ * Today's plan as a sentence, sized by the player's commitment level. Same
+ * order as the in-app plan (DailyHabitCard): train first, play last.
+ */
 function planLine(d: EmailData): string {
-  const parts = [];
+  const parts = [`train ${plural(d.positionsGoal, 'position')}`];
   if (d.gamesGoal > 0) parts.push(`play ${plural(d.gamesGoal, 'game')}`);
-  parts.push(`train ${plural(d.positionsGoal, 'position')}`);
   return parts.join(', then ');
 }
 
@@ -338,9 +340,9 @@ export function renderEmail(kind: EmailKind, d: EmailData, links: EmailLinks): R
             {
               kind: 'stats',
               rows: [
-                ['Games to play', String(d.gamesGoal)],
                 ['Positions to train', String(d.positionsGoal)],
                 ['Due in your queue', d.dueNow.toLocaleString('en-US')],
+                ...(d.gamesGoal > 0 ? [['Games to play', String(d.gamesGoal)] as [string, string]] : []),
               ],
             },
             { kind: 'p', html: 'Stop procrastinating your improvement. Ten minutes today beats two hours next Sunday.' },

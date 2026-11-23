@@ -100,6 +100,14 @@ describe('rendered emails', () => {
       }
     }
   });
+  it('lists the daily plan in the app order: train first, play last', () => {
+    const e = renderEmail('daily_plan', toEmailData(DATA), links);
+    expect(e.subject).toBe("Today's plan: train 10 positions, then play 1 game");
+    expect(e.text.indexOf('Positions to train')).toBeLessThan(e.text.indexOf('Games to play'));
+    const noGames = renderEmail('daily_plan', toEmailData({ ...DATA, gamesGoal: 0 }), links);
+    expect(noGames.subject).toBe("Today's plan: train 10 positions");
+    expect(noGames.html).not.toContain('Games to play');
+  });
   it('shows the motif label in the weekly report', () => {
     expect(renderEmail('weekly_report', toEmailData(DATA), links).html).toContain('Missed fork');
   });
