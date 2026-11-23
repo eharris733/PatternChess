@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, rpc } from './api';
+import { ApiError, isUnauthorizedError, onUnauthorized, rpc } from './api';
 
 function mockFetch(status: number, body: unknown) {
   const fn = vi.fn(async () =>
@@ -38,5 +38,20 @@ describe('rpc', () => {
   it('maps a null data payload to null', async () => {
     mockFetch(200, { data: null });
     await expect(rpc('nothing')).resolves.toBeNull();
+  });
+
+  it('tells unauthorized listeners about a 401, and only a 401', async () => {
+    const seen: string[] = [];
+    const off = onUnauthorized((name) => seen.push(name));
+    mockFetch(401, { error: { code: 'unauthorized', message: 'Sign in required' } });
+    const err = await rpc('blunders.due').catch((e: unknown) => e);
+    expect(isUnauthorizedError(err)).toBe(true);
+    mockFetch(500, { error: { code: 'internal', message: 'boom' } });
+    const other = await rpc('blunders.due').catch((e: unknown) => e);
+    expect(isUnauthorizedError(other)).toBe(false);
+    off();
+    mockFetch(401, { error: { code: 'unauthorized', message: 'Sign in required' } });
+    await rpc('games.list').catch(() => {});
+    expect(seen).toEqual(['blunders.due']);
   });
 });

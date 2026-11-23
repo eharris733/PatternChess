@@ -13,6 +13,9 @@ const db = vi.hoisted(() => ({
   unanalyzed: 0,
   scored: [] as string[],
   groupsAsked: [] as (OpeningGroupKey | null)[],
+  /** Every write answers 401 (the session ended). */
+  signedOut: false,
+  writeAttempts: 0,
 }));
 const sync = vi.hoisted(() => ({ inFlight: false }));
 
@@ -31,6 +34,8 @@ vi.mock('./supabaseService', () => ({
     getPastBookQueue: async () => [],
     countUnanalyzedGames: async () => db.unanalyzed,
     setDeviationEval: async (id: string) => {
+      db.writeAttempts++;
+      if (db.signedOut) throw new ApiError(401, 'unauthorized', 'Sign in required');
       db.scored.push(id);
       db.pending = db.pending.filter((d) => d.id !== id);
     },
@@ -49,6 +54,8 @@ vi.mock('./endgameScenarioVerifier', () => ({ isEndgameVerificationRunning: () =
 vi.mock('../state/syncStore', () => ({ isAnySyncInFlight: () => sync.inFlight }));
 vi.mock('../lib/queryClient', () => ({ queryClient: { invalidateQueries: async () => {} } }));
 
+const { ApiError } = await import('../lib/api');
+const { runSessionEndHooks } = await import('../lib/sessionEnd');
 const { startOpeningDeviationScan } = await import('./openingDeviationService');
 const { useOpeningScanStore } = await import('../state/openingScanStore');
 
@@ -104,6 +111,8 @@ beforeEach(() => {
   db.scored = [];
   db.groupsAsked = [];
   db.unanalyzed = 0;
+  db.signedOut = false;
+  db.writeAttempts = 0;
   sync.inFlight = false;
 });
 
@@ -163,5 +172,35 @@ describe('startOpeningDeviationScan', () => {
     startOpeningDeviationScan({ detached: true });
     await runUntil(() => useOpeningScanStore.getState().phase === 'waiting');
     await runUntil(() => useOpeningScanStore.getState().phase === 'stopped', 180_000);
+  });
+
+  it('sign-out ends a detached pass and clears its progress; the next sign-in starts fresh', async () => {
+    db.unanalyzed = 5;
+    sync.inFlight = true;
+    startOpeningDeviationScan({ detached: true });
+    await runUntil(() => useOpeningScanStore.getState().phase === 'waiting');
+    expect(db.scored).toEqual(['s1', 's2']);
+
+    runSessionEndHooks();
+    expect(useOpeningScanStore.getState()).toMatchObject({ phase: 'idle', unscored: 0, unanalyzed: 0 });
+    const asked = db.groupsAsked.length;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(db.groupsAsked.length).toBe(asked);
+    expect(useOpeningScanStore.getState().phase).toBe('idle');
+
+    db.unanalyzed = 0;
+    sync.inFlight = false;
+    startOpeningDeviationScan({ detached: true });
+    await runUntil(() => useOpeningScanStore.getState().phase === 'done');
+    expect(db.scored).toEqual(['s1', 's2', 'i1']);
+  });
+
+  it('a 401 ends the pass at the first row instead of failing every row', async () => {
+    db.signedOut = true;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    startOpeningDeviationScan({ detached: true });
+    await runUntil(() => useOpeningScanStore.getState().phase === 'stopped');
+    expect(db.writeAttempts).toBe(1);
+    warn.mockRestore();
   });
 });
