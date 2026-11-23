@@ -5,7 +5,7 @@ import { useSupporter } from './useSupporter';
 import { supabaseService } from '../services/supabaseService';
 import { emailAskVariant, nextAsk, type AskKind, type EmailAskVariant } from '../lib/asks';
 import { AVAILABLE_COURSES } from '../lib/courses';
-import { useCourseProgress } from './useCourses';
+import { useCourseProgress } from './useCourseProgress';
 
 // One open per tab session: reloads and route changes don't count.
 const COUNTED_KEY = 'pc:open-counted';

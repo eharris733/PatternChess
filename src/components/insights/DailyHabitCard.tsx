@@ -34,7 +34,7 @@ import { usePathProgress } from '../../hooks/usePathProgress';
 import { useFeature } from '../../hooks/useFeature';
 import type { TrainingFocus } from '../../routes/training/trainingFocus';
 import { CourseIcon } from '../icons/CourseIcon';
-import { useCourseProgress } from '../../hooks/useCourses';
+import { useCourseProgress } from '../../hooks/useCourseProgress';
 import { useSupporter } from '../../hooks/useSupporter';
 import { availableCourse } from '../../lib/courses';
 import { isSupporterDay } from '../../lib/courseCatalog';

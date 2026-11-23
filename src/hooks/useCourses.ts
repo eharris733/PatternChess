@@ -14,26 +14,16 @@ import { AVAILABLE_COURSES } from '../lib/courses';
 import type { DayDone } from '../lib/coursePacing';
 import type { Blunder } from '../models/blunder';
 import { useOpeningInsight, useMotifInsight } from './useInsights';
+import { COURSE_PROGRESS_KEY, useCourseProgress } from './useCourseProgress';
 import { useOpeningDeviations } from './useOpeningDeviations';
 import { useEndgameScenarios } from './useEndgameScenarios';
 
-export const COURSE_PROGRESS_KEY = ['courses', 'progress'] as const;
+export { COURSE_PROGRESS_KEY, useCourseProgress } from './useCourseProgress';
 
 /** The player's local date (YYYY-MM-DD), stored with each finished lesson for the plan's lesson step. */
 export function useCourseToday(): string {
   const { profile } = useAuth();
   return localDate(profile?.timezone ?? detectTimezone());
-}
-
-/** Finished lessons + the followed course. Off when this build has no courses (production until permissions land). */
-export function useCourseProgress(enabled = true) {
-  const { user } = useAuth();
-  return useQuery({
-    queryKey: [...COURSE_PROGRESS_KEY, user?.id],
-    queryFn: () => supabaseService.getCourseProgress(),
-    enabled: !!user && enabled && AVAILABLE_COURSES.length > 0,
-    staleTime: 60_000,
-  });
 }
 
 export function useCompleteCourseDay() {
