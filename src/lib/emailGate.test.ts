@@ -3,16 +3,17 @@ import { needsContactEmail } from './emailGate';
 
 describe('needsContactEmail', () => {
   it('asks a Lichess sign-in without an address', () => {
-    expect(needsContactEmail({ provider: 'lichess' }, { contactEmail: null })).toBe(true);
+    expect(needsContactEmail({ provider: 'lichess' }, { contactEmail: null, contactEmailVerifiedAt: null })).toBe(true);
   });
 
-  it('lets a Lichess sign-in through once an address is saved (confirmed or not)', () => {
-    expect(needsContactEmail({ provider: 'lichess' }, { contactEmail: 'me@example.com' })).toBe(false);
+  it('keeps a Lichess sign-in at the gate until the address is confirmed', () => {
+    expect(needsContactEmail({ provider: 'lichess' }, { contactEmail: 'me@example.com', contactEmailVerifiedAt: null })).toBe(true);
+    expect(needsContactEmail({ provider: 'lichess' }, { contactEmail: 'me@example.com', contactEmailVerifiedAt: new Date() })).toBe(false);
   });
 
   it('never asks accounts that came with an address', () => {
-    expect(needsContactEmail({ provider: 'google' }, { contactEmail: null })).toBe(false);
-    expect(needsContactEmail({ provider: 'email' }, { contactEmail: null })).toBe(false);
+    expect(needsContactEmail({ provider: 'google' }, { contactEmail: null, contactEmailVerifiedAt: null })).toBe(false);
+    expect(needsContactEmail({ provider: 'email' }, { contactEmail: null, contactEmailVerifiedAt: null })).toBe(false);
   });
 
   it('waits for the profile', () => {

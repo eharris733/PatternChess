@@ -85,6 +85,11 @@ export async function updateContactEmail(email: string, timezone: string | null)
   });
 }
 
+/** Mails the confirmation link for the saved contact address again (server rate limits: 1/min, 5/day). */
+export async function resendContactConfirm(): Promise<{ sent: boolean; reason?: string }> {
+  return rpc<{ sent: boolean; reason?: string }>('profile.resendConfirm');
+}
+
 /** Counts one app open (AppShell, once per tab session) and returns the new total. */
 export async function bumpAppOpen(): Promise<number | null> {
   const data = await rpc<number | null>('profile.bumpAppOpen');

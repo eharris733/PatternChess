@@ -25,9 +25,13 @@ npx wrangler d1 migrations apply patternchess-app --local --config d1/wrangler.j
 # courses RPCs here accept them too (VITE_SHOW_PENDING_COURSES=0 to mimic production).
 SHOW_PENDING="${VITE_SHOW_PENDING_COURSES:-1}"
 
+# NOTIFIER: the email Worker's RPC (sendConfirm), reached through wrangler's
+# dev registry when scripts/dev-notifier.sh is running; without it the call
+# fails quietly and only the hourly job would send the confirmation.
 # Pages dev serves dist/ too; an empty dir is enough when Vite serves the SPA.
 mkdir -p dist
 exec npx wrangler pages dev dist --port "$API_PORT" \
   --compatibility-date=2026-06-18 --compatibility-flags=nodejs_compat \
   --d1 "DB=$DB_ID" --kv AUTH_KV --kv "CONTENT=$CONTENT_ID" --persist-to "$STATE" \
-  --binding "VITE_SHOW_PENDING_COURSES=$SHOW_PENDING"
+  --binding "VITE_SHOW_PENDING_COURSES=$SHOW_PENDING" \
+  --service NOTIFIER=patternchess-notifier

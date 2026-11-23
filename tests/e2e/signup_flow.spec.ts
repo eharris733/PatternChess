@@ -32,7 +32,7 @@ test.describe('platform logos', () => {
   });
 });
 
-test('a new Lichess sign-in adds an email before the import screen', async ({ page }) => {
+test('a new Lichess sign-in adds an email, and waits for its confirmation, before the import screen', async ({ page }) => {
   const rec = await stubApp(page, {
     user: LICHESS_USER,
     profile: { ...DEFAULT_PROFILE_ROW, lichess_username: 'tester', contact_email: null, email_opt_in: false },
@@ -46,10 +46,10 @@ test('a new Lichess sign-in adds an email before the import screen', async ({ pa
 
   await step.getByLabel('Email address').fill('newplayer@example.com');
   await step.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByTestId('contact-email-pending')).toContainText('newplayer@example.com');
+  await expect(page.getByTestId('onboarding-email-check')).toContainText('newplayer@example.com');
   expect(rec.callsTo('profile.update').some((c) => (c.args.patch as Record<string, unknown>).contact_email === 'newplayer@example.com')).toBe(true);
-  await step.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByText(/importing your last 200 games/)).toBeVisible();
+  // Nothing opens until the address is confirmed.
+  await expect(page.getByText(/importing your last 200 games/)).toHaveCount(0);
 });
 
 // --- landing demo -------------------------------------------------------------

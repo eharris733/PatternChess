@@ -6,8 +6,10 @@ import { handlers } from './rpc/profile';
 import { openTestD1, type TestD1 } from './rpc/testD1';
 
 // The Lichess email step (src/components/OnboardingEmail.tsx) saves through
-// updateContactEmail → profile.update. That write alone must queue the
-// confirmation email on the notifier's next hourly run.
+// updateContactEmail → profile.update, which mails the confirmation link at
+// once over the NOTIFIER binding (profile.test.ts). Without the binding, or
+// if that send fails, the write alone must still queue it for the
+// notifier's next hourly run.
 
 let db: TestD1;
 const lich: SessionUser = { id: 'u-lich', email: null, name: 'KnightRider', image: null, provider: 'lichess' };

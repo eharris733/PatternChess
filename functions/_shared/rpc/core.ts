@@ -68,6 +68,7 @@ export const badRequest = (message: string, code = 'bad_request') => new RpcErro
 export const notFound = (message = 'Not found', code = 'not_found') => new RpcError(404, code, message);
 export const forbidden = (message = 'Forbidden', code = 'forbidden') => new RpcError(403, code, message);
 export const conflict = (message: string, code = 'conflict') => new RpcError(409, code, message);
+export const tooManyRequests = (message = 'Too many requests', code = 'rate_limited') => new RpcError(429, code, message);
 
 // --- argument helpers (throw 400 on a bad shape) ---------------------------
 

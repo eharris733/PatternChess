@@ -18,7 +18,9 @@ import {
   argOptString,
   argString,
   badRequest,
+  conflict,
   forbidden,
+  tooManyRequests,
   userRpc,
   type RpcRegistry,
   type UserRpcContext,
@@ -209,6 +211,52 @@ export function profileUpdateSql(userId: string, patch: Record<string, unknown>)
   return { sql: `UPDATE profiles SET ${sets.join(', ')} WHERE id = ? RETURNING *`, params };
 }
 
+/**
+ * Whether another account already owns `email`: a Google/email sign-in
+ * address (better-auth `user.email`) or another player's confirmed contact
+ * address. The Lichess email gate then points them at that account (sign in
+ * there, link Lichess under Profile → Accounts) instead of making a duplicate.
+ */
+async function emailBelongsToAnotherAccount(ctx: UserRpcContext, email: string): Promise<boolean> {
+  const hit = await scalar<number>(
+    ctx.db,
+    `SELECT 1 WHERE EXISTS (SELECT 1 FROM "user" WHERE lower(email) = lower(?) AND id <> ?)
+        OR EXISTS (SELECT 1 FROM profiles WHERE lower(contact_email) = lower(?) AND id <> ?
+                   AND contact_email_verified_at IS NOT NULL)`,
+    [email, ctx.user.id, email, ctx.user.id],
+  );
+  return hit === 1;
+}
+
+/** Asks the notifier Worker to mail the confirmation link now (no-op without the binding). */
+async function sendConfirmation(ctx: UserRpcContext): Promise<{ sent: boolean; reason?: string }> {
+  if (!ctx.env.NOTIFIER) return { sent: false, reason: 'no_binding' };
+  try {
+    return await ctx.env.NOTIFIER.sendConfirm(ctx.user.id);
+  } catch (err) {
+    console.error('[profile] sendConfirm failed', err);
+    return { sent: false, reason: 'error' };
+  }
+}
+
+const RESEND_GAP_MS = 60_000;
+const RESENDS_PER_DAY = 5;
+
+/** One resend slot: at most one a minute and five a day per player (KV, best effort). */
+async function takeResendSlot(ctx: UserRpcContext): Promise<boolean> {
+  const kv = ctx.env.AUTH_KV;
+  if (!kv) return true;
+  const key = `confirm-resend:${ctx.user.id}`;
+  const now = Date.now();
+  const raw = await kv.get(key);
+  const sent = (raw ? (JSON.parse(raw) as number[]) : []).filter((t) => now - t < 86_400_000);
+  if (sent.length >= RESENDS_PER_DAY) return false;
+  if (sent.length > 0 && now - Math.max(...sent) < RESEND_GAP_MS) return false;
+  sent.push(now);
+  await kv.put(key, JSON.stringify(sent), { expirationTtl: 86_400 });
+  return true;
+}
+
 async function getProfileRow(ctx: UserRpcContext) {
   return first(ctx.db, 'SELECT * FROM profiles WHERE id = ?', [ctx.user.id], 'profiles');
 }
@@ -312,8 +360,40 @@ export const handlers: RpcRegistry = {
     if (wantsSupporterPlan && !(await hasSupporterPerks(ctx.db, ctx.user.id))) {
       throw forbidden('That plan is for supporters', 'supporter_plan');
     }
+    const newAddress = typeof patch.contact_email === 'string' ? patch.contact_email : null;
+    const before = newAddress
+      ? await first<{ contact_email: string | null }>(ctx.db, 'SELECT contact_email FROM profiles WHERE id = ?', [ctx.user.id])
+      : null;
+    const addressChanged = newAddress != null && before?.contact_email !== newAddress;
+    if (addressChanged && (await emailBelongsToAnotherAccount(ctx, newAddress))) {
+      throw conflict('That email already has a PatternChess account', 'email_in_use');
+    }
     const { sql, params } = profileUpdateSql(ctx.user.id, patch);
-    return first(ctx.db, sql, params, 'profiles');
+    const row = await first(ctx.db, sql, params, 'profiles');
+    // A new typed-in address gets its confirmation link at once (the Lichess
+    // email gate waits on it), not on the notifier's next hourly run. It uses
+    // a resend slot, so "Send it again" right after saving waits a minute.
+    if (addressChanged) {
+      ctx.waitUntil(takeResendSlot(ctx).then((ok) => (ok ? sendConfirmation(ctx) : null)));
+    }
+    return row;
+  }),
+
+  /**
+   * "Resend" on the email gate / profile: mails the confirmation link again.
+   * At most once a minute and five times a day per player (AUTH_KV).
+   */
+  'profile.resendConfirm': userRpc(async (ctx) => {
+    const p = await first<{ contact_email: string | null; contact_email_verified_at: string | null }>(
+      ctx.db,
+      'SELECT contact_email, contact_email_verified_at FROM profiles WHERE id = ?',
+      [ctx.user.id],
+    );
+    if (!p?.contact_email) throw badRequest('No address to confirm');
+    if (p.contact_email_verified_at) return { sent: false, reason: 'already_confirmed' };
+    if (!(await takeResendSlot(ctx))) throw tooManyRequests('Wait a minute before sending another link');
+    const result = await sendConfirmation(ctx);
+    return result;
   }),
 
   /**

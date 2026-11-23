@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { E2E_USER, stubApp, type RpcRecorder } from './helpers/api';
+import { E2E_USER, stubApp, type RpcHandlers, type RpcRecorder } from './helpers/api';
 
 // Dashboard email asks (src/lib/asks.ts): from the 2nd app open, accounts with
 // reminders off are asked to turn them on. Lichess sign-ins without an address
@@ -35,7 +35,7 @@ const BASE_PROFILE = {
 
 async function stub(
   page: Page,
-  opts: { profile?: Record<string, unknown>; lichess?: boolean; opens: number },
+  opts: { profile?: Record<string, unknown>; lichess?: boolean; opens: number; rpc?: RpcHandlers },
 ) {
   const rec = await stubApp(page, {
     // A Lichess sign-in has no email: better-auth stores a placeholder.
@@ -44,7 +44,7 @@ async function stub(
       : E2E_USER,
     profile: { ...BASE_PROFILE, email_opt_in: false, app_opens: opts.opens - 1, ...opts.profile },
     gameCount: 1,
-    rpc: { 'profile.bumpAppOpen': () => opts.opens },
+    rpc: { 'profile.bumpAppOpen': () => opts.opens, ...opts.rpc },
   });
   await page.addInitScript(() => {
     sessionStorage.setItem('pc:last-auto-sync', JSON.stringify({ fp: 'e2e-user|tester||0|', at: Date.now() }));
@@ -90,8 +90,25 @@ test('an ask answered 2 weeks ago twice never comes back', async ({ page }) => {
   await expect(page.getByTestId('email-ask')).toHaveCount(0);
 });
 
-test('a Lichess sign-in without an address must add one before the dashboard', async ({ page }) => {
-  const rec = await stub(page, { opens: 2, lichess: true });
+test('a Lichess sign-in must add and confirm an address before the dashboard', async ({ page }) => {
+  // A stateful profile whose address is confirmed when the test says so (the
+  // email's link, clicked in another tab).
+  const row: Record<string, unknown> = { ...BASE_PROFILE, email_opt_in: false, app_opens: 1 };
+  let confirmed = false;
+  const read = () => ({ ...row, contact_email_verified_at: confirmed ? new Date().toISOString() : null });
+  const rec = await stub(page, {
+    opens: 2,
+    lichess: true,
+    rpc: {
+      'profile.get': read,
+      'profile.getOrCreate': read,
+      'profile.update': (a) => {
+        Object.assign(row, a.patch ?? {});
+        return null;
+      },
+      'profile.resendConfirm': () => ({ sent: true }),
+    },
+  });
   await page.goto('/dashboard');
   const step = page.getByTestId('onboarding-email');
   await expect(step.getByRole('heading', { name: 'Where should we send your daily plan?' })).toBeVisible();
@@ -106,12 +123,19 @@ test('a Lichess sign-in without an address must add one before the dashboard', a
   await expect(continueBtn).toBeDisabled();
   await step.getByLabel('Email address').fill('player@example.com');
   await continueBtn.click();
-  await expect(page.getByTestId('contact-email-pending')).toContainText('player@example.com');
+  // Saved, not confirmed: still no app, just "check your inbox".
+  const check = page.getByTestId('onboarding-email-check');
+  await expect(check).toContainText('We sent a link to player@example.com');
   const p = profilePatches(rec).find((x) => x.contact_email);
   expect(p).toMatchObject({ contact_email: 'player@example.com', email_opt_in: true });
+  await check.getByTestId('resend-confirm').click();
+  await expect(check).toContainText('Sent. Check your inbox.');
+  await check.getByTestId('email-clicked').click();
+  await expect(page.getByTestId('onboarding-email-check')).toBeVisible();
 
-  await step.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByTestId('onboarding-email')).toHaveCount(0);
+  // The link is clicked elsewhere: the gate notices on its own and opens the app.
+  confirmed = true;
+  await expect(page.getByTestId('onboarding-email')).toHaveCount(0, { timeout: 10_000 });
   await page.goto('/dashboard');
   await expect(page.getByText('Train 10 positions')).toBeVisible();
   // The address is in, so the dashboard's own email ask has nothing to ask.
@@ -119,7 +143,8 @@ test('a Lichess sign-in without an address must add one before the dashboard', a
 });
 
 test('/profile shows a typed-in address waiting for its confirmation click', async ({ page }) => {
-  await stub(page, { opens: 1, lichess: true, profile: { contact_email: 'me@example.com', email_opt_in: true } });
+  // A Google account that switched to another address (a Lichess one waits at the gate).
+  await stub(page, { opens: 1, profile: { contact_email: 'me@example.com', email_opt_in: true } });
   await page.goto('/profile');
   await expect(page.getByTestId('contact-email-pending')).toContainText('me@example.com');
 });

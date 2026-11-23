@@ -13,6 +13,8 @@
 //   GET/POST /unsubscribe?t=  one-click unsubscribe (POST = RFC 8058)
 //   GET/POST /settings?t=     no-login email settings
 //   GET      /confirm?c=      confirm a typed-in contact address
+// RPC (service binding NOTIFIER on the Pages project):
+//   sendConfirm(userId)       mail the confirmation link now (Lichess email gate)
 // fetch, admin (Authorization: Bearer ADMIN_SECRET):
 //   GET  /admin/preview?user=<uuid>&kind=<kind>[&format=text|json]
 //   POST /admin/run?dryRun=1[&now=<ISO>]   evaluate (and with dryRun=0, send) the outbox
@@ -28,6 +30,8 @@
 // Local only (`--var DEV_MAILBOX:1`, devMailbox.ts): /dev/mailbox keeps every
 // email in memory instead of sending it, and can run the job for one account.
 
+import { WorkerEntrypoint } from 'cloudflare:workers';
+import { first } from './db';
 import {
   buildLinks,
   EMAIL_KINDS,
@@ -315,8 +319,43 @@ async function handlePublic(req: Request, env: Env, url: URL): Promise<Response>
   return notFoundPage(app);
 }
 
-export default {
-  async fetch(req, env): Promise<Response> {
+/**
+ * Sends the confirmation link for a player's typed-in address right away
+ * (Pages Functions call this over the NOTIFIER service binding when the
+ * address is saved or the player asks for a resend). Logged like the hourly
+ * run's confirm, so the cron's 23-hour rule never sends a duplicate.
+ */
+export async function sendConfirmNow(
+  env: Env,
+  userId: string,
+  now: Date = new Date(),
+): Promise<{ sent: boolean; reason?: string }> {
+  if (!isUuid(userId)) return { sent: false, reason: 'bad_user' };
+  const p = await first<{ contact_email: string | null; contact_email_verified_at: string | null }>(
+    env.DB,
+    'SELECT contact_email, contact_email_verified_at FROM profiles WHERE id = ?',
+    [userId],
+  );
+  if (!p?.contact_email || p.contact_email_verified_at) return { sent: false, reason: 'nothing_to_confirm' };
+  if (!devMailboxOn(env) && !mayReceive(env.SEND_MODE, parseRecipients(env.TEST_RECIPIENTS), p.contact_email)) {
+    return { sent: false, reason: 'test_mode' };
+  }
+  const row = await candidate(env, userId, now);
+  if (!row) return { sent: false, reason: 'no_user' };
+  const r = { ...row, kind: 'confirm' as const, to_email: p.contact_email };
+  const token = await newConfirmToken(env.DB, userId, p.contact_email);
+  const { messageId } = await deliver(env, r, p.contact_email, token);
+  await logSend(env.DB, { user_id: userId, kind: 'confirm', to_email: p.contact_email, provider_id: messageId ?? null });
+  return { sent: true };
+}
+
+/**
+ * WorkerEntrypoint so the Pages project can call `sendConfirm` over its
+ * NOTIFIER service binding (RPC: no public route, no shared secret).
+ */
+export default class Notifier extends WorkerEntrypoint<Env> {
+  async fetch(req: Request): Promise<Response> {
+    const env = this.env;
     const url = new URL(req.url);
     try {
       if (url.pathname.startsWith('/admin/')) return await handleAdmin(req, env, url);
@@ -326,11 +365,11 @@ export default {
       console.error('[notifier] request failed', url.pathname, err);
       return new Response('Something went wrong. Please try again in a minute.', { status: 500 });
     }
-  },
+  }
 
-  async scheduled(controller, env, ctx): Promise<void> {
-    ctx.waitUntil(
-      runOutbox(env, new Date(controller.scheduledTime), false).then((s) => {
+  async scheduled(controller: ScheduledController): Promise<void> {
+    this.ctx.waitUntil(
+      runOutbox(this.env, new Date(controller.scheduledTime), false).then((s) => {
         console.log(
           JSON.stringify({
             msg: 'outbox run',
@@ -342,5 +381,15 @@ export default {
         );
       }),
     );
-  },
-} satisfies ExportedHandler<Env>;
+  }
+
+  /** RPC (Pages → NOTIFIER binding): mail the confirmation link now. */
+  async sendConfirm(userId: string): Promise<{ sent: boolean; reason?: string }> {
+    try {
+      return await sendConfirmNow(this.env, userId);
+    } catch (err) {
+      console.error('[notifier] sendConfirm failed', err);
+      return { sent: false, reason: 'error' };
+    }
+  }
+}
