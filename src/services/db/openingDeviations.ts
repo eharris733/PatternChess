@@ -125,11 +125,26 @@ export async function saveDeviationWalk(
   });
 }
 
-/** User exits still waiting for the engine (oldest first). */
-export async function getPendingDeviationEvals(opts: { limit: number }): Promise<OpeningDeviation[]> {
+/** One Openings-tab group: an opening family played as one colour. */
+export interface OpeningGroupKey {
+  family: string;
+  color: 'white' | 'black';
+}
+
+/**
+ * User exits still waiting for the engine: the most-played opening first,
+ * oldest first within it. `group` narrows the queue to one opening.
+ */
+export async function getPendingDeviationEvals(opts: {
+  limit: number;
+  group?: OpeningGroupKey | null;
+}): Promise<OpeningDeviation[]> {
   const userId = await currentUserId();
   if (!userId) return [];
-  const data = await rpc<Tables<'opening_deviations'>[]>('openings.pendingEvals', { limit: opts.limit });
+  const data = await rpc<Tables<'opening_deviations'>[]>('openings.pendingEvals', {
+    limit: opts.limit,
+    ...(opts.group ? { group: opts.group } : {}),
+  });
   return (data ?? []).map(openingDeviationFromJson);
 }
 
@@ -168,14 +183,19 @@ export async function setDeviationEval(
 /**
  * Games whose opening continues past the book and hasn't been engine-scanned:
  * theory_end / opponent_left rows, and sound user exits (book_end_ply set by
- * setDeviationEval). Oldest first. Only analyzed games: the scan defers to
+ * setDeviationEval). Most-played opening first, oldest first within it;
+ * `group` narrows it to one opening. Only analyzed games: the scan defers to
  * the game's tactic rows, so they must exist before it runs.
  */
-export async function getPastBookQueue(opts: { limit: number }): Promise<(OpeningDeviation & { pgn: string })[]> {
+export async function getPastBookQueue(opts: {
+  limit: number;
+  group?: OpeningGroupKey | null;
+}): Promise<(OpeningDeviation & { pgn: string })[]> {
   const userId = await currentUserId();
   if (!userId) return [];
   const data = await rpc<(Tables<'opening_deviations'> & { pgn: string })[]>('openings.pastBookQueue', {
     limit: opts.limit,
+    ...(opts.group ? { group: opts.group } : {}),
   });
   return (data ?? []).map((r) => ({ ...openingDeviationFromJson(r), pgn: r.pgn }));
 }

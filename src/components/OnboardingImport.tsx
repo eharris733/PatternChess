@@ -10,6 +10,7 @@ import { BrandLockup } from './BrandLogo';
 import { MiniBoard } from './MiniBoard';
 import { CommitmentPicker } from './CommitmentPicker';
 import { freshBlunderLine } from '../content/freshBlunderLines';
+import { fetchingLine, summarizeFetch } from '../lib/syncProgress';
 
 type Phase = 'fetching' | 'analyzing' | 'done' | 'error' | 'idle';
 
@@ -38,6 +39,8 @@ export function OnboardingImport() {
   const fetched = active.reduce((sum, p) => sum + p.fetched, 0);
   const inserted = active.reduce((sum, p) => sum + p.inserted, 0);
   const totalTarget = active.reduce((sum, p) => sum + (p.total ?? 200), 0);
+  // Live count while the sites send games: "Fetching games… 57 of 200 (3 months back)".
+  const fetchSummary = summarizeFetch(active);
 
   const analyzeIndex = active.reduce((sum, p) => sum + p.analyzeGameIndex, 0);
   const analyzeTotal = active.reduce((sum, p) => sum + p.analyzeGamesTotal, 0);
@@ -106,6 +109,7 @@ export function OnboardingImport() {
           active={phase === 'fetching'}
           current={inserted || fetched}
           total={totalTarget || 200}
+          hint={fetchSummary ? fetchingLine(fetchSummary) : null}
         />
         <Step
           label="Hunting for blunders"

@@ -25,10 +25,14 @@ import { isMaintenanceRunning } from './blunderEnrichmentBackfill';
 import { isEndgameVerificationRunning } from './endgameScenarioVerifier';
 import { fetchBook, positionGames, type BookPosition } from './openingBookService';
 import { supabaseService } from './supabaseService';
+import type { OpeningGroupKey } from './db/openingDeviations';
 import { useOpeningScanStore, type OpeningScanPhase } from '../state/openingScanStore';
+import { isAnySyncInFlight } from '../state/syncStore';
 
 /** Minimum gap between /openings list refreshes while the scan runs. */
 const DEVIATIONS_REFRESH_MS = 30_000;
+/** The same while the priority opening (the first one /openings shows) is being scored. */
+const PRIORITY_REFRESH_MS = 8_000;
 const WALK_BATCH = 25;
 const EVAL_BATCH = 5;
 const PAST_BOOK_BATCH = 2;
@@ -55,6 +59,14 @@ export const OPENING_DEVIATIONS_QUERY_KEY = ['openings', 'deviations'] as const;
 let running = false;
 /** Id of the pass that owns `running`; a stopped pass never clears a newer one's flag. */
 let currentRun = 0;
+/** Pages holding the scan (dashboard, /openings); the pass stops when the last one leaves. */
+let holders = 0;
+/** A detached start (sync finished, new games): the pass runs to the end even with no page open. */
+let keepAlive = false;
+/** A start arrived while a pass was running: run once more after it ends, in case it already recounted. */
+let rerunRequested = false;
+/** Stops the running pass (set by `launchPass`). */
+let stopCurrent: (() => void) | null = null;
 // Set when a drill is created (or found, which can un-retire it), so the due
 // queue is only refetched when it can actually have changed.
 let drillsChanged = false;
@@ -71,6 +83,10 @@ type Engine = Awaited<ReturnType<typeof getAnalysisStockfish>>;
 const ENGINE_WAIT_MS = 5000;
 /** After MAX_WALK_FAILURES book failures in a row, retry the walk after this pause. */
 const BOOK_RETRY_MS = 30_000;
+/** While sync analysis runs, look for newly analyzed priority-group games this often. */
+const PRIORITY_RECHECK_MS = 20_000;
+/** A detached pass waiting on games nobody is analyzing gives up after this long. */
+const ORPHAN_WAIT_MS = 60_000;
 
 /**
  * Background pass that fills opening_deviations in three stages:
@@ -96,12 +112,45 @@ const BOOK_RETRY_MS = 30_000;
  * by itself, recounting its queues so games sync adds meanwhile are picked
  * up. Progress is published to `useOpeningScanStore`.
  *
- * Mounted on the dashboard and /openings; stops when they unmount. Never part
- * of initial sync analysis.
+ * Stage B and C normally wait for sync analysis to finish (it owns the
+ * analysis engine). While it runs they still serve one *priority group*, the
+ * most-played opening (family + colour), so /openings can show a first real
+ * opening within minutes: its exits are scored and its past-book moves are
+ * scanned game by game as sync analysis stamps them. Both queues come back
+ * most-played opening first, so the long tail follows in that order too.
+ *
+ * Started by sync when a provider's run finishes or inserts games
+ * (`{ detached: true }`: runs to the end on any page), and held by the
+ * dashboard and /openings (stops when the last of them unmounts, unless a
+ * detached start keeps it alive). Never part of initial sync analysis.
  */
-export function startOpeningDeviationScan(): () => void {
-  if (running) return () => {};
+export function startOpeningDeviationScan(opts: { detached?: boolean } = {}): () => void {
+  if (opts.detached) keepAlive = true;
+  else holders++;
+  if (running) rerunRequested = true;
+  else launchPass();
+  if (opts.detached) return () => {};
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    holders = Math.max(0, holders - 1);
+    if (holders === 0 && !keepAlive) stopCurrent?.();
+  };
+}
+
+/** Pick the opening sync-time engine work serves first: the head of the queues (most-played). */
+async function pickPriorityGroup(): Promise<OpeningGroupKey | null> {
+  const head =
+    (await supabaseService.getPendingDeviationEvals({ limit: 1 }))[0] ??
+    (await supabaseService.getPastBookQueue({ limit: 1 }))[0];
+  if (!head?.openingFamily || !head.userColor) return null;
+  return { family: head.openingFamily, color: head.userColor };
+}
+
+function launchPass(): void {
   running = true;
+  rerunRequested = false;
   const runId = ++currentRun;
   // A previous pass's 'done' is stale until this one has recounted.
   useOpeningScanStore.setState({ phase: 'idle' });
@@ -110,15 +159,19 @@ export function startOpeningDeviationScan(): () => void {
     stopped = true;
     if (currentRun === runId) {
       running = false;
+      stopCurrent = null;
+      keepAlive = false;
+      rerunRequested = false;
       if (useOpeningScanStore.getState().phase !== 'done') useOpeningScanStore.setState({ phase: 'stopped' });
     }
   };
+  stopCurrent = stop;
 
   // Throttled: each refresh re-pages every deviation row, and the scan calls
   // this after every batch. The `finally` below always sends a last one.
   let lastInvalidate = 0;
-  const invalidate = (force = false) => {
-    if (!force && Date.now() - lastInvalidate < DEVIATIONS_REFRESH_MS) return;
+  const invalidate = (force = false, minGapMs = DEVIATIONS_REFRESH_MS) => {
+    if (!force && Date.now() - lastInvalidate < minGapMs) return;
     lastInvalidate = Date.now();
     void queryClient.invalidateQueries({ queryKey: OPENING_DEVIATIONS_QUERY_KEY });
   };
@@ -136,6 +189,8 @@ export function startOpeningDeviationScan(): () => void {
   let pastBook = 0;
   let unanalyzed = 0;
   let bookUnavailable = false;
+  /** The opening served during sync analysis; undefined until first needed (null: none). */
+  let priority: OpeningGroupKey | null | undefined;
   const report = (phase: OpeningScanPhase) => {
     if (stopped) return;
     useOpeningScanStore.setState({ phase, unwalked, unscored, pastBook, unanalyzed, bookUnavailable });
@@ -201,16 +256,26 @@ export function startOpeningDeviationScan(): () => void {
         }
 
         unanalyzed = await supabaseService.countUnanalyzedGames();
-        const engineBusy = isMaintenanceRunning() || isEndgameVerificationRunning() || unanalyzed > 0;
+        const otherJobBusy = isMaintenanceRunning() || isEndgameVerificationRunning();
+        // While sync analysis runs, serve only the priority group (see above).
+        // Unanalyzed leftovers nobody is analyzing don't hold the engine.
+        const syncAnalyzing = unanalyzed > 0 && isAnySyncInFlight();
+        let group: OpeningGroupKey | null = null;
+        if (syncAnalyzing && !otherJobBusy && (unscored > 0 || pastBook > 0)) {
+          if (priority === undefined) priority = await pickPriorityGroup();
+          group = priority;
+        }
+        const engineBusy = otherJobBusy || (syncAnalyzing && !group);
         if ((unscored > 0 || pastBook > 0) && !engineBusy) {
           sf ??= await getAnalysisStockfish();
 
           // Stage B — score pending book exits.
           if (unscored > 0) {
             const batch = (
-              await supabaseService.getPendingDeviationEvals({ limit: EVAL_BATCH + evalSkip.size })
+              await supabaseService.getPendingDeviationEvals({ limit: EVAL_BATCH + evalSkip.size, group })
             ).filter((d) => !evalSkip.has(d.id));
-            if (batch.length === 0) unscored = 0;
+            // A narrowed batch says nothing about the other openings' rows.
+            if (batch.length === 0 && !group) unscored = 0;
             for (const dev of batch.slice(0, EVAL_BATCH)) {
               if (stopped) return;
               try {
@@ -229,9 +294,9 @@ export function startOpeningDeviationScan(): () => void {
           // Stage C — past-book scan.
           if (pastBook > 0 && !stopped) {
             const batch = (
-              await supabaseService.getPastBookQueue({ limit: PAST_BOOK_BATCH + pastSkip.size })
+              await supabaseService.getPastBookQueue({ limit: PAST_BOOK_BATCH + pastSkip.size, group })
             ).filter((d) => !pastSkip.has(d.id));
-            if (batch.length === 0) pastBook = 0;
+            if (batch.length === 0 && !group) pastBook = 0;
             for (const dev of batch.slice(0, PAST_BOOK_BATCH)) {
               if (stopped) return;
               try {
@@ -245,7 +310,8 @@ export function startOpeningDeviationScan(): () => void {
               report('checking');
             }
           }
-          invalidate();
+          // The priority opening is what /openings is waiting to show: refresh it sooner.
+          invalidate(false, group ? PRIORITY_REFRESH_MS : DEVIATIONS_REFRESH_MS);
           refreshDueIfChanged();
         }
 
@@ -260,7 +326,11 @@ export function startOpeningDeviationScan(): () => void {
         if (unanalyzed > 0 || (engineBusy && (unscored > 0 || pastBook > 0))) {
           report('waiting');
           // Local flags first (no queries while maintenance holds the engine);
-          // return early when sync has inserted games the walk can take now.
+          // return early when sync has inserted games the walk can take now,
+          // or (with a priority group) every so often to pick up its games
+          // that sync analysis has stamped since.
+          const waitStarted = Date.now();
+          let idleSince: number | null = null;
           while (!stopped) {
             await pause(ENGINE_WAIT_MS);
             if (stopped || isMaintenanceRunning() || isEndgameVerificationRunning()) continue;
@@ -268,6 +338,19 @@ export function startOpeningDeviationScan(): () => void {
             unwalked = await supabaseService.countUncheckedDeviationGames();
             report('waiting');
             if (unanalyzed === 0 || (unwalked > walkSkip.size && failures < MAX_WALK_FAILURES)) break;
+            if (priority && Date.now() - waitStarted >= PRIORITY_RECHECK_MS) break;
+            // Nobody is analyzing the leftovers (the dashboard's maintenance
+            // pass does) and no page holds this pass: end it rather than poll
+            // forever. The next sync or page visit starts a new one.
+            if (holders === 0 && !isAnySyncInFlight()) {
+              idleSince ??= Date.now();
+              if (Date.now() - idleSince >= ORPHAN_WAIT_MS) {
+                report('stopped');
+                return;
+              }
+            } else {
+              idleSince = null;
+            }
           }
           if (stopped) return;
           await recount();
@@ -311,13 +394,20 @@ export function startOpeningDeviationScan(): () => void {
       else console.warn('[openings] deviation scan stopped', err);
       report('stopped');
     } finally {
-      if (currentRun === runId) running = false;
       if (anyProgress) invalidate(true);
       refreshDueIfChanged();
+      if (currentRun === runId) {
+        running = false;
+        stopCurrent = null;
+        // A start that arrived mid-pass (new games) gets a fresh pass, as long
+        // as someone still wants one; otherwise the detached hold ends here.
+        const again = !stopped && rerunRequested && (holders > 0 || keepAlive);
+        rerunRequested = false;
+        if (again) launchPass();
+        else keepAlive = false;
+      }
     }
   })();
-
-  return stop;
 }
 
 async function sweepOrphanDrills(): Promise<void> {

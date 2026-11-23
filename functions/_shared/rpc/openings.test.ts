@@ -217,6 +217,39 @@ describe('openings.* deviation scan', () => {
     expect((await call('openings.countPastBookQueue', {})).data).toBe(0);
   });
 
+  it('queues put the most-played opening first and can narrow to one group', async () => {
+    const now = '2026-11-22T00:00:00.000Z';
+    // One Italian game as White, three Sicilians as Black (one already scored).
+    seedGame('s1', alice.id, { analyzed_at: now });
+    seedGame('s2', alice.id, { analyzed_at: now });
+    seedGame('s3', alice.id, { analyzed_at: now });
+    const italian = { opening_family: 'Italian Game', user_color: 'white' };
+    const sicilian = { opening_family: 'Sicilian Defense', user_color: 'black' };
+    await call('openings.saveWalk', { ruleVersion: 3, row: walkRow('g1', { ...italian, book_end_ply: 6 }) });
+    await call('openings.saveWalk', { ruleVersion: 3, row: walkRow('s1', { ...sicilian, book_end_ply: 6 }) });
+    await call('openings.saveWalk', { ruleVersion: 3, row: walkRow('s2', sicilian) });
+    await call('openings.saveWalk', { ruleVersion: 3, row: walkRow('s3', { ...sicilian, evaluated_at: now }) });
+    // The Italian row is the oldest, yet the Sicilian (3 games) leads.
+    sqlite.prepare("UPDATE opening_deviations SET created_at = '2026-01-01T00:00:00.000Z' WHERE game_id = 'g1'").run();
+
+    const pending = await call<{ game_id: string }[]>('openings.pendingEvals', { limit: 10 });
+    const ids = pending.data.map((r) => r.game_id);
+    expect([...ids.slice(0, 2)].sort()).toEqual(['s1', 's2']);
+    expect(ids[2]).toBe('g1');
+    const past = await call<{ game_id: string }[]>('openings.pastBookQueue', { limit: 10 });
+    expect(past.data.map((r) => r.game_id)).toEqual(['s1', 'g1']);
+
+    const only = { family: 'Italian Game', color: 'white' };
+    const narrowed = await call<{ game_id: string }[]>('openings.pendingEvals', { limit: 10, group: only });
+    expect(narrowed.data.map((r) => r.game_id)).toEqual(['g1']);
+    const narrowedPast = await call<{ game_id: string }[]>('openings.pastBookQueue', { limit: 10, group: only });
+    expect(narrowedPast.data.map((r) => r.game_id)).toEqual(['g1']);
+    // Bob's queue stays empty, and a malformed group is refused.
+    expect((await call<unknown[]>('openings.pendingEvals', { limit: 10 }, bob)).data).toEqual([]);
+    expect((await call('openings.pendingEvals', { limit: 10, group: { family: 'x', color: 'red' } })).status).toBe(400);
+    expect((await call('openings.pastBookQueue', { limit: 10, group: 'Sicilian' })).status).toBe(400);
+  });
+
   it('list skips skipped rows; bookDepthRows returns the four columns', async () => {
     await call('openings.saveWalk', { ruleVersion: 3, row: walkRow('g1') });
     await call('openings.saveWalk', { ruleVersion: 3, row: walkRow('g2', { status: 'skipped' }) });
