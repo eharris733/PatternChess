@@ -91,6 +91,9 @@ test('SyncIndicator stays visible after sync and syncs again on tap', async ({ p
   await expect(pill).toBeVisible();
   await expect(pill).toContainText('Tap to sync now', { timeout: 10_000 });
   await expect(pill).toBeEnabled();
+  // Each linked account is named by its platform's logo.
+  await expect(pill.getByTestId('logo-lichess')).toBeVisible();
+  await expect(pill.getByTestId('logo-chesscom')).toBeVisible();
   const before = (await getCaptured(page)).lichessUrls.length;
   expect(before).toBeGreaterThan(0);
 

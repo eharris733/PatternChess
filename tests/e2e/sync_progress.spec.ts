@@ -148,6 +148,8 @@ test('the onboarding import screen shows the live fetch line', async ({ page }) 
   await page.goto('/dashboard');
 
   await expect(page.getByText('Importing games')).toBeVisible({ timeout: 10_000 });
+  // The account the games come from, named with its platform's logo.
+  await expect(page.getByTestId('import-source-chesscom').getByTestId('logo-chesscom')).toBeVisible();
   await expect(page.getByText('Fetching games… 4 of 200 (1 month back)')).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText('Fetching games… 7 of 200 (2 months back)')).toBeVisible({ timeout: 10_000 });
 });

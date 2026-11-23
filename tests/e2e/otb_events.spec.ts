@@ -196,6 +196,24 @@ test('with no saved state the card guesses from location and offers to save it',
   await expect(page.getByTestId('events-state-guess')).toHaveCount(0);
 });
 
+test('the profile picks or clears the events state', async ({ page }) => {
+  const { rec } = await stubAuthAndEvents(page, API_EVENTS, {
+    profile: { events_state: null },
+    rpc: { 'events.locate': () => ({ country: 'US', region: 'RI' }) },
+  });
+  await page.goto('/profile#community');
+  const picker = page.getByTestId('profile-events-state').getByRole('combobox', { name: 'Your state for events' });
+  await expect(picker).toHaveValue('');
+  await expect(picker.locator('option').first()).toHaveText('Not set (showing Rhode Island)');
+
+  await picker.selectOption('CA');
+  await rec.waitFor('profile.update', (a) => a.patch?.events_state === 'CA');
+  await expect(picker).toHaveValue('CA');
+
+  await picker.selectOption('');
+  await rec.waitFor('profile.update', (a) => 'events_state' in (a.patch ?? {}) && a.patch.events_state === null);
+});
+
 test.describe('outside the US', () => {
   test.use({ timezoneId: 'Europe/London' });
   test('no saved state and no US location: no events card', async ({ page }) => {

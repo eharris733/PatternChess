@@ -106,6 +106,7 @@ test('Play unlocks once the rest of the plan is done', async ({ page }) => {
   const playStep = page.getByTestId('plan-step-play');
   await expect(playStep).toHaveAttribute('data-state', 'open');
   await expect(playStep.getByRole('link', { name: 'Play' })).toHaveAttribute('href', 'https://lichess.org/');
+  await expect(playStep.getByTestId('logo-lichess')).toBeVisible();
   await expect(page.getByTestId('check-new-games')).toBeVisible();
   await expect(page.getByTestId('plan-done')).toHaveCount(0);
 });

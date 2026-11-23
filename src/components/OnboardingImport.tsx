@@ -11,6 +11,7 @@ import { MiniBoard } from './MiniBoard';
 import { CommitmentPicker } from './CommitmentPicker';
 import { freshBlunderLine } from '../content/freshBlunderLines';
 import { fetchingLine, summarizeFetch } from '../lib/syncProgress';
+import { PlatformLogo, type PlatformId } from './icons/PlatformLogos';
 
 type Phase = 'fetching' | 'analyzing' | 'done' | 'error' | 'idle';
 
@@ -35,6 +36,10 @@ export function OnboardingImport() {
   if (profile?.chesscomUsername) active.push(providers.chesscom);
 
   const phase = combinedPhase(active);
+  const sources: { platform: PlatformId; username: string }[] = [
+    ...(profile?.lichessUsername ? [{ platform: 'lichess' as const, username: profile.lichessUsername }] : []),
+    ...(profile?.chesscomUsername ? [{ platform: 'chesscom' as const, username: profile.chesscomUsername }] : []),
+  ];
 
   const fetched = active.reduce((sum, p) => sum + p.fetched, 0);
   const inserted = active.reduce((sum, p) => sum + p.inserted, 0);
@@ -110,6 +115,7 @@ export function OnboardingImport() {
           current={inserted || fetched}
           total={totalTarget || 200}
           hint={fetchSummary ? fetchingLine(fetchSummary) : null}
+          sources={sources}
         />
         <Step
           label="Hunting for blunders"
@@ -223,6 +229,7 @@ function Step({
   current,
   total,
   hint,
+  sources,
 }: {
   label: string;
   done: boolean;
@@ -230,12 +237,24 @@ function Step({
   current: number;
   total: number;
   hint?: string | null;
+  /** Accounts the games come from, each named with its platform's logo. */
+  sources?: { platform: PlatformId; username: string }[];
 }) {
   return (
     <div>
-      <div className="flex items-center gap-3 mb-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
         <StepMarker done={done} active={active} />
         <span className="text-text-primary">{label}</span>
+        {sources?.map((s) => (
+          <span
+            key={s.platform}
+            className="inline-flex items-center gap-1 text-sm text-text-primary"
+            data-testid={`import-source-${s.platform}`}
+          >
+            <PlatformLogo platform={s.platform} className="h-4 w-4" />
+            {s.username}
+          </span>
+        ))}
         {hint && <span className="text-xs text-text-secondary">· {hint}</span>}
       </div>
       <ProgressBar current={done ? total : current} total={total} />

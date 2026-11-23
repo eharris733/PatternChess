@@ -25,6 +25,7 @@ import { EndgameIcon } from '../icons/EndgameIcon';
 import { TrainIcon } from '../icons/TrainIcon';
 import { OpeningIcon } from '../icons/OpeningIcon';
 import { KingIcon } from '../icons/KingIcon';
+import { PlatformLogo, type PlatformId } from '../icons/PlatformLogos';
 import { LockIcon } from '../icons/LockIcon';
 import { SnowflakeIcon } from '../icons/SnowflakeIcon';
 import { CloseIcon } from '../icons/CloseIcon';
@@ -164,9 +165,12 @@ function PlanStepSkeleton() {
 }
 
 /** Where the Play step sends you: the platform you sync from (Lichess first). */
-function playUrl(lichess: string | null, chesscom: string | null): string | null {
-  if (lichess) return 'https://lichess.org/';
-  if (chesscom) return 'https://www.chess.com/play/online';
+function playTarget(
+  lichess: string | null,
+  chesscom: string | null,
+): { platform: PlatformId; href: string } | null {
+  if (lichess) return { platform: 'lichess', href: 'https://lichess.org/' };
+  if (chesscom) return { platform: 'chesscom', href: 'https://www.chess.com/play/online' };
   return null;
 }
 
@@ -205,7 +209,8 @@ export function DailyHabitCard() {
   const path = usePathProgress();
   const pathOn = useFeature('path');
   const goals = profile?.dailyGoals ?? DEFAULT_DAILY_GOALS;
-  const playHref = playUrl(profile?.lichessUsername ?? null, profile?.chesscomUsername ?? null);
+  const play = playTarget(profile?.lichessUsername ?? null, profile?.chesscomUsername ?? null);
+  const playHref = play?.href ?? null;
   // PGN-only players have nothing to sync, so the Play step can't detect games.
   const showPlay = goals.gamesPerDay > 0 && playHref != null;
 
@@ -406,7 +411,7 @@ export function DailyHabitCard() {
         {showPlay && playHref && profile && (
           <PlanStep
             testId="plan-step-play"
-            icon={<KingIcon color="white" className="h-4 w-4" />}
+            icon={play ? <PlatformLogo platform={play.platform} className="h-4 w-4" /> : <KingIcon color="white" className="h-4 w-4" />}
             title={`Play ${goals.gamesPerDay} ${goals.gamesPerDay === 1 ? 'game' : 'games'}`}
             detail={
               playLocked ? (

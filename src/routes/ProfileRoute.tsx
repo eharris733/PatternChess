@@ -22,6 +22,7 @@ import { PieceSetPicker } from '../components/PieceSetPicker';
 import { AvatarBuilder } from '../components/avatar/AvatarBuilder';
 import { MyAvatar } from '../components/avatar/PixelAvatar';
 import { SettingToggleCard } from '../components/settings/SettingToggleCard';
+import { EventsStateSetting } from '../components/settings/EventsStateSetting';
 import {
   AutoplayPreview,
   HideInfoPreview,
@@ -413,11 +414,7 @@ export function ProfileRoute() {
           onChange={(checked) => onToggleTrainingPref('leaderboardOptOut', !checked)}
           description="Turn off to drop off every board (the homepage one within an hour). Your own stats and achievements stay."
         />
-        {/*
-          AREA I SLOT — "Events near you": the US state picker for
-          profiles.events_state (nullable 2-letter code) goes here, as its own
-          block inside this Community card.
-        */}
+        <EventsStateSetting />
       </section>
 
       {(unparsedCount > 0 || backfillProgress) && (

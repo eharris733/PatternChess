@@ -137,19 +137,6 @@ export const authService = {
     return typeof data === 'number' ? data : 0;
   },
 
-  /**
-   * Lifetime training totals: minutes (finished sessions, each capped at 120)
-   * and distinct active days (≥1 correct drill).
-   */
-  async getTrainingTotals(): Promise<{ minutes: number; activeDays: number }> {
-    const data = await rpc<unknown>('profile.trainingTotals');
-    const o = (data ?? {}) as { minutes?: unknown; activeDays?: unknown };
-    return {
-      minutes: typeof o.minutes === 'number' ? o.minutes : 0,
-      activeDays: typeof o.activeDays === 'number' ? o.activeDays : 0,
-    };
-  },
-
   /** Atomic server-side bump (no read-modify-write race). Returns the new count. */
   async incrementSharesCount(): Promise<number> {
     const data = await rpc<number | null>('profile.incrementShares');

@@ -7,6 +7,7 @@ import type { ProviderProgress } from '../services/syncService';
 import { fetchingHeadline, summarizeFetch } from '../lib/syncProgress';
 import { CheckIcon } from './icons/CheckIcon';
 import { CloseIcon } from './icons/CloseIcon';
+import { PlatformLogo, type PlatformId } from './icons/PlatformLogos';
 
 type Aggregate = 'none' | 'idle' | 'syncing' | 'done' | 'error';
 
@@ -69,6 +70,17 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
 
   const collapseToIdle = agg === 'done' && collapseDone;
   const display: Aggregate = collapseToIdle ? 'idle' : agg;
+
+  // The platforms this line is about: the ones still working while syncing,
+  // otherwise every linked one.
+  const busy = (p: ProviderProgress) => p.phase === 'fetching' || p.phase === 'inserting' || p.phase === 'analyzing';
+  const linkedPlatforms: { id: PlatformId; progress: ProviderProgress }[] = [
+    ...(hasLichess ? [{ id: 'lichess' as const, progress: providers.lichess }] : []),
+    ...(hasChesscom ? [{ id: 'chesscom' as const, progress: providers.chesscom }] : []),
+  ];
+  const shownPlatforms = (
+    display === 'syncing' ? linkedPlatforms.filter((p) => busy(p.progress)) : linkedPlatforms
+  ).map((p) => p.id);
 
   const headline = (() => {
     if (display === 'none') return 'Connect account';
@@ -158,9 +170,12 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
       {!collapsed && (
         <span className="flex flex-col min-w-0">
           <span className="truncate text-text-primary">{headline}</span>
-          {subTitle && (
-            <span className="truncate text-[10px] tracking-tight text-text-secondary normal-case">
-              {subTitle}
+          {(subTitle || shownPlatforms.length > 0) && (
+            <span className="flex items-center gap-1 min-w-0 text-[10px] tracking-tight text-text-secondary normal-case">
+              {shownPlatforms.map((id) => (
+                <PlatformLogo key={id} platform={id} className="h-3 w-3 shrink-0" />
+              ))}
+              {subTitle && <span className="truncate">{subTitle}</span>}
             </span>
           )}
         </span>
