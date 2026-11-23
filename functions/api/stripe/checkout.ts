@@ -1,5 +1,6 @@
 import { getSessionUser } from '../../_shared/auth';
 import type { AppEnv } from '../../_shared/db';
+import { supporterCheckoutParams } from '../../_shared/checkoutParams';
 import {
   PERK_STATUSES,
   crossSite,
@@ -19,7 +20,8 @@ function randomLetters(n: number): string {
  * POST → { url } of a Stripe Checkout Session for the $5/month supporter
  * subscription. The player's Stripe customer is created (or reused) and linked
  * in `supporters` first, so every later webhook maps back through the customer.
- * Perks start from the webhook, never from the success page.
+ * Perks start from the webhook, never from the success page. The page carries
+ * PatternChess branding and copy (supporterCheckoutParams).
  */
 export const onRequestPost: PagesFunction<StripeEnv & AppEnv> = async ({ request, env }) => {
   if (crossSite(request)) return json({ error: 'cross_site' }, 403);
@@ -38,17 +40,15 @@ export const onRequestPost: PagesFunction<StripeEnv & AppEnv> = async ({ request
     row = await linkCustomer(env, user.id, customer.id);
   }
 
-  const origin = new URL(request.url).origin;
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    customer: row.stripe_customer_id,
-    client_reference_id: user.id,
-    line_items: [{ price: env.STRIPE_PRICE_ID, quantity: 1 }],
-    subscription_data: { metadata: { user_id: user.id, app: 'patternchess' } },
-    success_url: `${origin}/supporter?thanks=1`,
-    cancel_url: `${origin}/supporter`,
-    integration_identifier: `patternchess_supporter_${randomLetters(8)}`,
-  });
+  const session = await stripe.checkout.sessions.create(
+    supporterCheckoutParams({
+      origin: new URL(request.url).origin,
+      customerId: row.stripe_customer_id,
+      userId: user.id,
+      priceId: env.STRIPE_PRICE_ID,
+      integrationSuffix: randomLetters(8),
+    }),
+  );
   if (!session.url) return json({ error: 'no_checkout_url' }, 502);
   return json({ url: session.url });
 };

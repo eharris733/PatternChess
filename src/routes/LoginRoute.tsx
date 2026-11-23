@@ -7,6 +7,8 @@ import { useForceDefaultTheme } from '../state/themeStore';
 import { useHead } from '../seo/useHead';
 import { trackLeadReturn } from '../services/funnelService';
 import { readSourceParam, stripWinBackParams } from '../lib/winBack';
+import { safeNextPath } from '../lib/nextPath';
+import { LichessLogo } from '../components/icons/PlatformLogos';
 
 /** A readable line for better-auth's `?error=` callback codes. */
 function oauthErrorMessage(search: string): string | null {
@@ -18,7 +20,19 @@ function oauthErrorMessage(search: string): string | null {
 
 export function LoginRoute() {
   const { session, loading } = useAuth();
-  const location = useLocation() as { state?: { from?: { pathname: string } } };
+  const location = useLocation() as {
+    search: string;
+    state?: { from?: { pathname: string; search?: string } };
+  };
+  // Where to go once signed in: `?next=` (e.g. /supporter?checkout=1 from the
+  // signed-out supporter page) or the protected page RequireAuth bounced from.
+  // Read once so stripping win-back params from the URL can't drop it.
+  const [next] = useState<string | null>(
+    () =>
+      safeNextPath(new URLSearchParams(location.search).get('next')) ??
+      safeNextPath(location.state?.from ? location.state.from.pathname + (location.state.from.search ?? '') : null),
+  );
+  const resumingCheckout = !!next && next.startsWith('/supporter');
   const [signingIn, setSigningIn] = useState(false);
   // better-auth sends a failed OAuth callback back here as `?error=<code>`.
   const [error, setError] = useState<string | null>(() => oauthErrorMessage(window.location.search));
@@ -54,15 +68,14 @@ export function LoginRoute() {
   }
 
   if (session) {
-    const dest = location.state?.from?.pathname ?? '/dashboard';
-    return <Navigate to={dest} replace />;
+    return <Navigate to={next ?? '/dashboard'} replace />;
   }
 
   const onSignIn = async () => {
     setSigningIn(true);
     setError(null);
     try {
-      await authService.signInWithGoogle();
+      await authService.signInWithGoogle(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign-in failed');
       setSigningIn(false);
@@ -73,7 +86,7 @@ export function LoginRoute() {
     setSigningIn(true);
     setError(null);
     try {
-      await authService.signInWithLichess();
+      await authService.signInWithLichess(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign-in failed');
       setSigningIn(false);
@@ -86,8 +99,10 @@ export function LoginRoute() {
         <div className="flex flex-col items-center gap-3">
           <h1 className="sr-only">Log in to PatternChess</h1>
           <BrandLockup size="xl" />
-          <p className="text-text-secondary text-sm">
-            Your daily plan is one click away.
+          <p className="text-text-primary text-sm" data-testid="login-lede">
+            {resumingCheckout
+              ? 'Sign in and we\'ll take you straight to checkout.'
+              : 'Your daily plan is one click away.'}
           </p>
         </div>
         <div className="flex flex-col gap-3">
@@ -98,8 +113,9 @@ export function LoginRoute() {
             Signing in with Google turns on training reminders by email. You can switch them off any
             time in your profile or from any email.
           </p>
-          <button className="btn-outline" onClick={onSignInLichess} disabled={signingIn}>
-            {signingIn ? 'Redirecting…' : 'Continue with Lichess'}
+          <button className="btn-outline gap-2" onClick={onSignInLichess} disabled={signingIn}>
+            <LichessLogo className="h-5 w-5 shrink-0" />
+            <span>{signingIn ? 'Redirecting…' : 'Continue with Lichess'}</span>
           </button>
         </div>
         {error && (

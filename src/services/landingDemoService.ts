@@ -2,6 +2,11 @@ import { extractHeaders } from './pgnParserService';
 import { analyzePgn } from './analysisService';
 import { getStockfish } from '../hooks/useStockfish';
 import type { BlunderCandidate } from '../stockfish/stockfishWorkerClient';
+import { classifyMoves, loadOpeningBook, movesFromPgn } from '../chess/openingClassifier';
+import { findDeviation, walkFens, type DeviationWalk } from '../chess/openingDeviation';
+import { bookEpd } from '../chess/bookFormat';
+import { fetchBook } from './openingBookService';
+import { buildDemoPlan, type DemoColor, type DemoPlan } from './demoPlan';
 
 export type DemoPlatform = 'lichess' | 'chesscom';
 
@@ -15,6 +20,8 @@ export interface DemoResult {
   eco: string | null;
   openingName: string | null;
   blunder: BlunderCandidate | null;
+  /** "Your plan for today" preview: openings + endgames from the same games. */
+  plan: DemoPlan;
 }
 
 export type DemoErrorCode =
@@ -42,6 +49,67 @@ interface RunOpts {
 
 const MAX_PLIES = 120;
 const MAX_GAMES = 5;
+/** The opening part of the plan is a nice-to-have: never hold the demo up for it. */
+const OPENING_PREP_TIMEOUT_MS = 8000;
+
+interface OpeningPrep {
+  family: string | null;
+  color: DemoColor | null;
+  walk: DeviationWalk | null;
+}
+
+function demoColor(headers: Record<string, string>, username: string): DemoColor | null {
+  const lower = username.toLowerCase();
+  if (headers.White?.toLowerCase() === lower) return 'white';
+  if (headers.Black?.toLowerCase() === lower) return 'black';
+  return null;
+}
+
+/**
+ * Each game's opening family (from the board) and its walk through the
+ * opening book, in one batched /api/book request. Network only, no engine.
+ * A failed book request leaves every walk null; the plan then shows the
+ * opening share without the theory exit.
+ */
+async function prepareOpenings(
+  games: { pgn: string; headers: Record<string, string> }[],
+  username: string,
+): Promise<OpeningPrep[]> {
+  const book = await loadOpeningBook().catch(() => null);
+  const parsed = games.map((g) => {
+    const moves = movesFromPgn(g.pgn);
+    return {
+      moves,
+      color: demoColor(g.headers, username),
+      family: book && moves ? (classifyMoves(book, moves)?.family ?? null) : null,
+    };
+  });
+  const fens = parsed.flatMap((p) => (p.moves && p.color ? walkFens(p.moves) : []));
+  const positions = fens.length > 0 ? await fetchBook(fens) : null;
+  return Promise.all(
+    parsed.map(async (p) => {
+      if (!positions || !p.moves || !p.color) return { family: p.family, color: p.color, walk: null };
+      const walk = await findDeviation(p.moves, p.color, async (fen) => positions.get(bookEpd(fen)) ?? null);
+      return { family: p.family, color: p.color, walk: walk === 'retry' ? null : walk };
+    }),
+  );
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const t = setTimeout(() => resolve(fallback), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      () => {
+        clearTimeout(t);
+        resolve(fallback);
+      },
+    );
+  });
+}
 
 export async function runDemoAnalysis(opts: RunOpts): Promise<DemoResult> {
   const { platform, username, onProgress, signal } = opts;
@@ -86,6 +154,9 @@ export async function runDemoAnalysis(opts: RunOpts): Promise<DemoResult> {
     );
   }
 
+  // Book walk runs while the engine analyzes.
+  const openingPrep = prepareOpenings(gamesWithHeaders, username).catch(() => null);
+
   onProgress('Loading engine…');
   let sf;
   try {
@@ -99,6 +170,7 @@ export async function runDemoAnalysis(opts: RunOpts): Promise<DemoResult> {
   ensureLive();
 
   const allBlunders: BlunderCandidate[] = [];
+  const blundersByGame: BlunderCandidate[][] = [];
   let positionsAnalyzed = 0;
   let openingName: string | null = null;
   let eco: string | null = null;
@@ -132,9 +204,23 @@ export async function runDemoAnalysis(opts: RunOpts): Promise<DemoResult> {
     });
     positionsAnalyzed += positions.length;
     allBlunders.push(...blunders);
+    blundersByGame.push(blunders);
   }
 
   ensureLive();
+
+  onProgress('Building your plan…');
+  const prep = await withTimeout(openingPrep, OPENING_PREP_TIMEOUT_MS, null);
+  ensureLive();
+  const plan = buildDemoPlan(
+    gamesWithHeaders.map((g, i) => ({
+      family: prep?.[i]?.family ?? null,
+      color: prep?.[i]?.color ?? demoColor(g.headers, username),
+      result: g.headers.Result ?? null,
+      blunders: blundersByGame[i] ?? [],
+      walk: prep?.[i]?.walk ?? null,
+    })),
+  );
 
   allBlunders.sort((a, b) => b.evalSwing - a.evalSwing);
   const top = allBlunders[0] ?? null;
@@ -149,6 +235,7 @@ export async function runDemoAnalysis(opts: RunOpts): Promise<DemoResult> {
     eco,
     openingName,
     blunder: top,
+    plan,
   };
 }
 

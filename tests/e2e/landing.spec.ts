@@ -34,7 +34,7 @@ test.describe('landing page', () => {
     await expect(page.getByRole('button', { name: /^Chess\.com$/i, exact: false })).toBeVisible();
 
     // Submit button.
-    await expect(page.getByRole('button', { name: /Find my blunders/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Get my plan/i })).toBeVisible();
 
     // "How it works" section heading.
     await expect(page.getByRole('heading', { name: /How it works/i })).toBeVisible();

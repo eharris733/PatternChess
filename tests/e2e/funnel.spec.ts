@@ -45,7 +45,7 @@ test('demo_submit fires with the entered username + platform', async ({ page }) 
   await page.goto('/');
   const input = page.getByPlaceholder(/ENTER USERNAME/i);
   await input.fill('magnuscarlsen');
-  await page.getByRole('button', { name: /Find my blunders/i }).click();
+  await page.getByRole('button', { name: /^Get my plan/i }).click();
 
   await expect
     .poll(() => inserts.some((e) => e.type === 'demo_submit'))
@@ -63,7 +63,7 @@ test('anon_id is stable across the two events', async ({ page }) => {
   await page.goto('/');
   await page.mouse.move(150, 150);
   await page.getByPlaceholder(/ENTER USERNAME/i).fill('player1');
-  await page.getByRole('button', { name: /Find my blunders/i }).click();
+  await page.getByRole('button', { name: /^Get my plan/i }).click();
 
   await expect.poll(() => inserts.length >= 2).toBe(true);
   const ids = new Set(inserts.map((e) => e.anon_id));

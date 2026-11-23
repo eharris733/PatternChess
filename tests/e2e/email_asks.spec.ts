@@ -2,8 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 import { E2E_USER, stubApp, type RpcRecorder } from './helpers/api';
 
 // Dashboard email asks (src/lib/asks.ts): from the 2nd app open, accounts with
-// reminders off are asked to turn them on, and Lichess sign-ins without an
-// address are asked for one (confirmed by link). /profile carries the same form.
+// reminders off are asked to turn them on. Lichess sign-ins without an address
+// can't pass the required email step (OnboardingEmail) until they add one
+// (confirmed by link). /profile carries the same form.
 
 function daysAgo(n: number): string {
   return new Date(Date.now() - n * 86_400_000).toLocaleDateString('en-CA');
@@ -89,23 +90,32 @@ test('an ask answered 2 weeks ago twice never comes back', async ({ page }) => {
   await expect(page.getByTestId('email-ask')).toHaveCount(0);
 });
 
-test('a Lichess sign-in adds an address from the ask', async ({ page }) => {
+test('a Lichess sign-in without an address must add one before the dashboard', async ({ page }) => {
   const rec = await stub(page, { opens: 2, lichess: true });
   await page.goto('/dashboard');
-  const card = page.getByTestId('email-ask');
-  await card.getByLabel('Email address').fill('player@example.com');
-  await card.getByRole('button', { name: 'Yes, remind me' }).click();
+  const step = page.getByTestId('onboarding-email');
+  await expect(step.getByRole('heading', { name: 'Where should we send your daily plan?' })).toBeVisible();
+  await expect(step.getByTestId('logo-lichess')).toBeVisible();
+  // No skip: the dashboard stays behind the step, on every protected route.
+  await expect(page.getByText('Train 10 positions')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /not now|skip/i })).toHaveCount(0);
+  await page.goto('/profile');
+  await expect(page.getByTestId('onboarding-email')).toBeVisible();
+
+  const continueBtn = step.getByRole('button', { name: 'Continue' });
+  await expect(continueBtn).toBeDisabled();
+  await step.getByLabel('Email address').fill('player@example.com');
+  await continueBtn.click();
   await expect(page.getByTestId('contact-email-pending')).toContainText('player@example.com');
   const p = profilePatches(rec).find((x) => x.contact_email);
   expect(p).toMatchObject({ contact_email: 'player@example.com', email_opt_in: true });
-});
 
-test('/profile lets a Lichess sign-in add an address', async ({ page }) => {
-  await stub(page, { opens: 1, lichess: true });
-  await page.goto('/profile');
-  const section = page.getByTestId('email-reminders-setting');
-  await expect(section.getByText(/doesn't share an email address/)).toBeVisible();
-  await expect(section.getByTestId('contact-email-form')).toBeVisible();
+  await step.getByRole('button', { name: 'Continue' }).click();
+  await expect(page.getByTestId('onboarding-email')).toHaveCount(0);
+  await page.goto('/dashboard');
+  await expect(page.getByText('Train 10 positions')).toBeVisible();
+  // The address is in, so the dashboard's own email ask has nothing to ask.
+  await expect(page.getByTestId('email-ask')).toHaveCount(0);
 });
 
 test('/profile shows a typed-in address waiting for its confirmation click', async ({ page }) => {

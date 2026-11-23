@@ -111,7 +111,8 @@ export function userProfileFromJson(json: any): UserProfile {
     avatarUrl: (json.avatar_url as string | null) ?? null,
     lichessUsername: (json.lichess_username as string | null) ?? null,
     chesscomUsername: (json.chesscom_username as string | null) ?? null,
-    preferredRatedOnly: Boolean(json.preferred_rated_only ?? false),
+    // New accounts default to rated games only (defaultProfileRow).
+    preferredRatedOnly: Boolean(json.preferred_rated_only ?? true),
     preferredTimeControls: parseTimeControls(json.preferred_time_controls),
     lastSyncedLichessAt: parseDate(json.last_synced_lichess_at),
     lastSyncedChesscomAt: parseDate(json.last_synced_chesscom_at),

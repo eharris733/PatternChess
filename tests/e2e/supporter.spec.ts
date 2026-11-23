@@ -60,12 +60,53 @@ const ACTIVE = {
   first_supported_at: new Date(Date.now() - 10 * 86_400_000).toISOString(),
 };
 
-test('signed out, /supporter asks to sign up first', async ({ page }) => {
+test('signed out, /supporter sends sign-in back to checkout', async ({ page }) => {
   await stub(page, { signedIn: false });
   await page.goto('/supporter');
   await expect(page.getByRole('heading', { name: "Back the thing that's backing your chess." })).toBeVisible();
-  await expect(page.getByTestId('supporter-cta').getByRole('link', { name: 'Sign up free' })).toBeVisible();
   await expect(page.getByText('First in line for the beta when it opens.')).toBeVisible();
+  const link = page.getByTestId('supporter-cta').getByRole('link', { name: 'Sign in to support' });
+  await expect(link).toHaveAttribute('href', '/login?next=%2Fsupporter%3Fcheckout%3D1');
+  await link.click();
+  await expect(page).toHaveURL(/\/login\?next=/);
+  await expect(page.getByTestId('login-lede')).toHaveText("Sign in and we'll take you straight to checkout.");
+
+  // The OAuth request carries the return path as its callbackURL.
+  let body: Record<string, unknown> | null = null;
+  await page.route('**/api/auth/sign-in/social', async (route) => {
+    body = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({ json: { url: '/__oauth-stub', redirect: false } });
+  });
+  await page.getByRole('button', { name: /Continue with Google/i }).click();
+  await expect.poll(() => body?.callbackURL ?? null).toMatch(/^http:\/\/localhost:\d+\/supporter\?checkout=1$/);
+  expect(body!.provider).toBe('google');
+  expect(String(body!.errorCallbackURL)).toContain('/login?next=%2Fsupporter%3Fcheckout%3D1');
+});
+
+test('back from sign-in, /supporter?checkout=1 starts checkout by itself', async ({ page }) => {
+  await stub(page);
+  let posts = 0;
+  await page.route('**/api/stripe/checkout', async (route) => {
+    posts++;
+    await route.fulfill({ json: { url: 'https://checkout.stripe.com/c/pay/cs_test_resume' } });
+  });
+  await page.route('https://checkout.stripe.com/**', (route) => route.fulfill({ body: '<h1>Stripe Checkout</h1>', contentType: 'text/html' }));
+  await page.goto('/supporter?checkout=1');
+  await page.waitForURL('https://checkout.stripe.com/**');
+  expect(posts).toBe(1);
+});
+
+test('an active supporter coming back with ?checkout=1 is not sent to Stripe', async ({ page }) => {
+  await stub(page, { supporter: ACTIVE });
+  let posts = 0;
+  await page.route('**/api/stripe/checkout', async (route) => {
+    posts++;
+    await route.fulfill({ json: { url: 'https://checkout.stripe.com/c/pay/cs_test_resume' } });
+  });
+  await page.goto('/supporter?checkout=1');
+  await expect(page.getByText("You're a supporter. Thank you.")).toBeVisible();
+  await expect.poll(() => new URL(page.url()).search).toBe('');
+  expect(posts).toBe(0);
 });
 
 test('"Become a supporter" posts to /api/stripe/checkout and goes to Stripe', async ({ page }) => {

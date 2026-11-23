@@ -5,6 +5,7 @@ import { ALL_TIME_CONTROLS, type TimeControlCategory } from '../services/chessAp
 import { BrandLockup } from './BrandLogo';
 import { readDemoUser } from '../lib/demoUser';
 import { GameTypePreferences } from './GameTypePreferences';
+import { ChesscomLogo, LichessLogo } from './icons/PlatformLogos';
 
 /**
  * First step of the new-user onboarding flow: connect a Lichess/Chess.com
@@ -22,7 +23,7 @@ export function OnboardingConnect() {
   const [chesscom, setChesscom] = useState(
     profile?.chesscomUsername ?? (demoUser?.platform === 'chesscom' ? demoUser.username : ''),
   );
-  const [ratedOnly, setRatedOnly] = useState(profile?.preferredRatedOnly ?? false);
+  const [ratedOnly, setRatedOnly] = useState(profile?.preferredRatedOnly ?? true);
   const [timeControls, setTimeControls] = useState<TimeControlCategory[]>(
     profile?.preferredTimeControls?.length
       ? profile.preferredTimeControls
@@ -78,8 +79,12 @@ export function OnboardingConnect() {
 
       <div className="w-full space-y-5 bg-surface rounded-none p-6 border-2 border-text-primary shadow-card">
         <div className="flex flex-col gap-2">
-          <label className="label">Lichess username</label>
+          <label className="label flex items-center gap-2" htmlFor="onboarding-lichess">
+            <LichessLogo className="h-4 w-4 shrink-0" />
+            Lichess username
+          </label>
           <input
+            id="onboarding-lichess"
             className="input"
             placeholder="e.g. drnykterstein"
             value={lichess}
@@ -87,8 +92,12 @@ export function OnboardingConnect() {
           />
         </div>
         <div className="flex flex-col gap-2">
-          <label className="label">Chess.com username</label>
+          <label className="label flex items-center gap-2" htmlFor="onboarding-chesscom">
+            <ChesscomLogo className="h-4 w-4 shrink-0" />
+            Chess.com username
+          </label>
           <input
+            id="onboarding-chesscom"
             className="input"
             placeholder="e.g. hikaru"
             value={chesscom}

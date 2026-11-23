@@ -8,15 +8,24 @@ interface OnboardingState {
   active: boolean;
   // Whether the user has explicitly clicked through onboarding this session.
   dismissed: boolean;
+  /**
+   * The address just typed into the Lichess email step. Keeps the step on
+   * screen ("check your inbox") after the profile stops needing it, until
+   * the player clicks Continue.
+   */
+  savedEmail: string | null;
   setActive: () => void;
   dismiss: () => void;
+  setSavedEmail: (email: string | null) => void;
   reset: () => void;
 }
 
 export const useOnboardingStore = create<OnboardingState>((set) => ({
   active: false,
   dismissed: false,
+  savedEmail: null,
   setActive: () => set({ active: true }),
   dismiss: () => set({ active: false, dismissed: true }),
-  reset: () => set({ active: false, dismissed: false }),
+  setSavedEmail: (email) => set({ savedEmail: email }),
+  reset: () => set({ active: false, dismissed: false, savedEmail: null }),
 }));
