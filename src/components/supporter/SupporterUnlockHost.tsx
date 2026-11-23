@@ -19,11 +19,15 @@ export function SupporterUnlockHost() {
 
   useEffect(() => {
     if (!request) return;
+    // Capture phase + stop: Escape closes only this sheet, not a picker
+    // modal underneath it (FlairPickerModal listens on window too).
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
+      if (e.key !== 'Escape') return;
+      e.stopImmediatePropagation();
+      close();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [request, close]);
 
   if (!request) return null;

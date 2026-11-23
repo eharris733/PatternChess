@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RARE_PCT, rarityLabel, useAchievementRarity } from '../../hooks/useAchievementRarity';
 import clsx from 'clsx';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/useAuth';
@@ -37,13 +38,18 @@ const TILE_ICON: Record<AchievementIcon, typeof TrophyIcon> = {
 
 function AchievementTile({
   a,
+  pct,
   onAction,
   onShare,
 }: {
   a: EvaluatedAchievement;
+  /** Share of players who have it (achievements.rarity); undefined = unknown. */
+  pct?: number;
   onAction?: (a: EvaluatedAchievement) => void;
   onShare: (a: EvaluatedAchievement) => void;
 }) {
+  const rarity = rarityLabel(pct);
+  const rare = a.earned && pct != null && pct < RARE_PCT;
   const Icon = TILE_ICON[a.icon ?? 'trophy'];
   const external = a.action ? /^https?:/.test(a.action.href) : false;
   return (
@@ -72,6 +78,14 @@ function AchievementTile({
       <div>
         <p className="text-sm font-semibold text-text-primary">{a.title}</p>
         <p className="text-text-primary text-xs mt-0.5">{a.description}</p>
+        {rarity && (
+          <p
+            className={clsx('mt-1 font-mono text-[10px] uppercase tracking-tight', rare ? 'text-gold-dark' : 'text-text-primary')}
+            data-testid={`achievement-rarity-${a.id}`}
+          >
+            {rare ? `Rare · ${rarity}` : rarity}
+          </p>
+        )}
       </div>
       {a.earned && (
         <button
@@ -113,10 +127,18 @@ function AchievementTile({
   );
 }
 
+/** "Only 4% of players have this" for the share card (rare ones only say "Only"). */
+function shareRarity(pct: number | undefined): string | null {
+  const label = rarityLabel(pct);
+  if (!label || pct == null) return null;
+  return `${pct < RARE_PCT ? 'Only ' : ''}${label} have this`;
+}
+
 /** Every achievement by category, with an unlocked meter; earned tiles are shareable. */
 export function AchievementsSection({ id }: { id?: string }) {
   const { profile, refreshProfile } = useAuth();
   const { achievements, earned, total, isPending } = useAchievements();
+  const rarity = useAchievementRarity();
   const [sharing, setSharing] = useState<EvaluatedAchievement | null>(null);
   const fraction = total > 0 ? earned / total : 0;
   const playerLabel =
@@ -174,7 +196,7 @@ export function AchievementsSection({ id }: { id?: string }) {
               </header>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {items.map((a) => (
-                  <AchievementTile key={a.id} a={a} onAction={onTileAction} onShare={setSharing} />
+                  <AchievementTile key={a.id} a={a} pct={rarity.data?.pct[a.id]} onAction={onTileAction} onShare={setSharing} />
                 ))}
               </div>
             </div>
@@ -197,6 +219,7 @@ export function AchievementsSection({ id }: { id?: string }) {
               playerLabel,
               flairTitle: flairById(profile?.flair)?.title ?? null,
               avatar: profile ? resolveAvatar(profile.avatar, profile.id) : null,
+              rarityLine: shareRarity(rarity.data?.pct[sharing.id]),
             });
           }}
           onShared={() => recordShare(!!profile, refreshProfile)}

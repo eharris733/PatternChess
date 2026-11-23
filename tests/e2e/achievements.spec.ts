@@ -214,7 +214,14 @@ test('an unlocked flair can be picked on the profile and shows on leaderboards',
   await page.getByTestId('flair-open').click();
   const picker = page.getByTestId('flair-picker');
   await expect(picker).toBeVisible();
-  await expect(picker.getByTestId('flair-option-grinder')).toBeDisabled();
+  await expect(picker.getByTestId('flair-option-grinder')).toHaveAttribute('data-locked', 'true');
+  // Supporter flair is locked for a free player, and leads to checkout.
+  await picker.getByTestId('flair-option-patron').click();
+  const sheet = page.getByTestId('supporter-unlock');
+  await expect(sheet).toContainText('Patron flair');
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect(picker).toBeVisible();
   await picker.getByTestId('flair-option-regular').click();
   await expect(picker.getByTestId('flair-option-regular')).toHaveAttribute('aria-pressed', 'true');
   // Header badge after the PATCH round-trip.
@@ -306,4 +313,26 @@ test('the invite card copies a referral link', async ({ page, context }) => {
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   expect(copied).toContain("I'm #7 on the PatternChess leaderboard");
   expect(copied).toContain('https://patternchess.com/?ref=abcd2345');
+});
+
+test('achievements show how many players have them, and new unlocks are recorded', async ({ page }) => {
+  const recorded: string[][] = [];
+  await stubAuth(page, {
+    usedTrainingFilter: false,
+    blunders: [makeTacticBlunder()],
+    scenarios: [],
+    rpc: {
+      'achievements.rarity': () => ({ players: 120, pct: { 'connect-lichess': 3.3, 'streak-3': 41.7 } }),
+      'achievements.record': (a) => {
+        recorded.push(a.ids as string[]);
+        return { recorded: (a.ids as string[]).length };
+      },
+    },
+  });
+  await page.goto('/achievements');
+  // Earned and rare: called out.
+  await expect(page.getByTestId('achievement-rarity-connect-lichess')).toHaveText('Rare · 3.3% of players');
+  // Not earned yet: the share still shows.
+  await expect(page.getByTestId('achievement-rarity-streak-3')).toHaveText('42% of players');
+  await expect.poll(() => recorded.flat()).toContain('connect-lichess');
 });

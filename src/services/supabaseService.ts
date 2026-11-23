@@ -18,6 +18,7 @@ import * as supportersDb from './db/supporters';
 import * as vaultDb from './db/vault';
 import * as cosmeticsDb from './db/cosmetics';
 import * as coursesDb from './db/courses';
+import * as achievementsDb from './db/achievements';
 
 export * from './db/games';
 export * from './db/blunders';
@@ -34,6 +35,7 @@ export * from './db/supporters';
 export * from './db/vault';
 export * from './db/cosmetics';
 export * from './db/courses';
+export * from './db/achievements';
 
 export const supabaseService = {
   ...gamesDb,
@@ -51,4 +53,5 @@ export const supabaseService = {
   ...vaultDb,
   ...cosmeticsDb,
   ...coursesDb,
+  ...achievementsDb,
 };

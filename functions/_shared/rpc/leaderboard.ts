@@ -394,7 +394,7 @@ export async function computeLandingStats(db: D1Database, now = new Date()): Pro
   return { positionsReviewed: Number(reviewed?.n ?? 0), eloGained, computedAt: now.toISOString() };
 }
 
-type CacheTable = 'landing_stats_cache' | 'public_leaderboard_cache';
+type CacheTable = 'landing_stats_cache' | 'public_leaderboard_cache' | 'achievement_rarity_cache';
 
 /** Serve the singleton cache row while fresh; otherwise recompute and upsert it. */
 export async function cached<T>(

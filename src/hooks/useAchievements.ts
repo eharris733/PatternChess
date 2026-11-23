@@ -8,6 +8,7 @@ import { useEndgameScenarios } from './useEndgameScenarios';
 import { useBookDepthGames, useTrainingTotals } from './useTrainingTotals';
 import { ratingProgressFromGames } from './useRatingProgress';
 import { srBucket } from '../models/blunder';
+import { recordAchievements } from '../services/db/achievements';
 import {
   AchievementMetrics,
   EMPTY_METRICS,
@@ -172,6 +173,29 @@ export function useAchievements(): {
       /* private mode etc. */
     }
   }, [earnedKey, profile?.id, statsQuery.isPending, totalsQuery.isPending, bookDepthQuery.isPending]);
+
+  // Record unlocks server-side for "N% of players" (achievements.rarity).
+  // Sent once per id per browser (pc:ach-recorded:<uid>); the server ignores
+  // repeats, so another browser or a cleared storage just re-sends.
+  useEffect(() => {
+    if (!profile?.id || statsQuery.isPending || totalsQuery.isPending || bookDepthQuery.isPending) return;
+    if (gamesQuery.isPending || scenariosQuery.isPending || !earnedKey) return;
+    const key = `pc:ach-recorded:${profile.id}`;
+    const recorded = readIdSet(key) ?? [];
+    const fresh = earnedKey.split(',').filter((id) => !recorded.includes(id));
+    if (fresh.length === 0) return;
+    void recordAchievements(fresh)
+      .then(() => writeIdSet(key, [...new Set([...(readIdSet(key) ?? []), ...fresh])]))
+      .catch((err) => console.warn('[achievements] record failed', err));
+  }, [
+    earnedKey,
+    profile?.id,
+    statsQuery.isPending,
+    totalsQuery.isPending,
+    bookDepthQuery.isPending,
+    gamesQuery.isPending,
+    scenariosQuery.isPending,
+  ]);
 
   // Unseen badge. Every metric source must have loaded before comparing,
   // or a late query would briefly look like fresh unlocks.
