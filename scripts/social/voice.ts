@@ -5,6 +5,8 @@
 //
 // The model (~90 MB, q8) downloads on first use into SOCIAL_TTS_CACHE
 // (default ~/.cache/patternchess-tts; the workflow caches that directory).
+// kokoro-js is not an app dependency (see kokoro.d.ts): install it with
+// `ONNXRUNTIME_NODE_INSTALL_CUDA=skip npm i --no-save kokoro-js@1.2.1`.
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { SAMPLE_RATE } from './audio.ts';
@@ -134,9 +136,14 @@ let ttsPromise: Promise<Tts> | null = null;
 
 async function tts(): Promise<Tts> {
   ttsPromise ??= (async () => {
-    const { env: hf } = await import('@huggingface/transformers');
+    let mods: [typeof import('@huggingface/transformers'), typeof import('kokoro-js')];
+    try {
+      mods = await Promise.all([import('@huggingface/transformers'), import('kokoro-js')]);
+    } catch {
+      throw new Error('kokoro-js is not installed: run `ONNXRUNTIME_NODE_INSTALL_CUDA=skip npm i --no-save kokoro-js@1.2.1`');
+    }
+    const [{ env: hf }, { KokoroTTS }] = mods;
     hf.cacheDir = env('SOCIAL_TTS_CACHE') ?? join(homedir(), '.cache', 'patternchess-tts');
-    const { KokoroTTS } = await import('kokoro-js');
     return (await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: 'q8', device: 'cpu' })) as unknown as Tts;
   })();
   return ttsPromise;

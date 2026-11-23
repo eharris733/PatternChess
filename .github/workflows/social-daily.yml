@@ -62,6 +62,14 @@ jobs:
 
       - run: npm ci
 
+      # The narrator. Not an app dependency (onnxruntime-node is ~220 MB and
+      # would weigh down every Pages build); skip its CUDA download (404s on
+      # GPU-less runners).
+      - name: Install Kokoro TTS
+        run: npm install --no-save --no-audit --no-fund kokoro-js@1.2.1
+        env:
+          ONNXRUNTIME_NODE_INSTALL_CUDA: skip
+
       # Without the token, script.ts falls back to the template scripts.
       - name: Install Claude Code
         run: npm install -g @anthropic-ai/claude-code@2.1.330

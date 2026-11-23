@@ -95,6 +95,7 @@ npm run typecheck:social && npx vitest run scripts/social
 
 **Tools:**
 - You need `ffmpeg` and `stockfish` on your PATH (`brew install ffmpeg stockfish`).
+- Install the narrator once with `ONNXRUNTIME_NODE_INSTALL_CUDA=skip npm i --no-save kokoro-js@1.2.1`. It is deliberately not in `package.json`: onnxruntime-node is about 220 MB and would slow every Pages build. `npm ci` removes it again.
 - Claude scripts use your local `claude` login. `--template` (or `SOCIAL_SCRIPT_WRITER=template`) skips Claude.
 - The Kokoro model downloads once into `~/.cache/patternchess-tts`.
 
