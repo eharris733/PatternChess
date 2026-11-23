@@ -39,7 +39,7 @@ const BLUNDERS = [
 
 async function stub(
   page: Page,
-  opts: { profile?: Partial<typeof BASE_PROFILE>; gamesToday?: number; drillsToday?: number } = {},
+  opts: { profile?: Partial<typeof BASE_PROFILE>; gamesToday?: number; drillsToday?: number; supporter?: boolean } = {},
 ) {
   const gamesToday = opts.gamesToday ?? 0;
   const today = new Date().toLocaleDateString('en-CA');
@@ -54,6 +54,10 @@ async function stub(
     rpc: {
       'games.playedSince': () => Array.from({ length: gamesToday }, () => new Date().toISOString()),
       'blunders.liveIdsForGames': () => ['fresh-1', 'fresh-2'],
+      'supporters.mine': () =>
+        opts.supporter
+          ? { status: 'active', current_period_end: null, cancel_at_period_end: false, first_supported_at: new Date().toISOString() }
+          : null,
     },
   });
   await page.addInitScript(() => {
@@ -134,8 +138,19 @@ test('banked freezes keep a streak alive over a missed day and show as snowflake
   await expect(freezes.locator('svg')).toHaveCount(2);
 });
 
-test('picking a commitment on /profile saves it', async ({ page }) => {
+test('Obsessed is a Supporter plan: a free player gets the unlock sheet, nothing saved', async ({ page }) => {
   const rec = await stub(page);
+  await page.goto('/profile#commitment');
+  const picker = page.getByTestId('commitment-picker');
+  await expect(picker.getByTestId('commitment-obsessed')).toHaveAttribute('data-locked', 'true');
+  await picker.getByTestId('commitment-obsessed').click();
+  await expect(page.getByTestId('supporter-unlock')).toContainText('The Obsessed plan');
+  await expect(picker.getByTestId('commitment-obsessed')).toHaveAttribute('aria-pressed', 'false');
+  expect(profilePatches(rec).some((p) => p.commitment_level === 'obsessed')).toBe(false);
+});
+
+test('picking a commitment on /profile saves it', async ({ page }) => {
+  const rec = await stub(page, { supporter: true });
   await page.goto('/profile#commitment');
   const picker = page.getByTestId('commitment-picker');
   await expect(picker).toBeVisible();

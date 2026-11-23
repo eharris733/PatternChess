@@ -27,29 +27,24 @@ export function PathRoute() {
         <h1 className="heading-xl">{path.trained.toLocaleString()} positions trained</h1>
         {path.next ? (
           <div className="flex flex-col gap-2">
-            <p className="text-text-primary">
-              Next unlock in <span className="font-semibold">{path.remaining}</span> position
-              {path.remaining === 1 ? '' : 's'}.
-            </p>
             <ProgressBar current={path.trained - prevAt} total={path.next.at - prevAt} />
+            <span className="font-mono text-xs tabular-nums text-text-primary" data-testid="path-next">
+              Next unlock in {path.remaining} position{path.remaining === 1 ? '' : 's'}
+            </span>
           </div>
         ) : (
-          <p className="text-text-primary">You've reached the top of the path. Thank you for showing up.</p>
+          <p className="text-text-primary">Top of the path. Thank you for showing up.</p>
         )}
-        <p className="text-sm text-text-primary">
-          Each milestone unlocks new looks for your board and avatar, and some bank a streak freeze.{' '}
-          <Link to="/profile#look" className="underline">
+        <div className="flex flex-wrap gap-2">
+          <Link to="/profile#look" className="btn-outline h-8 px-3 text-xs">
             Change your look
           </Link>
-        </p>
-        {!path.isSupporter && (
-          <p className="text-sm text-text-primary">
-            Supporters also read a short article at each milestone, and can open every one now.{' '}
-            <Link to="/supporter" className="underline">
-              Become a supporter
+          {!path.isSupporter && (
+            <Link to="/supporter" className="btn-ghost h-8 px-3 text-xs gap-1.5">
+              <HeartIcon className="h-3.5 w-3.5" /> Open every rung
             </Link>
-          </p>
-        )}
+          )}
+        </div>
       </header>
 
       <ol className="flex flex-col" data-testid="path-rungs">
@@ -89,20 +84,14 @@ export function PathRoute() {
                 </span>
                 {rung.article ? (
                   open ? (
-                    <Link to={`/path/${rung.article.slug}`} className="font-semibold text-text-primary underline-offset-4 hover:underline">
+                    <Link to={`/path/${rung.article.slug}`} className="inline-flex items-center gap-1.5 font-semibold text-text-primary underline-offset-4 hover:underline">
                       {rung.article.title}
+                      {!path.isSupporter && <HeartIcon className="h-3 w-3" title="Supporter article" />}
                     </Link>
                   ) : (
                     <span className="font-semibold text-text-primary">{rung.article.title}</span>
                   )
-                ) : (
-                  <span className="text-text-primary">{reached ? 'Milestone reached' : 'Milestone'}</span>
-                )}
-                {rung.article && open && !path.isSupporter && (
-                  <span className="flex items-center gap-1 text-xs text-text-primary">
-                    <HeartIcon className="h-3 w-3" /> Full article for supporters
-                  </span>
-                )}
+                ) : null}
                 {rewardsForRung(rung.at).length > 0 && (
                   <ul className="mt-1 flex flex-wrap gap-2" data-testid="rung-rewards">
                     {rewardsForRung(rung.at).map((r) => (

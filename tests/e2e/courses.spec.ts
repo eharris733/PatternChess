@@ -328,7 +328,7 @@ test.describe('courses', () => {
     const plan = page.getByTestId('daily-plan');
     const lesson = plan.getByTestId('plan-step-lesson');
     await expect(lesson).toHaveAttribute('data-state', 'done');
-    await expect(lesson).toContainText('Day 2 is ready whenever you are.');
+    await expect(lesson).toContainText('Avoid Knight Forks: done for today');
     // The lesson is the first step, ahead of Train.
     await expect(plan.locator('[data-plan-step]').first()).toHaveAttribute('data-testid', 'plan-step-lesson');
     await lesson.getByRole('button', { name: 'Next lesson' }).click();
@@ -342,7 +342,7 @@ test.describe('courses', () => {
     await page.goto('/dashboard');
     const lesson = page.getByTestId('plan-step-lesson');
     await expect(lesson).toHaveAttribute('data-state', 'open');
-    await expect(lesson).toContainText('Avoid Knight Forks, day 1: Tips 1 to 3. Then your own mistakes on it.');
+    await expect(lesson).toContainText('Avoid Knight Forks · Day 1: Tips 1 to 3');
     await lesson.getByRole('button', { name: 'Start' }).click();
     await expect(page).toHaveURL(/\/courses\/avoid-knight-forks\/1$/);
   });

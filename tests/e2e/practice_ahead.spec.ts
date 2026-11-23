@@ -136,7 +136,7 @@ const GAME = {
 async function stub(
   page: Page,
   blunders: Record<string, unknown>[],
-  opts: { profile?: Record<string, unknown>; sessions?: Record<string, unknown>[] } = {},
+  opts: { profile?: Record<string, unknown>; sessions?: Record<string, unknown>[]; supporter?: boolean } = {},
 ) {
   const rec = await stubApp(page, {
     profile: { ...PROFILE, ...opts.profile },
@@ -144,6 +144,11 @@ async function stub(
     games: [GAME],
     ...(opts.sessions ? { sessions: opts.sessions } : {}),
     rpc: {
+      // Supporters train past their daily goal; free players stop at it.
+      'supporters.mine': () =>
+        opts.supporter
+          ? { status: 'active', current_period_end: null, cancel_at_period_end: false, first_supported_at: new Date().toISOString() }
+          : null,
       // The SR write lands on the seeded row, so the next queue sees it.
       'blunders.updateAfterDrill': (a) => {
         const row = blunders.find((b) => b.id === a.id);
@@ -187,7 +192,7 @@ test('an openings session stays in openings: Keep training never leaks into the 
   const rec = await stub(page, [opening(), UPCOMING_OPENING, tactic()]);
   await page.goto('/dashboard');
   const step = page.getByTestId('plan-step-openings');
-  await expect(step).toContainText('1 due');
+  await expect(step).toContainText('1 in queue');
   await step.getByRole('button', { name: 'Review' }).click();
 
   await expect(page).toHaveURL(/\/training$/);
@@ -229,16 +234,18 @@ test('a clear queue offers Practice ahead from the plan, and it drills through t
   const rec = await stub(page, [upcomingTactic, tactic({ id: 't2', fen: '4k3/8/8/8/8/8/8/4K2R w K - 0 1', correct_moves: [{ move: 'h1h8', eval: 900 }], next_drill_at: LATER })]);
   await page.goto('/dashboard');
   const step = page.getByTestId('plan-step-train');
-  await expect(step).toContainText("Queue's clear. Practice ahead, it still counts.");
+  await expect(step).toContainText('Queue clear: practice ahead');
   await step.getByRole('button', { name: 'Practice ahead' }).click();
 
   await expect(page.getByTestId('training-focus-banner')).toContainText('Practice ahead · 2 positions');
   await expect(page.getByText('White to play')).toBeVisible();
   await dragMove(page, { file: 6, rank: 4 }, { file: 7, rank: 5 }); // gxh5
   await expect(page.getByText('Solution correct')).toBeVisible();
-  // The early answer is recorded like any review (cycle advanced, rescheduled).
+  // Not due yet, so it's practice: mastery stays put and so does the due date
+  // (advanceSr); the drill time still lands.
+  await expect(page.getByTestId('sr-practice')).toContainText('Practice. Mastery moves when');
   const write = await rec.waitFor('blunders.updateAfterDrill', (a) => a.id === 't1');
-  expect(write.args.patch).toMatchObject({ cycle_number: 2 });
+  expect(write.args.patch).toMatchObject({ cycle_number: 1, next_drill_at: new Date(SOON).toISOString() });
   const calls = rec.callsTo('blunders.upcoming');
   expect(calls.length).toBeGreaterThan(0);
   expect(calls[0].args).toMatchObject({ excludeKind: 'opening', limit: 10 });
@@ -283,7 +290,7 @@ test('the landing has Openings and Endgames focuses that lead back to their page
     opening(),
   ]);
   await page.goto('/training');
-  await expect(page.getByTestId('focus-openings')).toContainText('1 due');
+  await expect(page.getByTestId('focus-openings')).toContainText('1 in queue');
   // No endgame position is due, so the tile practices ahead.
   await expect(page.getByTestId('focus-endgames')).toContainText('Practice ahead');
   await page.getByTestId('focus-endgames').click();
@@ -322,6 +329,7 @@ test('a finished session says "Session done" and points at the next step while t
   await stub(page, [tactic(), UPCOMING_OPENING], {
     profile: { commitment_level: 'custom', daily_positions_goal: 1, daily_games_goal: 0 },
     sessions: goalMetToday(),
+    supporter: true,
   });
   await page.goto('/training');
   await page.getByRole('button', { name: 'Review 1 position' }).click();
@@ -343,6 +351,7 @@ test('"Today\'s plan: done" shows once every plan step is done', async ({ page }
   await stub(page, [tactic()], {
     profile: { commitment_level: 'custom', daily_positions_goal: 1, daily_games_goal: 0 },
     sessions: goalMetToday(),
+    supporter: true,
   });
   await page.goto('/training');
   await page.getByRole('button', { name: 'Review 1 position' }).click();
@@ -350,6 +359,23 @@ test('"Today\'s plan: done" shows once every plan step is done', async ({ page }
   const done = page.getByTestId('training-complete');
   await expect(done.getByRole('heading', { name: "Today's plan: done" })).toBeVisible();
   await expect(done.getByTestId('complete-next')).toHaveCount(0);
+});
+
+test('a free player stops at the day\'s goal, with Supporter offered for more', async ({ page }) => {
+  // An opening still to review keeps the whole plan open, so the headline is about positions.
+  const rec = await stub(page, [tactic(), UPCOMING_OPENING], {
+    profile: { commitment_level: 'custom', daily_positions_goal: 1, daily_games_goal: 0 },
+    sessions: goalMetToday(),
+  });
+  await page.goto('/training');
+  await page.getByRole('button', { name: 'Review 1 position' }).click();
+  const done = page.getByTestId('training-complete');
+  await expect(done.getByRole('heading', { name: "Today's positions: done" })).toBeVisible();
+  await expect(done.getByTestId('training-capped')).toContainText('You trained your 1 position for today.');
+  // Nothing was handed out, so nothing was written.
+  expect(rec.callsTo('blunders.updateAfterDrill')).toHaveLength(0);
+  await done.getByTestId('training-capped-upsell').click();
+  await expect(page.getByTestId('supporter-unlock')).toContainText('Training past your daily plan');
 });
 
 test('a focus with no positions at all says "None yet" and leads to its page', async ({ page }) => {
