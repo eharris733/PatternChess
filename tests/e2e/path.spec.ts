@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { E2E_USER, stubApp } from './helpers/api';
 import { ADMIN_EMAILS } from '../../src/auth/admin';
 
-// /path is unreleased (src/lib/features.ts): admins only, so these specs sign in as one.
+// /path shipped on 2026-11-22 (RELEASED.path); signing in as an admin changes nothing here.
 const ADMIN_USER = { ...E2E_USER, email: ADMIN_EMAILS[0] };
 
 // The progression ladder: /path counts lifetime positions trained, the daily
@@ -97,12 +97,19 @@ test('supporters are not pitched on /path', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Become a supporter' })).toHaveCount(0);
 });
 
-test('regular players see no Path while it is unreleased', async ({ page }) => {
+test('Path is released: regular players open it from the sidebar', async ({ page }) => {
   await stubApp(page, { user: E2E_USER });
   await page.goto('/path');
-  await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByRole('link', { name: 'Path' })).toHaveCount(0);
-  await expect(page.getByTestId('next-unlock')).toHaveCount(0);
+  await expect(page).toHaveURL(/\/path$/);
+  await expect(page.getByRole('link', { name: 'Path' }).first()).toBeVisible();
+});
+
+test('each rung lists its rewards', async ({ page }) => {
+  await stub(page, { solved: 30 });
+  await page.goto('/path');
+  const rungs = page.getByTestId('path-rung');
+  await expect(rungs.nth(0)).toContainText('Walnut theme');
+  await expect(rungs.nth(2)).toContainText('A streak freeze');
 });
 
 test('an unknown article slug says so', async ({ page }) => {

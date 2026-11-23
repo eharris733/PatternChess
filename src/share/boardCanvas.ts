@@ -1,6 +1,6 @@
 /**
- * Canvas renderer for share images and GIFs: a board (fixed light palette,
- * cburnett pieces from chessground's own stylesheet) framed by a
+ * Canvas renderer for share images and GIFs: a board (the player's theme and
+ * piece set; cburnett comes from chessground's own stylesheet) framed by a
  * PatternChess-branded footer. Pure canvas — no DOM board, no html2canvas —
  * so the same frames feed PNG screenshots and GIF encoding.
  */
@@ -85,7 +85,7 @@ const SANS = 'Inter, "Inter Fallback", system-ui, sans-serif';
 
 export type PieceImages = Record<string, HTMLImageElement>; // key: 'wK', 'bp', …
 
-let piecesPromise: Promise<PieceImages> | null = null;
+const piecesPromises = new Map<string, Promise<PieceImages>>();
 
 const ROLE_LETTER: Record<string, string> = {
   pawn: 'p',
@@ -96,24 +96,46 @@ const ROLE_LETTER: Record<string, string> = {
   king: 'k',
 };
 
-/** Loads the cburnett SVGs chessground already ships (embedded data URIs). */
-export function loadPieceImages(): Promise<PieceImages> {
-  piecesPromise ??= (async () => {
-    const css = (await import('chessground/assets/chessground.cburnett.css?raw')).default;
-    const re = /piece\.(\w+)\.(white|black)\s*\{\s*background-image:\s*url\('([^']+)'\)/g;
+/** The piece set the page shows (`<html data-piece-set>`, src/state/pieceSetStore.ts); cburnett by default. */
+function documentPieceSet(): string {
+  if (typeof document === 'undefined') return 'cburnett';
+  return document.documentElement.dataset.pieceSet || 'cburnett';
+}
+
+/**
+ * Loads one piece set's images: cburnett from the SVGs chessground already
+ * ships (embedded data URIs), any other set from public/pieces/<set>/
+ * (src/lib/pieceSets.ts). Defaults to the set the page is showing, so share
+ * images match the player's board.
+ */
+export function loadPieceImages(set: string = documentPieceSet()): Promise<PieceImages> {
+  const cached = piecesPromises.get(set);
+  if (cached) return cached;
+  const promise = (async () => {
     const out: PieceImages = {};
     const loads: Promise<void>[] = [];
-    for (const m of css.matchAll(re)) {
-      const key = `${m[2] === 'white' ? 'w' : 'b'}${ROLE_LETTER[m[1]] ?? m[1]}`;
+    const add = (key: string, src: string) => {
       const img = new Image();
-      img.src = m[3];
+      img.src = src;
       out[key] = img;
       loads.push(img.decode().catch(() => undefined));
+    };
+    if (set === 'cburnett' || !/^[a-z0-9-]+$/.test(set)) {
+      const css = (await import('chessground/assets/chessground.cburnett.css?raw')).default;
+      const re = /piece\.(\w+)\.(white|black)\s*\{\s*background-image:\s*url\('([^']+)'\)/g;
+      for (const m of css.matchAll(re)) add(`${m[2] === 'white' ? 'w' : 'b'}${ROLE_LETTER[m[1]] ?? m[1]}`, m[3]);
+    } else {
+      for (const color of ['w', 'b']) {
+        for (const role of ['k', 'q', 'r', 'b', 'n', 'p']) {
+          add(`${color}${role}`, `/pieces/${set}/${color}${role.toUpperCase()}.svg`);
+        }
+      }
     }
     await Promise.all(loads);
     return out;
   })();
-  return piecesPromise;
+  piecesPromises.set(set, promise);
+  return promise;
 }
 
 /** Wait for the web fonts the canvas text uses (best effort). */

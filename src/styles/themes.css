@@ -125,3 +125,120 @@
   --board-premove-dest: rgba(139, 91, 201, 0.55);
   --piece-filter: sepia(1) hue-rotate(240deg) saturate(0.6);
 }
+
+/* --- Reward themes (src/lib/rewards.ts) ----------------------------------- */
+
+/* Warm wood board on a cream page. */
+[data-theme='walnut'] {
+  --bg: 246 240 230;
+  --surface: 255 252 246;
+  --surface-2: 43 30 20;
+  --surface-3: 236 226 210;
+  --text-primary: 43 30 20;
+  --text-secondary: 110 88 68;
+  --accent: 140 82 36;
+  --accent-light: 190 122 60;
+  --gold-dark: 140 82 36;
+  --gold-light: 190 122 60;
+  --board-light: #e8c99b;
+  --board-dark: #a26a3f;
+  --board-light-rgb: 232 201 155;
+  --board-dark-rgb: 162 106 63;
+  --board-last-move: rgba(205, 160, 40, 0.5);
+  --board-selected: rgba(205, 160, 40, 0.6);
+  --board-move-dest: rgba(43, 30, 20, 0.35);
+  --board-premove-dest: rgba(190, 122, 60, 0.55);
+  --piece-filter: none;
+}
+
+/* Club vinyl: green and buff squares, neutral page. */
+[data-theme='tournament'] {
+  --bg: 242 243 238;
+  --surface: 255 255 255;
+  --surface-2: 30 38 28;
+  --surface-3: 228 231 222;
+  --text-primary: 30 38 28;
+  --text-secondary: 88 98 84;
+  --accent: 86 118 64;
+  --accent-light: 118 150 86;
+  --gold-dark: 86 118 64;
+  --gold-light: 118 150 86;
+  --board-light: #eeeed2;
+  --board-dark: #769656;
+  --board-light-rgb: 238 238 210;
+  --board-dark-rgb: 118 150 86;
+  --board-last-move: rgba(246, 246, 105, 0.6);
+  --board-selected: rgba(246, 246, 105, 0.7);
+  --board-move-dest: rgba(30, 38, 28, 0.3);
+  --board-premove-dest: rgba(118, 150, 86, 0.55);
+  --piece-filter: none;
+}
+
+/* Cool stone greys. */
+[data-theme='slate'] {
+  --bg: 236 238 241;
+  --surface: 255 255 255;
+  --surface-2: 28 33 40;
+  --surface-3: 222 226 231;
+  --text-primary: 28 33 40;
+  --text-secondary: 86 96 110;
+  --accent: 70 92 120;
+  --accent-light: 106 132 166;
+  --gold-dark: 70 92 120;
+  --gold-light: 106 132 166;
+  --board-light: #d9dee5;
+  --board-dark: #7d8a9a;
+  --board-light-rgb: 217 222 229;
+  --board-dark-rgb: 125 138 154;
+  --board-last-move: rgba(106, 132, 166, 0.55);
+  --board-selected: rgba(106, 132, 166, 0.65);
+  --board-move-dest: rgba(28, 33, 40, 0.35);
+  --board-premove-dest: rgba(106, 132, 166, 0.55);
+  --piece-filter: none;
+}
+
+/* Soft rose. */
+[data-theme='rose'] {
+  --bg: 248 238 240;
+  --surface: 255 255 255;
+  --surface-2: 58 24 36;
+  --surface-3: 240 222 227;
+  --text-primary: 58 24 36;
+  --text-secondary: 122 84 96;
+  --accent: 160 58 92;
+  --accent-light: 206 102 136;
+  --gold-dark: 160 58 92;
+  --gold-light: 206 102 136;
+  --board-light: #f6dde3;
+  --board-dark: #c97b92;
+  --board-light-rgb: 246 221 227;
+  --board-dark-rgb: 201 123 146;
+  --board-last-move: rgba(160, 58, 92, 0.4);
+  --board-selected: rgba(160, 58, 92, 0.5);
+  --board-move-dest: rgba(58, 24, 36, 0.35);
+  --board-premove-dest: rgba(206, 102, 136, 0.55);
+  --piece-filter: none;
+}
+
+/* Dark navy page with a blue-grey board. */
+[data-theme='midnight'] {
+  --bg: 16 21 34;
+  --surface: 26 32 48;
+  --surface-2: 232 236 244;
+  --surface-3: 36 44 64;
+  --text-primary: 232 236 244;
+  --text-secondary: 150 160 184;
+  --accent: 120 150 230;
+  --accent-light: 156 182 246;
+  --gold-dark: 120 150 230;
+  --gold-light: 156 182 246;
+  --board-light: #9aa8c4;
+  --board-dark: #56658a;
+  --board-light-rgb: 154 168 196;
+  --board-dark-rgb: 86 101 138;
+  --board-last-move: rgba(156, 182, 246, 0.5);
+  --board-selected: rgba(156, 182, 246, 0.6);
+  --board-move-dest: rgba(16, 21, 34, 0.4);
+  --board-premove-dest: rgba(156, 182, 246, 0.55);
+  --piece-filter: none;
+}

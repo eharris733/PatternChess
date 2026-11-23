@@ -1,5 +1,7 @@
 import type { TimeControlCategory } from '../services/chessApiService';
-import { BOARD_THEMES, type BoardTheme } from '../state/themeStore';
+import { BOARD_THEMES, LEGACY_BOARD_THEMES, type BoardTheme } from '../lib/themeIds';
+import { sanitizeAvatar, type AvatarParts } from '../lib/avatar';
+import { DEFAULT_PIECE_SET, isPieceSet, type PieceSet } from '../lib/pieceSets';
 import type { TablesInsert, TablesUpdate } from '../lib/database.types';
 import { dailyGoalsFromJson, type DailyGoals } from '../lib/dailyGoal';
 
@@ -20,7 +22,14 @@ export interface UserProfile {
   streakFreezes: number;
   lastDrillLocalDate: string | null;
   timezone: string | null;
+  /** App + board theme: `profiles.theme`, else the legacy `board_theme` (migration 0004). */
   boardTheme: BoardTheme;
+  /** Pixel avatar parts (src/lib/avatar.ts); null = the default generated from `id` (resolveAvatar). */
+  avatar: AvatarParts | null;
+  /** Board piece set (src/lib/pieceSets.ts); `profiles.piece_set` NULL = cburnett. */
+  pieceSet: PieceSet;
+  /** /path rungs whose streak-freeze reward was banked (profile.claimPathReward). */
+  pathRewardsClaimed: number[];
   /** Show raw engine evals next to win-chance percentages on the training screen. */
   showEngineEvals: boolean;
   /**
@@ -121,7 +130,12 @@ export function userProfileFromJson(json: any): UserProfile {
     streakFreezes: (json.streak_freezes as number | null) ?? 0,
     lastDrillLocalDate: (json.last_drill_local_date as string | null) ?? null,
     timezone: (json.timezone as string | null) ?? null,
-    boardTheme: parseBoardTheme(json.board_theme),
+    boardTheme: parseBoardTheme(json.theme ?? json.board_theme),
+    avatar: sanitizeAvatar(json.avatar),
+    pieceSet: isPieceSet(json.piece_set) ? json.piece_set : DEFAULT_PIECE_SET,
+    pathRewardsClaimed: Array.isArray(json.path_rewards_claimed)
+      ? (json.path_rewards_claimed as unknown[]).filter((n): n is number => typeof n === 'number')
+      : [],
     // Columns may be absent until the 20260610 migration is applied; default off.
     showEngineEvals: Boolean(json.show_engine_evals ?? false),
     revealBeforeSolve: Boolean(json.reveal_before_solve ?? false),
@@ -166,8 +180,16 @@ export function userProfileToInsert(p: UserProfile): TablesInsert<'profiles'> {
     chesscom_username: p.chesscomUsername,
     preferred_rated_only: p.preferredRatedOnly,
     preferred_time_controls: p.preferredTimeControls,
-    board_theme: p.boardTheme,
+    ...themeColumns(p.boardTheme),
   };
+}
+
+/**
+ * The theme write: `theme` always, `board_theme` (CHECK: the first five
+ * themes) only when the pick fits it, so older readers keep a sensible value.
+ */
+function themeColumns(theme: BoardTheme): { theme: string; board_theme?: string } {
+  return LEGACY_BOARD_THEMES.includes(theme) ? { theme, board_theme: theme } : { theme };
 }
 
 export function userProfileToUpdate(p: UserProfile): TablesUpdate<'profiles'> {
@@ -178,6 +200,6 @@ export function userProfileToUpdate(p: UserProfile): TablesUpdate<'profiles'> {
     chesscom_username: p.chesscomUsername,
     preferred_rated_only: p.preferredRatedOnly,
     preferred_time_controls: p.preferredTimeControls,
-    board_theme: p.boardTheme,
+    ...themeColumns(p.boardTheme),
   };
 }

@@ -24,6 +24,7 @@ import { InstagramIcon } from '../icons/InstagramIcon';
 import { ShareIcon } from '../icons/ShareIcon';
 import { Skeleton } from '../Skeleton';
 import { ShareImageModal } from '../share/ShareImageModal';
+import { resolveAvatar } from '../../lib/avatar';
 
 const TILE_ICON: Record<AchievementIcon, typeof TrophyIcon> = {
   trophy: TrophyIcon,
@@ -195,6 +196,7 @@ export function AchievementsSection({ id }: { id?: string }) {
               categoryLabel: ACHIEVEMENT_CATEGORY_LABEL[sharing.category],
               playerLabel,
               flairTitle: flairById(profile?.flair)?.title ?? null,
+              avatar: profile ? resolveAvatar(profile.avatar, profile.id) : null,
             });
           }}
           onShared={() => recordShare(!!profile, refreshProfile)}

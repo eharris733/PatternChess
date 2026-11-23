@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
@@ -18,32 +18,51 @@ import { flairById } from '../lib/flair';
 import clsx from 'clsx';
 import { GameTypePreferences } from '../components/GameTypePreferences';
 import { ThemePicker } from '../components/ThemePicker';
+import { PieceSetPicker } from '../components/PieceSetPicker';
+import { AvatarBuilder } from '../components/avatar/AvatarBuilder';
+import { MyAvatar } from '../components/avatar/PixelAvatar';
+import { SettingToggleCard } from '../components/settings/SettingToggleCard';
+import {
+  AutoplayPreview,
+  HideInfoPreview,
+  RawEvalPreview,
+  ShowAnswerPreview,
+  SoundsPreview,
+} from '../components/settings/TrainingPrefPreviews';
 import { useRecentTrainingSessions } from '../hooks/useTrainingActivity';
 import { useDrillFeedbackPrefs } from '../hooks/useDrillFeedbackPrefs';
-import { useThemeStore, type BoardTheme } from '../state/themeStore';
+import { useCosmetics } from '../hooks/useCosmetics';
 import { CommitmentPicker } from '../components/CommitmentPicker';
 import { EmailRemindersSetting } from '../components/EmailRemindersSetting';
 import { SupporterSetting } from '../components/SupporterSetting';
+
+/** In-page sections, in order; the chips at the top jump to them (also reachable as /profile#<id>). */
+const SECTIONS = [
+  { id: 'settings', label: 'Accounts' },
+  { id: 'commitment', label: 'Daily plan' },
+  { id: 'training', label: 'Training' },
+  { id: 'look', label: 'Look' },
+  { id: 'email', label: 'Email' },
+  { id: 'supporter', label: 'Supporter' },
+  { id: 'community', label: 'Community' },
+] as const;
 
 export function ProfileRoute() {
   const { profile, refreshProfile, user } = useAuth();
   const queryClient = useQueryClient();
   const location = useLocation();
   const [flairOpen, setFlairOpen] = useState(false);
-  const settingsRef = useRef<HTMLElement>(null);
-  const commitmentRef = useRef<HTMLElement>(null);
   // Router doesn't scroll to hashes: the sidebar / header gear links to
-  // /profile#settings. Re-runs on each click (location.key changes).
+  // /profile#settings, the plan to #commitment, rewards to #look. Re-runs on
+  // each click (location.key changes). Instant, not smooth: a smooth scroll is
+  // cancelled by the layout shifts while the profile's cards load.
   useEffect(() => {
-    // Instant, not smooth: a smooth scroll is cancelled by the layout shifts
-    // while the profile's cards load.
-    if (!profile) return;
-    if (location.hash === '#settings') settingsRef.current?.scrollIntoView({ block: 'start' });
-    else if (location.hash === '#commitment') commitmentRef.current?.scrollIntoView({ block: 'start' });
+    if (!profile || !location.hash) return;
+    const el = document.getElementById(location.hash.slice(1));
+    el?.scrollIntoView({ block: 'start' });
   }, [location.hash, location.key, profile?.id]);
 
-  const activeTheme = useThemeStore((s) => s.theme);
-  const setStoreTheme = useThemeStore((s) => s.setTheme);
+  const cosmetics = useCosmetics();
   const [lichess, setLichess] = useState('');
   const [chesscom, setChesscom] = useState('');
   const [ratedOnly, setRatedOnly] = useState(false);
@@ -53,8 +72,8 @@ export function ProfileRoute() {
   const [backfillRunning, setBackfillRunning] = useState(false);
   const [backfillProgress, setBackfillProgress] = useState<BackfillProgress | null>(null);
   const [trainingPrefsError, setTrainingPrefsError] = useState<string | null>(null);
-  // Optimistic copy of the two training toggles: the checkbox flips instantly,
-  // the PATCH runs in the background, and a failure reverts the flip.
+  // Optimistic copy of the training toggles: the switch flips instantly,
+  // the write runs in the background, and a failure reverts the flip.
   const [trainingPrefs, setTrainingPrefs] = useState({
     showEngineEvals: false,
     revealBeforeSolve: false,
@@ -94,20 +113,8 @@ export function ProfileRoute() {
       .catch((err) => {
         console.warn('[profile] persist training prefs failed', err);
         setTrainingPrefs((cur) => ({ ...cur, [pref]: !value }));
-        setTrainingPrefsError(
-          'Could not save this preference. If this keeps happening, the latest profiles migration may not be applied yet.',
-        );
+        setTrainingPrefsError('Could not save this preference. Try again.');
       });
-  };
-
-  const onPickTheme = (next: BoardTheme) => {
-    setStoreTheme(next);
-    if (profile && profile.boardTheme !== next) {
-      void authService
-        .updateProfile({ ...profile, boardTheme: next })
-        .then(() => refreshProfile())
-        .catch((err) => console.warn('[profile] persist boardTheme failed', err));
-    }
   };
 
   const unparsedQuery = useQuery({
@@ -190,21 +197,14 @@ export function ProfileRoute() {
 
   const flair = flairById(profile?.flair);
   const ring = flair ? clsx('ring-2 ring-offset-2 ring-offset-surface', FLAIR_RING_CLASS[flair.tone]) : null;
+  const hideExtraInfo = !trainingPrefs.revealBeforeSolve;
 
   return (
-    <div className="max-w-xl mx-auto flex flex-col gap-6">
+    <div className="max-w-2xl mx-auto flex flex-col gap-6">
       <header className="flex items-center gap-4">
-        {profile?.avatarUrl ? (
-          <img
-            src={profile.avatarUrl}
-            alt=""
-            crossOrigin="anonymous"
-            referrerPolicy="no-referrer"
-            className={clsx('w-14 h-14 rounded-full border-2 border-text-primary', ring)}
-          />
-        ) : (
-          <div className={clsx('w-14 h-14 rounded-full bg-text-primary', ring)} />
-        )}
+        <a href="#look" aria-label="Edit your avatar" className="shrink-0" data-testid="profile-avatar">
+          <MyAvatar className={clsx('w-14 h-14 border-2 border-text-primary', ring)} />
+        </a>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex items-center gap-3">
             <h1 className="heading-lg min-w-0 truncate">{profile?.displayName ?? 'Your profile'}</h1>
@@ -228,14 +228,26 @@ export function ProfileRoute() {
               </span>
             )}
           </button>
-          <p className="text-text-secondary text-sm">{user?.email}</p>
+          <p className="text-text-primary text-sm">{user?.email}</p>
         </div>
       </header>
       {flairOpen && <FlairPickerModal onClose={() => setFlairOpen(false)} />}
 
       <RankBadge />
 
-      <section id="settings" ref={settingsRef} className="card flex flex-col gap-4 scroll-mt-6">
+      <nav aria-label="Profile sections" className="flex flex-wrap gap-1.5" data-testid="profile-sections">
+        {SECTIONS.map((s) => (
+          <a
+            key={s.id}
+            href={`#${s.id}`}
+            className="border-2 border-text-primary/40 bg-surface px-2.5 py-1 font-mono text-xs uppercase tracking-tight text-text-primary transition-colors hover:border-text-primary"
+          >
+            {s.label}
+          </a>
+        ))}
+      </nav>
+
+      <section id="settings" className="card flex flex-col gap-4 scroll-mt-6">
         <h2 className="heading-md">Linked accounts</h2>
         <div className="flex flex-col gap-2">
           <label className="label">Lichess username</label>
@@ -256,10 +268,10 @@ export function ProfileRoute() {
           />
         </div>
 
-        <h2 className="heading-md mt-2">Sync preferences</h2>
-        <p className="text-text-secondary text-sm -mt-2">
-          New games are imported automatically every time you sign in, and when
-          you click Sync now. These settings decide which games count.
+        <h3 className="heading-md mt-2">Sync preferences</h3>
+        <p className="text-text-primary text-sm -mt-2">
+          New games come in every time you sign in, and when you click Sync now. These settings
+          decide which games count.
         </p>
         <GameTypePreferences
           ratedOnly={ratedOnly}
@@ -278,141 +290,140 @@ export function ProfileRoute() {
         </div>
       </section>
 
-      <section id="commitment" ref={commitmentRef} className="card flex flex-col gap-4 scroll-mt-6">
+      <section id="commitment" className="card flex flex-col gap-4 scroll-mt-6">
         <h2 className="heading-md">Daily commitment</h2>
-        <p className="text-text-secondary text-sm -mt-2">
-          Sets today's plan on the dashboard: positions to train and games to play. Changes save instantly.
+        <p className="text-text-primary text-sm -mt-2">
+          Sets today's plan on the dashboard. Changes save instantly.
         </p>
         <CommitmentPicker />
       </section>
 
-      <section className="card flex flex-col gap-4">
+      <section id="training" className="card flex flex-col gap-4 scroll-mt-6">
         <h2 className="heading-md">Training</h2>
-        <p className="text-text-secondary text-sm -mt-2">
-          How much each position tells you before you solve it. Changes save instantly.
+        <p className="text-text-primary text-sm -mt-2">
+          What each position shows you. The pictures show the current setting; changes save instantly.
         </p>
-        <label className="flex items-start gap-2 select-none">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={!trainingPrefs.revealBeforeSolve}
-            onChange={(e) => onToggleTrainingPref('revealBeforeSolve', !e.target.checked)}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <SettingToggleCard
+            testId="pref-hide-info"
+            title="Hide extra info when solving"
+            checked={hideExtraInfo}
+            onChange={(checked) => onToggleTrainingPref('revealBeforeSolve', !checked)}
+            preview={<HideInfoPreview hidden={hideExtraInfo} />}
+            description="Keeps the move you played, its refutation and the win chances hidden until you've moved, like a real game."
           />
-          <span>
-            Hide extra info when solving
-            <span className="block text-text-secondary text-xs">
-              Hides the review step (the move you played and its refutation), the win-chance
-              numbers, and the &ldquo;See what you played&rdquo; button until you&rsquo;ve made your
-              attempt — so each position feels like a real game. Everything is shown after your
-              attempt either way.
-            </span>
-          </span>
-        </label>
-        <label className="flex items-start gap-2 select-none">
-          <input
-            type="checkbox"
-            className="mt-1"
+          <SettingToggleCard
+            testId="pref-raw-evals"
+            title="Show raw engine evals"
             checked={trainingPrefs.showEngineEvals}
-            onChange={(e) => onToggleTrainingPref('showEngineEvals', e.target.checked)}
+            onChange={(checked) => onToggleTrainingPref('showEngineEvals', checked)}
+            preview={<RawEvalPreview on={trainingPrefs.showEngineEvals} />}
+            description="Adds the engine number (+1.2) next to the win chances."
           />
-          <span>
-            Show raw engine evals
-            <span className="block text-text-secondary text-xs">
-              Adds the engine's evaluation (e.g. +1.2) next to the win-chance percentages.
-            </span>
-          </span>
-        </label>
-        <label className="flex items-start gap-2 select-none">
-          <input
-            type="checkbox"
-            className="mt-1"
+          <SettingToggleCard
+            testId="pref-show-answer"
+            title="Show the answer after a miss"
             checked={drillPrefs.showAnswer}
-            onChange={(e) => drillPrefs.setShowAnswer(e.target.checked)}
+            onChange={(checked) => drillPrefs.setShowAnswer(checked)}
+            preview={<ShowAnswerPreview on={drillPrefs.showAnswer} />}
+            description="Draws the best move and adds the solution line. Also in the gear on the board."
           />
-          <span>
-            Show the answer after a miss
-            <span className="block text-text-secondary text-xs">
-              After a wrong move, draws the best move on the board and adds the solution line
-              next to the refutation. Applies to tactics and endgames; also in the gear on the
-              board.
-            </span>
-          </span>
-        </label>
-        <label className="flex items-start gap-2 select-none">
-          <input
-            type="checkbox"
-            className="mt-1"
+          <SettingToggleCard
+            testId="pref-autoplay"
+            title="Autoplay the lines after a miss"
             checked={drillPrefs.autoplay}
-            onChange={(e) => drillPrefs.setAutoplay(e.target.checked)}
+            onChange={(checked) => drillPrefs.setAutoplay(checked)}
+            preview={<AutoplayPreview on={drillPrefs.autoplay} />}
+            description="Plays out why your move fails, then the solution when the answer is on. Tap the board to stop."
           />
-          <span>
-            Autoplay the lines after a miss
-            <span className="block text-text-secondary text-xs">
-              After every wrong move, plays out why it fails on the board, then the solution
-              when &ldquo;Show the answer&rdquo; is on. Tap the board or step a line to stop it.
-            </span>
-          </span>
-        </label>
-        <label className="flex items-start gap-2 select-none">
-          <input
-            type="checkbox"
-            className="mt-1"
+          <SettingToggleCard
+            testId="pref-sounds"
+            title="Play sounds"
             checked={trainingPrefs.soundsEnabled}
-            onChange={(e) => onToggleTrainingPref('soundsEnabled', e.target.checked)}
+            onChange={(checked) => onToggleTrainingPref('soundsEnabled', checked)}
+            preview={<SoundsPreview on={trainingPrefs.soundsEnabled} />}
+            description="Move, capture and check sounds, plus a cue when you solve, miss or unlock something."
           />
-          <span>
-            Play sounds
-            <span className="block text-text-secondary text-xs">
-              Move, capture and check sounds on the board, plus a short cue when you solve a
-              position, miss one, or unlock an achievement.
-            </span>
-          </span>
-        </label>
+        </div>
         {(trainingPrefsError ?? drillPrefs.error) && (
           <p className="text-incorrect text-sm">{trainingPrefsError ?? drillPrefs.error}</p>
         )}
       </section>
 
+      <section id="look" className="card flex flex-col gap-5 scroll-mt-6" data-testid="look-section">
+        <div className="flex flex-col gap-1">
+          <h2 className="heading-md">Look</h2>
+          <p className="text-text-primary text-sm">
+            Your avatar shows in the sidebar and on leaderboards. New themes, pieces and avatar
+            extras unlock as you climb your path. Changes save instantly, except the avatar, which
+            saves when you press Use this avatar.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <h3 className="label">Avatar</h3>
+          {profile && (
+            <AvatarBuilder
+              value={cosmetics.avatar}
+              custom={profile.avatar != null}
+              seed={profile.id}
+              lockHint={cosmetics.lockHint}
+              onSave={cosmetics.saveAvatar}
+            />
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <h3 className="label">Theme</h3>
+          <ThemePicker
+            value={cosmetics.theme}
+            onChange={cosmetics.pickTheme}
+            locked={(theme) => (theme === cosmetics.theme ? null : cosmetics.lockHint({ kind: 'theme', id: theme }))}
+          />
+          <p className="text-text-primary text-xs">The landing and sign-in pages keep the default look.</p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <h3 className="label">Pieces</h3>
+          <PieceSetPicker
+            value={cosmetics.pieceSet}
+            onChange={cosmetics.pickPieceSet}
+            locked={(set) => (set === cosmetics.pieceSet ? null : cosmetics.lockHint({ kind: 'pieceSet', id: set }))}
+          />
+        </div>
+        {cosmetics.error && <p className="text-incorrect text-sm">{cosmetics.error}</p>}
+      </section>
+
       <EmailRemindersSetting />
+
 
       <SupporterSetting />
 
-      <section className="card flex flex-col gap-4">
+      <section id="community" className="card flex flex-col gap-4 scroll-mt-6">
         <h2 className="heading-md">Community</h2>
-        <p className="text-text-secondary text-sm -mt-2">
-          Leaderboards show your Lichess or Chess.com username (or your display name) next to
-          positions solved, mastered, Elo gained and streak. Never your email. The weekly top 5
-          also appears on the public homepage, by chess username only.
+        <p className="text-text-primary text-sm -mt-2">
+          Leaderboards show your Lichess or Chess.com username (or your display name) and your
+          avatar, never your email. The weekly top 5 also appears on the public homepage, by chess
+          username only.
         </p>
-        <label className="flex items-start gap-2 select-none">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={!trainingPrefs.leaderboardOptOut}
-            onChange={(e) => onToggleTrainingPref('leaderboardOptOut', !e.target.checked)}
-          />
-          <span>
-            Show me on leaderboards
-            <span className="block text-text-secondary text-xs">
-              Untick to drop off every board (the homepage one within an hour). Your own stats
-              and achievements are unaffected.
-            </span>
-          </span>
-        </label>
-      </section>
-
-      <section className="card flex flex-col gap-4">
-        <h2 className="heading-md">Theme</h2>
-        <p className="text-text-secondary text-sm -mt-2">
-          Changes apply and save instantly across every screen except the landing and sign-in pages.
-        </p>
-        <ThemePicker value={activeTheme} onChange={onPickTheme} />
+        <SettingToggleCard
+          testId="pref-leaderboards"
+          title="Show me on leaderboards"
+          checked={!trainingPrefs.leaderboardOptOut}
+          onChange={(checked) => onToggleTrainingPref('leaderboardOptOut', !checked)}
+          description="Turn off to drop off every board (the homepage one within an hour). Your own stats and achievements stay."
+        />
+        {/*
+          AREA I SLOT — "Events near you": the US state picker for
+          profiles.events_state (nullable 2-letter code) goes here, as its own
+          block inside this Community card.
+        */}
       </section>
 
       {(unparsedCount > 0 || backfillProgress) && (
         <section className="card flex flex-col gap-3">
           <h2 className="heading-md">Game data backfill</h2>
-          <p className="text-text-secondary text-sm">
+          <p className="text-text-primary text-sm">
             Re-parse stored PGNs to extract opening codes, ratings, and clock data so insight cards can use them.
           </p>
           {backfillProgress && (
@@ -436,7 +447,7 @@ export function ProfileRoute() {
                   }}
                 />
               </div>
-              <p className="text-text-secondary text-xs tabular-nums">
+              <p className="text-text-primary text-xs tabular-nums">
                 {backfillProgress.processed}/{backfillProgress.total} processed
                 {backfillProgress.failed > 0 ? ` · ${backfillProgress.failed} failed` : ''}
               </p>
@@ -476,7 +487,7 @@ export function ProfileRoute() {
                   <span className="text-text-primary tabular-nums">
                     {s.startedAt.toLocaleDateString()}
                   </span>
-                  <span className="text-text-secondary tabular-nums">
+                  <span className="text-text-primary tabular-nums">
                     {s.blundersCorrect}/{s.blundersAttempted} · {recall}% · {Math.round(duration / 60)}m
                   </span>
                 </li>
@@ -489,7 +500,7 @@ export function ProfileRoute() {
       <section className="card flex items-center justify-between">
         <div>
           <h2 className="heading-md">Sign out</h2>
-          <p className="text-text-secondary text-sm">End your session on this device.</p>
+          <p className="text-text-primary text-sm">End your session on this device.</p>
         </div>
         <button className="btn-outline" onClick={onSignOut}>
           Sign out

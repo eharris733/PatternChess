@@ -9,6 +9,8 @@ import type { UserProfile } from '../models/userProfile';
 import { useSyncStore } from '../state/syncStore';
 import { useOnboardingStore } from '../state/onboardingStore';
 import { hasStoredTheme, useThemeStore } from '../state/themeStore';
+import { hasStoredPieceSet, usePieceSetStore } from '../state/pieceSetStore';
+import { updateCosmetics } from '../services/db/cosmetics';
 import { setCachedUserId } from '../services/db/currentUser';
 
 export type AuthProviderId = 'google' | 'lichess' | 'email';
@@ -257,6 +259,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       void authService
         .updateProfile(next)
         .catch((err) => console.warn('[auth] sync boardTheme failed', err));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id]);
+
+  // Same reconciliation for the piece set (profiles.piece_set, migration 0004).
+  useEffect(() => {
+    if (!profile) return;
+    const local = usePieceSetStore.getState().pieceSet;
+    if (!hasStoredPieceSet()) {
+      if (profile.pieceSet !== local) usePieceSetStore.getState().setPieceSet(profile.pieceSet);
+      return;
+    }
+    if (profile.pieceSet !== local) {
+      setProfile((p) => (p ? { ...p, pieceSet: local } : p));
+      void updateCosmetics({ pieceSet: local }).catch((err) => console.warn('[auth] sync pieceSet failed', err));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
