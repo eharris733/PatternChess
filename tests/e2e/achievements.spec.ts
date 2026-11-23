@@ -182,7 +182,8 @@ test('the Openings category tracks reviews, opening drills and Learn chapters', 
   await expect(page.getByTestId('achievements-section').getByRole('heading', { name: 'Openings' })).toBeVisible();
   await expect(page.getByTestId('achievement-opening-review-1').getByText('Unlocked')).toBeVisible();
   await expect(page.getByTestId('achievement-opening-drill-1').getByText('Unlocked')).toBeVisible();
-  await expect(page.getByTestId('achievement-learn-chapter-1').getByText('Unlocked')).toBeVisible();
+  // Learn is unreleased (src/lib/features.ts), so its achievements are hidden from regular players.
+  await expect(page.getByTestId('achievement-learn-chapter-1')).toHaveCount(0);
   await expect(page.getByTestId('achievement-opening-review-10').getByText('1/10')).toBeVisible();
   // Time put in comes from profile.trainingTotals.
   await expect(page.getByTestId('achievement-time-10h').getByText('125/600')).toBeVisible();

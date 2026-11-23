@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { E2E_USER, stubApp } from './helpers/api';
+import { ADMIN_EMAILS } from '../../src/auth/admin';
+
+// /path is unreleased (src/lib/features.ts): admins only, so these specs sign in as one.
+const ADMIN_USER = { ...E2E_USER, email: ADMIN_EMAILS[0] };
 
 // The progression ladder: /path counts lifetime positions trained, the daily
 // plan shows the next unlock, and supporters can open every rung.
@@ -42,7 +46,7 @@ async function stub(
     ? [{ id: 'b1', fen: '8/8/8/8/8/8/8/8 w - - 0 1', kind: 'tactic', times_correct: solved, times_attempted: solved, cycle_number: 1, last_drilled_at: new Date().toISOString(), next_drill_at: new Date(Date.now() + 86_400_000).toISOString() }]
     : [];
   const rec = await stubApp(page, {
-    user: (opts.signedIn ?? true) ? E2E_USER : null,
+    user: (opts.signedIn ?? true) ? ADMIN_USER : null,
     profile: { ...BASE_PROFILE, email_opt_in: true, app_opens: (opts.opens ?? 1) - 1, ...opts.profile },
     blunders,
     gameCount: 1,
@@ -91,6 +95,14 @@ test('supporters are not pitched on /path', async ({ page }) => {
   await page.goto('/path');
   await expect(page.getByRole('heading', { name: '30 positions trained' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Become a supporter' })).toHaveCount(0);
+});
+
+test('regular players see no Path while it is unreleased', async ({ page }) => {
+  await stubApp(page, { user: E2E_USER });
+  await page.goto('/path');
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByRole('link', { name: 'Path' })).toHaveCount(0);
+  await expect(page.getByTestId('next-unlock')).toHaveCount(0);
 });
 
 test('an unknown article slug says so', async ({ page }) => {

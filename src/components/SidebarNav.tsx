@@ -13,6 +13,7 @@ import { TrophyIcon } from './icons/TrophyIcon';
 import { EndgameIcon } from './icons/EndgameIcon';
 import { OpeningIcon } from './icons/OpeningIcon';
 import { PathIcon } from './icons/PathIcon';
+import { featureVisible, type Feature } from '../lib/features';
 import { SettingsLink } from './SettingsLink';
 
 const NAV_ITEMS = [
@@ -21,7 +22,7 @@ const NAV_ITEMS = [
   { to: '/training', label: 'Train', Icon: TrainIcon },
   { to: '/openings', label: 'Openings', Icon: OpeningIcon },
   { to: '/endgames', label: 'Endgames', Icon: EndgameIcon },
-  { to: '/path', label: 'Path', Icon: PathIcon },
+  { to: '/path', label: 'Path', Icon: PathIcon, feature: 'path' as Feature },
   { to: '/leaderboards', label: 'Leaderboards', Icon: TrophyIcon },
 ];
 
@@ -29,7 +30,11 @@ const ADMIN_NAV_ITEM = { to: '/analytics', label: 'Analytics', Icon: AnalyticsIc
 
 export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { profile, user } = useAuth();
-  const navItems = isAdminEmail(user?.email) ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS;
+  const released = NAV_ITEMS.filter((item) => {
+    const feature = (item as { feature?: Feature }).feature;
+    return !feature || featureVisible(feature, user?.email);
+  });
+  const navItems = isAdminEmail(user?.email) ? [...released, ADMIN_NAV_ITEM] : released;
   const firstName =
     (profile?.displayName ??
       (user?.user_metadata?.full_name as string | undefined) ??

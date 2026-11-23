@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/useAuth';
 import { playSound } from '../lib/sounds';
+import { useFeature } from './useFeature';
 import { useBlunderStats } from './useBlunderStats';
 import { useGames } from './useGames';
 import { useEndgameScenarios } from './useEndgameScenarios';
@@ -136,7 +137,12 @@ export function useAchievements(): {
     prefKey,
   ]);
 
-  const achievements = useMemo(() => evaluateAchievements(metrics), [metrics]);
+  // Learn achievements stay hidden (and never chime) while /learn is unreleased.
+  const learnOn = useFeature('learn');
+  const achievements = useMemo(
+    () => evaluateAchievements(metrics).filter((a) => learnOn || a.metric !== 'learnChapters'),
+    [metrics, learnOn],
+  );
   const earned = achievements.filter((a) => a.earned).length;
 
   // Unlock cue: achievements are derived, not stored, so remember which ids

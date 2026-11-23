@@ -67,14 +67,6 @@ const ROUTES: Array<{ path: string; name: string; expect: (p: import('@playwrigh
     },
   },
   {
-    path: '/learn',
-    name: 'learn',
-    expect: async (p) => {
-      await expect(p.getByRole('heading', { name: /Study library/i })).toBeVisible();
-      await expect(p.getByTestId('tab-openings')).toBeVisible();
-    },
-  },
-  {
     path: '/leaderboards',
     name: 'leaderboards',
     expect: async (p) => {

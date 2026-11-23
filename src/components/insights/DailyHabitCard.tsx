@@ -23,6 +23,7 @@ import { SnowflakeIcon } from '../icons/SnowflakeIcon';
 import { CloseIcon } from '../icons/CloseIcon';
 import { Skeleton } from '../Skeleton';
 import { usePathProgress } from '../../hooks/usePathProgress';
+import { useFeature } from '../../hooks/useFeature';
 
 /** Endgame play-outs the plan asks for per day (the list may hold many more). */
 export const PLAYOUTS_PER_DAY = 2;
@@ -153,6 +154,7 @@ export function DailyHabitCard() {
   const notice = useStreakNoticeStore((s) => s.notice);
   const clearNotice = useStreakNoticeStore((s) => s.clear);
   const path = usePathProgress();
+  const pathOn = useFeature('path');
   const goals = profile?.dailyGoals ?? DEFAULT_DAILY_GOALS;
   const playHref = playUrl(profile?.lichessUsername ?? null, profile?.chesscomUsername ?? null);
   // PGN-only players have nothing to sync, so the Play step can't detect games.
@@ -327,7 +329,7 @@ export function DailyHabitCard() {
         )}
       </ul>
 
-      {path.next && path.remaining != null && !path.isPending && (
+      {pathOn && path.next && path.remaining != null && !path.isPending && (
         <button
           type="button"
           onClick={() => navigate('/path')}

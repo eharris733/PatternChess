@@ -1,8 +1,16 @@
 import { expect, test } from '@playwright/test';
-import { stubApp } from './helpers/api';
+import { E2E_USER, stubApp } from './helpers/api';
+import { ADMIN_EMAILS } from '../../src/auth/admin';
 
+// /learn is unreleased (src/lib/features.ts): admins only.
 test.beforeEach(async ({ page }) => {
-  await stubApp(page);
+  await stubApp(page, { user: { ...E2E_USER, email: ADMIN_EMAILS[0] } });
+});
+
+test('regular players are sent to the dashboard while Learn is unreleased', async ({ page }) => {
+  await stubApp(page, { user: E2E_USER });
+  await page.goto('/learn');
+  await expect(page).toHaveURL(/\/dashboard$/);
 });
 
 test('library tabs switch category via ?tab=', async ({ page }) => {
