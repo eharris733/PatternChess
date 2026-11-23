@@ -1,4 +1,6 @@
 import clsx from 'clsx';
+import { useT } from '../i18n/useT';
+import { openSupporterUnlock } from '../state/supporterUnlockStore';
 import { BOARD_THEMES, BOARD_THEME_LABEL, type BoardTheme } from '../state/themeStore';
 import { LockIcon } from './icons/LockIcon';
 
@@ -103,6 +105,7 @@ interface ThemePickerProps {
 }
 
 export function ThemePicker({ value, onChange, locked }: ThemePickerProps) {
+  const t = useT();
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="theme-picker">
       {BOARD_THEMES.map((theme) => {
@@ -114,16 +117,23 @@ export function ThemePicker({ value, onChange, locked }: ThemePickerProps) {
             key={theme}
             type="button"
             aria-pressed={active}
-            disabled={lockHint != null}
-            title={lockHint ?? undefined}
+            aria-label={lockHint ? `${BOARD_THEME_LABEL[theme]} (locked: ${lockHint})` : undefined}
             data-testid={`theme-option-${theme}`}
-            onClick={() => onChange(theme)}
+            data-locked={lockHint != null || undefined}
+            onClick={() =>
+              lockHint
+                ? openSupporterUnlock({
+                    item: t('supporterUnlock.theme', { name: BOARD_THEME_LABEL[theme] }),
+                    earnHint: t('supporterUnlock.orEarn', { hint: lockHint }),
+                  })
+                : onChange(theme)
+            }
             className={clsx(
               'relative flex flex-col gap-2 p-3 border-2 transition-all text-left',
               active
                 ? 'border-text-primary shadow-card translate-x-0 translate-y-0'
                 : 'border-text-primary/30 hover:border-text-primary hover:shadow-card-hover',
-              lockHint && 'cursor-not-allowed hover:border-text-primary/30 hover:shadow-none',
+              lockHint && 'hover:border-text-primary/60 hover:shadow-none',
             )}
             style={{ backgroundColor: palette.surface }}
           >

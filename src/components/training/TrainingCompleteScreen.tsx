@@ -6,6 +6,7 @@ import { useDailyPlan, type DailyPlan, type PlanStepId } from '../../hooks/useDa
 import type { TrainingFocus } from '../../routes/training/trainingFocus';
 import { TrophyIcon } from '../icons/TrophyIcon';
 import { useT, type Translator } from '../../i18n/useT';
+import { openSupporterUnlock } from '../../state/supporterUnlockStore';
 
 // The first session that finishes the whole plan says so; later ones say "Session done".
 const PLAN_DONE_KEY = 'pc:plan-done-shown';
@@ -60,6 +61,7 @@ export function TrainingCompleteScreen({
   onBackToDashboard,
   onStartFocus,
   sessionFocused = false,
+  cappedOut = false,
 }: {
   totalCorrect: number;
   totalAttempted: number;
@@ -74,6 +76,11 @@ export function TrainingCompleteScreen({
   onStartFocus: (focus: TrainingFocus) => void;
   /** The session had a focus, so "Keep training" doesn't continue the main queue. */
   sessionFocused?: boolean;
+  /**
+   * A free player reached today's Train goal (trainingStore.cappedOut): the
+   * day's positions are done, more training is a Supporter perk.
+   */
+  cappedOut?: boolean;
 }) {
   const { profile } = useAuth();
   const t = useT();
@@ -96,9 +103,10 @@ export function TrainingCompleteScreen({
     if (settled && plan.allDone && claimPlanDone(today)) setPlanDone(true);
   }, [settled, plan.allDone, today]);
 
-  // The next unfinished step, unless "Keep training" already is it.
+  // The next unfinished step, unless "Keep training" already is it (or the
+  // Train step is capped for today).
   const nextStep = settled && !plan.allDone ? plan.nextStep : null;
-  const nudge = nextStep && !(nextStep === 'train' && !sessionFocused) ? nextStep : null;
+  const nudge = nextStep && !(nextStep === 'train' && (!sessionFocused || cappedOut)) ? nextStep : null;
   const nudgeCopy = nudge ? nextStepCopy(nudge, plan, t) : null;
   const goNext = () => {
     if (nudge === 'lesson' && plan.lessonTarget) navigate(plan.lessonTarget);
@@ -115,10 +123,19 @@ export function TrainingCompleteScreen({
   return (
     <div className="max-w-md mx-auto card text-center flex flex-col gap-4" data-testid="training-complete">
       <TrophyIcon className="h-14 w-14 self-center text-gold-dark" />
-      <h1 className="heading-lg">{planDone ? t('train.complete.planDone') : t('train.complete.sessionDone')}</h1>
-      <p className="text-text-primary">
-        {t('train.complete.recall', { pct, correct: totalCorrect, total: totalAttempted })}
-      </p>
+      <h1 className="heading-lg">
+        {planDone ? t('train.complete.planDone') : cappedOut ? t('train.capped.title') : t('train.complete.sessionDone')}
+      </h1>
+      {totalAttempted > 0 && (
+        <p className="text-text-primary">
+          {t('train.complete.recall', { pct, correct: totalCorrect, total: totalAttempted })}
+        </p>
+      )}
+      {cappedOut && (
+        <p className="text-text-primary" data-testid="training-capped">
+          {t('train.capped.body', { count: plan.goals.positionsPerDay })}
+        </p>
+      )}
       {streakToday && <p className="text-text-primary">{t('train.complete.day', { count: streak })}</p>}
       {focusLabel && (
         <p className="text-sm text-text-primary" data-testid="complete-focus">
@@ -155,9 +172,19 @@ export function TrainingCompleteScreen({
           )}
         </div>
       )}
-      <button className="btn-primary" onClick={onKeepTraining}>
-        {t('train.complete.keepTraining')}
-      </button>
+      {cappedOut ? (
+        <button
+          className="btn-primary"
+          data-testid="training-capped-upsell"
+          onClick={() => openSupporterUnlock({ item: t('train.capped.item') })}
+        >
+          {t('train.capped.cta')}
+        </button>
+      ) : (
+        <button className="btn-primary" onClick={onKeepTraining}>
+          {t('train.complete.keepTraining')}
+        </button>
+      )}
       {onReturn && returnLabel && (
         <button className="btn-outline" onClick={onReturn}>
           {returnLabel}

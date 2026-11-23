@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { authClient, isPlaceholderEmail } from '../lib/authClient';
-import { ApiError } from '../lib/api';
+import { ApiError, onUnauthorized } from '../lib/api';
+import { runSessionEndHooks } from '../lib/sessionEnd';
 import { queryClient } from '../lib/queryClient';
 import { clearPersistedQueries, shouldPersistQuery } from '../lib/queryPersist';
 import { authService } from '../services/authService';
@@ -121,8 +122,12 @@ function scrubAuthFromUrl() {
   window.history.replaceState(window.history.state, '', url.pathname + url.search);
 }
 
+/** Minimum gap between session re-reads triggered by 401 answers. */
+const UNAUTHORIZED_RECHECK_MS = 5000;
+
 /** Never leave one account's cached games/stats for the next sign-in. */
 function clearUserState() {
+  runSessionEndHooks();
   queryClient.removeQueries({ predicate: shouldPersistQuery });
   void clearPersistedQueries();
   useSyncStore.getState().reset();
@@ -190,6 +195,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await authService.signOut();
   }, []);
+
+  // An RPC answered 401 while we think we're signed in: the session ended
+  // elsewhere (expired, signed out in another tab, revoked). Re-read it, so a
+  // dead session signs the app out (and stops its background jobs) instead of
+  // every request failing. Throttled: a burst of 401s costs one re-read.
+  useEffect(() => {
+    if (!userId) return;
+    let lastCheck = 0;
+    return onUnauthorized(() => {
+      const now = Date.now();
+      if (now - lastCheck < UNAUTHORIZED_RECHECK_MS) return;
+      lastCheck = now;
+      void refetch();
+    });
+  }, [userId, refetch]);
 
   // Session changes: cache the id, clear state on sign-out / account switch,
   // and load (or create) the profile for a newly signed-in user.

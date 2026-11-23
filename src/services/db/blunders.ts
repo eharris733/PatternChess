@@ -164,7 +164,9 @@ export async function appendCorrectMove(
 }
 
 export async function updateBlunderAfterDrill(blunder: Blunder): Promise<void> {
-  const next = nextDrillDate(blunder);
+  // advanceSr reschedules nextDrillAt only when the ladder moved; an early
+  // (practice) solve keeps the stored date.
+  const next = blunder.nextDrillAt ?? nextDrillDate(blunder);
   await rpc('blunders.updateAfterDrill', {
     id: blunder.id,
     patch: {

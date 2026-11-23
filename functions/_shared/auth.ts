@@ -272,6 +272,16 @@ function buildAuth(env: AppEnv) {
         ? { enabled: true, requireEmailVerification: false, autoSignIn: true }
         : { enabled: false },
     socialProviders,
+    // One account, several sign-ins (feedback round 2): a signed-in player can
+    // connect Google or Lichess from /profile → Accounts (authClient.linkSocial),
+    // and either button then opens the same account. Lichess reports a
+    // placeholder email (<id>@lichess.invalid, never verified), so both
+    // providers are trusted and emails may differ. Existing accounts are
+    // never merged; profile.update refuses a typed-in address another account
+    // owns, so a duplicate isn't created in the first place.
+    account: {
+      accountLinking: { enabled: true, trustedProviders: ['google', 'lichess'], allowDifferentEmails: true },
+    },
     plugins: [
       genericOAuth({
         config: [
@@ -289,6 +299,24 @@ function buildAuth(env: AppEnv) {
       }),
     ],
     databaseHooks: {
+      account: {
+        create: {
+          // Connecting Lichess to an existing account fills an empty
+          // lichess_username, so its games start syncing.
+          after: async (account) => {
+            if (account.providerId !== 'lichess') return;
+            try {
+              await env.DB.prepare(
+                "UPDATE profiles SET lichess_username = ? WHERE id = ? AND (lichess_username IS NULL OR lichess_username = '')",
+              )
+                .bind(account.accountId, account.userId)
+                .run();
+            } catch (e) {
+              console.error('[auth] lichess username fill failed', account.userId, e instanceof Error ? e.message : e);
+            }
+          },
+        },
+      },
       user: {
         create: {
           // The app profile row for brand-new users (imported users already have

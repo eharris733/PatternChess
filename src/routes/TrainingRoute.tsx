@@ -46,6 +46,9 @@ import {
 } from '../services/puzzleShareService';
 import { playSound } from '../lib/sounds';
 import { useT } from '../i18n/useT';
+import { useSupporter } from '../hooks/useSupporter';
+import { useDrillsToday } from '../hooks/useTrainingActivity';
+import { DEFAULT_DAILY_GOALS, effectiveGoals } from '../lib/dailyGoal';
 
 /** Opening intro pace, and the pause on the final position before the prompt. */
 const INTRO_STEP_MS = 400;
@@ -344,14 +347,23 @@ function TrainingSession({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRealMiss, state.sequenceToken, autoplayEnabled, hasSolution]);
 
+  // Free players stop at their plan's Train goal for the day (dailyGoal.ts);
+  // the store skips new goal positions once the remaining count is used.
+  const supporter = useSupporter();
+  const drillsToday = useDrillsToday();
+  const goalPositions = effectiveGoals(profile?.dailyGoals ?? DEFAULT_DAILY_GOALS, supporter.isSupporter).positionsPerDay;
+  const capReady = !!profile && !supporter.isPending && (supporter.isSupporter || drillsToday.isSuccess);
+  const dailyCap = supporter.isSupporter ? null : Math.max(0, goalPositions - (drillsToday.data ?? 0));
+
   useEffect(() => {
-    if (restarting || !sessionReady || !filteredBlunders) return;
+    if (restarting || !sessionReady || !filteredBlunders || !capReady) return;
     // Only initialize the store from the query when we haven't started training yet
     // (loading) or when the queue was empty (waiting for a sync to populate).
     // Don't interrupt an active session (reviewing/solving/correct/incorrect/complete).
     const { phase } = useTrainingStore.getState();
     if (phase === 'loading' || phase === 'empty') {
       useTrainingStore.getState().setRevealBeforeSolve(profile?.revealBeforeSolve ?? false);
+      useTrainingStore.getState().setDailyCap(dailyCap);
       setBlunders(filteredBlunders);
       if (filteredBlunders.length > 0 && profile) {
         void beginSession(profile);
@@ -374,6 +386,8 @@ function TrainingSession({
     restarting,
     sessionReady,
     filteredBlunders,
+    capReady,
+    dailyCap,
     profile,
     setBlunders,
     beginSession,
@@ -494,7 +508,7 @@ function TrainingSession({
     );
   }
 
-  if (state.phase === 'empty' || (state.phase === 'complete' && state.totalAttempted === 0)) {
+  if (state.phase === 'empty' || (state.phase === 'complete' && state.totalAttempted === 0 && !state.cappedOut)) {
     // What "Practice ahead" would drill for this focus (motif narrows here;
     // opening/situation focuses narrow once the batch is loaded).
     const offer = upcoming.data
@@ -589,6 +603,7 @@ function TrainingSession({
         onBackToDashboard={() => navigate('/dashboard')}
         onStartFocus={(focus) => restartWith(focus)}
         sessionFocused={hasFilter(effectiveState)}
+        cappedOut={state.cappedOut}
       />
     );
   }

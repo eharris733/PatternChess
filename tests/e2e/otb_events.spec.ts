@@ -112,9 +112,12 @@ async function stubAuthAndEvents(
   opts: { profile?: Record<string, unknown>; rpc?: RpcHandlers; byState?: Record<string, unknown[]> } = {},
 ) {
   const requestedStates: string[] = [];
+  const requestedCountries: string[] = [];
   await page.route('**/events.patternchess.com/api/events*', (route) => {
-    const state = new URL(route.request().url()).searchParams.get('state') ?? '';
-    requestedStates.push(state);
+    const params = new URL(route.request().url()).searchParams;
+    const state = params.get('state') ?? '';
+    if (state) requestedStates.push(state);
+    if (params.get('country')) requestedCountries.push(params.get('country') as string);
     if (events === 'error') return route.fulfill({ status: 500, body: '{}' });
     const rows = opts.byState?.[state] ?? events;
     return route.fulfill({
@@ -129,7 +132,7 @@ async function stubAuthAndEvents(
     gameCount: 1,
     rpc: opts.rpc,
   });
-  return { rec, requestedStates };
+  return { rec, requestedStates, requestedCountries };
 }
 
 test('dashboard shows the three nearest OTB events in the saved state', async ({ page }) => {
@@ -196,35 +199,57 @@ test('with no saved state the card guesses from location and offers to save it',
   await expect(page.getByTestId('events-state-guess')).toHaveCount(0);
 });
 
-test('the profile picks or clears the events state', async ({ page }) => {
+test('the profile picks or clears the events region', async ({ page }) => {
   const { rec } = await stubAuthAndEvents(page, API_EVENTS, {
     profile: { events_state: null },
     rpc: { 'events.locate': () => ({ country: 'US', region: 'RI' }) },
   });
   await page.goto('/profile#community');
-  const picker = page.getByTestId('profile-events-state').getByRole('combobox', { name: 'Your state for events' });
-  await expect(picker).toHaveValue('');
-  await expect(picker.locator('option').first()).toHaveText('Not set (showing Rhode Island)');
+  const setting = page.getByTestId('profile-events-state');
+  await expect(setting).toContainText('Not saved (showing Rhode Island)');
+  const state = setting.getByRole('combobox', { name: 'Your state' });
+  await expect(state).toHaveValue('RI');
 
-  await picker.selectOption('CA');
-  await rec.waitFor('profile.update', (a) => a.patch?.events_state === 'CA');
-  await expect(picker).toHaveValue('CA');
+  await state.selectOption('CA');
+  await rec.waitFor('profile.update', (a) => a.patch?.events_state === 'CA' && a.patch?.events_country === 'US');
 
-  await picker.selectOption('');
-  await rec.waitFor('profile.update', (a) => 'events_state' in (a.patch ?? {}) && a.patch.events_state === null);
+  // Another country: the state goes away.
+  await setting.getByRole('combobox', { name: 'Your country' }).selectOption('GB-SCT');
+  await rec.waitFor('profile.update', (a) => a.patch?.events_country === 'GB-SCT' && a.patch?.events_state === null);
+  await expect(setting.getByRole('combobox', { name: 'Your state' })).toHaveCount(0);
+
+  await setting.getByRole('button', { name: 'Clear' }).click();
+  await rec.waitFor('profile.update', (a) => 'events_country' in (a.patch ?? {}) && a.patch.events_country === null);
 });
 
 test.describe('outside the US', () => {
   test.use({ timezoneId: 'Europe/London' });
-  test('no saved state and no US location: no events card', async ({ page }) => {
-    const { requestedStates } = await stubAuthAndEvents(page, API_EVENTS, {
+  test('the approximate location picks the country, and its tournaments show', async ({ page }) => {
+    const { requestedStates, requestedCountries } = await stubAuthAndEvents(page, API_EVENTS, {
       profile: { events_state: null },
-      rpc: { 'events.locate': () => ({ country: 'GB', region: null }) },
+      rpc: { 'events.locate': () => ({ country: 'GB-ENG', region: null }) },
     });
     await page.goto('/dashboard');
-    await expect(page.getByText("Today's plan")).toBeVisible();
-    await expect(page.getByText('Upcoming OTB events')).toHaveCount(0);
+    await expect(page.getByText('Upcoming OTB events')).toBeVisible();
+    await expect(page.getByTestId('events-country')).toHaveValue('GB-ENG');
+    await expect(page.getByTestId('events-state-guess')).toContainText('Showing England, from your approximate location.');
+    await expect(page.getByRole('link', { name: /All England tournaments/ })).toHaveAttribute(
+      'href',
+      'https://events.patternchess.com/england',
+    );
+    expect(requestedCountries).toContain('GB-ENG');
     expect(requestedStates).toHaveLength(0);
+  });
+
+  test('a country without listings says so and keeps the picker', async ({ page }) => {
+    const { requestedStates, requestedCountries } = await stubAuthAndEvents(page, API_EVENTS, {
+      profile: { events_state: null },
+      rpc: { 'events.locate': () => ({ country: 'BR', region: null }) },
+    });
+    await page.goto('/dashboard');
+    await expect(page.getByTestId('events-none')).toHaveText('No tournaments listed in Brazil yet.');
+    await expect(page.getByTestId('events-country')).toHaveValue('BR');
+    expect([...requestedStates, ...requestedCountries]).toHaveLength(0);
   });
 });
 

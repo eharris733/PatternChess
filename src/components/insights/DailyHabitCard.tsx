@@ -101,8 +101,11 @@ function PlanStep({
       {loading ? (
         <Skeleton className="h-4 w-10" />
       ) : idle ? null : (
-        <span className="font-mono text-sm tabular-nums text-text-primary shrink-0">
-          {Math.min(done, goal)}/{goal}
+        <span className="flex shrink-0 flex-col items-end leading-tight" data-testid={testId ? `${testId}-count` : undefined}>
+          <span className="font-mono text-sm tabular-nums text-text-primary">
+            {Math.min(done, goal)}/{goal}
+          </span>
+          <span className="text-[10px] text-text-primary">{t('plan.today')}</span>
         </span>
       )}
       {locked && !complete ? (
@@ -238,9 +241,7 @@ export function DailyHabitCard() {
   const lessonDetail = !lessonCourse
     ? null
     : lessonDoneToday
-      ? lessonNextOpen && lessonNext
-        ? t('plan.lesson.doneNext', { course: lessonCourse.title, day: lessonNext.day })
-        : t('plan.lesson.done', { course: lessonCourse.title })
+      ? t('plan.lesson.done', { course: lessonCourse.title })
       : lessonNext
         ? t('plan.lesson.next', {
             course: lessonCourse.title,
@@ -315,17 +316,8 @@ export function DailyHabitCard() {
           testId="plan-step-train"
           icon={<TrainIcon className="h-5 w-5" />}
           title={t('plan.train.title', { count: goals.positionsPerDay })}
-          detail={
-            trainPending
-              ? null
-              : dueCount > 0
-                ? t('plan.train.due', { count: dueCount })
-                : upcomingCount > 0
-                  ? t('plan.train.clearPractice')
-                  : drillsToday > 0
-                    ? t('plan.train.allDrilled')
-                    : t('plan.train.nothingYet')
-          }
+          // The title + counter are what's required today; this line is the queue.
+          detail={trainPending ? null : dueCount > 0 ? t('plan.inQueue', { count: dueCount }) : upcomingCount > 0 ? t('plan.queueClear') : t('plan.noneYet')}
           done={drillsToday}
           goal={goals.positionsPerDay}
           idle={trainIdle && drillsToday === 0}
@@ -340,7 +332,7 @@ export function DailyHabitCard() {
             testId="plan-step-openings"
             icon={<OpeningIcon className="h-5 w-5" />}
             title={t('plan.openings.idleTitle')}
-            detail={t('plan.openings.idleDetail')}
+            detail={t('plan.noneYet')}
             done={0}
             goal={0}
             idle
@@ -352,7 +344,7 @@ export function DailyHabitCard() {
             testId="plan-step-openings"
             icon={<OpeningIcon className="h-5 w-5" />}
             title={t('plan.openings.title', { count: openingsGoal })}
-            detail={openingsDue > 0 ? t('plan.openings.due', { count: openingsDue }) : t('plan.openings.nothingDue')}
+            detail={openingsDue > 0 ? t('plan.inQueue', { count: openingsDue }) : t('plan.queueClear')}
             done={openingsToday}
             goal={openingsGoal}
             action={openingsDue > 0 ? t('common.review') : t('plan.practice')}
@@ -372,7 +364,7 @@ export function DailyHabitCard() {
             testId="plan-step-endgames"
             icon={<EndgameIcon className="h-5 w-5" />}
             title={t('plan.endgames.idleTitle')}
-            detail={t('plan.endgames.idleDetail')}
+            detail={t('plan.noneYet')}
             done={0}
             goal={0}
             idle
@@ -384,7 +376,7 @@ export function DailyHabitCard() {
             testId="plan-step-endgames"
             icon={<EndgameIcon className="h-5 w-5" />}
             title={t('plan.endgames.title', { count: endgamesGoal })}
-            detail={playoutsDue > 0 ? t('plan.endgames.due', { count: playoutsDue }) : t('plan.endgames.nothingDue')}
+            detail={playoutsDue > 0 ? t('plan.inQueue', { count: playoutsDue }) : t('plan.queueClear')}
             done={playoutsToday}
             goal={endgamesGoal}
             action={t('common.play')}
@@ -401,7 +393,7 @@ export function DailyHabitCard() {
                 t('plan.play.locked')
               ) : (
                 <>
-                  {syncing ? t('plan.play.checking') : t('plan.play.detail')}{' '}
+                  {syncing && t('plan.play.checking')}
                   {!syncing && (
                     <button
                       type="button"
@@ -468,8 +460,9 @@ export function DailyHabitCard() {
           </div>
           <div className="flex items-center gap-2">
             <TrophyIcon className="h-4 w-4 shrink-0 text-gold-dark" />
-            <span className="text-sm text-text-primary">{next.title}</span>
-            <span className="truncate text-text-primary text-xs">{next.description}</span>
+            <span className="text-sm text-text-primary" title={next.description}>
+              {next.title}
+            </span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-none border border-text-primary/20 bg-text-primary/10">
             <div

@@ -1,6 +1,6 @@
 import { getSessionUser } from '../../_shared/auth';
 import type { AppEnv } from '../../_shared/db';
-import { supporterCheckoutParams } from '../../_shared/checkoutParams';
+import { checkoutReturnPath, supporterCheckoutParams } from '../../_shared/checkoutParams';
 import {
   PERK_STATUSES,
   crossSite,
@@ -21,13 +21,16 @@ function randomLetters(n: number): string {
  * subscription. The player's Stripe customer is created (or reused) and linked
  * in `supporters` first, so every later webhook maps back through the customer.
  * Perks start from the webhook, never from the success page. The page carries
- * PatternChess branding and copy (supporterCheckoutParams).
+ * PatternChess branding and copy (supporterCheckoutParams). Body (optional):
+ * `{ returnTo }`, the app path to come back to — Back/cancel returns there and
+ * success adds `?supporter=thanks`; anything else goes to /dashboard.
  */
 export const onRequestPost: PagesFunction<StripeEnv & AppEnv> = async ({ request, env }) => {
   if (crossSite(request)) return json({ error: 'cross_site' }, 403);
   const user = await getSessionUser(request, env);
   if (!user) return json({ error: 'sign_in_required' }, 401);
 
+  const body = (await request.json().catch(() => ({}))) as { returnTo?: unknown };
   const stripe = stripeClient(env);
   let row = await supporterBy(env, 'user_id', user.id);
   if (row && PERK_STATUSES.has(row.status)) return json({ error: 'already_supporter' }, 409);
@@ -43,6 +46,7 @@ export const onRequestPost: PagesFunction<StripeEnv & AppEnv> = async ({ request
   const session = await stripe.checkout.sessions.create(
     supporterCheckoutParams({
       origin: new URL(request.url).origin,
+      returnPath: checkoutReturnPath(body.returnTo),
       customerId: row.stripe_customer_id,
       userId: user.id,
       priceId: env.STRIPE_PRICE_ID,

@@ -27,6 +27,8 @@ export interface AchievementCardInput {
   flairTitle?: string | null;
   /** The player's pixel avatar, drawn beside their name. */
   avatar?: AvatarParts | null;
+  /** "Only 4% of players have this" (achievements.rarity); omitted when unknown. */
+  rarityLine?: string | null;
 }
 
 /** Word-wraps `text` into at most `maxLines` lines that fit `maxWidth`. */
@@ -92,9 +94,15 @@ export async function renderAchievementCard(input: AchievementCardInput): Promis
   ctx.fillStyle = INK;
   ctx.globalAlpha = 0.85;
   ctx.font = `400 32px ${SANS}`;
-  for (const l of wrap(ctx, input.description, maxW, 3)) {
+  for (const l of wrap(ctx, input.description, maxW, input.rarityLine ? 2 : 3)) {
     ctx.fillText(l, x, y);
     y += 44;
+  }
+  if (input.rarityLine) {
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = GOLD_DARK;
+    ctx.font = `700 26px ${MONO}`;
+    ctx.fillText(input.rarityLine.toUpperCase(), x, y + 8);
   }
 
   ctx.globalAlpha = 1;

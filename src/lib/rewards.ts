@@ -38,6 +38,7 @@ export const REWARDS: readonly Reward[] = [
   { id: 'rung-200-fantasy', item: { kind: 'pieceSet', id: 'fantasy' }, unlock: { rung: 200 } },
   { id: 'rung-200-freeze', item: { kind: 'streakFreeze' }, unlock: { rung: 200 } },
   { id: 'rung-350-shades', item: { kind: 'avatar', part: 'accessory', id: 'shades' }, unlock: { rung: 350 } },
+  { id: 'rung-350-sticker', item: { kind: 'pieceSet', id: 'sticker' }, unlock: { rung: 350 } },
   { id: 'rung-500-midnight', item: { kind: 'theme', id: 'midnight' }, unlock: { rung: 500 } },
   { id: 'rung-500-freeze', item: { kind: 'streakFreeze' }, unlock: { rung: 500 } },
   { id: 'rung-750-celtic', item: { kind: 'pieceSet', id: 'celtic' }, unlock: { rung: 750 } },

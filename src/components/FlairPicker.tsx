@@ -8,6 +8,9 @@ import { authService } from '../services/authService';
 import { FlairBadge } from './FlairBadge';
 import { Skeleton } from './Skeleton';
 import { CloseIcon } from './icons/CloseIcon';
+import { LockIcon } from './icons/LockIcon';
+import { useT } from '../i18n/useT';
+import { openSupporterUnlock } from '../state/supporterUnlockStore';
 
 /**
  * Pick the flair shown next to your name (profile header and leaderboards),
@@ -50,6 +53,7 @@ export function FlairPickerModal({ onClose }: { onClose: () => void }) {
 }
 
 function FlairPickerGrid() {
+  const t = useT();
   const { profile, refreshProfile } = useAuth();
   const { achievements, isPending } = useAchievements();
   const [selected, setSelected] = useState<string | null>(profile?.flair ?? null);
@@ -107,17 +111,27 @@ function FlairPickerGrid() {
                       <li key={f.id}>
                         <button
                           type="button"
-                          disabled={!f.unlocked}
                           aria-pressed={active}
-                          onClick={() => choose(f.id)}
+                          onClick={() =>
+                            f.unlocked
+                              ? choose(f.id)
+                              : openSupporterUnlock({
+                                  item: t('supporterUnlock.flair', { name: f.title }),
+                                  earnHint: f.track === 'supporter' ? null : t('supporterUnlock.flairEarn'),
+                                })
+                          }
                           data-testid={`flair-option-${f.id}`}
+                          data-locked={!f.unlocked || undefined}
                           className={clsx(
                             'w-full h-full flex flex-col items-start gap-1.5 border-2 p-2 text-left transition-colors',
                             active ? 'border-accent bg-accent/10' : 'border-text-primary/20',
-                            f.unlocked ? 'hover:border-accent' : 'opacity-60 cursor-not-allowed',
+                            f.unlocked ? 'hover:border-accent' : 'hover:border-text-primary/60',
                           )}
                         >
-                          <FlairBadge flair={f.id} size="md" />
+                          <span className={clsx('flex items-center gap-1', !f.unlocked && 'opacity-60')}>
+                            {!f.unlocked && <LockIcon className="h-3.5 w-3.5" />}
+                            <FlairBadge flair={f.id} size="md" />
+                          </span>
                           <span className="text-text-primary text-[11px] leading-snug">
                             {f.unlocked
                               ? active
@@ -126,7 +140,7 @@ function FlairPickerGrid() {
                               : req
                                 ? `${req.description} (${Math.min(req.value, req.threshold).toLocaleString()}/${req.threshold.toLocaleString()})`
                                 : f.track === 'supporter'
-                                  ? 'For supporters'
+                                  ? t('supporterUnlock.forSupporters')
                                   : 'Locked'}
                           </span>
                         </button>

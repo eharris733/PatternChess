@@ -14,9 +14,27 @@ const lich: SessionUser = { id: 'u-lich', email: null, name: 'KnightRider', imag
 
 let db: TestD1;
 
+/** Extra env for a call (a fake NOTIFIER binding, an in-memory AUTH_KV); reset per test. */
+let extraEnv: Partial<AppEnv> = {};
+let pending: Promise<unknown>[] = [];
+
 function call<T = unknown>(name: string, user: SessionUser, args: Record<string, unknown> = {}): Promise<T> {
-  const ctx = { db, env: { DB: db } as unknown as AppEnv, user, request: new Request('https://x'), waitUntil: () => {} };
+  const ctx = {
+    db,
+    env: { DB: db, ...extraEnv } as unknown as AppEnv,
+    user,
+    request: new Request('https://x'),
+    waitUntil: (p: Promise<unknown>) => void pending.push(p),
+  };
   return handlers[name].handler(ctx, args) as Promise<T>;
+}
+
+function memoryKv(): KVNamespace {
+  const m = new Map<string, string>();
+  return {
+    get: async (k: string) => m.get(k) ?? null,
+    put: async (k: string, v: string) => void m.set(k, v),
+  } as unknown as KVNamespace;
 }
 
 function sql(q: string, ...params: unknown[]) {
@@ -44,6 +62,8 @@ function addProfile(id: string, extra: Record<string, unknown> = {}) {
 }
 
 beforeEach(async () => {
+  extraEnv = {};
+  pending = [];
   db = await openTestD1();
   addUser('u-alice', 'alice@example.com', 'Alice');
   addUser('u-bob', 'bob@example.com', 'Bob');
@@ -53,6 +73,67 @@ beforeEach(async () => {
 });
 
 afterEach(() => db.close());
+
+describe('contact email confirmation', () => {
+  it('a new address mails the confirmation at once through the notifier', async () => {
+    const sent: string[] = [];
+    extraEnv = { NOTIFIER: { sendConfirm: async (id: string) => (sent.push(id), { sent: true }) } };
+    addProfile('u-lich');
+    await call('profile.update', lich, { patch: { contact_email: 'knight@example.org', email_opt_in: true } });
+    await Promise.all(pending);
+    expect(sent).toEqual(['u-lich']);
+    // Saving the same address again sends nothing new.
+    await call('profile.update', lich, { patch: { contact_email: 'knight@example.org' } });
+    await Promise.all(pending);
+    expect(sent).toEqual(['u-lich']);
+  });
+
+  it("refuses an address another account owns, so a Lichess sign-in doesn't make a duplicate", async () => {
+    addProfile('u-lich');
+    await expect(call('profile.update', lich, { patch: { contact_email: 'Bob@Example.com' } })).rejects.toMatchObject({
+      status: 409,
+      code: 'email_in_use',
+    });
+    // Another player's unconfirmed typed-in address doesn't block anyone.
+    db.sqlite.prepare("UPDATE profiles SET contact_email = 'shared@example.org' WHERE id = 'u-bob'").run();
+    await call('profile.update', lich, { patch: { contact_email: 'shared@example.org' } });
+    db.sqlite.prepare("UPDATE profiles SET contact_email_verified_at = ? WHERE id = 'u-lich'").run(iso());
+    db.sqlite.prepare("UPDATE profiles SET contact_email = NULL WHERE id = 'u-bob'").run();
+    await expect(call('profile.update', bob, { patch: { contact_email: 'shared@example.org' } })).rejects.toMatchObject({
+      status: 409,
+    });
+  });
+
+  it('resend is rate limited: once a minute', async () => {
+    const sent: string[] = [];
+    extraEnv = { AUTH_KV: memoryKv(), NOTIFIER: { sendConfirm: async (id: string) => (sent.push(id), { sent: true }) } };
+    addProfile('u-lich', { contact_email: 'knight@example.org' });
+    expect(await call('profile.resendConfirm', lich)).toEqual({ sent: true });
+    await expect(call('profile.resendConfirm', lich)).rejects.toMatchObject({ status: 429 });
+    expect(sent).toEqual(['u-lich']);
+    db.sqlite.prepare("UPDATE profiles SET contact_email_verified_at = ? WHERE id = 'u-lich'").run(iso());
+    expect(await call('profile.resendConfirm', lich)).toEqual({ sent: false, reason: 'already_confirmed' });
+  });
+});
+
+describe('profile.update supporter plans', () => {
+  it('Obsessed and goals past 20 positions need Supporter perks', async () => {
+    await expect(call('profile.update', alice, { patch: { commitment_level: 'obsessed', daily_positions_goal: 30 } })).rejects.toMatchObject({
+      status: 403,
+    });
+    await expect(call('profile.update', alice, { patch: { commitment_level: 'custom', daily_positions_goal: 21 } })).rejects.toMatchObject({
+      status: 403,
+    });
+    await call('profile.update', alice, { patch: { commitment_level: 'custom', daily_positions_goal: 20 } });
+    db.sqlite
+      .prepare('INSERT INTO supporters (user_id, stripe_customer_id, status) VALUES (?, ?, ?)')
+      .run('u-alice', 'cus_a', 'active');
+    const row = await call<Record<string, unknown>>('profile.update', alice, {
+      patch: { commitment_level: 'obsessed', daily_positions_goal: 30, daily_games_goal: 3 },
+    });
+    expect(row).toMatchObject({ commitment_level: 'obsessed', daily_positions_goal: 30 });
+  });
+});
 
 describe('profile.update allowlist + email guard', () => {
   it('rejects columns outside the allowlist', () => {

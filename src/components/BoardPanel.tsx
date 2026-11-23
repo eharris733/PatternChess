@@ -33,11 +33,12 @@ export interface BoardPanelProps {
   className?: string;
 }
 
-const PROMO_PIECES: Array<{ role: 'q' | 'r' | 'b' | 'n'; label: string }> = [
-  { role: 'q', label: '♛' },
-  { role: 'r', label: '♜' },
-  { role: 'b', label: '♝' },
-  { role: 'n', label: '♞' },
+/** Promotion choices, nearest the promotion square first (Lichess order). */
+const PROMO_PIECES: Array<{ role: 'q' | 'r' | 'b' | 'n'; name: string }> = [
+  { role: 'q', name: 'queen' },
+  { role: 'n', name: 'knight' },
+  { role: 'r', name: 'rook' },
+  { role: 'b', name: 'bishop' },
 ];
 
 export function BoardPanel({
@@ -53,6 +54,9 @@ export function BoardPanel({
   className,
 }: BoardPanelProps) {
   const [pendingPromo, setPendingPromo] = useState<{ from: string; to: string } | null>(null);
+  // Bumped when a promotion is cancelled: chessground has already moved the
+  // pawn on its own board, so a fresh config puts the position back.
+  const [promoCancels, setPromoCancels] = useState(0);
 
   const dests = useMemo(() => (viewOnly ? new Map<string, string[]>() : legalDests(fen)), [fen, viewOnly]);
   const turn = useMemo(() => turnColor(fen), [fen]);
@@ -116,33 +120,98 @@ export function BoardPanel({
     // lastMove by value: callers often rebuild the tuple every render, and a
     // new config re-`set`s the whole board.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fen, orientation, turn, inCheck, lastMoveKey, movableFor, onMove, shapes, dests, viewOnly, coordinates]);
+  }, [fen, orientation, turn, inCheck, lastMoveKey, movableFor, onMove, shapes, dests, viewOnly, coordinates, promoCancels]);
 
   return (
     <div className={clsx('relative aspect-square w-full max-w-[min(640px,calc(100vh-5rem))] mx-auto', className)}>
       <ChessgroundReact config={config} className="w-full h-full" />
       {pendingPromo && (
-        <div className="absolute inset-0 flex items-center justify-center bg-text-primary/40 backdrop-blur-sm z-10">
-          <div className="bg-surface rounded-none border-2 border-text-primary p-3 shadow-card flex gap-2">
-            {PROMO_PIECES.map((p) => (
-              <button
-                key={p.role}
-                className="w-12 h-12 text-3xl rounded-none border-2 border-transparent hover:border-accent hover:bg-accent/15 text-text-primary transition-colors"
-                onClick={() => {
-                  if (!pendingPromo || !onMove) return;
-                  onMove({ from: pendingPromo.from, to: pendingPromo.to, promotion: p.role });
-                  setPendingPromo(null);
-                }}
-                aria-label={`Promote to ${p.role}`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <PromotionChooser
+          square={pendingPromo.to}
+          color={turn}
+          orientation={orientation}
+          onPick={(role) => {
+            if (onMove) onMove({ from: pendingPromo.from, to: pendingPromo.to, promotion: role });
+            setPendingPromo(null);
+          }}
+          onCancel={() => {
+            setPendingPromo(null);
+            setPromoCancels((n) => n + 1);
+          }}
+        />
       )}
     </div>
   );
+}
+
+/**
+ * The promotion picker, Lichess style: the four pieces in the promoting
+ * side's colour and the player's piece set (the board's own piece CSS, via
+ * `.cg-wrap piece.<role>.<color>`), stacked over the promotion square's file
+ * from the board edge inward. Clicking anywhere else cancels.
+ */
+function PromotionChooser({
+  square,
+  color,
+  orientation,
+  onPick,
+  onCancel,
+}: {
+  square: string;
+  color: Side;
+  orientation: Side;
+  onPick: (role: 'q' | 'r' | 'b' | 'n') => void;
+  onCancel: () => void;
+}) {
+  const file = square.charCodeAt(0) - 'a'.charCodeAt(0);
+  const col = orientation === 'white' ? file : 7 - file;
+  // The promotion rank sits at the top of the view when the promoting side
+  // is the side at the bottom.
+  const fromTop = color === orientation;
+  return (
+    <div
+      className="cg-wrap promotion-chooser"
+      role="dialog"
+      aria-label="Choose a promotion piece"
+      onClick={onCancel}
+    >
+      {PROMO_PIECES.map((p, i) => {
+        const row = fromTop ? i : 7 - i;
+        return (
+          <button
+            key={p.role}
+            type="button"
+            className="promotion-choice"
+            style={{ left: `${col * 12.5}%`, top: `${row * 12.5}%` }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onPick(p.role);
+            }}
+            aria-label={`Promote to ${p.name}`}
+          >
+            <CgPiece className={`${p.name} ${color}`} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * A chessground `<piece>` element, so the board's piece-set CSS
+ * (`.cg-wrap piece.<role>.<color>`) draws it. Created through the DOM because
+ * React warns about the unknown tag.
+ */
+function CgPiece({ className }: { className: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const host = ref.current;
+    if (!host) return;
+    const el = document.createElement('piece');
+    el.className = className;
+    host.replaceChildren(el);
+  }, [className]);
+  return <span ref={ref} className="contents" />;
 }
 
 function needsPromotion(fen: string, from: string, to: string): boolean {

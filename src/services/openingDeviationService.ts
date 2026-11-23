@@ -17,7 +17,9 @@ import {
   winningChancesLost,
 } from '../chess/winningChances';
 import { getAnalysisStockfish } from '../hooks/useStockfish';
+import { isUnauthorizedError } from '../lib/api';
 import { queryClient } from '../lib/queryClient';
+import { onSessionEnd } from '../lib/sessionEnd';
 import type { OpeningDrillData, OpeningDrillSource, TheoryMove } from '../models/blunder';
 import type { OpeningDeviation } from '../chess/openingDeviation';
 import type { Json } from '../lib/database.types';
@@ -282,6 +284,8 @@ function launchPass(): void {
                 if (await scoreOne(sf, dev)) pastBook++;
                 progressed = true;
               } catch (err) {
+                // Signed out: every later row would fail the same way.
+                if (isUnauthorizedError(err)) throw err;
                 console.warn('[openings] scoring failed for deviation', dev.id, err);
                 evalSkip.add(dev.id);
               }
@@ -303,6 +307,7 @@ function launchPass(): void {
                 await scanPastBook(sf, dev, () => stopped);
                 progressed = true;
               } catch (err) {
+                if (isUnauthorizedError(err)) throw err;
                 console.warn('[openings] past-book scan failed for deviation', dev.id, err);
                 pastSkip.add(dev.id);
               }
@@ -409,6 +414,29 @@ function launchPass(): void {
     }
   })();
 }
+
+/**
+ * Sign-out / account switch: end the pass, including a detached one, so it
+ * never runs on for the next user (or with no session at all). Pages that
+ * still hold the scan start a fresh pass when they mount again.
+ */
+export function stopOpeningDeviationScan(): void {
+  keepAlive = false;
+  rerunRequested = false;
+  orphanSweepDone = false;
+  drillsChanged = false;
+  stopCurrent?.();
+  useOpeningScanStore.setState({
+    phase: 'idle',
+    unwalked: 0,
+    unscored: 0,
+    pastBook: 0,
+    unanalyzed: 0,
+    bookUnavailable: false,
+  });
+}
+
+onSessionEnd(stopOpeningDeviationScan);
 
 async function sweepOrphanDrills(): Promise<void> {
   if (orphanSweepDone) return;

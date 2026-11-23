@@ -13,21 +13,30 @@
 //   GET/POST /unsubscribe?t=  one-click unsubscribe (POST = RFC 8058)
 //   GET/POST /settings?t=     no-login email settings
 //   GET      /confirm?c=      confirm a typed-in contact address
+// RPC (service binding NOTIFIER on the Pages project):
+//   sendConfirm(userId)       mail the confirmation link now (Lichess email gate)
 // fetch, admin (Authorization: Bearer ADMIN_SECRET):
 //   GET  /admin/preview?user=<uuid>&kind=<kind>[&format=text|json]
 //   POST /admin/run?dryRun=1[&now=<ISO>]   evaluate (and with dryRun=0, send) the outbox
 //   POST /admin/send-sample?user=<uuid>&kind=<kind>&to=<addr>
+//   POST /admin/alerts/run?dryRun=1     run the health checks (alerts.ts)
+//   POST /admin/alert                   { check, ok, detail? } from an outside reporter
+//
+// scheduled also runs the health checks after the outbox and emails ALERT_TO
+// when one starts failing, keeps failing (daily) or recovers.
 //
 // SEND_MODE gates real mail: anything but "live" sends only to TEST_RECIPIENTS.
 //
-// weekly_report adds "Events near you" for players with a saved
-// profiles.events_state, fetched from the public events API (EVENTS_URL,
-// default events.patternchess.com) once per state per run; if that API is
+// weekly_report adds "Events near you" for players with a saved region
+// (profiles.events_country / events_state), fetched from the public events API (EVENTS_URL,
+// default events.patternchess.com) once per region per run; if that API is
 // down the section is simply left out (events.ts).
 //
 // Local only (`--var DEV_MAILBOX:1`, devMailbox.ts): /dev/mailbox keeps every
 // email in memory instead of sending it, and can run the job for one account.
 
+import { WorkerEntrypoint } from 'cloudflare:workers';
+import { first } from './db';
 import {
   buildLinks,
   EMAIL_KINDS,
@@ -39,7 +48,7 @@ import {
   type LinkBases,
   type OutboxRow,
 } from './outbox';
-import { EVENTS_SITE, stateEventsLoader } from './events';
+import { EVENTS_SITE, regionEventsLoader } from './events';
 import {
   confirmEmail,
   emailCandidates,
@@ -58,6 +67,7 @@ import {
   unsubscribedPage,
 } from './pages';
 import { FROM_ADDRESS, FROM_NAME, renderEmail, type EmailKind } from './templates';
+import { alertEmail, probeAll, recordResults, type CheckResult } from './alerts';
 import {
   capture,
   devMailboxOn,
@@ -81,6 +91,8 @@ export interface Env {
   EVENTS_URL?: string;
   /** "1" only in local dev (wrangler dev --var DEV_MAILBOX:1): capture instead of sending. */
   DEV_MAILBOX?: string;
+  /** Where health-check alerts go (alerts.ts); unset = checks run, nothing is mailed. */
+  ALERT_TO?: string;
 }
 
 /** Well under the account's daily quota; a backlog drains over the next hours. */
@@ -90,9 +102,9 @@ function bases(env: Env): LinkBases {
   return { app: env.APP_URL.replace(/\/$/, ''), email: env.EMAIL_URL.replace(/\/$/, '') };
 }
 
-/** A fresh per-run events loader (one API call per state per run). */
+/** A fresh per-run events loader (one API call per region per run). */
 function eventsLoader(env: Env) {
-  return stateEventsLoader((input, init) => fetch(input, init), (env.EVENTS_URL || EVENTS_SITE).replace(/\/$/, ''));
+  return regionEventsLoader((input, init) => fetch(input, init), (env.EVENTS_URL || EVENTS_SITE).replace(/\/$/, ''));
 }
 
 function json(body: unknown, status = 200): Response {
@@ -181,6 +193,49 @@ async function candidate(env: Env, userId: string, now: Date): Promise<OutboxRow
   return rows[0] ?? null;
 }
 
+/**
+ * Health checks for this hour (alerts.ts): the probes plus `extra` results
+ * (the outbox run itself), recorded in alert_state; any transition is mailed
+ * to ALERT_TO in one email. dryRun = probe only, record and send nothing.
+ */
+async function runAlerts(env: Env, now: Date, extra: CheckResult[], dryRun = false) {
+  const results = [...(await probeAll(env, now)), ...extra];
+  if (dryRun) return { results, notices: [], mailed: false };
+  return { results, ...(await mailNotices(env, results, now)) };
+}
+
+async function mailNotices(env: Env, results: CheckResult[], now: Date) {
+  const notices = await recordResults(env.DB, results, now);
+  const email = alertEmail(notices, now);
+  let mailed = false;
+  if (email && env.ALERT_TO) {
+    if (devMailboxOn(env)) capture('alert', env.ALERT_TO, { ...email, preheader: email.subject });
+    else {
+      await env.EMAIL.send({
+        from: { email: FROM_ADDRESS, name: 'PatternChess alerts' },
+        to: env.ALERT_TO,
+        subject: email.subject,
+        html: email.html,
+        text: email.text,
+      });
+    }
+    mailed = true;
+  }
+  return { notices, mailed };
+}
+
+/** The outbox run as health-check results: the run itself, and its send failures. */
+function runChecks(summary: RunSummary | null, runError: string | null): CheckResult[] {
+  return [
+    { id: 'email-run', ok: runError == null, ...(runError ? { detail: runError } : {}) },
+    {
+      id: 'email-send',
+      ok: !summary || summary.failed.length === 0,
+      ...(summary?.failed.length ? { detail: summary.failed.map((f) => `${f.kind}: ${f.error}`).join('; ').slice(0, 500) } : {}),
+    },
+  ];
+}
+
 async function handleAdmin(req: Request, env: Env, url: URL): Promise<Response> {
   const auth = req.headers.get('Authorization') ?? '';
   if (!timingSafeEqual(`Bearer ${env.ADMIN_SECRET ?? ''}`, auth) || !env.ADMIN_SECRET) {
@@ -193,6 +248,21 @@ async function handleAdmin(req: Request, env: Env, url: URL): Promise<Response> 
   if (url.pathname === '/admin/run' && req.method === 'POST') {
     const dryRun = url.searchParams.get('dryRun') !== '0';
     return json(await runOutbox(env, now, dryRun));
+  }
+
+  // Probe every check now (dryRun=0 also records and mails transitions).
+  if (url.pathname === '/admin/alerts/run' && req.method === 'POST') {
+    return json(await runAlerts(env, now, [], url.searchParams.get('dryRun') !== '0'));
+  }
+
+  // An outside reporter's result (the social-daily workflow): JSON
+  // { check, ok, detail? }. One failure is enough to alert.
+  if (url.pathname === '/admin/alert' && req.method === 'POST') {
+    const body = (await req.json().catch(() => null)) as { check?: unknown; ok?: unknown; detail?: unknown } | null;
+    const check = typeof body?.check === 'string' && /^[a-z0-9-]{1,40}$/.test(body.check) ? body.check : null;
+    if (!check || typeof body?.ok !== 'boolean') return json({ error: 'body must be { check, ok, detail? }' }, 400);
+    const detail = typeof body.detail === 'string' ? body.detail.slice(0, 500) : undefined;
+    return json(await mailNotices(env, [{ id: check, ok: body.ok, detail, threshold: 1 }], now));
   }
 
   const user = url.searchParams.get('user');
@@ -315,8 +385,43 @@ async function handlePublic(req: Request, env: Env, url: URL): Promise<Response>
   return notFoundPage(app);
 }
 
-export default {
-  async fetch(req, env): Promise<Response> {
+/**
+ * Sends the confirmation link for a player's typed-in address right away
+ * (Pages Functions call this over the NOTIFIER service binding when the
+ * address is saved or the player asks for a resend). Logged like the hourly
+ * run's confirm, so the cron's 23-hour rule never sends a duplicate.
+ */
+export async function sendConfirmNow(
+  env: Env,
+  userId: string,
+  now: Date = new Date(),
+): Promise<{ sent: boolean; reason?: string }> {
+  if (!isUuid(userId)) return { sent: false, reason: 'bad_user' };
+  const p = await first<{ contact_email: string | null; contact_email_verified_at: string | null }>(
+    env.DB,
+    'SELECT contact_email, contact_email_verified_at FROM profiles WHERE id = ?',
+    [userId],
+  );
+  if (!p?.contact_email || p.contact_email_verified_at) return { sent: false, reason: 'nothing_to_confirm' };
+  if (!devMailboxOn(env) && !mayReceive(env.SEND_MODE, parseRecipients(env.TEST_RECIPIENTS), p.contact_email)) {
+    return { sent: false, reason: 'test_mode' };
+  }
+  const row = await candidate(env, userId, now);
+  if (!row) return { sent: false, reason: 'no_user' };
+  const r = { ...row, kind: 'confirm' as const, to_email: p.contact_email };
+  const token = await newConfirmToken(env.DB, userId, p.contact_email);
+  const { messageId } = await deliver(env, r, p.contact_email, token);
+  await logSend(env.DB, { user_id: userId, kind: 'confirm', to_email: p.contact_email, provider_id: messageId ?? null });
+  return { sent: true };
+}
+
+/**
+ * WorkerEntrypoint so the Pages project can call `sendConfirm` over its
+ * NOTIFIER service binding (RPC: no public route, no shared secret).
+ */
+export default class Notifier extends WorkerEntrypoint<Env> {
+  async fetch(req: Request): Promise<Response> {
+    const env = this.env;
     const url = new URL(req.url);
     try {
       if (url.pathname.startsWith('/admin/')) return await handleAdmin(req, env, url);
@@ -326,21 +431,48 @@ export default {
       console.error('[notifier] request failed', url.pathname, err);
       return new Response('Something went wrong. Please try again in a minute.', { status: 500 });
     }
-  },
+  }
 
-  async scheduled(controller, env, ctx): Promise<void> {
-    ctx.waitUntil(
-      runOutbox(env, new Date(controller.scheduledTime), false).then((s) => {
-        console.log(
-          JSON.stringify({
-            msg: 'outbox run',
-            candidates: s.candidates,
-            sent: s.sent.length,
-            skipped: s.skipped.length,
-            failed: s.failed,
-          }),
-        );
-      }),
+  async scheduled(controller: ScheduledController): Promise<void> {
+    const env = this.env;
+    const now = new Date(controller.scheduledTime);
+    this.ctx.waitUntil(
+      (async () => {
+        let summary: RunSummary | null = null;
+        let runError: string | null = null;
+        try {
+          summary = await runOutbox(env, now, false);
+          console.log(
+            JSON.stringify({
+              msg: 'outbox run',
+              candidates: summary.candidates,
+              sent: summary.sent.length,
+              skipped: summary.skipped.length,
+              failed: summary.failed,
+            }),
+          );
+        } catch (err) {
+          runError = err instanceof Error ? err.message : String(err);
+          console.error('[notifier] outbox run failed', err);
+        }
+        try {
+          const a = await runAlerts(env, now, runChecks(summary, runError));
+          const failing = a.results.filter((r) => !r.ok).map((r) => r.id);
+          console.log(JSON.stringify({ msg: 'health checks', failing, notices: a.notices.length, mailed: a.mailed }));
+        } catch (err) {
+          console.error('[notifier] health checks failed', err);
+        }
+      })(),
     );
-  },
-} satisfies ExportedHandler<Env>;
+  }
+
+  /** RPC (Pages → NOTIFIER binding): mail the confirmation link now. */
+  async sendConfirm(userId: string): Promise<{ sent: boolean; reason?: string }> {
+    try {
+      return await sendConfirmNow(this.env, userId);
+    } catch (err) {
+      console.error('[notifier] sendConfirm failed', err);
+      return { sent: false, reason: 'error' };
+    }
+  }
+}

@@ -26,6 +26,17 @@ export interface AppEnv {
   GOOGLE_CLIENT_SECRET?: string;
   /** '1' enables email+password sign-up/in without verification (automated tests; never prod). */
   AUTH_TEST_MODE?: string;
+  /**
+   * Service binding to the notifier Worker (workers/notifier, RPC). Optional:
+   * without it (local dev without the notifier) the hourly run still mails
+   * the confirmation link.
+   */
+  NOTIFIER?: NotifierRpc;
+}
+
+/** The notifier Worker's RPC surface (workers/notifier/src/index.ts). */
+export interface NotifierRpc {
+  sendConfirm(userId: string): Promise<{ sent: boolean; reason?: string }>;
 }
 
 export type SqlParam = string | number | boolean | null | undefined | Date | readonly unknown[] | object;

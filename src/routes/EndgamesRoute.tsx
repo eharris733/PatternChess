@@ -225,7 +225,7 @@ export function EndgamesRoute() {
           });
         }
         void applyScenarioResult(scenario, { success: r.success, isFirstAttempt })
-          .then(() =>
+          .write.then(() =>
             queryClient.invalidateQueries({ queryKey: ['endgameScenarios'], refetchType: 'all' }),
           )
           .catch((err) => console.warn('[endgames] failed to save result', err));

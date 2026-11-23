@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decide, eventsStateFor, firstNameOf, localTime, realEmail, validTimezone, type CandidateFacts } from './rules';
+import { decide, eventsRegionFor, firstNameOf, localTime, realEmail, validTimezone, type CandidateFacts } from './rules';
 
 // The TypeScript port of email_candidates(): one block per rule.
 
@@ -30,6 +30,7 @@ function facts(over: Partial<CandidateFacts> = {}): CandidateFacts {
     chesscom_username: null,
     timezone: 'America/New_York',
     events_state: null,
+    events_country: null,
     due_now: 0,
     live_total: 20,
     last_trained: ago(4 * D),
@@ -180,7 +181,7 @@ describe('events near you', () => {
     const f = facts({ last_trained: ago(2 * D, SUN), events_state: 'MA' });
     const d = decide(f, SUN);
     expect(d.kind).toBe('weekly_report');
-    expect(eventsStateFor(d.kind, f)).toBe('MA');
+    expect(eventsRegionFor(d.kind, f)).toBe('US-MA');
   });
   it('never changes which email is sent', () => {
     for (const over of [{ last_trained: ago(2 * D, SUN) }, { last_trained: ago(2 * D, SUN), email_reports: 'off', due_now: 3 }]) {
@@ -189,14 +190,21 @@ describe('events near you', () => {
   });
   it('is only in weekly reports', () => {
     for (const kind of ['welcome', 'ready', 'streak_at_risk', 'daily_plan', 'confirm', null] as const) {
-      expect(eventsStateFor(kind, { events_state: 'MA' })).toBeNull();
+      expect(eventsRegionFor(kind, { events_state: 'MA', events_country: null })).toBeNull();
     }
   });
-  it('needs a saved, valid state', () => {
-    expect(eventsStateFor('weekly_report', { events_state: null })).toBeNull();
-    expect(eventsStateFor('weekly_report', { events_state: 'ma' })).toBeNull();
-    expect(eventsStateFor('weekly_report', { events_state: 'ON' })).toBeNull();
-    expect(eventsStateFor('weekly_report', { events_state: 'DC' })).toBe('DC');
+  it('needs a saved, valid place', () => {
+    const r = (events_state: string | null, events_country: string | null) =>
+      eventsRegionFor('weekly_report', { events_state, events_country });
+    expect(r(null, null)).toBeNull();
+    expect(r('ma', null)).toBeNull();
+    expect(r('ON', null)).toBeNull();
+    expect(r('DC', null)).toBe('US-DC');
+    expect(r('NY', 'US')).toBe('US-NY');
+    expect(r(null, 'US')).toBeNull();
+    expect(r(null, 'GB-ENG')).toBe('GB-ENG');
+    expect(r('MA', 'CA')).toBe('CA');
+    expect(r(null, 'BR')).toBeNull();
   });
 });
 

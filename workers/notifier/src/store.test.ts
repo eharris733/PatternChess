@@ -217,30 +217,38 @@ describe('events near you', () => {
       [U3, 'daily_plan'],
     ]);
     expect(loadEvents).toHaveBeenCalledTimes(1);
-    expect(loadEvents).toHaveBeenCalledWith('MA', '2026-11-29');
-    expect(rows[0].data).toMatchObject({ eventsState: 'MA', events: LISTING });
-    expect(rows[1].data.eventsState).toBeUndefined();
-    expect(rows[2].data.eventsState).toBeUndefined();
+    expect(loadEvents).toHaveBeenCalledWith('US-MA', '2026-11-29');
+    expect(rows[0].data).toMatchObject({ eventsRegion: 'US-MA', events: LISTING });
+    expect(rows[1].data.eventsRegion).toBeUndefined();
+    expect(rows[2].data.eventsRegion).toBeUndefined();
   });
 
   it('still sends the report when the events lookup fails', async () => {
     weeklyReader(U1, 'ada@example.com', { events_state: 'MA' });
     const rows = await emailOutbox(db, NOW, { loadEvents: async () => Promise.reject(new Error('down')) });
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ kind: 'weekly_report', data: { eventsState: 'MA', events: null } });
+    expect(rows[0]).toMatchObject({ kind: 'weekly_report', data: { eventsRegion: 'US-MA', events: null } });
   });
 
   it('makes no lookups without a loader', async () => {
     weeklyReader(U1, 'ada@example.com', { events_state: 'MA' });
     const [row] = await emailOutbox(db, NOW);
-    expect(row.data).toMatchObject({ eventsState: 'MA', events: null });
+    expect(row.data).toMatchObject({ eventsRegion: 'US-MA', events: null });
+  });
+
+  it('a saved country lists that country', async () => {
+    weeklyReader(U1, 'ada@example.com', { events_country: 'GB-ENG' });
+    const loadEvents = vi.fn(async () => LISTING);
+    const [row] = await emailOutbox(db, NOW, { loadEvents });
+    expect(loadEvents).toHaveBeenCalledWith('GB-ENG', '2026-11-29');
+    expect(row.data).toMatchObject({ eventsRegion: 'GB-ENG', events: LISTING });
   });
 
   it('a single-user preview includes events for a saved state whatever the kind', async () => {
     addUser(U1, 'ada@example.com', { events_state: 'RI', email_reports: 'off' });
     const loadEvents = vi.fn(async () => LISTING);
     const [row] = await emailCandidates(db, NOW, U1, { loadEvents });
-    expect(loadEvents).toHaveBeenCalledWith('RI', '2026-11-29');
+    expect(loadEvents).toHaveBeenCalledWith('US-RI', '2026-11-29');
     expect(row.data.events).toEqual(LISTING);
   });
 });

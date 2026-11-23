@@ -18,6 +18,8 @@ import { CourseIcon } from './icons/CourseIcon';
 import { AVAILABLE_COURSES } from '../lib/courses';
 import { SettingsLink } from './SettingsLink';
 import { MyAvatar } from './avatar/PixelAvatar';
+import { HeartIcon } from './icons/HeartIcon';
+import { useSupporter } from '../hooks/useSupporter';
 import { useT } from '../i18n/useT';
 import type { MessageKey } from '../i18n/i18n';
 
@@ -37,6 +39,7 @@ const ADMIN_NAV_ITEM = { to: '/analytics', labelKey: 'nav.analytics' as MessageK
 
 export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { profile, user } = useAuth();
+  const { isSupporter } = useSupporter();
   const t = useT();
   const released = NAV_ITEMS.filter((item) => {
     const feature = (item as { feature?: Feature }).feature;
@@ -98,6 +101,23 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
       </nav>
 
       <div className="mt-auto" />
+
+      {/* The constant, quiet way to support (feedback round 2): never a modal. */}
+      <NavLink
+        to="/supporter"
+        data-testid="nav-support"
+        className={({ isActive }) =>
+          clsx(
+            'mx-2 mb-2 flex items-center gap-3 py-2 rounded-none font-mono uppercase tracking-tight text-xs transition-colors',
+            collapsed ? 'justify-center px-0' : 'px-3',
+            isActive ? 'bg-accent/15 text-text-primary' : 'text-text-primary hover:bg-accent/10',
+          )
+        }
+        aria-label={isSupporter ? t('nav.supporter') : t('nav.support')}
+      >
+        <HeartIcon className="h-5 w-5 shrink-0" />
+        {!collapsed && <span>{isSupporter ? t('nav.supporter') : t('nav.support')}</span>}
+      </NavLink>
 
       <SyncIndicator collapsed={collapsed} />
 

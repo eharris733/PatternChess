@@ -1,6 +1,21 @@
 import type { ReactNode } from 'react';
 import { usePieceSetStore } from '../../state/pieceSetStore';
 import { usePieceImages } from '../../hooks/usePieceImages';
+import {
+  FORK_BEST,
+  FORK_PLAYED,
+  FORK_SCENE,
+  REFUTE_MOVE,
+  REFUTE_SCENE,
+  WINDOW_COLS,
+  WINDOW_ROWS,
+  cellOf,
+  topLeftIsLight,
+  windowPieces,
+  type Cell,
+  type PreviewMove,
+  type PreviewScene,
+} from './prefPreviewScenes';
 
 /**
  * Small static pictures of what each /profile training setting does, drawn
@@ -9,14 +24,12 @@ import { usePieceImages } from '../../hooks/usePieceImages';
  */
 
 const SQ = 20;
-const COLS = 4;
-const ROWS = 3;
-
-type Cell = [col: number, row: number];
 
 interface MiniProps {
-  pieces: Array<{ at: Cell; key: string; faded?: boolean }>;
-  arrows?: Array<{ from: Cell; to: Cell; color: string; dashed?: boolean }>;
+  scene: PreviewScene;
+  /** Squares whose piece is drawn faded (about to be captured). */
+  faded?: string[];
+  arrows?: Array<{ move: PreviewMove; color: string; dashed?: boolean }>;
   children?: ReactNode;
 }
 
@@ -24,10 +37,15 @@ function centre([c, r]: Cell): [number, number] {
   return [c * SQ + SQ / 2, r * SQ + SQ / 2];
 }
 
-/** A 4×3 board crop with pieces and arrows; `children` draw over the right-hand panel (x ≥ 84). */
-function MiniScene({ pieces, arrows = [], children }: MiniProps) {
+/**
+ * A 4×3 window onto a real position (prefPreviewScenes.ts) with real-move
+ * arrows; `children` draw over the right-hand panel (x ≥ 84).
+ */
+function MiniScene({ scene, faded = [], arrows = [], children }: MiniProps) {
   const set = usePieceSetStore((s) => s.pieceSet);
   const srcs = usePieceImages(set);
+  const lightFirst = topLeftIsLight(scene);
+  const pieces = windowPieces(scene);
   return (
     <svg viewBox="0 0 160 60" className="h-auto w-full" aria-hidden>
       <defs>
@@ -37,9 +55,10 @@ function MiniScene({ pieces, arrows = [], children }: MiniProps) {
           </marker>
         ))}
       </defs>
-      {Array.from({ length: ROWS * COLS }, (_, i) => {
-        const c = i % COLS;
-        const r = Math.floor(i / COLS);
+      {Array.from({ length: WINDOW_ROWS * WINDOW_COLS }, (_, i) => {
+        const c = i % WINDOW_COLS;
+        const r = Math.floor(i / WINDOW_COLS);
+        const light = ((c + r) % 2 === 0) === lightFirst;
         return (
           <rect
             key={i}
@@ -47,26 +66,29 @@ function MiniScene({ pieces, arrows = [], children }: MiniProps) {
             y={r * SQ}
             width={SQ}
             height={SQ}
-            style={{ fill: (c + r) % 2 === 0 ? 'var(--board-light)' : 'var(--board-dark)' }}
+            style={{ fill: light ? 'var(--board-light)' : 'var(--board-dark)' }}
           />
         );
       })}
-      {pieces.map((p, i) =>
+      {pieces.map((p) =>
         srcs?.[p.key] ? (
           <image
-            key={i}
+            key={p.square}
             href={srcs[p.key]}
             x={p.at[0] * SQ}
             y={p.at[1] * SQ}
             width={SQ}
             height={SQ}
-            opacity={p.faded ? 0.35 : 1}
+            opacity={faded.includes(p.square) ? 0.35 : 1}
           />
         ) : null,
       )}
       {arrows.map((a, i) => {
-        const [x1, y1] = centre(a.from);
-        const [x2, y2] = centre(a.to);
+        const from = cellOf(scene, a.move.from);
+        const to = cellOf(scene, a.move.to);
+        if (!from || !to) return null;
+        const [x1, y1] = centre(from);
+        const [x2, y2] = centre(to);
         const k = 0.72;
         return (
           <line
@@ -83,7 +105,7 @@ function MiniScene({ pieces, arrows = [], children }: MiniProps) {
           />
         );
       })}
-      <rect x={COLS * SQ} y={0} width={160 - COLS * SQ} height={60} style={{ fill: 'rgb(var(--surface-3))' }} />
+      <rect x={WINDOW_COLS * SQ} y={0} width={160 - WINDOW_COLS * SQ} height={60} style={{ fill: 'rgb(var(--surface-3))' }} />
       {children}
     </svg>
   );
@@ -108,16 +130,10 @@ function Bar({ x, y, w }: { x: number; y: number; w: number }) {
   return <rect x={x} y={y} width={w} height={8} style={{ fill: 'rgb(var(--text-primary) / 0.15)' }} />;
 }
 
-const KNIGHT_SCENE: MiniProps['pieces'] = [
-  { at: [1, 2], key: 'wn' },
-  { at: [3, 0], key: 'bq' },
-  { at: [2, 1], key: 'bp' },
-];
-
 /** "Hide extra info when solving": on = the panel stays blank until you move. */
 export function HideInfoPreview({ hidden }: { hidden: boolean }) {
   return (
-    <MiniScene pieces={KNIGHT_SCENE}>
+    <MiniScene scene={FORK_SCENE}>
       {hidden ? (
         <>
           <Bar x={88} y={8} w={60} />
@@ -126,7 +142,7 @@ export function HideInfoPreview({ hidden }: { hidden: boolean }) {
         </>
       ) : (
         <>
-          <Chip x={88} y={6} w={66} text="You played Nc3" />
+          <Chip x={88} y={6} w={66} text={`You played ${FORK_PLAYED.san}`} />
           <Chip x={88} y={23} w={50} text="64% → 22%" fill="rgb(var(--text-primary) / 0.12)" color={INK} />
           <Chip x={88} y={40} w={56} text="See the game" fill="rgb(var(--text-primary) / 0.12)" color={INK} />
         </>
@@ -138,7 +154,7 @@ export function HideInfoPreview({ hidden }: { hidden: boolean }) {
 /** "Show raw engine evals": adds +1.2 next to the win chances. */
 export function RawEvalPreview({ on }: { on: boolean }) {
   return (
-    <MiniScene pieces={KNIGHT_SCENE}>
+    <MiniScene scene={FORK_SCENE}>
       <Chip x={88} y={14} w={30} text="64%" />
       {on && <Chip x={122} y={14} w={30} text="+1.2" fill="rgb(var(--text-primary) / 0.12)" color={INK} />}
       <Bar x={88} y={36} w={64} />
@@ -149,16 +165,9 @@ export function RawEvalPreview({ on }: { on: boolean }) {
 /** "Show the answer after a miss": the best move as a green arrow. */
 export function ShowAnswerPreview({ on }: { on: boolean }) {
   return (
-    <MiniScene
-      pieces={[
-        { at: [1, 2], key: 'wn' },
-        { at: [2, 0], key: 'bq' },
-        { at: [3, 1], key: 'bk' },
-      ]}
-      arrows={on ? [{ from: [1, 2], to: [2, 0], color: GREEN }] : []}
-    >
+    <MiniScene scene={FORK_SCENE} arrows={on ? [{ move: FORK_BEST, color: GREEN }] : []}>
       <Chip x={88} y={8} w={50} text="Not quite" fill={RED} />
-      {on ? <Chip x={88} y={28} w={62} text="Best: Nxc8" fill={GREEN} /> : <Bar x={88} y={30} w={50} />}
+      {on ? <Chip x={88} y={28} w={62} text={`Best: ${FORK_BEST.san}`} fill={GREEN} /> : <Bar x={88} y={30} w={50} />}
     </MiniScene>
   );
 }
@@ -167,17 +176,14 @@ export function ShowAnswerPreview({ on }: { on: boolean }) {
 export function AutoplayPreview({ on }: { on: boolean }) {
   return (
     <MiniScene
-      pieces={[
-        { at: [0, 2], key: 'wn' },
-        { at: [3, 0], key: 'bq' },
-        { at: [2, 2], key: 'wk', faded: on },
-      ]}
-      arrows={on ? [{ from: [3, 0], to: [2, 2], color: RED, dashed: true }] : []}
+      scene={REFUTE_SCENE}
+      faded={on ? [REFUTE_MOVE.to] : []}
+      arrows={on ? [{ move: REFUTE_MOVE, color: RED, dashed: true }] : []}
     >
       {on ? (
         <>
           <path d="M90 10 L90 24 L102 17 z" style={{ fill: INK }} />
-          <Chip x={106} y={10} w={46} text="Qxc1+" />
+          <Chip x={106} y={10} w={46} text={REFUTE_MOVE.san} />
           <Bar x={88} y={34} w={58} />
         </>
       ) : (

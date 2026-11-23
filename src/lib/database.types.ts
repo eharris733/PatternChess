@@ -652,6 +652,7 @@ export type Database = {
           email_unsub_token: string
           email_unsubscribed_at: string | null
           events_state: string | null
+          events_country: string | null
           flair: string | null
           followed_instagram: boolean
           id: string
@@ -711,6 +712,7 @@ export type Database = {
           email_unsub_token?: string
           email_unsubscribed_at?: string | null
           events_state?: string | null
+          events_country?: string | null
           flair?: string | null
           followed_instagram?: boolean
           id: string
@@ -770,6 +772,7 @@ export type Database = {
           email_unsub_token?: string
           email_unsubscribed_at?: string | null
           events_state?: string | null
+          events_country?: string | null
           flair?: string | null
           followed_instagram?: boolean
           id?: string

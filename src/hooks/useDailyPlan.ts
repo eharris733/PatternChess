@@ -8,7 +8,7 @@ import { useGamesPlayedToday } from './useGamesPlayedToday';
 import { useCourseProgress } from './useCourseProgress';
 import { useSupporter } from './useSupporter';
 import { isScenarioDue } from '../models/endgameScenario';
-import { DEFAULT_DAILY_GOALS, OPENINGS_PER_DAY, PLAYOUTS_PER_DAY } from '../lib/dailyGoal';
+import { DEFAULT_DAILY_GOALS, effectiveGoals, OPENINGS_PER_DAY, PLAYOUTS_PER_DAY } from '../lib/dailyGoal';
 import { availableCourse } from '../lib/courses';
 import { isSupporterDay } from '../lib/courseCatalog';
 import { completedOn, nextDay } from '../lib/coursePacing';
@@ -55,7 +55,9 @@ export function useDailyPlan() {
   const courseProgressQuery = useCourseProgress();
   const supporter = useSupporter();
 
-  const goals = profile?.dailyGoals ?? DEFAULT_DAILY_GOALS;
+  // A lapsed supporter's Obsessed/custom plan reads as its free cap (dailyGoal.ts).
+  const storedGoals = profile?.dailyGoals ?? DEFAULT_DAILY_GOALS;
+  const goals = supporter.isPending ? storedGoals : effectiveGoals(storedGoals, supporter.isSupporter);
   const play = playTarget(profile?.lichessUsername ?? null, profile?.chesscomUsername ?? null);
   const playHref = play?.href ?? null;
   // PGN-only players have nothing to sync, so the Play step can't detect games.

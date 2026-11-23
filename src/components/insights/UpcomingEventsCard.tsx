@@ -1,10 +1,18 @@
 import { useMemo } from 'react';
 import { useUpcomingEvents } from '../../hooks/useUpcomingEvents';
 import { useRatingProgress } from '../../hooks/useRatingProgress';
-import { useEventsState } from '../../hooks/useEventsState';
-import { isUsStateCode, US_STATES, usStateName, type UsStateCode } from '../../lib/usStates';
+import { useEventsRegion } from '../../hooks/useEventsRegion';
+import { isUsStateCode, US_STATES } from '../../lib/usStates';
 import {
-  eventsStateUrl,
+  EVENT_COUNTRIES,
+  US_COUNTRY,
+  isEventCountryCode,
+  regionHasListings,
+  regionName,
+  type EventsRegion,
+} from '../../lib/eventRegions';
+import {
+  eventsRegionUrl,
   type OtbEvent,
   type OtbOccurrence,
 } from '../../services/eventsApiService';
@@ -67,41 +75,101 @@ function matchingSection(event: OtbEvent, rating: number | null): string | null 
   return best?.name ?? null;
 }
 
-/** Compact state picker in the card header; picking a state saves it. */
-function StatePicker({ value, onPick }: { value: UsStateCode; onPick: (s: UsStateCode) => void }) {
+/**
+ * Country, then state for the US, in the card header; picking saves it.
+ * A guessed country with no listings ('BR') shows as an extra first option.
+ */
+export function RegionPicker({
+  value,
+  onPick,
+  compact = true,
+}: {
+  value: EventsRegion | null;
+  onPick: (r: EventsRegion) => void;
+  compact?: boolean;
+}) {
+  const cls = compact ? 'input h-8 w-auto py-0 pl-2 pr-7 text-xs' : 'input w-full sm:w-64';
+  const country = value?.country ?? '';
+  const uncovered = country && !isEventCountryCode(country) ? country : null;
   return (
-    <select
-      className="input h-8 w-auto py-0 pl-2 pr-7 text-xs"
-      aria-label="Your state"
-      data-testid="events-state"
-      value={value}
-      onChange={(e) => {
-        const next = e.currentTarget.value;
-        if (isUsStateCode(next)) onPick(next);
-      }}
-    >
-      {US_STATES.map((s) => (
-        <option key={s.code} value={s.code}>
-          {s.name}
-        </option>
-      ))}
-    </select>
+    <span className="flex flex-wrap items-center gap-1.5">
+      <select
+        className={cls}
+        aria-label="Your country"
+        data-testid="events-country"
+        value={country}
+        onChange={(e) => {
+          const next = e.currentTarget.value;
+          if (!isEventCountryCode(next)) return;
+          onPick({ country: next, state: next === US_COUNTRY && value?.country === US_COUNTRY ? value.state : null });
+        }}
+      >
+        {!country && <option value="">Pick a country</option>}
+        {uncovered && <option value={uncovered}>{regionName({ country: uncovered, state: null })}</option>}
+        {EVENT_COUNTRIES.map((c) => (
+          <option key={c.code} value={c.code}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+      {country === US_COUNTRY && (
+        <select
+          className={cls}
+          aria-label="Your state"
+          data-testid="events-state"
+          value={value?.state ?? ''}
+          onChange={(e) => {
+            const next = e.currentTarget.value;
+            if (isUsStateCode(next)) onPick({ country: US_COUNTRY, state: next });
+          }}
+        >
+          {!value?.state && <option value="">Pick a state</option>}
+          {US_STATES.map((st) => (
+            <option key={st.code} value={st.code}>
+              {st.name}
+            </option>
+          ))}
+        </select>
+      )}
+    </span>
   );
 }
 
 export function UpcomingEventsCard() {
-  const where = useEventsState();
-  const events = useUpcomingEvents(where.state);
+  const where = useEventsRegion();
+  const region = where.region;
+  const listed = regionHasListings(region);
+  const events = useUpcomingEvents(region);
   const rating = useProxyRating();
 
-  if (where.resolving || (where.state !== null && events.isPending)) return <InsightCardSkeleton rows={3} />;
-  // Outside the US with nothing saved: no card.
-  if (where.state === null) return null;
+  if (where.resolving || (listed && events.isPending)) return <InsightCardSkeleton rows={3} />;
   // Quiet card: an unreachable events service should never degrade the dashboard.
-  if (events.isError || !events.data) return null;
+  if (listed && (events.isError || !events.data)) return null;
 
-  const state = where.state;
-  const stateName = usStateName(state);
+  const name = region ? regionName(region) : null;
+  const header = (
+    <header className="flex flex-wrap items-center justify-between gap-3">
+      <span className="label">Upcoming OTB events</span>
+      <RegionPicker value={region} onPick={where.setRegion} />
+    </header>
+  );
+
+  // No listings for this place (a country we don't cover yet, or the US with
+  // no state known): say so and keep the picker, never a blank card.
+  if (!listed || !region || !events.data) {
+    return (
+      <section className="card flex flex-col gap-3" data-testid="upcoming-events">
+        {header}
+        <p className="text-sm text-text-primary" data-testid="events-none">
+          {!region
+            ? 'Pick where you play to see tournaments near you.'
+            : region.country === US_COUNTRY && !region.state
+              ? 'Pick your state to see tournaments near you.'
+              : `No tournaments listed in ${name} yet.`}
+        </p>
+      </section>
+    );
+  }
 
   // Day-based: each event's NEXT meeting day (a month-long weekly Swiss shows
   // as "Aug 25 · Rd 4/4", not "Aug 4–25"), nearest days first; a block
@@ -121,28 +189,25 @@ export function UpcomingEventsCard() {
 
   return (
     <section className="card flex flex-col gap-3" data-testid="upcoming-events">
-      <header className="flex items-center justify-between gap-3">
-        <span className="label">Upcoming OTB events</span>
-        <StatePicker value={state} onPick={where.setState} />
-      </header>
+      {header}
       {!where.saved && (
         <div
           className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-primary"
           data-testid="events-state-guess"
         >
-          <span>Showing {stateName}, based on where you are.</span>
+          <span>Showing {name}, from your approximate location.</span>
           <button
             type="button"
             className="font-mono uppercase text-[10px] tracking-tight text-gold-dark hover:text-text-primary transition-colors"
-            onClick={() => where.setState(state)}
+            onClick={() => where.setRegion(region)}
           >
-            Save {stateName}
+            Save {name}
           </button>
         </div>
       )}
       {where.error && <p className="text-incorrect text-xs">{where.error}</p>}
       {upcoming.length === 0 ? (
-        <p className="text-sm text-text-primary py-2">No tournaments listed in {stateName} right now.</p>
+        <p className="text-sm text-text-primary py-2">No tournaments listed in {name} right now.</p>
       ) : (
         <ul className="flex flex-col divide-y divide-text-primary/15">
           {upcoming.map(({ event, next }) => {
@@ -176,12 +241,12 @@ export function UpcomingEventsCard() {
         </ul>
       )}
       <a
-        href={eventsStateUrl(state)}
+        href={eventsRegionUrl(region)}
         target="_blank"
         rel="noopener noreferrer"
         className="font-mono uppercase text-[10px] tracking-tight text-gold-dark hover:text-text-primary transition-colors"
       >
-        All {stateName} tournaments →
+        All {name} tournaments →
       </a>
     </section>
   );

@@ -12,7 +12,7 @@ import type { EmailKind, RenderedEmail } from './templates';
 export interface CapturedEmail {
   id: number;
   at: string;
-  kind: EmailKind;
+  kind: EmailKind | 'alert';
   to: string;
   subject: string;
   html: string;
@@ -25,7 +25,7 @@ export function devMailboxOn(env: { DEV_MAILBOX?: string }): boolean {
   return env.DEV_MAILBOX === '1';
 }
 
-export function capture(kind: EmailKind, to: string, email: RenderedEmail): string {
+export function capture(kind: EmailKind | 'alert', to: string, email: RenderedEmail): string {
   const id = inbox.length + 1;
   inbox.push({ id, at: new Date().toISOString(), kind, to, subject: email.subject, html: email.html, text: email.text });
   return `dev-${id}`;

@@ -97,6 +97,12 @@ export const TABLES: Record<string, TableSpec> = {
   // D1-native (0006_courses.sql): finished course days and the followed course.
   course_progress: spec({ ts: ['completed_at'] }),
   course_focus: spec({ ts: ['updated_at'] }),
+  // D1-native (0007_feedback_round.sql): achievement unlocks + rarity cache,
+  // alerting state and per-hour RPC failure counts.
+  user_achievements: spec({ ts: ['earned_at'] }),
+  achievement_rarity_cache: spec({ json: ['payload'], ts: ['computed_at'] }),
+  alert_state: spec({ ts: ['failing_since', 'last_alert_at', 'updated_at'] }),
+  rpc_errors: spec({}),
   // better-auth tables (camelCase columns; better-auth's own adapter handles
   // them, these entries exist for admin queries and the importer).
   user: spec({ bool: ['emailVerified'], ts: ['createdAt', 'updatedAt'] }),
@@ -109,7 +115,21 @@ export const TABLES: Record<string, TableSpec> = {
 
 /** The 17 app tables ported from Supabase `public` (excludes better-auth's and the D1-native ones). */
 export const APP_TABLES: readonly string[] = Object.keys(TABLES).filter(
-  (t) => !['user', 'session', 'account', 'verification', 'social_posts', 'supporter_grants', 'course_progress', 'course_focus'].includes(t),
+  (t) =>
+    ![
+      'user',
+      'session',
+      'account',
+      'verification',
+      'social_posts',
+      'supporter_grants',
+      'course_progress',
+      'course_focus',
+      'user_achievements',
+      'achievement_rarity_cache',
+      'alert_state',
+      'rpc_errors',
+    ].includes(t),
 );
 
 function tableSpec(table: string): TableSpec {

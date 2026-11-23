@@ -85,6 +85,11 @@ export async function updateContactEmail(email: string, timezone: string | null)
   });
 }
 
+/** Mails the confirmation link for the saved contact address again (server rate limits: 1/min, 5/day). */
+export async function resendContactConfirm(): Promise<{ sent: boolean; reason?: string }> {
+  return rpc<{ sent: boolean; reason?: string }>('profile.resendConfirm');
+}
+
 /** Counts one app open (AppShell, once per tab session) and returns the new total. */
 export async function bumpAppOpen(): Promise<number | null> {
   const data = await rpc<number | null>('profile.bumpAppOpen');
@@ -96,11 +101,17 @@ export async function markAskPrompted(ask: 'email' | 'course' | 'supporter'): Pr
   await rpc('profile.markAskPrompted', { ask });
 }
 
-/** US state for OTB events (`profiles.events_state`); null clears it. Read/write via `useEventsState`. */
-export async function updateEventsState(state: string | null): Promise<void> {
+/**
+ * Where OTB events are listed for: `profiles.events_country` and, in the US,
+ * `events_state`; null clears both. Read/write via `useEventsRegion`.
+ */
+export async function updateEventsRegion(region: { country: string; state: string | null } | null): Promise<void> {
   const userId = await currentUserId();
   if (!userId) return;
-  await updateOwnProfile({ events_state: state });
+  await updateOwnProfile({
+    events_country: region?.country ?? null,
+    events_state: region && region.country === 'US' ? region.state : null,
+  });
 }
 
 /** The caller's coarse location from Cloudflare (events.locate): a first guess for the events card. */

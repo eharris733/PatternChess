@@ -51,7 +51,7 @@ function FocusTile({
         ) : (
           <span className="text-xs text-text-primary">
             {offer.kind === 'due'
-              ? t('landingTrain.due', { count: offer.count })
+              ? t('plan.inQueue', { count: offer.count })
               : offer.kind === 'ahead'
                 ? t('plan.practiceAhead')
                 : t('landingTrain.noneYet')}
@@ -202,14 +202,16 @@ export function TrainLandingScreen({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <FocusTile
           icon={<OpeningIcon className="h-5 w-5" />}
-          title={t('nav.openings')}
+          title={t('landingTrain.openingReviews')}
           offer={openingsOffer}
           testId="focus-openings"
           onPick={() => pickTile(OPENINGS_FOCUS, openingsOffer, '/openings')}
         />
         <FocusTile
           icon={<EndgameIcon className="h-5 w-5" />}
-          title={t('nav.endgames')}
+          // Endgame-phase positions from your games; the plan's Endgames step
+          // counts play-outs (/endgames), so the names stay apart.
+          title={t('landingTrain.endgamePositions')}
           offer={endgamesOffer}
           testId="focus-endgames"
           onPick={() => pickTile(ENDGAMES_FOCUS, endgamesOffer, '/endgames')}

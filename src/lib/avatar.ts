@@ -270,10 +270,13 @@ export function avatarPixels(parts: AvatarParts): PixelRun[] {
   // Eyes (row 6) and mouth (rows 8–9).
   switch (parts.eyes) {
     case 'wide':
-      rect(5, 5, 6, 6, WHITE);
-      rect(9, 5, 10, 6, WHITE);
-      px(6, 6, INK);
-      px(9, 6, INK);
+      // Raised brows + whites beside the pupils, so it reads on light skin too.
+      rect(5, 4, 6, 4, INK);
+      rect(9, 4, 10, 4, INK);
+      rect(5, 5, 5, 6, WHITE);
+      rect(10, 5, 10, 6, WHITE);
+      rect(6, 5, 6, 6, INK);
+      rect(9, 5, 9, 6, INK);
       break;
     case 'sleepy':
       rect(5, 6, 6, 6, INK);

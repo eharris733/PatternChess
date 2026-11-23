@@ -1,5 +1,9 @@
+import { EVENT_COUNTRY } from './eventCountries';
+import { US_STATE_NAME } from './usStates';
+
 // "Events near you" for the weekly_report email: upcoming OTB tournaments in
-// the player's saved state (`profiles.events_state`), read from the public
+// the player's saved region — a US state (`profiles.events_state`) or a
+// whole country elsewhere (`events_country`) — read from the public
 // events.patternchess.com API at send time. Listings only (title, date,
 // club, link). A slow or failing API drops the section; it never blocks or
 // fails the email.
@@ -10,6 +14,29 @@ export const EVENTS_WINDOW_DAYS = 14;
 /** Tournaments listed at most (one line each, at its next meeting day). */
 export const EVENTS_MAX = 5;
 const FETCH_TIMEOUT_MS = 4000;
+
+/**
+ * A region as one string (cache key, OutboxData.eventsRegion): `US-MA` for a
+ * US state, the events country code elsewhere (`CA`, `GB-ENG`). Country codes
+ * never start with `US-`, so the two can't collide (California vs Canada).
+ */
+export type RegionKey = string;
+
+export function usRegion(state: string): RegionKey {
+  return `US-${state}`;
+}
+
+/** The US state of a key, or null for a country key. */
+export function regionState(key: RegionKey): string | null {
+  return key.startsWith('US-') ? key.slice(3) : null;
+}
+
+/** "Massachusetts" / "Canada"; null for an unknown key. */
+export function regionName(key: RegionKey): string | null {
+  const state = regionState(key);
+  if (state) return US_STATE_NAME[state] ?? null;
+  return EVENT_COUNTRY[key]?.name ?? null;
+}
 /** A contiguous "occurrence" longer than this is a season-long listing (some
  * aggregator rows span months), not a tournament day: left out. */
 const MAX_BLOCK_DAYS = 31;
@@ -39,8 +66,8 @@ export interface NearbyEvent {
   url: string;
 }
 
-/** Loads the listing for a state; null = unavailable (the section is left out). */
-export type EventsLoader = (state: string, today: string) => Promise<NearbyEvent[] | null>;
+/** Loads the listing for a region; null = unavailable (the section is left out). */
+export type EventsLoader = (region: RegionKey, today: string) => Promise<NearbyEvent[] | null>;
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -71,13 +98,17 @@ export function formatTime(hhmm: string | null | undefined): string | null {
   return `${h % 12 === 0 ? 12 : h % 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`;
 }
 
-/** The API request for a state's tournaments starting by the end of the window. */
-export function eventsApiUrl(base: string, state: string, today: string): string {
-  return `${base}/api/events?state=${encodeURIComponent(state)}&to=${addDays(today, EVENTS_WINDOW_DAYS - 1)}`;
+/** The API request for a region's tournaments starting by the end of the window. */
+export function eventsApiUrl(base: string, region: RegionKey, today: string): string {
+  const state = regionState(region);
+  const where = state ? `state=${encodeURIComponent(state)}` : `country=${encodeURIComponent(region)}`;
+  return `${base}/api/events?${where}&to=${addDays(today, EVENTS_WINDOW_DAYS - 1)}`;
 }
 
-export function stateEventsUrl(base: string, state: string): string {
-  return `${base}/${state.toLowerCase()}`;
+/** The region's page: /ma for a US state, /canada for a country. */
+export function regionEventsUrl(base: string, region: RegionKey): string {
+  const state = regionState(region);
+  return `${base}/${state ? state.toLowerCase() : (EVENT_COUNTRY[region]?.slug ?? '')}`;
 }
 
 /**
@@ -114,19 +145,19 @@ export function nearbyEvents(rows: EventApiRow[], today: string, base = EVENTS_S
 }
 
 /**
- * An EventsLoader over `fetchImpl` that asks the API once per state per run
- * (many players share a state) and turns every failure (network, timeout,
+ * An EventsLoader over `fetchImpl` that asks the API once per region per run
+ * (many players share one) and turns every failure (network, timeout,
  * non-2xx, bad JSON) into null.
  */
-export function stateEventsLoader(fetchImpl: typeof fetch, base = EVENTS_SITE, timeoutMs = FETCH_TIMEOUT_MS): EventsLoader {
+export function regionEventsLoader(fetchImpl: typeof fetch, base = EVENTS_SITE, timeoutMs = FETCH_TIMEOUT_MS): EventsLoader {
   const cache = new Map<string, Promise<NearbyEvent[] | null>>();
-  return (state, today) => {
-    const key = `${state}|${today}`;
+  return (region, today) => {
+    const key = `${region}|${today}`;
     let hit = cache.get(key);
     if (!hit) {
       hit = (async () => {
         try {
-          const res = await fetchImpl(eventsApiUrl(base, state, today), {
+          const res = await fetchImpl(eventsApiUrl(base, region, today), {
             headers: { Accept: 'application/json', 'User-Agent': 'PatternChess-Notifier' },
             signal: AbortSignal.timeout(timeoutMs),
           });
@@ -135,7 +166,7 @@ export function stateEventsLoader(fetchImpl: typeof fetch, base = EVENTS_SITE, t
           if (!Array.isArray(body.data)) throw new Error('events API: no data array');
           return nearbyEvents(body.data as EventApiRow[], today, base);
         } catch (err) {
-          console.warn('[notifier] events unavailable', state, err instanceof Error ? err.message : String(err));
+          console.warn('[notifier] events unavailable', region, err instanceof Error ? err.message : String(err));
           return null;
         }
       })();

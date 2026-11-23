@@ -19,6 +19,26 @@ export class ApiError extends Error {
   }
 }
 
+type UnauthorizedListener = (rpcName: string) => void;
+const unauthorizedListeners = new Set<UnauthorizedListener>();
+
+/**
+ * Called whenever an RPC answers 401: the session ended somewhere else
+ * (expired, signed out in another tab, revoked). AuthProvider re-reads the
+ * session so the app signs out instead of running on with a dead cookie.
+ */
+export function onUnauthorized(listener: UnauthorizedListener): () => void {
+  unauthorizedListeners.add(listener);
+  return () => {
+    unauthorizedListeners.delete(listener);
+  };
+}
+
+/** True for the error an RPC throws when the caller is not signed in. */
+export function isUnauthorizedError(err: unknown): boolean {
+  return err instanceof ApiError && err.isUnauthorized;
+}
+
 export async function rpc<T = unknown>(name: string, args: object = {}, init: { signal?: AbortSignal } = {}): Promise<T> {
   let res: Response;
   try {
@@ -38,6 +58,15 @@ export async function rpc<T = unknown>(name: string, args: object = {}, init: { 
     body = await res.json();
   } catch {
     body = null;
+  }
+  if (res.status === 401) {
+    for (const listener of unauthorizedListeners) {
+      try {
+        listener(name);
+      } catch (e) {
+        console.warn('[api] unauthorized listener failed', e);
+      }
+    }
   }
   if (!res.ok || !body || body.error) {
     const code = body?.error?.code ?? (res.ok ? 'bad_response' : `http_${res.status}`);

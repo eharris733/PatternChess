@@ -4,12 +4,13 @@
 // app's COEP isolation.
 
 import { fetchWithRetry } from './chessApiService';
+import { eventsApiQuery, eventsRegionPath, type EventsRegion } from '../lib/eventRegions';
 
 export const EVENTS_SITE_URL = 'https://events.patternchess.com';
 
-/** The state's page on the events site, e.g. https://events.patternchess.com/ma */
-export function eventsStateUrl(state: string): string {
-  return `${EVENTS_SITE_URL}/${state.toLowerCase()}`;
+/** The region's page on events.patternchess.com (/ma, /canada). */
+export function eventsRegionUrl(region: EventsRegion): string {
+  return `${EVENTS_SITE_URL}${eventsRegionPath(region)}`;
 }
 
 /** One meeting day of an event. Weekly multi-round Swisses expand to one
@@ -96,10 +97,10 @@ function parseSections(json: string | null): string[] | null {
   }
 }
 
-/** Upcoming OTB events in one US state (`state` = USPS code, e.g. "MA"). */
-export async function fetchUpcomingEvents(state: string): Promise<OtbEvent[]> {
+/** Upcoming OTB events in one region: a US state, or a whole country elsewhere. */
+export async function fetchUpcomingEvents(region: EventsRegion): Promise<OtbEvent[]> {
   const res = await fetchWithRetry(
-    `${EVENTS_SITE_URL}/api/events?state=${encodeURIComponent(state.toUpperCase())}`,
+    `${EVENTS_SITE_URL}/api/events?${eventsApiQuery(region)}`,
     undefined,
     'PatternChess Events',
   );

@@ -11,6 +11,7 @@ import { PixelAvatar } from './PixelAvatar';
 import { LockIcon } from '../icons/LockIcon';
 import type { RewardItem } from '../../lib/rewards';
 import { useLabel, useT } from '../../i18n/useT';
+import { openSupporterUnlock } from '../../state/supporterUnlockStore';
 
 interface AvatarBuilderProps {
   /** The avatar as saved (or the generated default). */
@@ -24,6 +25,7 @@ interface AvatarBuilderProps {
 }
 
 const COLOR_PARTS: ReadonlySet<AvatarPart> = new Set(['background', 'skin', 'hairColor', 'outfitColor']);
+const FACE_PARTS: ReadonlySet<AvatarPart> = new Set(['eyes', 'mouth']);
 
 /**
  * The pixel avatar builder on /profile: a live preview, one row of choices
@@ -58,7 +60,16 @@ export function AvatarBuilder({ value, custom, lockHint, onSave, seed }: AvatarB
   };
 
   const options = AVATAR_OPTIONS[part];
-  const previews = useMemo(() => options.map((o) => ({ ...draft, [part]: o.id }) as AvatarParts), [options, draft, part]);
+  // Glasses, shades and the eyepatch cover the eyes, so face-part choices are
+  // previewed bare: otherwise every Eyes thumbnail looks the same.
+  const previews = useMemo(
+    () =>
+      options.map(
+        (o) =>
+          ({ ...draft, ...(FACE_PARTS.has(part) ? { accessory: 'none' } : {}), [part]: o.id }) as AvatarParts,
+      ),
+    [options, draft, part],
+  );
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row" data-testid="avatar-builder">
@@ -121,14 +132,24 @@ export function AvatarBuilder({ value, custom, lockHint, onSave, seed }: AvatarB
                   type="button"
                   aria-pressed={active}
                   aria-label={locked ? `${o.label} (locked: ${hint})` : o.label}
-                  title={hint ?? o.label}
-                  disabled={locked}
+                  title={hint ?? undefined}
                   data-testid={`avatar-option-${part}-${o.id}`}
-                  onClick={() => setDraft((d) => ({ ...d, [part]: o.id }))}
+                  data-locked={locked || undefined}
+                  onClick={() =>
+                    locked
+                      ? openSupporterUnlock({
+                          item: t('supporterUnlock.avatar', {
+                            name: o.label,
+                            part: label('avatarPart', part, AVATAR_PART_LABEL[part]),
+                          }),
+                          earnHint: t('supporterUnlock.orEarn', { hint: hint ?? '' }),
+                        })
+                      : setDraft((d) => ({ ...d, [part]: o.id }))
+                  }
                   className={clsx(
                     'relative flex w-full flex-col items-center gap-1 border-2 p-1.5 transition-colors',
                     active ? 'border-accent bg-accent/10' : 'border-text-primary/20 hover:border-accent',
-                    locked && 'cursor-not-allowed hover:border-text-primary/20',
+                    locked && 'hover:border-text-primary/50',
                   )}
                 >
                   {COLOR_PARTS.has(part) && o.color ? (

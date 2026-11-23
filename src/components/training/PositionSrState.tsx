@@ -34,12 +34,18 @@ function formatRelative(d: Date, now: Date, t: Translator): string {
 export type PositionSrStateItem = Pick<
   Blunder,
   'cycleNumber' | 'timesAttempted' | 'timesCorrect' | 'lastDrillFailed' | 'lastDrilledAt'
->;
+> &
+  Partial<Pick<Blunder, 'nextDrillAt'>>;
+
+function shortDate(d: Date): string {
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
 
 export function PositionSrState({
   blunder,
   showTryAgainLabel = false,
   showNextReview = false,
+  practiceDueAt = null,
 }: {
   blunder: PositionSrStateItem;
   /**
@@ -51,6 +57,11 @@ export function PositionSrState({
   showTryAgainLabel?: boolean;
   /** Show the "solve it → next review in N days" cadence hint (pre-solve only). */
   showNextReview?: boolean;
+  /**
+   * Set after solving a position that wasn't due (trainingStore.practiceDueAt):
+   * says mastery didn't move and when it will.
+   */
+  practiceDueAt?: Date | null;
 }) {
   const t = useT();
   const label = useLabel();
@@ -68,6 +79,8 @@ export function PositionSrState({
   const stageLabel = label('srBucket', displayBucket, SR_BUCKET_LABEL[displayBucket]);
 
   const now = new Date();
+  // Not due yet: solving now is practice (advanceSr leaves the ladder alone).
+  const notDueUntil = blunder.nextDrillAt && blunder.nextDrillAt.getTime() > now.getTime() ? blunder.nextDrillAt : null;
   const lastSeen = blunder.lastDrilledAt ? formatRelative(blunder.lastDrilledAt, now, t) : null;
 
   return (
@@ -90,8 +103,15 @@ export function PositionSrState({
         </span>
       </div>
       {showNextReview && (
-        <p className="text-[11px] leading-tight text-text-primary">
-          {t('sr.nextReview', { count: nextIntervalDaysIfSolved(blunder) })}
+        <p className="text-[11px] leading-tight text-text-primary" data-testid="sr-next-review">
+          {notDueUntil
+            ? t('sr.notDueYet', { date: shortDate(notDueUntil) })
+            : t('sr.nextReview', { count: nextIntervalDaysIfSolved(blunder) })}
+        </p>
+      )}
+      {practiceDueAt && (
+        <p className="text-[11px] leading-tight text-text-primary" data-testid="sr-practice">
+          {t('sr.practiced', { date: shortDate(practiceDueAt) })}
         </p>
       )}
       {(blunder.timesAttempted > 0 || lastSeen) && (

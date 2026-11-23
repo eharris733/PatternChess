@@ -1,28 +1,44 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../auth/useAuth';
-import { useOnboardingStore } from '../state/onboardingStore';
 import { BrandLockup } from './BrandLogo';
-import { ContactEmailForm, ContactEmailPending } from './email/ContactEmailForm';
+import { ContactEmailForm, ResendConfirmButton } from './email/ContactEmailForm';
 import { LichessLogo } from './icons/PlatformLogos';
 import { useT } from '../i18n/useT';
+
+/** How often the "check your inbox" state re-reads the profile while visible. */
+const POLL_MS = 5000;
 
 /**
  * Required step for Lichess sign-ins, which share no email address
  * (`needsContactEmail`). New accounts see it before the import screen;
- * existing ones once, on their next visit. Saving goes through
- * `updateContactEmail` (turns reminders on); the notifier Worker mails the
- * confirmation link within the hour. There is no skip: signing out is the
- * only other way off this screen.
+ * existing ones on their next visit. Saving goes through
+ * `updateContactEmail` (turns reminders on), which mails the confirmation
+ * link at once; the step then waits on "Check your inbox" — re-reading the
+ * profile on focus and every few seconds — and opens the app as soon as the
+ * link is clicked. There is no skip: signing out is the only other way off.
  */
 export function OnboardingEmail() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, refreshProfile } = useAuth();
   const t = useT();
-  const savedEmail = useOnboardingStore((s) => s.savedEmail);
-  const setSavedEmail = useOnboardingStore((s) => s.setSavedEmail);
   const [editing, setEditing] = useState(false);
   const lichessName = profile?.lichessUsername ?? user?.name ?? null;
+  const pendingEmail = profile?.contactEmail && !profile.contactEmailVerifiedAt ? profile.contactEmail : null;
+  const waiting = !!pendingEmail && !editing;
 
-  const showForm = !savedEmail || editing;
+  useEffect(() => {
+    if (!waiting) return;
+    const check = () => {
+      if (document.visibilityState === 'visible') void refreshProfile();
+    };
+    const id = window.setInterval(check, POLL_MS);
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('focus', check);
+      document.removeEventListener('visibilitychange', check);
+    };
+  }, [waiting, refreshProfile]);
 
   return (
     <div className="flex flex-col items-center min-h-[60vh] max-w-xl mx-auto" data-testid="onboarding-email">
@@ -36,31 +52,28 @@ export function OnboardingEmail() {
             </span>
           </p>
         )}
-        <h1 className="heading-md">{t('onboarding.email.title')}</h1>
-        {showForm ? (
-          <>
+        {waiting ? (
+          <div className="flex flex-col gap-3" data-testid="onboarding-email-check">
+            <h1 className="heading-md">{t('onboarding.email.checkTitle')}</h1>
             <p className="text-text-primary">
-              {t('onboarding.email.body')}
+              {t.rich('onboarding.email.check', { email: <span className="font-semibold">{pendingEmail}</span> })}
             </p>
-            <ContactEmailForm
-              submitLabel={t('onboarding.email.continue')}
-              onSaved={(email) => {
-                setSavedEmail(email);
-                setEditing(false);
-              }}
-            />
-            <p className="text-sm text-text-primary">
-              {t('onboarding.email.footer')}
-            </p>
-          </>
-        ) : (
-          <>
-            <ContactEmailPending email={savedEmail} onChange={() => setEditing(true)} />
-            <div>
-              <button type="button" className="btn-primary" onClick={() => setSavedEmail(null)}>
-                {t('onboarding.email.continue')}
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="button" className="btn-primary" onClick={() => void refreshProfile()} data-testid="email-clicked">
+                {t('onboarding.email.clicked')}
+              </button>
+              <button type="button" className="btn-ghost underline" onClick={() => setEditing(true)}>
+                {t('onboarding.email.change')}
               </button>
             </div>
+            <ResendConfirmButton />
+          </div>
+        ) : (
+          <>
+            <h1 className="heading-md">{t('onboarding.email.title')}</h1>
+            <p className="text-text-primary">{t('onboarding.email.body')}</p>
+            <ContactEmailForm submitLabel={t('onboarding.email.continue')} onSaved={() => setEditing(false)} />
+            <p className="text-sm text-text-primary">{t('onboarding.email.footer')}</p>
           </>
         )}
       </div>

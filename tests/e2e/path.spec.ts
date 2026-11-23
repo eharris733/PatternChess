@@ -86,7 +86,7 @@ test('/path counts positions trained and marks reached, next and locked rungs', 
   await expect(rungs.nth(1)).toHaveAttribute('data-state', 'reached');
   await expect(rungs.nth(2)).toHaveAttribute('data-state', 'next');
   await expect(rungs.nth(3)).toHaveAttribute('data-state', 'locked');
-  await expect(page.getByRole('link', { name: 'Become a supporter' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open every rung' })).toBeVisible();
 });
 
 test('the daily plan links to the next unlock', async ({ page }) => {

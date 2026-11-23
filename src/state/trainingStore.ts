@@ -129,6 +129,14 @@ export interface TrainingStateShape {
    */
   goalCorrect: number;
   goalAttempted: number;
+  /**
+   * Free players' daily cap (feedback round 2): how many more goal positions
+   * (first attempts, openings excluded) this session may hand out before the
+   * day's plan is done. null = no cap (supporters). Set by TrainingRoute.
+   */
+  dailyCap: number | null;
+  /** The session ended because the daily cap was reached (not because the queue ran out). */
+  cappedOut: boolean;
   attemptedBlunderIds: Set<string>;
   fen: string;
   orientation: 'white' | 'black';
@@ -232,6 +240,11 @@ export interface TrainingStateShape {
   openingIntro: IntroLine | null;
   /** Opening drills: set on a correct answer. */
   openingVerdict: OpeningVerdict | null;
+  /**
+   * Set on a solve of a position that wasn't due yet: mastery stayed put and
+   * the position is next due at this date (applyDrillResult's `practice`).
+   */
+  practiceDueAt: Date | null;
   /** The user's repertoire (mirrored in by TrainingRoute); the saved move is the expected answer. */
   repertoire: RepertoireMap | null;
 
@@ -242,6 +255,8 @@ export interface TrainingStateShape {
   /** End the intro (or skip it) and prompt for the move. */
   finishIntro: () => void;
   setRevealBeforeSolve: (value: boolean) => void;
+  /** Free players' remaining goal positions for today (null = no cap). Call before setBlunders. */
+  setDailyCap: (cap: number | null) => void;
   ensureBlunderRefutation: () => Promise<void>;
   setBlunders: (blunders: Blunder[]) => void;
   setContextFilter: (filter: ContextFilter | null) => void;
@@ -297,6 +312,7 @@ type InitialShape = Omit<TrainingStateShape,
   | 'selectPostCorrectIndex'
   | 'clearPersistError'
   | 'setRepertoire'
+  | 'setDailyCap'
   | 'setIntroIndex'
   | 'finishIntro'
   | 'reset'>;
@@ -310,6 +326,8 @@ function makeInitial(): InitialShape {
     totalAttempted: 0,
     goalCorrect: 0,
     goalAttempted: 0,
+    dailyCap: null,
+    cappedOut: false,
     attemptedBlunderIds: new Set<string>(),
     fen: new Chess().fen(),
     orientation: 'white',
@@ -355,6 +373,7 @@ function makeInitial(): InitialShape {
     persistError: null,
     openingIntro: null,
     openingVerdict: null,
+    practiceDueAt: null,
     repertoire: null,
   };
 }
@@ -450,6 +469,11 @@ function notePersistFailure(label: string, err: unknown): void {
 /** Opening drills have their own daily step; they never fill "Train N positions". */
 function countsTowardGoal(blunder: Blunder): boolean {
   return blunder.kind !== 'opening';
+}
+
+/** Whether a free player's daily cap is used up for this session. */
+function capReached(s: Pick<TrainingStateShape, 'dailyCap' | 'goalAttempted'>): boolean {
+  return s.dailyCap != null && s.goalAttempted >= s.dailyCap;
 }
 
 function goalCounts(
@@ -685,6 +709,10 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     set({ contextFilter: filter });
   },
 
+  setDailyCap: (cap) => {
+    set({ dailyCap: cap, cappedOut: false });
+  },
+
   setRevealBeforeSolve: (value) => {
     set({ revealBeforeSolve: value });
   },
@@ -725,6 +753,18 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
   },
 
   loadCurrentBlunder: async () => {
+    // Daily cap reached: skip new goal positions (openings and already-tried
+    // retries still play), and end the session once only those are left.
+    if (capReached(get())) {
+      const s = get();
+      let i = s.currentIndex;
+      while (i < s.blunders.length && countsTowardGoal(s.blunders[i]) && !s.attemptedBlunderIds.has(s.blunders[i].id)) i++;
+      if (i >= s.blunders.length) {
+        set({ phase: 'complete', cappedOut: true });
+        return;
+      }
+      if (i !== s.currentIndex) set({ currentIndex: i });
+    }
     const { blunders, currentIndex } = get();
     const blunder = blunders[currentIndex];
     if (!blunder) {
@@ -809,6 +849,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         phase: 'reviewing',
         openingIntro: null,
         openingVerdict: null,
+        practiceDueAt: null,
         fen: preplay.afterFen,
         orientation: playerSide,
         movableFor: null,
@@ -864,6 +905,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         lastMove: null,
         openingIntro,
         openingVerdict: null,
+        practiceDueAt: null,
         shapes: [],
         blunderSan,
         game,
@@ -1130,7 +1172,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     const isFirstAttempt = !state.attemptedBlunderIds.has(blunder.id);
 
     if (isCorrect) {
-      applyDrillResult(blunder, { success: true, isFirstAttempt }, { trackWrite: trackDrillWrite });
+      const srOutcome = applyDrillResult(blunder, { success: true, isFirstAttempt }, { trackWrite: trackDrillWrite });
 
       const playedSequence = [...drillPlies.slice(0, drillPly), uci];
       // The swing panel describes the user's own move once solved: the live
@@ -1151,6 +1193,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         return {
           phase: 'correct',
           openingVerdict,
+          practiceDueAt: srOutcome.practice ? blunder.nextDrillAt : null,
           pendingTryAgain: false,
           interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
           totalCorrect: isFirstAttempt && firstAttemptRecalled ? s.totalCorrect + 1 : s.totalCorrect,
@@ -1321,7 +1364,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     if (!blunder) return;
 
     const isFirstAttempt = !state.attemptedBlunderIds.has(blunder.id);
-    applyDrillResult(
+    const srOutcome = applyDrillResult(
       blunder,
       { success: opts.success, isFirstAttempt },
       { trackWrite: trackDrillWrite },
@@ -1333,6 +1376,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         : s.attemptedBlunderIds;
       return {
         phase: opts.success ? 'correct' : 'incorrect',
+        practiceDueAt: srOutcome.practice ? blunder.nextDrillAt : null,
         pendingTryAgain: false,
         interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
         totalCorrect: isFirstAttempt && opts.success ? s.totalCorrect + 1 : s.totalCorrect,

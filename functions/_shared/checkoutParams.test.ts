@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { CHECKOUT_BRANDING, supporterCheckoutParams } from './checkoutParams';
+import { CHECKOUT_BRANDING, checkoutReturnPath, supporterCheckoutParams } from './checkoutParams';
 
-const base = { customerId: 'cus_1', userId: 'u-1', priceId: 'price_1', integrationSuffix: 'abcdefgh' };
+const base = { returnPath: '/dashboard', customerId: 'cus_1', userId: 'u-1', priceId: 'price_1', integrationSuffix: 'abcdefgh' };
 
 describe('supporterCheckoutParams', () => {
   it('brands the session as PatternChess with its own copy', () => {
@@ -27,8 +27,8 @@ describe('supporterCheckoutParams', () => {
       client_reference_id: 'u-1',
       line_items: [{ price: 'price_1', quantity: 1 }],
       subscription_data: { metadata: { user_id: 'u-1', app: 'patternchess' } },
-      success_url: 'https://patternchess.com/supporter?thanks=1',
-      cancel_url: 'https://patternchess.com/supporter',
+      success_url: 'https://patternchess.com/dashboard?supporter=thanks',
+      cancel_url: 'https://patternchess.com/dashboard',
       integration_identifier: 'patternchess_supporter_abcdefgh',
     });
   });
@@ -38,6 +38,26 @@ describe('supporterCheckoutParams', () => {
       const p = supporterCheckoutParams({ ...base, origin });
       expect(p.branding_settings?.icon).toBeUndefined();
       expect(p.branding_settings?.display_name).toBe('PatternChess');
+    }
+  });
+
+  it('comes back to the page checkout started from', () => {
+    const p = supporterCheckoutParams({ ...base, returnPath: '/profile?tab=look', origin: 'https://patternchess.com' });
+    expect(p.success_url).toBe('https://patternchess.com/profile?tab=look&supporter=thanks');
+    expect(p.cancel_url).toBe('https://patternchess.com/profile?tab=look');
+  });
+});
+
+describe('checkoutReturnPath', () => {
+  it('keeps same-origin app paths, drops the fragment and stale flags', () => {
+    expect(checkoutReturnPath('/profile#look')).toBe('/profile');
+    expect(checkoutReturnPath('/training?x=1&supporter=thanks')).toBe('/training?x=1');
+    expect(checkoutReturnPath('/supporter?checkout=1')).toBe('/supporter');
+  });
+
+  it('falls back to the dashboard for anything else', () => {
+    for (const bad of [undefined, 42, '', 'https://evil.example/', '//evil.example', '/\\evil', '/login', '/']) {
+      expect(checkoutReturnPath(bad)).toBe('/dashboard');
     }
   });
 });

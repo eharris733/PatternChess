@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SignInMethods } from '../components/settings/SignInMethods';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
@@ -279,6 +280,8 @@ export function ProfileRoute() {
             onChange={(e) => setChesscom(e.target.value)}
           />
         </div>
+
+        <SignInMethods />
 
         <h3 className="heading-md mt-2">{t('profile.syncPrefs')}</h3>
         <p className="text-text-primary text-sm -mt-2">

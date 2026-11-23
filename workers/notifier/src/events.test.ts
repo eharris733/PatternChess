@@ -7,10 +7,14 @@ import {
   formatDay,
   formatTime,
   nearbyEvents,
-  stateEventsLoader,
+  regionEventsLoader,
+  regionEventsUrl,
+  regionName,
   type EventApiRow,
 } from './events';
 import { US_STATE_NAME } from './usStates';
+import { EVENT_COUNTRY } from './eventCountries';
+import { EVENT_COUNTRIES } from '../../../src/lib/eventRegions';
 
 const TODAY = '2026-11-29'; // a Sunday
 
@@ -32,6 +36,23 @@ describe('state names', () => {
   });
 });
 
+describe('countries', () => {
+  it('match the app (src/lib/eventRegions.ts)', () => {
+    expect(EVENT_COUNTRY).toEqual(
+      Object.fromEntries(EVENT_COUNTRIES.filter((c) => c.code !== 'US').map((c) => [c.code, { name: c.name, slug: c.slug }])),
+    );
+  });
+
+  it('names regions and links their pages; California never reads as Canada', () => {
+    expect(regionName('US-CA')).toBe('California');
+    expect(regionName('CA')).toBe('Canada');
+    expect(regionName('GB-SCT')).toBe('Scotland');
+    expect(regionName('XX')).toBeNull();
+    expect(regionEventsUrl('https://ev.test', 'US-MA')).toBe('https://ev.test/ma');
+    expect(regionEventsUrl('https://ev.test', 'NZ')).toBe('https://ev.test/new-zealand');
+  });
+});
+
 describe('formatting', () => {
   it('formats days, times and offsets', () => {
     expect(formatDay('2026-11-29')).toBe('Sun, Nov 29');
@@ -45,9 +66,12 @@ describe('formatting', () => {
     expect(addDays('2026-12-30', 3)).toBe('2027-01-02');
   });
 
-  it('asks the API for the state through the end of the two-week window', () => {
-    expect(eventsApiUrl('https://events.patternchess.com', 'MA', TODAY)).toBe(
+  it('asks the API for the region through the end of the two-week window', () => {
+    expect(eventsApiUrl('https://events.patternchess.com', 'US-MA', TODAY)).toBe(
       'https://events.patternchess.com/api/events?state=MA&to=2026-12-12',
+    );
+    expect(eventsApiUrl('https://events.patternchess.com', 'GB-ENG', TODAY)).toBe(
+      'https://events.patternchess.com/api/events?country=GB-ENG&to=2026-12-12',
     );
   });
 });
@@ -127,16 +151,16 @@ describe('nearbyEvents', () => {
   });
 });
 
-describe('stateEventsLoader', () => {
+describe('regionEventsLoader', () => {
   const ok = (data: unknown) => new Response(JSON.stringify({ data }), { status: 200 });
 
-  it('fetches each state once per run and returns the listing', async () => {
+  it('fetches each region once per run and returns the listing', async () => {
     const fetchImpl = vi.fn(async () => ok([row({ id: 9, title: 'Rapid' })]));
-    const load = stateEventsLoader(fetchImpl as unknown as typeof fetch, 'https://ev.test');
-    const [a, b] = await Promise.all([load('MA', TODAY), load('MA', TODAY)]);
+    const load = regionEventsLoader(fetchImpl as unknown as typeof fetch, 'https://ev.test');
+    const [a, b] = await Promise.all([load('US-MA', TODAY), load('US-MA', TODAY)]);
     expect(a).toEqual(b);
     expect(a?.[0]).toMatchObject({ title: 'Rapid', url: 'https://ev.test/events/9' });
-    await load('NH', TODAY);
+    await load('US-NH', TODAY);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect((fetchImpl.mock.calls[0] as unknown[])[0]).toBe('https://ev.test/api/events?state=MA&to=2026-12-12');
   });
@@ -152,8 +176,8 @@ describe('stateEventsLoader', () => {
       },
     ];
     for (const impl of cases) {
-      const load = stateEventsLoader(vi.fn(impl) as unknown as typeof fetch, 'https://ev.test');
-      await expect(load('MA', TODAY)).resolves.toBeNull();
+      const load = regionEventsLoader(vi.fn(impl) as unknown as typeof fetch, 'https://ev.test');
+      await expect(load('US-MA', TODAY)).resolves.toBeNull();
     }
     warn.mockRestore();
   });
@@ -162,8 +186,8 @@ describe('stateEventsLoader', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const hang = (_: unknown, init?: RequestInit) =>
       new Promise<Response>((_, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal?.reason)));
-    const load = stateEventsLoader(hang as unknown as typeof fetch, 'https://ev.test', 20);
-    await expect(load('MA', TODAY)).resolves.toBeNull();
+    const load = regionEventsLoader(hang as unknown as typeof fetch, 'https://ev.test', 20);
+    await expect(load('US-MA', TODAY)).resolves.toBeNull();
     warn.mockRestore();
   });
 });

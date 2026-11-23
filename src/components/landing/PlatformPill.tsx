@@ -1,5 +1,5 @@
 import type { DemoPlatform } from './UsernameInput';
-import { CHESSCOM_GREEN, PlatformLogo } from '../icons/PlatformLogos';
+import { CHESSCOM_GREEN_DARK, PlatformLogo } from '../icons/PlatformLogos';
 
 interface Props {
   platform: DemoPlatform;
@@ -9,7 +9,7 @@ interface Props {
 
 const META: Record<DemoPlatform, { label: string; accent: string }> = {
   lichess: { label: 'Lichess', accent: '#1A1A1A' },
-  chesscom: { label: 'Chess.com', accent: CHESSCOM_GREEN },
+  chesscom: { label: 'Chess.com', accent: CHESSCOM_GREEN_DARK },
 };
 
 export function PlatformPill({ platform, active, onClick }: Props) {

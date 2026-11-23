@@ -68,6 +68,7 @@ export const badRequest = (message: string, code = 'bad_request') => new RpcErro
 export const notFound = (message = 'Not found', code = 'not_found') => new RpcError(404, code, message);
 export const forbidden = (message = 'Forbidden', code = 'forbidden') => new RpcError(403, code, message);
 export const conflict = (message: string, code = 'conflict') => new RpcError(409, code, message);
+export const tooManyRequests = (message = 'Too many requests', code = 'rate_limited') => new RpcError(429, code, message);
 
 // --- argument helpers (throw 400 on a bad shape) ---------------------------
 
@@ -204,6 +205,24 @@ export async function dispatchRpc(
   } catch (e) {
     if (e instanceof RpcError) return errorResponse(e.status, e.code, e.message);
     console.error(`[rpc] ${name} failed`, e instanceof Error ? e.stack ?? e.message : e);
+    // Counted per hour for the notifier's alert check (workers/notifier/src/alerts.ts).
+    waitUntil(countRpcError(env.DB, name).catch(() => undefined));
     return errorResponse(500, 'internal', 'Something went wrong');
   }
+}
+
+/** `YYYY-MM-DDTHH` (UTC) — the rpc_errors bucket for `at`. */
+export function errorHour(at: Date = new Date()): string {
+  return at.toISOString().slice(0, 13);
+}
+
+/** +1 unexpected failure for `name` this hour (rpc_errors, migration 0007). */
+export async function countRpcError(db: D1Database | undefined, name: string, at: Date = new Date()): Promise<void> {
+  if (!db) return;
+  await db
+    .prepare(
+      'INSERT INTO rpc_errors (hour, name, count) VALUES (?, ?, 1) ON CONFLICT (hour, name) DO UPDATE SET count = count + 1',
+    )
+    .bind(errorHour(at), name)
+    .run();
 }

@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { SessionUser } from '../auth';
 import type { AppEnv } from '../db';
 import { dispatchRpc, RpcError, type UserRpcContext } from './core';
-import { handlers, normalizeInsertRows, pickPatch } from './training';
+import { guardSrPatch, handlers, normalizeInsertRows, pickPatch } from './training';
 
 /**
  * The training-data handlers (games / blunders / endgame scenarios /
@@ -323,6 +323,7 @@ describe('blunders', () => {
     const [b1] = (await call<{ id: string; fen: string }[]>(alice, 'blunders.allLive')).filter((b) => b.fen === 'f1');
     await call(alice, 'blunders.updateAfterDrill', {
       id: b1.id,
+      // A new row is due at once; one write climbs at most one rung (2 → 1).
       patch: { cycle_number: 2, last_drill_failed: true, next_drill_at: '2030-01-01T00:00:00+00:00' },
     });
     await call(bob, 'blunders.updateAfterDrill', { id: b1.id, patch: { cycle_number: 9 } });
@@ -331,7 +332,7 @@ describe('blunders', () => {
     await call(alice, 'blunders.updateEnrichment', { id: b1.id, patch: { solution_line: { pv: ['a'] }, motifs: ['fork'] } });
     const [row] = await call<Record<string, unknown>[]>(alice, 'blunders.byIds', { ids: [b1.id] });
     expect(row).toMatchObject({
-      cycle_number: 2,
+      cycle_number: 1,
       last_drill_failed: true,
       next_drill_at: '2030-01-01T00:00:00.000Z',
       correct_moves: [{ move: 'Nf3', eval: 5 }],
@@ -365,6 +366,48 @@ describe('blunders', () => {
     });
     expect(await call(alice, 'blunders.deleteForGame', { gameId: g.id })).toBe(1);
     expect((await call<{ fen: string }[]>(alice, 'blunders.allLive')).map((b) => b.fen)).toEqual(['o']);
+  });
+});
+
+describe('SR guard', () => {
+  const now = new Date('2026-11-23T12:00:00.000Z');
+  const due = { cycle_number: 2, next_drill_at: '2026-11-22T12:00:00.000Z' };
+  const notDue = { cycle_number: 2, next_drill_at: '2026-11-30T12:00:00.000Z' };
+  const solve = { cycle_number: 3, times_correct: 5, times_attempted: 5, last_drill_failed: false, next_drill_at: '2026-12-14T12:00:00.000Z', last_drilled_at: now.toISOString() };
+
+  it('a due row climbs one rung', () => {
+    expect(guardSrPatch(due, solve, now)).toEqual(solve);
+  });
+
+  it('never climbs more than one rung per write', () => {
+    expect(guardSrPatch(due, { ...solve, cycle_number: 4 }, now).cycle_number).toBe(3);
+  });
+
+  it('a row that is not due keeps its ladder; only the drill time lands', () => {
+    expect(guardSrPatch(notDue, solve, now)).toEqual({ last_drilled_at: now.toISOString() });
+  });
+
+  it('a miss on a row that is not due still resets it', () => {
+    const miss = { cycle_number: 0, last_drill_failed: true, times_attempted: 6, next_drill_at: '2026-11-24T12:00:00.000Z' };
+    expect(guardSrPatch(notDue, miss, now)).toEqual(miss);
+  });
+
+  it('allows a little clock skew', () => {
+    const soon = { cycle_number: 2, next_drill_at: '2026-11-23T12:05:00.000Z' };
+    expect(guardSrPatch(soon, solve, now).cycle_number).toBe(3);
+  });
+
+  it('end to end: drilling a not-due position again and again never masters it', async () => {
+    await call(alice, 'blunders.insert', { blunders: [blunder('g1', { next_drill_at: '2999-01-01T00:00:00.000Z', cycle_number: 1 })] });
+    const [b] = await call<{ id: string }[]>(alice, 'blunders.allLive');
+    for (let i = 0; i < 4; i++) {
+      await call(alice, 'blunders.updateAfterDrill', {
+        id: b.id,
+        patch: { cycle_number: 2 + i, times_correct: 1 + i, next_drill_at: '2999-06-01T00:00:00.000Z' },
+      });
+    }
+    const [row] = await call<Record<string, unknown>[]>(alice, 'blunders.byIds', { ids: [b.id] });
+    expect(row).toMatchObject({ cycle_number: 1, next_drill_at: '2999-01-01T00:00:00.000Z' });
   });
 });
 

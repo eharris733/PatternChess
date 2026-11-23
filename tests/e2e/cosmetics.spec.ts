@@ -71,13 +71,22 @@ test('the Look section picks unlocked themes and pieces, and locks the rest', as
   await expect(look).toBeVisible();
 
   // 30 positions: Walnut (10) and Chessnut (25) are open, Tournament (100) is not.
-  await expect(look.getByTestId('theme-option-tournament')).toBeDisabled();
+  await expect(look.getByTestId('theme-option-tournament')).toHaveAttribute('data-locked', 'true');
   await expect(look.getByTestId('theme-option-tournament')).toContainText('Unlocks at 100 positions trained');
+  // A locked look leads to Supporter instead of a dead button.
+  await look.getByTestId('theme-option-tournament').click();
+  const sheet = page.getByTestId('supporter-unlock');
+  await expect(sheet).toContainText('Tournament theme');
+  await expect(sheet).toContainText('Unlocks at 100 positions trained, or unlock it now with Supporter.');
+  await expect(sheet.getByTestId('supporter-unlock-checkout')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(sheet).toBeHidden();
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'tournament');
   await look.getByTestId('theme-option-walnut').click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'walnut');
   await expect.poll(() => patches(rec)).toContainEqual({ theme: 'walnut' });
 
-  await expect(look.getByTestId('piece-set-option-fantasy')).toBeDisabled();
+  await expect(look.getByTestId('piece-set-option-fantasy')).toHaveAttribute('data-locked', 'true');
   await look.getByTestId('piece-set-option-chessnut').click();
   await expect(page.locator('html')).toHaveAttribute('data-piece-set', 'chessnut');
   await expect.poll(() => patches(rec)).toContainEqual({ piece_set: 'chessnut' });
@@ -101,7 +110,7 @@ test('the avatar builder saves parts and shows them in the sidebar and header', 
   await expect(builder).toBeVisible();
   // Reward accessories are locked at 0 positions.
   await builder.getByRole('tab', { name: 'Extra' }).click();
-  await expect(builder.getByTestId('avatar-option-accessory-crown')).toBeDisabled();
+  await expect(builder.getByTestId('avatar-option-accessory-crown')).toHaveAttribute('data-locked', 'true');
   await builder.getByTestId('avatar-option-accessory-glasses').click();
   await builder.getByRole('tab', { name: 'Hair', exact: true }).click();
   await builder.getByTestId('avatar-option-hair-bob').click();
@@ -184,9 +193,9 @@ test('training settings show a preview that follows the switch', async ({ page }
   await page.goto('/profile#training');
   const card = page.getByTestId('pref-show-answer');
   await expect(card.locator('svg').first()).toBeVisible();
-  await expect(card).not.toContainText('Best: Nxc8');
+  await expect(card).not.toContainText('Best: Nc7+');
   await card.getByRole('checkbox').check();
-  await expect(card.locator('svg text', { hasText: 'Best: Nxc8' })).toBeVisible();
+  await expect(card.locator('svg text', { hasText: 'Best: Nc7+' })).toBeVisible();
   await expect.poll(() => patches(rec)).toContainEqual(expect.objectContaining({ show_answer_on_miss: true }));
   for (const id of ['pref-hide-info', 'pref-raw-evals', 'pref-autoplay', 'pref-sounds']) {
     await expect(page.getByTestId(id).locator('svg').first()).toBeVisible();
