@@ -5,16 +5,19 @@ import { DownloadIcon } from '../icons/DownloadIcon';
 import { exportFilename, positionsToCsv, positionsToPgn } from './vaultExport';
 import type { PositionFacts } from './vaultFilters';
 import type { PositionsMode } from './VaultPositionsTab';
+import { useT } from '../../i18n/useT';
+import type { MessageKey } from '../../i18n/i18n';
 
 type Format = 'csv' | 'pgn';
 
-const FORMATS: Array<{ id: Format; label: string; detail: string }> = [
-  { id: 'csv', label: 'CSV', detail: 'A spreadsheet row per position' },
-  { id: 'pgn', label: 'PGN', detail: 'For a Lichess study or ChessBase' },
+const FORMATS: Array<{ id: Format; label: string; detail: MessageKey }> = [
+  { id: 'csv', label: 'CSV', detail: 'vault.export.csvDetail' },
+  { id: 'pgn', label: 'PGN', detail: 'vault.export.pgnDetail' },
 ];
 
 /** Export menu for the Blunders / Mastered tabs: exactly the positions the filters show. */
 export function VaultExportMenu({ mode, items }: { mode: PositionsMode; items: readonly PositionFacts[] }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<Format | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +57,7 @@ export function VaultExportMenu({ mode, items }: { mode: PositionsMode; items: r
       setOpen(false);
     } catch (err) {
       console.warn('[vault] export failed', err);
-      setError("Couldn't build the export. Try again.");
+      setError(t('vault.export.error'));
     } finally {
       setBusy(null);
     }
@@ -76,16 +79,16 @@ export function VaultExportMenu({ mode, items }: { mode: PositionsMode; items: r
         }}
       >
         <DownloadIcon className="h-4 w-4" />
-        Export
+        {t('vault.export.label')}
       </button>
       {open && (
         <div
           role="menu"
-          aria-label="Export positions"
+          aria-label={t('vault.export.menu')}
           className="card absolute top-full right-0 mt-2 z-30 w-64 flex flex-col gap-1 p-2 shadow-lg"
         >
           <p className="label px-2 pt-1">
-            Export {count} {count === 1 ? 'position' : 'positions'}
+            {t('vault.export.title', { count })}
           </p>
           {FORMATS.map((f) => (
             <button
@@ -98,9 +101,9 @@ export function VaultExportMenu({ mode, items }: { mode: PositionsMode; items: r
               className="text-left px-2 py-2 hover:bg-accent/15 disabled:opacity-60"
             >
               <span className="block text-sm font-semibold text-text-primary">
-                {busy === f.id ? 'Preparing…' : f.label}
+                {busy === f.id ? t('vault.export.preparing') : f.label}
               </span>
-              <span className="block text-sm text-text-primary">{f.detail}</span>
+              <span className="block text-sm text-text-primary">{t(f.detail)}</span>
             </button>
           ))}
           {error && (

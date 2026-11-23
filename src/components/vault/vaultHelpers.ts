@@ -3,6 +3,7 @@ import { resolveOutcome, type GameOutcome } from '../../models/gameRecord';
 import type { GameRecord } from '../../models/gameRecord';
 import type { Blunder } from '../../models/blunder';
 import { fenSideToMove } from '../../chess/moveUtils';
+import type { MessageKey } from '../../i18n/i18n';
 
 export type Outcome = GameOutcome;
 
@@ -10,13 +11,13 @@ export type BlunderFilter = 'all' | 'min1' | 'min2' | 'min3' | 'clean' | 'unanal
 export type ResultFilter = 'all' | 'win' | 'loss' | 'draw';
 export type SortOrder = 'newest' | 'oldest' | 'blunders';
 
-export const BLUNDER_FILTERS: Array<{ key: BlunderFilter; label: string }> = [
-  { key: 'all', label: 'All' },
-  { key: 'min1', label: 'Has blunders' },
-  { key: 'min2', label: '2+' },
-  { key: 'min3', label: '3+' },
-  { key: 'clean', label: 'No blunders' },
-  { key: 'unanalyzed', label: 'Not analyzed' },
+export const BLUNDER_FILTERS: Array<{ key: BlunderFilter; label: MessageKey }> = [
+  { key: 'all', label: 'vault.games.filter.all' },
+  { key: 'min1', label: 'vault.games.filter.min1' },
+  { key: 'min2', label: 'vault.games.filter.min2' },
+  { key: 'min3', label: 'vault.games.filter.min3' },
+  { key: 'clean', label: 'vault.games.filter.clean' },
+  { key: 'unanalyzed', label: 'vault.games.filter.unanalyzed' },
 ];
 
 export function gameOutcome(game: GameRecord): Outcome | null {

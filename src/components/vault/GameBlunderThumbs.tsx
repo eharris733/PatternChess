@@ -5,6 +5,7 @@ import type { GameRecord } from '../../models/gameRecord';
 import type { Blunder } from '../../models/blunder';
 import { MiniBoard } from '../MiniBoard';
 import { blunderOrientation } from './vaultHelpers';
+import { useT } from '../../i18n/useT';
 
 export function GameBlunderThumbs({
   game,
@@ -13,6 +14,7 @@ export function GameBlunderThumbs({
   game: GameRecord;
   onPreview: (b: Blunder) => void;
 }) {
+  const t = useT();
   const { data: blunders, isLoading } = useQuery({
     queryKey: ['gameBlunders', game.id],
     queryFn: () => supabaseService.getBlundersForGames([game.id]),
@@ -22,14 +24,14 @@ export function GameBlunderThumbs({
   if (isLoading) {
     return (
       <div className="px-5 py-4 border-t-2 border-text-primary/10 text-xs text-text-primary">
-        Loading positions…
+        {t('vault.games.loadingPositions')}
       </div>
     );
   }
   if (!blunders || blunders.length === 0) {
     return (
       <div className="px-5 py-4 border-t-2 border-text-primary/10 text-xs text-text-primary">
-        No stored positions for this game.
+        {t('vault.games.noStored')}
       </div>
     );
   }

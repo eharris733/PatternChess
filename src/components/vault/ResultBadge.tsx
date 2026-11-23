@@ -1,7 +1,9 @@
 import clsx from 'clsx';
 import type { Outcome } from './vaultHelpers';
+import { useT } from '../../i18n/useT';
 
 export function ResultBadge({ outcome }: { outcome: Outcome | null }) {
+  const t = useT();
   const map = {
     win: { letter: 'W', cls: 'bg-correct/20 text-correct border-correct/50' },
     loss: { letter: 'L', cls: 'bg-incorrect/20 text-incorrect border-incorrect/50' },
@@ -14,7 +16,7 @@ export function ResultBadge({ outcome }: { outcome: Outcome | null }) {
         'inline-flex items-center justify-center w-6 h-6 rounded-none border-2 font-mono text-xs font-bold',
         meta?.cls ?? 'bg-surface-3 text-text-secondary border-text-primary',
       )}
-      title={outcome ?? 'unknown result'}
+      title={outcome ?? t('vault.games.unknownResult')}
     >
       {meta?.letter ?? '–'}
     </span>

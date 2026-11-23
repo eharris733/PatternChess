@@ -9,6 +9,7 @@ import { CloseIcon } from '../icons/CloseIcon';
 import { ShareIcon } from '../icons/ShareIcon';
 import { PositionShareModal } from '../share/PositionShareModal';
 import { blunderOrientation } from './vaultHelpers';
+import { useT } from '../../i18n/useT';
 
 export function PositionPreviewModal({
   blunder,
@@ -19,6 +20,7 @@ export function PositionPreviewModal({
   game: GameRecord | null;
   onClose: () => void;
 }) {
+  const t = useT();
   // Share replaces this dialog rather than stacking a second one.
   const [sharing, setSharing] = useState(false);
   const played = uciToSan(blunder.fen, blunder.playedMove) ?? blunder.playedMove;
@@ -31,7 +33,7 @@ export function PositionPreviewModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Blunder position"
+      aria-label={t('vault.preview.aria')}
       onClick={onClose}
     >
       <div
@@ -40,17 +42,20 @@ export function PositionPreviewModal({
       >
         <header className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="heading-md">Move {blunder.moveNumber}</h2>
+            <h2 className="heading-md">{t('vault.preview.move', { move: blunder.moveNumber })}</h2>
             <p className="text-xs text-text-primary mt-0.5">
-              {sideToMove === 'white' ? 'White' : 'Black'} to move
-              {game && ` · ${orderedPlayers(game.username, game.opponent, game.userColor).join(' vs ')}`}
+              {sideToMove === 'white' ? t('vault.preview.whiteToMove') : t('vault.preview.blackToMove')}
+              {game &&
+                ` · ${orderedPlayers(game.username, game.opponent, game.userColor).reduce((a, b) =>
+                  t('train.panel.vs', { a, b }),
+                )}`}
             </p>
           </div>
           <button
             type="button"
             className="btn-ghost h-8 px-2 shrink-0"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('common.close')}
           >
             <CloseIcon className="h-4 w-4" />
           </button>
@@ -62,25 +67,25 @@ export function PositionPreviewModal({
         />
         <div className="flex flex-col gap-1.5 text-sm">
           <div className="flex items-center justify-between gap-3">
-            <span className="label">Played</span>
+            <span className="label">{t('vault.preview.played')}</span>
             <span className="font-mono text-incorrect">{played}?</span>
           </div>
           {best && (
             <div className="flex items-center justify-between gap-3">
-              <span className="label">Best</span>
+              <span className="label">{t('vault.preview.best')}</span>
               <span className="font-mono text-correct">{best}</span>
             </div>
           )}
           {blunder.motifs.length > 0 && (
             <div className="flex items-center justify-between gap-3">
-              <span className="label">Motifs</span>
+              <span className="label">{t('vault.pos.motifs')}</span>
               <span className="flex flex-wrap justify-end gap-1.5">
                 {blunder.motifs.map((m) => (
                   <span
                     key={m}
                     className="px-1.5 py-0.5 border-2 border-text-primary/30 font-mono text-[10px] uppercase tracking-tight text-text-primary"
                   >
-                    {MOTIF_LABEL[m]}
+                    {t.label('motif', m, MOTIF_LABEL[m])}
                   </span>
                 ))}
               </span>
@@ -93,7 +98,7 @@ export function PositionPreviewModal({
           onClick={() => setSharing(true)}
         >
           <ShareIcon className="h-4 w-4" />
-          Share
+          {t('vault.share')}
         </button>
       </div>
     </div>
