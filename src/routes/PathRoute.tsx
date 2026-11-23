@@ -5,11 +5,14 @@ import { ProgressBar } from '../components/ProgressBar';
 import { Skeleton } from '../components/Skeleton';
 import { CheckIcon } from '../components/icons/CheckIcon';
 import { HeartIcon } from '../components/icons/HeartIcon';
+import { RewardPreview } from '../components/rewards/RewardPreview';
+import { rewardTitle, rewardsForRung } from '../lib/rewards';
 
 /**
- * The progression ladder: milestones on lifetime positions trained, each
- * unlocking a short article (supporter-only text; everyone sees the teaser).
- * Supporters can open every rung now.
+ * The progression ladder: milestones on lifetime positions trained. Each rung
+ * unlocks cosmetic rewards (src/lib/rewards.ts: themes, pieces, avatar
+ * extras, streak freezes) and a short article (supporter-only text; everyone
+ * sees the teaser). Supporters can open every rung now.
  */
 export function PathRoute() {
   const path = usePathProgress();
@@ -33,9 +36,15 @@ export function PathRoute() {
         ) : (
           <p className="text-text-primary">You've reached the top of the path. Thank you for showing up.</p>
         )}
+        <p className="text-sm text-text-primary">
+          Each milestone unlocks new looks for your board and avatar, and some bank a streak freeze.{' '}
+          <Link to="/profile#look" className="underline">
+            Change your look
+          </Link>
+        </p>
         {!path.isSupporter && (
           <p className="text-sm text-text-primary">
-            Each milestone unlocks a short article. Supporters read them in full, and can read every one now.{' '}
+            Supporters also read a short article at each milestone, and can open every one now.{' '}
             <Link to="/supporter" className="underline">
               Become a supporter
             </Link>
@@ -90,9 +99,25 @@ export function PathRoute() {
                   <span className="text-text-primary">{reached ? 'Milestone reached' : 'Milestone'}</span>
                 )}
                 {rung.article && open && !path.isSupporter && (
-                  <span className="flex items-center gap-1 text-xs text-text-secondary">
+                  <span className="flex items-center gap-1 text-xs text-text-primary">
                     <HeartIcon className="h-3 w-3" /> Full article for supporters
                   </span>
+                )}
+                {rewardsForRung(rung.at).length > 0 && (
+                  <ul className="mt-1 flex flex-wrap gap-2" data-testid="rung-rewards">
+                    {rewardsForRung(rung.at).map((r) => (
+                      <li
+                        key={r.id}
+                        className={clsx(
+                          'flex items-center gap-2 border-2 bg-surface px-2 py-1',
+                          reached ? 'border-gold-dark' : 'border-text-primary/20',
+                        )}
+                      >
+                        <RewardPreview item={r.item} size="sm" />
+                        <span className="text-xs text-text-primary">{rewardTitle(r.item)}</span>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
             </li>

@@ -1,14 +1,29 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../auth/useAuth';
+import { getReferralSummary } from '../../services/supabaseService';
 import { useLeaderboard } from '../../hooks/useLeaderboard';
 import { inviteUrl } from '../../lib/referral';
 import { recordShare } from '../../share/recordShare';
 import { copyText, shareLink } from '../../share/shareFile';
 import { ShareIcon } from '../icons/ShareIcon';
 
-/** "Invite a friend to compete": a referral link with your rank as the hook. */
+/**
+ * "Invite a friend to compete": a referral link with your rank as the hook,
+ * and the referral reward (3 months of Supporter perks per friend who trains
+ * their first 20 positions; functions/_shared/supporterGrants.ts).
+ */
 export function InviteCard() {
-  const { profile, refreshProfile } = useAuth();
+  const { profile, refreshProfile, user } = useAuth();
+  const summary = useQuery({
+    queryKey: ['referralSummary', user?.id],
+    enabled: !!user,
+    staleTime: 60_000,
+    queryFn: () => getReferralSummary(),
+  });
+  const needed = summary.data?.positionsNeeded ?? 20;
+  const earned = summary.data?.rewardsEarned ?? 0;
+  const perksUntil = summary.data?.perksUntil ?? null;
   const board = useLeaderboard('solved', 'all');
   const [copied, setCopied] = useState(false);
   const rank = board.data?.me?.rank ?? null;
@@ -40,8 +55,9 @@ export function InviteCard() {
     >
       <div className="flex flex-col gap-1">
         <h2 className="heading-md">Invite a friend to compete</h2>
-        <p className="text-text-primary text-sm">
-          Send your link. When a friend joins, they show up on the board next to you.
+        <p className="text-text-primary text-sm" data-testid="invite-reward">
+          Send your link. When a friend joins and trains their first {needed} positions, you get 3
+          months of Supporter perks, up to a year ahead.
           {joined > 0 && (
             <span className="font-semibold">
               {' '}
@@ -49,6 +65,13 @@ export function InviteCard() {
             </span>
           )}
         </p>
+        {earned > 0 && (
+          <p className="text-text-primary text-sm font-semibold" data-testid="invite-earned">
+            {perksUntil
+              ? `Your invites have earned you Supporter perks until ${perksUntil.toLocaleDateString()}.`
+              : `Your invites earned ${earned} ${earned === 1 ? 'reward' : 'rewards'} so far.`}
+          </p>
+        )}
       </div>
       <div className="flex shrink-0 gap-2">
         {canShare && (

@@ -12,6 +12,8 @@
  */
 import { badRequest, publicRpc, userRpc, type RpcRegistry } from './core';
 import { all, chunk, first, nowIso, placeholders, run } from '../db';
+import { usersWithActiveGrant } from '../supporterGrants';
+import { resolveAvatar, type AvatarParts } from '../../../src/lib/avatar';
 
 export type LeaderboardMetric = 'solved' | 'mastered' | 'elo' | 'streak' | 'openings' | 'endgames';
 export type LeaderboardWindow = 'all' | 'week';
@@ -27,6 +29,16 @@ export const LANDING_STATS_TTL_MS = 6 * 3600_000;
 export const PUBLIC_LEADERBOARD_TTL_MS = 3600_000;
 
 // --- pure helpers ------------------------------------------------------------
+
+/** A JSON TEXT column read without decodeRow (raw SELECT): parsed, or null. */
+function parseJson(v: string | null): unknown {
+  if (!v) return null;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return null;
+  }
+}
 
 /** Monday 00:00 UTC of `now`'s ISO week (Postgres `date_trunc('week', now())` in a UTC session). */
 export function isoWeekStart(now: Date): Date {
@@ -140,10 +152,15 @@ export async function eloGainedByUser(db: D1Database, since: string): Promise<Ma
   return new Map(rows.map((r) => [r.user_id, Number(r.value) || 0]));
 }
 
-/** supporter_badge() for many users at once. */
+/**
+ * supporter_badge() for many users at once. A running supporter grant (the
+ * referral reward, functions/_shared/supporterGrants.ts) counts as perks, so
+ * it shows the 'supporter' mark too.
+ */
 export async function supporterBadges(db: D1Database, userIds: readonly string[]): Promise<Map<string, SupporterBadge | null>> {
   const out = new Map<string, SupporterBadge | null>();
-  for (const ids of chunk([...new Set(userIds)], 90)) {
+  const unique = [...new Set(userIds)];
+  for (const ids of chunk(unique, 90)) {
     const rows = await all<{ user_id: string; status: string | null; first_supported_at: string | null }>(
       db,
       `SELECT user_id, status, first_supported_at FROM supporters WHERE user_id IN (${placeholders(ids.length)})`,
@@ -151,6 +168,7 @@ export async function supporterBadges(db: D1Database, userIds: readonly string[]
     );
     for (const r of rows) out.set(r.user_id, supporterBadge(r));
   }
+  for (const id of await usersWithActiveGrant(db, unique)) out.set(id, 'supporter');
   return out;
 }
 
@@ -223,6 +241,8 @@ export interface LeaderboardRowOut {
   isMe: boolean;
   flair: string | null;
   supporter: SupporterBadge | null;
+  /** Pixel avatar parts (src/lib/avatar.ts): the player's own, or the default generated from their id. */
+  avatar: AvatarParts;
 }
 
 async function leaderboard(
@@ -242,11 +262,12 @@ async function leaderboard(
       chesscom_username: string | null;
       display_name: string | null;
       flair: string | null;
+      avatar: string | null;
       current_streak_days: number;
       longest_streak_days: number;
     }>(
       db,
-      `SELECT id, lichess_username, chesscom_username, display_name, flair, current_streak_days, longest_streak_days
+      `SELECT id, lichess_username, chesscom_username, display_name, flair, avatar, current_streak_days, longest_streak_days
        FROM profiles WHERE leaderboard_opt_out = 0`,
     ),
     metricValues(db, metric, win, since),
@@ -255,6 +276,7 @@ async function leaderboard(
     user_id: p.id,
     label: publicLabel(p),
     flair: p.flair || null,
+    avatar: p.avatar,
     value:
       metric === 'streak'
         ? Number(win === 'week' ? p.current_streak_days : p.longest_streak_days) || 0
@@ -271,6 +293,7 @@ async function leaderboard(
     isMe,
     flair: r.item.flair,
     supporter: badges.get(r.item.user_id) ?? null,
+    avatar: resolveAvatar(parseJson(r.item.avatar), r.item.user_id),
   });
   return {
     metric,

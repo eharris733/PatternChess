@@ -43,7 +43,7 @@ export const TABLES: Record<string, TableSpec> = {
       'show_answer_on_miss',
       'email_opt_in',
     ],
-    json: ['preferred_time_controls', 'learn_chapters_done'],
+    json: ['preferred_time_controls', 'learn_chapters_done', 'avatar', 'path_rewards_claimed'],
     ts: [
       'created_at',
       'last_synced_lichess_at',
@@ -92,6 +92,8 @@ export const TABLES: Record<string, TableSpec> = {
   benchmarks: spec({}),
   // D1-native (0003): the daily Instagram/TikTok puzzle queue (scripts/social/).
   social_posts: spec({ json: ['puzzle'], ts: ['insights_at', 'posted_at', 'created_at'] }),
+  // D1-native (0005): Supporter perks granted without Stripe (the referral reward).
+  supporter_grants: spec({ ts: ['starts_at', 'ends_at', 'created_at'] }),
   // better-auth tables (camelCase columns; better-auth's own adapter handles
   // them, these entries exist for admin queries and the importer).
   user: spec({ bool: ['emailVerified'], ts: ['createdAt', 'updatedAt'] }),
@@ -104,7 +106,7 @@ export const TABLES: Record<string, TableSpec> = {
 
 /** The 17 app tables ported from Supabase `public` (excludes better-auth's and the D1-native ones). */
 export const APP_TABLES: readonly string[] = Object.keys(TABLES).filter(
-  (t) => !['user', 'session', 'account', 'verification', 'social_posts'].includes(t),
+  (t) => !['user', 'session', 'account', 'verification', 'social_posts', 'supporter_grants'].includes(t),
 );
 
 function tableSpec(table: string): TableSpec {

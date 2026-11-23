@@ -10,8 +10,8 @@ describe('featureVisible', () => {
       expect(featureVisible(f, null)).toBe(RELEASED[f]);
     }
   });
-  it('keeps Path and Learn unreleased for now', () => {
-    expect(RELEASED.path).toBe(false);
+  it('ships Path (cosmetic rewards) and keeps Learn unreleased for now', () => {
+    expect(RELEASED.path).toBe(true);
     expect(RELEASED.learn).toBe(false);
   });
 });

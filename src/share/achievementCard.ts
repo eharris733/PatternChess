@@ -9,6 +9,7 @@ import {
   drawFooter,
   loadShareFonts,
 } from './boardCanvas';
+import { drawAvatar, type AvatarParts } from '../lib/avatar';
 
 const W = 1200;
 const H = 630;
@@ -24,6 +25,8 @@ export interface AchievementCardInput {
   playerLabel?: string | null;
   /** Flair title shown next to the player label. */
   flairTitle?: string | null;
+  /** The player's pixel avatar, drawn beside their name. */
+  avatar?: AvatarParts | null;
 }
 
 /** Word-wraps `text` into at most `maxLines` lines that fit `maxWidth`. */
@@ -99,11 +102,20 @@ export async function renderAchievementCard(input: AchievementCardInput): Promis
   ctx.fillRect(x, H - FOOTER - 92, 60, 4);
   ctx.font = `700 24px ${MONO}`;
   const who = [input.playerLabel, input.flairTitle].filter(Boolean).join(' · ');
-  ctx.fillText(who ? who.toUpperCase() : input.categoryLabel.toUpperCase(), x, H - FOOTER - 48);
+  let whoX = x;
+  if (input.avatar) {
+    const s = 56;
+    ctx.fillStyle = INK;
+    ctx.fillRect(x - 2, H - FOOTER - 76 - 2, s + 4, s + 4);
+    drawAvatar(ctx, input.avatar, x, H - FOOTER - 76, s);
+    whoX = x + s + 18;
+    ctx.fillStyle = INK;
+  }
+  ctx.fillText(who ? who.toUpperCase() : input.categoryLabel.toUpperCase(), whoX, H - FOOTER - 40);
   if (who) {
     ctx.fillStyle = GOLD_LIGHT;
     ctx.textAlign = 'right';
-    ctx.fillText(input.categoryLabel.toUpperCase(), W - 64, H - FOOTER - 48);
+    ctx.fillText(input.categoryLabel.toUpperCase(), W - 64, H - FOOTER - 40);
     ctx.textAlign = 'left';
   }
 

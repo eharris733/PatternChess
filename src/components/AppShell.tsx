@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { SidebarNav } from './SidebarNav';
 import { ErrorBoundary } from './ErrorBoundary';
 import { PgnUploadModal } from './PgnUploadModal';
+import { RewardRevealHost } from './rewards/RewardRevealHost';
 import { BrandLockup } from './BrandLogo';
 import { MenuIcon } from './icons/MenuIcon';
 import { useAuth } from '../auth/useAuth';
@@ -98,6 +99,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       )}
       <PgnUploadModal />
+      {/* Path-rung and achievement rewards, shown once each (src/lib/rewards.ts). */}
+      <RewardRevealHost />
     </div>
   );
 }

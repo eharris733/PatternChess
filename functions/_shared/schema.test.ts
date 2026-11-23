@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -163,11 +163,14 @@ describe('timeCategory', () => {
 });
 
 describe('TABLES vs d1/migrations', () => {
-  const sql = ['0001_app.sql', '0002_auth.sql', '0003_social_posts.sql']
-    .map((f) => readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../d1/migrations', f), 'utf8'))
+  const dir = join(dirname(fileURLToPath(import.meta.url)), '../../d1/migrations');
+  const sql = readdirSync(dir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
+    .map((f) => readFileSync(join(dir, f), 'utf8'))
     .join('\n');
 
-  /** Column names of `CREATE TABLE name (...)` in the migrations. */
+  /** Column names of `CREATE TABLE name (...)` plus `ALTER TABLE name ADD COLUMN` in the migrations. */
   function columns(table: string): Set<string> {
     const m = new RegExp(`CREATE TABLE (?:IF NOT EXISTS )?${table} \\(([\\s\\S]*?)\\n\\);`).exec(sql);
     if (!m) throw new Error(`no CREATE TABLE ${table}`);
@@ -176,6 +179,8 @@ describe('TABLES vs d1/migrations', () => {
       const c = /^\s{2}([a-zA-Z_]+)\s+(TEXT|INTEGER|REAL)\b/.exec(line);
       if (c) cols.add(c[1]);
     }
+    const added = new RegExp(`ALTER TABLE ${table} ADD COLUMN ([a-zA-Z_]+) (?:TEXT|INTEGER|REAL)\\b`, 'g');
+    for (const a of sql.matchAll(added)) cols.add(a[1]);
     return cols;
   }
 

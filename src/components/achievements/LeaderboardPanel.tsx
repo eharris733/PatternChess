@@ -12,6 +12,7 @@ import { Skeleton } from '../Skeleton';
 import { SupporterMark } from '../SupporterMark';
 import { FlairBadge } from '../FlairBadge';
 import { FlairPickerModal } from '../FlairPicker';
+import { MyAvatar, PixelAvatar } from '../avatar/PixelAvatar';
 
 const METRICS: Array<{ id: LeaderboardMetric; label: string; hint: string }> = [
   { id: 'solved', label: 'Solved', hint: 'Positions recalled correctly on the first try' },
@@ -185,6 +186,11 @@ function Row({
         {row.rank}
       </span>
       <span className="min-w-0 flex-1 flex items-center gap-2 text-text-primary">
+        {row.isMe ? (
+          <MyAvatar className="h-7 w-7 shrink-0 border border-text-primary/40" />
+        ) : row.avatar ? (
+          <PixelAvatar parts={row.avatar} className="h-7 w-7 shrink-0 border border-text-primary/40" />
+        ) : null}
         <span className="truncate">{row.label}</span>
         <SupporterMark badge={row.supporter} className="shrink-0 inline-flex" />
         <FlairBadge flair={flair} className="shrink-0 hidden sm:inline-flex" />

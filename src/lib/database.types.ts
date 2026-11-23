@@ -626,8 +626,12 @@ export type Database = {
           anon_id: string | null
           app_opens: number
           autoplay_refutation: boolean
+          avatar: Json | null
           avatar_url: string | null
           board_theme: string
+          path_rewards_claimed: Json
+          piece_set: string | null
+          theme: string | null
           chesscom_username: string | null
           commitment_level: string
           contact_email: string | null
@@ -681,8 +685,12 @@ export type Database = {
           anon_id?: string | null
           app_opens?: number
           autoplay_refutation?: boolean
+          avatar?: Json | null
           avatar_url?: string | null
           board_theme?: string
+          path_rewards_claimed?: Json
+          piece_set?: string | null
+          theme?: string | null
           chesscom_username?: string | null
           commitment_level?: string
           contact_email?: string | null
@@ -736,8 +744,12 @@ export type Database = {
           anon_id?: string | null
           app_opens?: number
           autoplay_refutation?: boolean
+          avatar?: Json | null
           avatar_url?: string | null
           board_theme?: string
+          path_rewards_claimed?: Json
+          piece_set?: string | null
+          theme?: string | null
           chesscom_username?: string | null
           commitment_level?: string
           contact_email?: string | null

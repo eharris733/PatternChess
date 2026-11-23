@@ -15,6 +15,7 @@ import { OpeningIcon } from './icons/OpeningIcon';
 import { PathIcon } from './icons/PathIcon';
 import { featureVisible, type Feature } from '../lib/features';
 import { SettingsLink } from './SettingsLink';
+import { MyAvatar } from './avatar/PixelAvatar';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
@@ -109,19 +110,8 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
               )
             }
           >
-            {profile?.avatarUrl ? (
-              <img
-                src={profile.avatarUrl}
-                alt=""
-                crossOrigin="anonymous"
-                referrerPolicy="no-referrer"
-                className="w-7 h-7 rounded-full shrink-0 border-2 border-text-primary"
-              />
-            ) : (
-              <span className="w-7 h-7 rounded-full bg-text-primary text-bg shrink-0 flex items-center justify-center text-xs">
-                {firstName.charAt(0).toUpperCase()}
-              </span>
-            )}
+            {/* The pixel avatar (src/lib/avatar.ts) replaces the OAuth photo. */}
+            <MyAvatar className="w-7 h-7 shrink-0 border-2 border-text-primary" />
             {!collapsed && <span className="truncate">{firstName}</span>}
           </NavLink>
           {/* Collapsed rail is too narrow for a second control. */}
