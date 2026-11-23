@@ -21,6 +21,7 @@ import { instagramCaption, tiktokCaption } from './copy.ts';
 import { verifyPuzzle } from './engine.ts';
 import { parseArgs } from './env.ts';
 import { prepareFall } from './fall.ts';
+import type { RecentHook } from './hooks.ts';
 import { buildPuzzle, type Format, type Puzzle } from './puzzle.ts';
 import { makeRenderContext, renderPuzzle, type RenderContext } from './render.ts';
 import { writeScript, type ScriptSource, type VideoScript } from './script.ts';
@@ -88,9 +89,43 @@ export interface Produced {
   duration: number;
 }
 
-/** Script → voice → render → upload (or a file:// URL with --local-media). */
-async function produce(p: Puzzle, day: string, work: string, localMedia: string | null, rc: RenderContext): Promise<Produced> {
-  const written = await writeScript(p, COUNTDOWN_SECONDS);
+/** How far back the hook rotation looks. */
+export const HOOK_MEMORY_DAYS = 14;
+
+/** Live rows' hooks as RecentHook, newest first (pure; rows from social_posts). */
+export function toRecentHooks(rows: readonly { hook_template: string | null; script: string | null }[]): RecentHook[] {
+  const out: RecentHook[] = [];
+  for (const r of rows) {
+    let s: Partial<VideoScript> | null = null;
+    try {
+      s = r.script ? (JSON.parse(r.script) as Partial<VideoScript>) : null;
+    } catch {
+      s = null;
+    }
+    out.push({ hookStyle: r.hook_template ?? s?.hookStyle ?? '', headline: s?.headline ?? '', hook: s?.beats?.hook ?? '' });
+  }
+  return out;
+}
+
+/**
+ * Hooks of live rows scheduled in [from - HOOK_MEMORY_DAYS, through], newest
+ * first. `through` excludes the rows a refresh is about to rewrite.
+ */
+function loadRecentHooks(target: Target, from: string, through: string | null): RecentHook[] {
+  const rows = d1<{ hook_template: string | null; script: string | null }>(
+    `SELECT hook_template, script FROM social_posts
+     WHERE status IN ('queued', 'posted') AND scheduled_for >= ${sql(addDays(from, -HOOK_MEMORY_DAYS))}
+     ${through ? `AND scheduled_for <= ${sql(through)}` : ''}
+     ORDER BY scheduled_for DESC`,
+    target,
+  );
+  return toRecentHooks(rows);
+}
+
+/** Script → voice → render → upload (or a file:// URL with --local-media). Records the new hook in `recent`. */
+async function produce(p: Puzzle, day: string, work: string, localMedia: string | null, rc: RenderContext, recent: RecentHook[]): Promise<Produced> {
+  const written = await writeScript(p, COUNTDOWN_SECONDS, recent);
+  recent.unshift({ hookStyle: written.script.hookStyle, headline: written.script.headline, hook: written.script.beats.hook ?? '' });
   if (written.errors.length) console.log(`    script: ${written.source} (${written.errors.length} rejected: ${written.errors.slice(0, 3).join(' | ')})`);
   const voice = voiceName();
   const track = await voiceScript(written.script.beats, voice);
@@ -145,6 +180,7 @@ async function fill(target: Target, days: number, localMedia: string | null): Pr
   const blunderPool = fetchCandidates(owner, target);
   const fallPool = fetchFallCandidates(target);
   console.log(`${slots.length} empty day(s); ${blunderPool.length} blunder and ${fallPool.length} fall candidate(s)`);
+  const recent = loadRecentHooks(target, today, null);
   const rc = await makeRenderContext();
   const work = localMedia ?? mkdtempSync(join(tmpdir(), 'pc-social-'));
   let checks = 0;
@@ -188,7 +224,7 @@ async function fill(target: Target, days: number, localMedia: string | null): Pr
         console.warn(`  ${day}: no verified puzzle (checked ${checks}) — next run tries again`);
         break;
       }
-      const out = await produce(puzzle, day, work, localMedia, rc);
+      const out = await produce(puzzle, day, work, localMedia, rc, recent);
       const cols = {
         id: crypto.randomUUID(),
         blunder_id: puzzle.blunderId,
@@ -214,6 +250,8 @@ async function refreshQueued(target: Target, localMedia: string | null): Promise
      WHERE status = 'queued' AND scheduled_for > ${sql(utcToday())} ORDER BY scheduled_for`,
     target,
   );
+  // Rows from tomorrow on are about to be rewritten: rotate against what's already out.
+  const recent = loadRecentHooks(target, utcToday(), utcToday());
   const rc = await makeRenderContext();
   const work = localMedia ?? mkdtempSync(join(tmpdir(), 'pc-social-'));
   try {
@@ -231,7 +269,7 @@ async function refreshQueued(target: Target, localMedia: string | null): Promise
         console.warn(`  ${r.scheduled_for}: cannot rebuild ${r.blunder_id}; left as is`);
         continue;
       }
-      const out = await produce(puzzle, r.scheduled_for, work, localMedia, rc);
+      const out = await produce(puzzle, r.scheduled_for, work, localMedia, rc, recent);
       const set = Object.entries(producedColumns(puzzle, out))
         .map(([k, v]) => `${k} = ${sql(v)}`)
         .join(', ');

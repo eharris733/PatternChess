@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DUCK_GAIN, renderWav, SAMPLE_RATE } from './audio.ts';
 import { createPostInput, createVideoPost } from './buffer.ts';
-import { endCardLines, instagramCaption, ratingLabel, templateScript, tiktokCaption } from './copy.ts';
+import { endCardLines, instagramCaption, ratingLabel, TEMPLATE_HOOKS, templateScript, tiktokCaption } from './copy.ts';
 import { judge, judgeTrap, parseInfo } from './engine.ts';
 import { shortcodeOf } from './instagram.ts';
-import { addDays, emptySlots, formatForDay } from './plan.ts';
+import { eligibleAngles, HOOK_ANGLES, openingWords, pickAngle, type RecentHook } from './hooks.ts';
+import { addDays, emptySlots, formatForDay, toRecentHooks } from './plan.ts';
 import { publishDay } from './publish.ts';
 import {
   buildFallPuzzle,
@@ -16,6 +17,7 @@ import {
   trimRefutation,
   trimSolution,
   type BlunderRow,
+  type Puzzle,
 } from './puzzle.ts';
 import { buildFacts, validateScript, type VideoScript } from './script.ts';
 import { fallScore, nextCandidate, trapBlunderId } from './select.ts';
@@ -154,23 +156,33 @@ describe('spoken', () => {
   });
 });
 
-const goodBlunderScript = (): VideoScript => ({
-  hookStyle: 'rating-shame',
-  headline: "I'm 2056 and I missed mate",
+const goodBlunderScript = (hookStyle: string): VideoScript => ({
+  hookStyle,
+  headline: 'A 2056 player missed mate',
   subline: 'White to move. Find it.',
   beats: {
-    hook: "I'm rated 2056 and I missed mate in 2.",
+    hook: 'A 2056 blitz player missed mate in 2 here.',
     challenge: 'Pause. You have 5 seconds.',
-    played: 'I played rook takes c2. Greedy.',
+    played: 'White played rook takes c2. Greedy.',
     reveal: 'Queen takes h7, check! King takes h7, rook h3 is checkmate.',
     cta: 'PatternChess turns your own blunders into puzzles.',
   },
-  captionLead: 'I missed this at 2056 blitz. Did you find it?',
+  captionLead: 'Missed at 2056 blitz. Did you find it?',
 });
+
+/** Template scripts for `q`, one per angle that fits it. */
+const templatesFor = (q: Puzzle) => {
+  const base = buildFacts(q, COUNTDOWN_SECONDS);
+  return eligibleAngles(base).map((a) => {
+    const facts = { ...base, angle: { id: a.id, brief: a.brief, example: a.example } };
+    return { facts, script: templateScript(q, COUNTDOWN_SECONDS, facts) };
+  });
+};
 
 describe('script guardrails', () => {
   const p = buildPuzzle(MATE_ROW)!;
   const facts = buildFacts(p, COUNTDOWN_SECONDS);
+  const good = () => goodBlunderScript(facts.angle.id);
 
   it('builds facts with spoken moves and the allow-lists', () => {
     expect(facts.played).toMatchObject({ san: 'Rxc2', spoken: 'rook takes c2', by: 'viewer' });
@@ -184,19 +196,19 @@ describe('script guardrails', () => {
   });
 
   it('accepts a clean script', () => {
-    const r = validateScript(goodBlunderScript(), facts);
+    const r = validateScript(good(), facts);
     expect(r.ok, r.ok ? '' : r.errors.join('\n')).toBe(true);
   });
 
   it('rejects invented numbers, unknown squares, emoji, ELO and insults', () => {
     const bad = (patch: Partial<VideoScript['beats']>, top: Partial<VideoScript> = {}) =>
-      validateScript({ ...goodBlunderScript(), ...top, beats: { ...goodBlunderScript().beats, ...patch } }, facts);
+      validateScript({ ...good(), ...top, beats: { ...good().beats, ...patch } }, facts);
     expect(bad({ hook: '90% of players miss this.' })).toMatchObject({ ok: false });
     expect(bad({ hook: 'Only 3 people ever found this.' })).toMatchObject({ ok: false });
     expect(bad({ hook: 'Only seven people ever found this.' })).toMatchObject({ ok: false });
     expect(bad({ reveal: 'Queen takes g7 wins.' })).toMatchObject({ ok: false });
-    expect(bad({ hook: 'I hung mate 🔥' })).toMatchObject({ ok: false });
-    expect(bad({ hook: 'My ELO is a lie.' })).toMatchObject({ ok: false });
+    expect(bad({ hook: 'White hung mate 🔥' })).toMatchObject({ ok: false });
+    expect(bad({ hook: 'Your ELO is a lie.' })).toMatchObject({ ok: false });
     expect(bad({ hook: 'Only an idiot misses this.' })).toMatchObject({ ok: false });
     expect(bad({ hook: 'Magnus would find this.' })).toMatchObject({ ok: false });
     expect(bad({ cta: 'Follow for more.' })).toMatchObject({ ok: false }); // must name PatternChess
@@ -205,24 +217,104 @@ describe('script guardrails', () => {
     // Spoilers: the answer may only come in the reveal.
     expect(bad({}, { captionLead: 'Did you spot queen takes h7 in time?' })).toMatchObject({ ok: false });
     expect(bad({ challenge: 'Look at h7. 5 seconds.' })).toMatchObject({ ok: false });
-    expect(bad({ played: 'I played rook takes c2 instead of the mate.' })).toMatchObject({ ok: true });
+    expect(bad({ played: 'White played rook takes c2 instead of the mate.' })).toMatchObject({ ok: true });
     expect(validateScript({ hookStyle: 'x' }, facts)).toMatchObject({ ok: false });
+  });
+
+  it('never lets the AI narrator speak in the first person', () => {
+    const bad = (patch: Partial<VideoScript['beats']>, top: Partial<VideoScript> = {}) =>
+      validateScript({ ...good(), ...top, beats: { ...good().beats, ...patch } }, facts);
+    expect(bad({ hook: "I'm rated 2056 and I missed mate in 2." })).toMatchObject({ ok: false });
+    expect(bad({ played: 'I played rook takes c2.' })).toMatchObject({ ok: false });
+    expect(bad({ reveal: 'My mistake: queen takes h7 was mate.' })).toMatchObject({ ok: false });
+    expect(bad({ challenge: 'Beat me to it. 5 seconds.' })).toMatchObject({ ok: false });
+    expect(bad({}, { headline: 'I’m 2056 and missed this' })).toMatchObject({ ok: false });
+    expect(bad({}, { captionLead: 'I missed this. Did you?' })).toMatchObject({ ok: false });
+    // Words that merely contain "I" / "me" are fine.
+    expect(bad({ hook: 'Instead of mate, White went for material.' }, { captionLead: 'Time to find mate.' })).toMatchObject({ ok: true });
+  });
+
+  it('holds Claude to the assigned angle and a fresh opening', () => {
+    const other = HOOK_ANGLES.find((a) => a.id !== facts.angle.id)!.id;
+    expect(validateScript(goodBlunderScript(other), facts)).toMatchObject({ ok: false });
+    const recent: RecentHook[] = [{ hookStyle: 'x', headline: 'A 2056 player missed mate in two', hook: 'Something else entirely.' }];
+    const withRecent = { ...facts, recentHooks: recent };
+    expect(validateScript(good(), withRecent)).toMatchObject({ ok: false });
+    expect(validateScript({ ...good(), headline: 'Mate was right there' }, withRecent)).toMatchObject({ ok: true });
+    const sameHook = [{ hookStyle: 'x', headline: 'Different', hook: 'A 2056 blitz player hung a rook.' }];
+    expect(validateScript(good(), { ...facts, recentHooks: sameHook })).toMatchObject({ ok: false });
+    expect(openingWords('Pause NOW. Most people')).toBe('pause now most');
   });
 
   it('requires the punishment in the fall format', () => {
     const ff = buildFacts(FALL, COUNTDOWN_SECONDS);
-    const t = templateScript(FALL, COUNTDOWN_SECONDS);
+    const t = templateScript(FALL, COUNTDOWN_SECONDS, ff);
     expect(validateScript(t, ff)).toMatchObject({ ok: true });
     expect(validateScript({ ...t, beats: { ...t.beats, refutation: undefined } }, ff)).toMatchObject({ ok: false });
     expect(validateScript({ ...t, beats: { ...t.beats, hook: '12 PatternChess players fell for this.' } }, ff)).toMatchObject({ ok: false });
   });
 
-  it('template scripts always pass their own checks', () => {
-    for (const row of [MATE_ROW, { ...MATE_ROW, id: 'b2' }, { ...MATE_ROW, id: 'b3', user_rating: null, time_category: null }]) {
-      const q = buildPuzzle(row)!;
-      const r = validateScript(templateScript(q, COUNTDOWN_SECONDS), buildFacts(q, COUNTDOWN_SECONDS));
-      expect(r.ok, r.ok ? '' : r.errors.join('\n')).toBe(true);
+  it('every angle has a template, and every template passes its own checks', () => {
+    for (const a of HOOK_ANGLES) expect(TEMPLATE_HOOKS[a.id], a.id).toBeDefined();
+    const puzzles: Puzzle[] = [MATE_ROW, { ...MATE_ROW, id: 'b2' }, { ...MATE_ROW, id: 'b3', user_rating: null, time_category: null }]
+      .map((r) => buildPuzzle(r)!)
+      .concat([FALL]);
+    // A queen-winning fork (no mate), so wins-material is covered too.
+    const p0 = puzzles[0];
+    puzzles.push({ ...p0, blunderId: 'fork', mate: false, solution: p0.solution.map((s, i) => (i === 0 ? { ...s, captured: 'q' } : s)).slice(0, 1) });
+    const seen = new Set<string>();
+    for (const q of puzzles) {
+      for (const { facts: f, script } of templatesFor(q)) {
+        seen.add(script.hookStyle);
+        const r = validateScript(script, f);
+        expect(r.ok, `${script.hookStyle}: ${r.ok ? '' : r.errors.join('\n')}`).toBe(true);
+      }
     }
+    expect([...seen].sort()).toEqual(HOOK_ANGLES.map((a) => a.id).sort());
+  });
+});
+
+describe('hook rotation', () => {
+  const p = buildPuzzle(MATE_ROW)!;
+  const facts = buildFacts(p, COUNTDOWN_SECONDS);
+
+  it('offers only the angles the facts support', () => {
+    const ids = (f: Parameters<typeof eligibleAngles>[0]) => eligibleAngles(f).map((a) => a.id);
+    expect(ids(facts)).toEqual(expect.arrayContaining(['rating-check', 'hidden-mate']));
+    expect(ids(facts)).not.toContain('would-you-fall');
+    expect(ids({ ...facts, rating: null })).not.toContain('rating-check');
+    expect(ids({ ...facts, endsInMate: false, solutionWins: 'the queen' })).toContain('wins-material');
+    expect(ids({ ...facts, endsInMate: false, solutionWins: 'a pawn' })).not.toContain('wins-material');
+    expect(ids(buildFacts(FALL, COUNTDOWN_SECONDS))).toContain('would-you-fall');
+  });
+
+  it('picks the least recently used angle', () => {
+    const eligible = eligibleAngles(facts).map((a) => a.id);
+    expect(pickAngle(facts, eligible.slice(1), 'k').id).toBe(eligible[0]); // the only unused one
+    expect(pickAngle(facts, [...eligible].reverse(), 'k').id).toBe(eligible[0]); // all used: the oldest
+    expect(pickAngle(facts, [], 'abc').id).toBe(pickAngle(facts, [], 'abc').id); // stable per key
+  });
+
+  it('a refreshed week opens seven different ways', () => {
+    const recent: RecentHook[] = [];
+    const styles: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const q = { ...p, blunderId: `b${i}` };
+      const f = buildFacts(q, COUNTDOWN_SECONDS, recent);
+      const t = templateScript(q, COUNTDOWN_SECONDS, f);
+      expect(validateScript(t, { ...f, recentHooks: [] })).toMatchObject({ ok: true });
+      styles.push(t.hookStyle);
+      recent.unshift({ hookStyle: t.hookStyle, headline: t.headline, hook: t.beats.hook! });
+    }
+    expect(new Set(styles).size).toBe(Math.min(7, eligibleAngles(facts).length));
+  });
+
+  it('reads recent hooks from stored rows', () => {
+    const s = goodBlunderScript('pause-now');
+    expect(toRecentHooks([{ hook_template: 'pause-now', script: JSON.stringify(s) }, { hook_template: null, script: 'not json' }])).toEqual([
+      { hookStyle: 'pause-now', headline: s.headline, hook: s.beats.hook },
+      { hookStyle: '', headline: '', hook: '' },
+    ]);
   });
 });
 
@@ -230,30 +322,31 @@ describe('copy', () => {
   const p = buildPuzzle(MATE_ROW)!;
   it('writes captions without the opponent, with Elo-free rating text', () => {
     expect(ratingLabel(p)).toBe('2056 blitz');
-    const s = goodBlunderScript();
+    const s = goodBlunderScript('rating-check');
     const ig = instagramCaption(p, s);
     expect(ig).toContain(s.captionLead);
     expect(ig).toContain('White to move. Comment your move before the reveal.');
-    expect(ig).not.toContain('games at 2056'); // the lead already says it
-    expect(instagramCaption(p, { ...s, captionLead: 'Find it.' })).toContain('From one of my own blitz games at 2056.');
+    expect(ig).not.toContain('From a real'); // the lead already says the rating
+    expect(instagramCaption(p, { ...s, captionLead: 'Find it.' })).toContain('From a real 2056 blitz game.');
     expect(ig).toContain('#checkmate');
     expect(ig).not.toMatch(/ELO|elo\b/);
+    expect(ig).not.toMatch(/\b(I|my|me)\b/);
     const tt = tiktokCaption(p, s);
     expect(tt).toContain('patternchess.com');
     expect(tt).toContain('#chesstok');
     expect(tt).not.toContain('Link in bio');
   });
   it('tags and pitches the fall format as traps', () => {
-    const t = templateScript(FALL, COUNTDOWN_SECONDS);
+    const t = templateScript(FALL, COUNTDOWN_SECONDS, buildFacts(FALL, COUNTDOWN_SECONDS));
     expect(instagramCaption(FALL, t)).toContain('#chesstrap');
-    expect(instagramCaption(FALL, t)).not.toContain('From one of my own');
+    expect(instagramCaption(FALL, t)).not.toContain('From a real');
     expect(endCardLines(FALL)[0]).toBe('Find the traps you fall for');
   });
   it('degrades when rating / time control are unknown', () => {
     const q = { ...p, rating: null, timeControl: null };
-    const t = templateScript(q, COUNTDOWN_SECONDS);
-    expect(JSON.stringify(t)).not.toMatch(/null|undefined|  /);
-    expect(instagramCaption(q, { ...t, captionLead: 'Find it.' })).toContain('From one of my own games.');
+    for (const { script: t } of templatesFor(q)) expect(JSON.stringify(t)).not.toMatch(/null|undefined|  /);
+    const t = templateScript(q, COUNTDOWN_SECONDS, buildFacts(q, COUNTDOWN_SECONDS));
+    expect(instagramCaption(q, { ...t, captionLead: 'Find it.' })).toContain('From a real game.');
   });
 });
 
@@ -282,7 +375,7 @@ describe('timeline', () => {
   });
   it('shows the played move in red, then the line, ending on mate', () => {
     const played = frameAt(s, 1 + COUNTDOWN_SECONDS + 0.1);
-    expect(played).toMatchObject({ stage: 'played', status: { tone: 'bad', text: 'What I played: Rxc2' } });
+    expect(played).toMatchObject({ stage: 'played', status: { tone: 'bad', text: 'White played Rxc2' } });
     expect(played.arrow).toMatchObject({ from: 'f2', to: 'c2' });
     const reveal = s.segments.filter((x) => x.frame.stage === 'reveal');
     expect(reveal.at(-1)?.frame.fen).toBe(p.solution.at(-1)!.fen);
@@ -331,7 +424,7 @@ describe('timeline', () => {
 
 describe('voice', () => {
   it('splits sentences and caption chunks', () => {
-    expect(sentences('I played c2. Wrong! Really?')).toEqual(['I played c2.', 'Wrong!', 'Really?']);
+    expect(sentences('White played c2. Wrong! Really?')).toEqual(['White played c2.', 'Wrong!', 'Really?']);
     expect(chunkWords('Queen takes h7, check and rook h3 mates')).toEqual([
       ['Queen', 'takes', 'h7,'],
       ['check', 'and', 'rook', 'h3', 'mates'],

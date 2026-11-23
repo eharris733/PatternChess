@@ -6,7 +6,7 @@ import { MOTIF_LABEL } from '../../workers/notifier/src/motifLabels.ts';
 export type Side = 'white' | 'black';
 
 /**
- * blunder: one of the owner's own blunders ("I'm 2056 and I missed this").
+ * blunder: one of the owner's own blunders ("A 2056 player missed this").
  * fall: a move many PatternChess players got wrong in the same position
  * ("11 of our players fell for this. Would you?").
  */
@@ -51,7 +51,7 @@ export interface Puzzle {
   rating: number | null;
   /** "blitz", "rapid", … (as stored); null when unknown. */
   timeControl: string | null;
-  /** blunder: what I played. fall: the tempting move most people play. */
+  /** blunder: what was played. fall: the tempting move most people play. */
   played: Ply;
   /** fall only: how the opponent punishes `played` (starts with their reply). Empty for blunder. */
   refutation: Ply[];

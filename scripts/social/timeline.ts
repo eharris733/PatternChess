@@ -5,7 +5,7 @@
 //
 //   hook        board + headline from the first frame; the narrator's hook
 //   countdown   5 seconds, "Comment your move" (the challenge line plays over it)
-//   played      red arrow, the move, "??" (blunder: what I played; fall: what most people play)
+//   played      red arrow, the move, "??" (blunder: what was played; fall: what most people play)
 //   refutation  fall only: the opponent's punishment, move by move
 //   reveal      back to the start, green arrow, the right line
 //   end         start position + the PatternChess line (loops cleanly into frame 0)
@@ -69,7 +69,7 @@ export interface Frame {
   slide: { from: string; to: string; fenAfter: string; progress: number } | null;
   /** Countdown seconds left (5..1) and how far through the current second (0..1). */
   countdown: { left: number; fraction: number } | null;
-  /** Short label on the status row ("Black to move", "What I played", …). */
+  /** Short label on the status row ("Black to move", "White played Rxc2", …). */
   status: { text: string; tone: Tone };
   /** "??" / "!!" on a square. */
   badge: { square: string; text: string; tone: Tone } | null;
@@ -161,7 +161,7 @@ export function schedule(p: Puzzle, voice: VoiceTiming = {}): Schedule {
   t = Math.max(t + COUNTDOWN_SECONDS, challengeEnd);
 
   // The played move.
-  const playedStatus = { text: p.format === 'fall' ? `Most people play ${p.played.san}` : `What I played: ${p.played.san}`, tone: 'bad' as Tone };
+  const playedStatus = { text: p.format === 'fall' ? `Most people play ${p.played.san}` : `${sideLabel(p.side)} played ${p.played.san}`, tone: 'bad' as Tone };
   const playedEnd = speak('played', t);
   still(t, t + PLAYED_ARROW, { stage: 'played', status: playedStatus, arrow: { from: p.played.from, to: p.played.to, color: COLORS.bad } });
   t += PLAYED_ARROW;

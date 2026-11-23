@@ -2,7 +2,7 @@
 
 Once a day a narrated, 20–35 second vertical video goes out. The formats alternate by day:
 
-- **Blunder of the day:** one of the owner's own blunders. "I'm rated 2056 and I missed mate in 2."
+- **Blunder of the day:** one of the owner's own blunders, told in the third person. "A 2056 player missed mate in 2. Can you?"
 - **Would you fall for this?:** a move that at least 3 different PatternChess players, in at least 3 different games, got wrong in the same position. "11 PatternChess players fell for this. Would you?" Only the position, the move and the count are used: never who played it.
 
 Each video runs in six steps:
@@ -45,6 +45,8 @@ The look matches the site: paper background, ink text, mono uppercase headline, 
 **Script** (`script.ts`)
 
 - Claude writes the script from a fact sheet: spoken moves, the squares and numbers it may use, what each line wins.
+- **Hook angles** (`hooks.ts`): every video gets an assigned angle ("pause-now", "one-move", "engine-laughed", "rating-check", "would-you-fall", …), the eligible one used least recently in the last 14 days of the queue. The fact sheet also carries those recent hooks, and the script must open with different words. The angle id is stored as `hook_template`, so insights compare angles. Add an angle there plus its template in `copy.ts` (a test checks every angle has one).
+- **No first person:** the narrator is an AI voice for PatternChess, so "I", "me" and "my" are rejected everywhere ("White played…", "a 2056 player", "you").
 - Claude runs as the **Claude Code CLI on the subscription** (`claude -p --json-schema …`, `CLAUDE_CODE_OAUTH_TOKEN` in CI), never API credits.
 - Guardrails reject the script if it has any of:
   - a square or number that isn't in the facts
@@ -52,6 +54,7 @@ The look matches the site: paper background, ink text, mono uppercase headline, 
   - the answer given away before the reveal
   - lines over the word limits
   - a close that doesn't name PatternChess
+  - first person, a hook style other than the assigned angle, or a headline / hook that opens like a recent one
 - When a script fails, Claude gets one retry with the errors. After that the template in `copy.ts` takes over (`script_source`).
 
 **Voice and render**

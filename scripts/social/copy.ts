@@ -2,7 +2,7 @@
 // checks in script.ts), the end card, and the caption tail every post gets.
 // Voice: direct, warm, chess-literate; "Elo", never "ELO". No emoji.
 import { sideLabel, type Puzzle } from './puzzle.ts';
-import type { VideoScript } from './script.ts';
+import type { Facts, VideoScript } from './script.ts';
 import { spokenSan } from './spoken.ts';
 
 /** "2065 blitz", "rapid", or "" when we know neither. */
@@ -11,52 +11,66 @@ export function ratingLabel(p: Puzzle): string {
   return [p.rating ? String(p.rating) : '', tc].filter(Boolean).join(' ');
 }
 
-/** Stable pick from a list by a string (same puzzle → same template). */
-function pick<T>(list: readonly T[], key: string): T {
-  let h = 0;
-  for (const c of key) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return list[h % list.length];
-}
-
 interface TemplateHook {
-  id: string;
-  headline: (p: Puzzle) => string;
-  hook: (p: Puzzle) => string;
+  headline: (p: Puzzle, f: TemplateFacts) => string;
+  hook: (p: Puzzle, f: TemplateFacts) => string;
 }
 
-export const BLUNDER_HOOKS: readonly TemplateHook[] = [
-  {
-    id: 'blundered-at',
-    headline: (p) => (ratingLabel(p) ? `I blundered this at ${ratingLabel(p)}` : 'I blundered this'),
-    hook: (p) => (ratingLabel(p) ? `I blundered this at ${ratingLabel(p)}. Can you find what I missed?` : 'I blundered this in a real game. Can you find what I missed?'),
-  },
-  {
-    id: 'rated-and-missed',
-    headline: (p) => (p.rating ? `I'm ${p.rating} and I missed this` : 'I missed this'),
-    hook: (p) => (p.rating ? `I'm rated ${p.rating} and I missed this. Don't laugh until you find it.` : `I missed this in a real game. Don't laugh until you find it.`),
-  },
-  {
-    id: 'do-better',
-    headline: () => 'I played the wrong move',
-    hook: (p) => (ratingLabel(p) ? `${ratingLabel(p)}, and I played the wrong move. Can you do better?` : 'I played the wrong move here. Can you do better?'),
-  },
-];
+/** What the templates need beyond the puzzle (from script.ts buildFacts). */
+export type TemplateFacts = Pick<Facts, 'angle' | 'solutionWins'>;
 
-export const FALL_HOOKS: readonly TemplateHook[] = [
-  {
-    id: 'would-you-fall',
+/** One fallback hook per angle in hooks.ts (a test checks every angle has one and passes the checks). */
+export const TEMPLATE_HOOKS: Record<string, TemplateHook> = {
+  'pause-now': {
+    headline: () => 'Pause now. Most people miss this',
+    hook: () => 'Pause the video now. Most people miss this one.',
+  },
+  'one-move': {
+    headline: () => 'One move. Find it.',
+    hook: () => 'One move wins here. Find it before the timer runs out.',
+  },
+  'engine-laughed': {
+    headline: () => 'The engine laughed at this move',
+    hook: (p) => (p.format === 'fall' ? 'The engine laughs at the move most people play here.' : 'The engine laughed at the move played here. Can you do better?'),
+  },
+  'only-move': {
+    headline: () => 'Only one move wins here',
+    hook: () => 'Only one move wins here. Everything else lets it slip.',
+  },
+  'looks-quiet': {
+    headline: () => "Looks quiet. It isn't.",
+    hook: () => "This position looks quiet. It isn't.",
+  },
+  'comment-first': {
+    headline: () => 'Comment your move first',
+    hook: () => 'Comment your move before the reveal. No peeking.',
+  },
+  'rating-check': {
+    headline: (p) => `A ${p.rating} player missed this`,
+    hook: (p) => `A ${ratingLabel(p)} player missed this in a real game. Can you find it?`,
+  },
+  'hidden-mate': {
+    headline: () => "There's a forced mate here",
+    hook: () => "There's a forced mate in this position. Find it.",
+  },
+  'wins-material': {
+    headline: (_p, f) => `One move wins ${f.solutionWins}`,
+    hook: (_p, f) => `One move here wins ${f.solutionWins}. Find it.`,
+  },
+  'natural-move-loses': {
+    headline: () => 'The natural move here loses',
+    hook: () => 'The natural move here loses on the spot. Would you play it?',
+  },
+  'would-you-fall': {
     headline: () => 'Would you fall for this?',
     hook: (p) => `${p.fellCount} PatternChess players fell for this. Would you?`,
   },
-  {
-    id: 'everyone-plays-this',
-    headline: () => 'Everyone plays this. It loses.',
-    hook: (p) => `${p.fellCount} PatternChess players made the same move here. It loses.`,
-  },
-];
+};
 
-/** The deterministic fallback script: always passes validateScript. */
-export function templateScript(p: Puzzle, countdownSeconds: number): VideoScript {
+/** The deterministic fallback script for the assigned angle: always passes validateScript. */
+export function templateScript(p: Puzzle, countdownSeconds: number, f: TemplateFacts): VideoScript {
+  const h = TEMPLATE_HOOKS[f.angle.id];
+  if (!h) throw new Error(`no template for hook angle ${f.angle.id}`);
   const side = sideLabel(p.side);
   const first = p.solution[0];
   const motif = p.motifLabel ? `${p.motifLabel.toLowerCase().replace(/^missed /, 'a ')}` : null;
@@ -66,37 +80,36 @@ export function templateScript(p: Puzzle, countdownSeconds: number): VideoScript
     : motif
       ? `The answer: ${spokenSan(first.san)}. ${motif.charAt(0).toUpperCase()}${motif.slice(1)}.`
       : `The answer: ${spokenSan(first.san)}.`;
+  const hook = h.hook(p, f);
   if (p.format === 'fall') {
-    const h = pick(FALL_HOOKS, p.trapKey ?? p.blunderId);
     const punisher = p.refutation[0];
     return {
-      hookStyle: h.id,
-      headline: h.headline(p),
+      hookStyle: f.angle.id,
+      headline: h.headline(p, f),
       subline: `${side} to move. What do you play?`,
       beats: {
-        hook: h.hook(p),
+        hook,
         challenge,
         played: `Most people play ${spokenSan(p.played.san)}. It looks natural.`,
         refutation: `But ${spokenSan(punisher.san)}, and it falls apart.`,
         reveal: `Play ${spokenSan(first.san)} instead.`,
         cta: 'PatternChess finds the traps you keep falling for.',
       },
-      captionLead: `${p.fellCount} PatternChess players fell for this. Would you? Comment your move.`,
+      captionLead: `${hook} Comment your move.`,
     };
   }
-  const h = pick(BLUNDER_HOOKS, p.blunderId);
   return {
-    hookStyle: h.id,
-    headline: h.headline(p),
+    hookStyle: f.angle.id,
+    headline: h.headline(p, f),
     subline: `${side} to move and win.`,
     beats: {
-      hook: h.hook(p),
+      hook,
       challenge,
-      played: `I played ${spokenSan(p.played.san)}. Wrong.`,
+      played: `${side} played ${spokenSan(p.played.san)}. It loses.`,
       reveal,
       cta: 'PatternChess turns your own blunders into puzzles like this.',
     },
-    captionLead: `${h.hook(p)} Comment your move before the reveal.`,
+    captionLead: `${hook} Comment your move before the reveal.`,
   };
 }
 
@@ -124,11 +137,10 @@ function tags(p: Puzzle, extra: string[]): string {
   return [...new Set(all)].join(' ');
 }
 
-/** "From one of my own blitz games at 2065." (each part only when known). */
+/** "From a real 2065 blitz game." (each part only when known). */
 function gameLine(p: Puzzle): string {
-  const tc = p.timeControl && p.timeControl !== 'unknown' ? `${p.timeControl} ` : '';
-  const at = p.rating ? ` at ${p.rating}` : '';
-  return `From one of my own ${tc}games${at}.`;
+  const label = ratingLabel(p);
+  return label ? `From a real ${label} game.` : 'From a real game.';
 }
 
 function pitch(p: Puzzle): string {

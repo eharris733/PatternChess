@@ -48,7 +48,7 @@ export function voiceName(): string {
   return env('SOCIAL_VOICE') ?? DEFAULT_VOICE;
 }
 
-/** "I played rook takes c2. Wrong." → ["I played rook takes c2.", "Wrong."] */
+/** "White played rook takes c2. Wrong." → ["White played rook takes c2.", "Wrong."] */
 export function sentences(text: string): string[] {
   return text
     .split(/(?<=[.!?])\s+/)
