@@ -62,3 +62,20 @@ jobs:
       - name: Publish today's video
         if: github.event_name == 'schedule' || inputs.step == 'all' || inputs.step == 'publish'
         run: node scripts/social/publish.ts --remote
+
+      # Alerting (workers/notifier/src/alerts.ts): a failed run emails the admin
+      # through the notifier; the next good run sends "recovered". Needs the
+      # NOTIFIER_ADMIN_SECRET repository secret (= the Worker's ADMIN_SECRET);
+      # without it this step does nothing.
+      - name: Report the result to the notifier
+        if: always() && github.event_name == 'schedule'
+        env:
+          NOTIFIER_ADMIN_SECRET: ${{ secrets.NOTIFIER_ADMIN_SECRET }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          [ -n "$NOTIFIER_ADMIN_SECRET" ] || exit 0
+          ok=true; [ "$JOB_STATUS" = "success" ] || ok=false
+          curl -sS -m 20 -X POST https://email.patternchess.com/admin/alert \
+            -H "Authorization: Bearer $NOTIFIER_ADMIN_SECRET" -H 'Content-Type: application/json' \
+            -d "{\"check\":\"social-daily\",\"ok\":$ok,\"detail\":\"social-daily $JOB_STATUS: $RUN_URL\"}" || true

@@ -124,3 +124,21 @@ describe('mergeRegistries', () => {
     expect(() => mergeRegistries({ a, b: { one: publicRpc(async () => 3) } })).toThrow(/defined twice/);
   });
 });
+
+describe('countRpcError', () => {
+  it('counts unexpected failures per hour and handler', async () => {
+    const { openTestD1 } = await import('./testD1');
+    const { countRpcError, errorHour } = await import('./core');
+    const db = await openTestD1();
+    const at = new Date('2026-11-23T14:05:00Z');
+    await countRpcError(db as unknown as D1Database, 'games.list', at);
+    await countRpcError(db as unknown as D1Database, 'games.list', at);
+    await countRpcError(db as unknown as D1Database, 'profile.get', new Date('2026-11-23T15:00:00Z'));
+    expect(errorHour(at)).toBe('2026-11-23T14');
+    expect(db.sqlite.prepare('SELECT hour, name, count FROM rpc_errors ORDER BY hour, name').all()).toEqual([
+      { hour: '2026-11-23T14', name: 'games.list', count: 2 },
+      { hour: '2026-11-23T15', name: 'profile.get', count: 1 },
+    ]);
+    db.close();
+  });
+});

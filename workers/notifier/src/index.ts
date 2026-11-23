@@ -19,6 +19,11 @@
 //   GET  /admin/preview?user=<uuid>&kind=<kind>[&format=text|json]
 //   POST /admin/run?dryRun=1[&now=<ISO>]   evaluate (and with dryRun=0, send) the outbox
 //   POST /admin/send-sample?user=<uuid>&kind=<kind>&to=<addr>
+//   POST /admin/alerts/run?dryRun=1     run the health checks (alerts.ts)
+//   POST /admin/alert                   { check, ok, detail? } from an outside reporter
+//
+// scheduled also runs the health checks after the outbox and emails ALERT_TO
+// when one starts failing, keeps failing (daily) or recovers.
 //
 // SEND_MODE gates real mail: anything but "live" sends only to TEST_RECIPIENTS.
 //
@@ -62,6 +67,7 @@ import {
   unsubscribedPage,
 } from './pages';
 import { FROM_ADDRESS, FROM_NAME, renderEmail, type EmailKind } from './templates';
+import { alertEmail, probeAll, recordResults, type CheckResult } from './alerts';
 import {
   capture,
   devMailboxOn,
@@ -85,6 +91,8 @@ export interface Env {
   EVENTS_URL?: string;
   /** "1" only in local dev (wrangler dev --var DEV_MAILBOX:1): capture instead of sending. */
   DEV_MAILBOX?: string;
+  /** Where health-check alerts go (alerts.ts); unset = checks run, nothing is mailed. */
+  ALERT_TO?: string;
 }
 
 /** Well under the account's daily quota; a backlog drains over the next hours. */
@@ -185,6 +193,49 @@ async function candidate(env: Env, userId: string, now: Date): Promise<OutboxRow
   return rows[0] ?? null;
 }
 
+/**
+ * Health checks for this hour (alerts.ts): the probes plus `extra` results
+ * (the outbox run itself), recorded in alert_state; any transition is mailed
+ * to ALERT_TO in one email. dryRun = probe only, record and send nothing.
+ */
+async function runAlerts(env: Env, now: Date, extra: CheckResult[], dryRun = false) {
+  const results = [...(await probeAll(env, now)), ...extra];
+  if (dryRun) return { results, notices: [], mailed: false };
+  return { results, ...(await mailNotices(env, results, now)) };
+}
+
+async function mailNotices(env: Env, results: CheckResult[], now: Date) {
+  const notices = await recordResults(env.DB, results, now);
+  const email = alertEmail(notices, now);
+  let mailed = false;
+  if (email && env.ALERT_TO) {
+    if (devMailboxOn(env)) capture('alert', env.ALERT_TO, { ...email, preheader: email.subject });
+    else {
+      await env.EMAIL.send({
+        from: { email: FROM_ADDRESS, name: 'PatternChess alerts' },
+        to: env.ALERT_TO,
+        subject: email.subject,
+        html: email.html,
+        text: email.text,
+      });
+    }
+    mailed = true;
+  }
+  return { notices, mailed };
+}
+
+/** The outbox run as health-check results: the run itself, and its send failures. */
+function runChecks(summary: RunSummary | null, runError: string | null): CheckResult[] {
+  return [
+    { id: 'email-run', ok: runError == null, ...(runError ? { detail: runError } : {}) },
+    {
+      id: 'email-send',
+      ok: !summary || summary.failed.length === 0,
+      ...(summary?.failed.length ? { detail: summary.failed.map((f) => `${f.kind}: ${f.error}`).join('; ').slice(0, 500) } : {}),
+    },
+  ];
+}
+
 async function handleAdmin(req: Request, env: Env, url: URL): Promise<Response> {
   const auth = req.headers.get('Authorization') ?? '';
   if (!timingSafeEqual(`Bearer ${env.ADMIN_SECRET ?? ''}`, auth) || !env.ADMIN_SECRET) {
@@ -197,6 +248,21 @@ async function handleAdmin(req: Request, env: Env, url: URL): Promise<Response> 
   if (url.pathname === '/admin/run' && req.method === 'POST') {
     const dryRun = url.searchParams.get('dryRun') !== '0';
     return json(await runOutbox(env, now, dryRun));
+  }
+
+  // Probe every check now (dryRun=0 also records and mails transitions).
+  if (url.pathname === '/admin/alerts/run' && req.method === 'POST') {
+    return json(await runAlerts(env, now, [], url.searchParams.get('dryRun') !== '0'));
+  }
+
+  // An outside reporter's result (the social-daily workflow): JSON
+  // { check, ok, detail? }. One failure is enough to alert.
+  if (url.pathname === '/admin/alert' && req.method === 'POST') {
+    const body = (await req.json().catch(() => null)) as { check?: unknown; ok?: unknown; detail?: unknown } | null;
+    const check = typeof body?.check === 'string' && /^[a-z0-9-]{1,40}$/.test(body.check) ? body.check : null;
+    if (!check || typeof body?.ok !== 'boolean') return json({ error: 'body must be { check, ok, detail? }' }, 400);
+    const detail = typeof body.detail === 'string' ? body.detail.slice(0, 500) : undefined;
+    return json(await mailNotices(env, [{ id: check, ok: body.ok, detail, threshold: 1 }], now));
   }
 
   const user = url.searchParams.get('user');
@@ -368,18 +434,35 @@ export default class Notifier extends WorkerEntrypoint<Env> {
   }
 
   async scheduled(controller: ScheduledController): Promise<void> {
+    const env = this.env;
+    const now = new Date(controller.scheduledTime);
     this.ctx.waitUntil(
-      runOutbox(this.env, new Date(controller.scheduledTime), false).then((s) => {
-        console.log(
-          JSON.stringify({
-            msg: 'outbox run',
-            candidates: s.candidates,
-            sent: s.sent.length,
-            skipped: s.skipped.length,
-            failed: s.failed,
-          }),
-        );
-      }),
+      (async () => {
+        let summary: RunSummary | null = null;
+        let runError: string | null = null;
+        try {
+          summary = await runOutbox(env, now, false);
+          console.log(
+            JSON.stringify({
+              msg: 'outbox run',
+              candidates: summary.candidates,
+              sent: summary.sent.length,
+              skipped: summary.skipped.length,
+              failed: summary.failed,
+            }),
+          );
+        } catch (err) {
+          runError = err instanceof Error ? err.message : String(err);
+          console.error('[notifier] outbox run failed', err);
+        }
+        try {
+          const a = await runAlerts(env, now, runChecks(summary, runError));
+          const failing = a.results.filter((r) => !r.ok).map((r) => r.id);
+          console.log(JSON.stringify({ msg: 'health checks', failing, notices: a.notices.length, mailed: a.mailed }));
+        } catch (err) {
+          console.error('[notifier] health checks failed', err);
+        }
+      })(),
     );
   }
 

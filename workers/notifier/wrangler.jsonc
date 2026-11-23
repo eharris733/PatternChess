@@ -31,7 +31,9 @@
     "EMAIL_URL": "https://email.patternchess.com",
     // Anything but "live" sends only to TEST_RECIPIENTS (comma-separated).
     "SEND_MODE": "live",
-    "TEST_RECIPIENTS": "elliotmharris@gmail.com"
+    "TEST_RECIPIENTS": "elliotmharris@gmail.com",
+    // Health-check alerts (src/alerts.ts).
+    "ALERT_TO": "elliot@patternchess.com"
   },
   "observability": { "enabled": true }
 }

@@ -38,7 +38,7 @@ describe('achievements', () => {
     expect(await call('achievements.record', user('p1'), { ids: [A, A, 'made-up', B] })).toEqual({ recorded: 2 });
     await call('achievements.record', user('p1'), { ids: [A] });
     const rows = db.sqlite.prepare('SELECT achievement_id FROM user_achievements WHERE user_id = ? ORDER BY 1').all('p1');
-    expect(rows.map((r) => (r as { achievement_id: string }).achievement_id).sort()).toEqual([A, B].sort());
+    expect(rows.map((r: unknown) => (r as { achievement_id: string }).achievement_id).sort()).toEqual([A, B].sort());
   });
 
   it('rarity is the share of trained players holding each achievement', async () => {
