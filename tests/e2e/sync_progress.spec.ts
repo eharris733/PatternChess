@@ -72,6 +72,76 @@ test('the sidebar pill counts chess.com games month by month', async ({ page }) 
   await expect(pill).toContainText('Tap to sync now', { timeout: 15_000 });
 });
 
+test('the sidebar pill counts Lichess games as the export streams in', async ({ page }) => {
+  // Lichess streams its PGN export; send one game every 800 ms.
+  await page.addInitScript(() => {
+    const game = (id: string) =>
+      `[Event "rated blitz game"]\n[Site "https://lichess.org/${id}"]\n[White "streamer"]\n[Black "them"]\n` +
+      `[Result "1-0"]\n[UTCDate "2026.11.20"]\n[UTCTime "10:00:00"]\n[TimeControl "300+0"]\n\n1. e4 e5 1-0\n\n\n`;
+    const origFetch = window.fetch.bind(window);
+    window.fetch = (input: any, init?: any) => {
+      const url: string = typeof input === 'string' ? input : input?.url ?? '';
+      if (url.includes('lichess.org/api/games/user/')) {
+        const enc = new TextEncoder();
+        const ids = ['AAAAAAAA', 'BBBBBBBB', 'CCCCCCCC', 'DDDDDDDD'];
+        const body = new ReadableStream({
+          async start(c) {
+            for (const id of ids) {
+              c.enqueue(enc.encode(game(id)));
+              await new Promise((r) => setTimeout(r, 800));
+            }
+            c.close();
+          },
+        });
+        return Promise.resolve(new Response(body, { status: 200 }));
+      }
+      return origFetch(input, init);
+    };
+  });
+  await stubApp(page, {
+    user: USER,
+    profile: { ...PROFILE, chesscom_username: null, lichess_username: 'streamer' },
+    gameCount: 200,
+  });
+  await page.goto('/dashboard');
+  const pill = page.getByRole('button', { name: /^Sync:/ });
+  await expect(pill).toHaveAccessibleName('Sync: Fetching 1 of 200', { timeout: 10_000 });
+  await expect(pill).toHaveAccessibleName('Sync: Fetching 2 of 200', { timeout: 5_000 });
+  await expect(pill).toContainText('Tap to sync now', { timeout: 15_000 });
+});
+
+test("a finished sync refreshes the plan's endgame and opening steps without a reload", async ({ page }) => {
+  await stubChessCom(page, 1500);
+  const rpc = await stubApp(page, {
+    user: USER,
+    profile: PROFILE,
+    gameCount: 200,
+    rpc: {
+      // The fetched games are new: insert returns them as rows.
+      'games.insert': (a) =>
+        (a.games as Record<string, unknown>[]).map((g, i) => ({ ...g, id: `new-${i}`, user_id: USER.id })),
+    },
+  });
+  await page.goto('/dashboard');
+  const pill = page.getByRole('button', { name: /^Sync:/ });
+  await expect(pill).toHaveAccessibleName(/Sync: Fetching \d/, { timeout: 10_000 });
+  // The plan card has loaded its steps once by now.
+  await expect.poll(() => rpc.callsTo('endgameScenarios.list').length, { timeout: 10_000 }).toBeGreaterThan(0);
+  const endgameBefore = rpc.callsTo('endgameScenarios.list').length;
+  const openingBefore = rpc.callsTo('blunders.drillsOfKind').filter((c) => c.args.kind === 'opening').length;
+  let navigations = 0;
+  page.on('framenavigated', (f) => {
+    if (f === page.mainFrame()) navigations++;
+  });
+
+  await expect(pill).toHaveAccessibleName(/Sync: \+9 games/, { timeout: 15_000 });
+  await expect.poll(() => rpc.callsTo('endgameScenarios.list').length, { timeout: 10_000 }).toBeGreaterThan(endgameBefore);
+  await expect
+    .poll(() => rpc.callsTo('blunders.drillsOfKind').filter((c) => c.args.kind === 'opening').length, { timeout: 10_000 })
+    .toBeGreaterThan(openingBefore);
+  expect(navigations).toBe(0);
+});
+
 test('the onboarding import screen shows the live fetch line', async ({ page }) => {
   await stubChessCom(page, 1500);
   await stubApp(page, { user: USER, profile: PROFILE, gameCount: 0 });
