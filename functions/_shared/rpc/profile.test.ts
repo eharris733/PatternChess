@@ -263,6 +263,7 @@ describe('supporters', () => {
       current_period_end: null,
       cancel_at_period_end: true,
       first_supported_at: '2026-11-01T00:00:00.000Z',
+      grant_ends_at: null,
     });
   });
 });

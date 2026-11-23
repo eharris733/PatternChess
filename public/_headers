@@ -10,6 +10,9 @@
   Cache-Control: public, max-age=31536000, immutable
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
+# Piece sets: a week, not immutable (file names aren't versioned).
+/pieces/*
+  Cache-Control: public, max-age=604800
 # Versioned file names (-v1, -v2…): bump the suffix to change a video.
 /video/*
   Cache-Control: public, max-age=31536000, immutable

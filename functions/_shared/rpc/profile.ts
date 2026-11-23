@@ -2,6 +2,16 @@ import { createProfileForUser } from '../auth';
 import { all, first, nowIso, run, scalar, stmt, type SqlParam } from '../db';
 import { encodeRow } from '../schema';
 import {
+  REFERRAL_REWARD_POSITIONS,
+  grantPerksUntil,
+  maybeGrantReferralReward,
+  referralRewardSummary,
+} from '../supporterGrants';
+import { sanitizeAvatar } from '../../../src/lib/avatar';
+import { PIECE_SETS } from '../../../src/lib/pieceSets';
+import { BOARD_THEMES as ALL_THEMES, LEGACY_BOARD_THEMES } from '../../../src/lib/themeIds';
+import { FREEZE_RUNGS } from '../../../src/lib/rewards';
+import {
   argOptString,
   argString,
   badRequest,
@@ -28,7 +38,9 @@ const DAY_MS = 86_400_000;
 const LOCAL_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // Postgres CHECK: contact_email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$'
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-const BOARD_THEMES = ['default', 'inverse', 'frozen', 'green', 'purple'] as const;
+// board_theme's CHECK allows only the first five; every theme goes to `theme` (0004).
+const BOARD_THEMES = LEGACY_BOARD_THEMES;
+const STREAK_FREEZE_CAP = 2;
 const COMMITMENT_LEVELS = ['casual', 'regular', 'serious', 'obsessed', 'custom'] as const;
 const TIME_CONTROLS = ['bullet', 'blitz', 'rapid', 'classical'] as const;
 const ASKS = ['email', 'course', 'supporter'] as const;
@@ -91,6 +103,13 @@ const timeControls: Validator = (v, col) => {
   return Array.from(new Set(v as string[]));
 };
 
+const avatar: Validator = (v, col) => {
+  if (v === null) return null;
+  const parts = sanitizeAvatar(v);
+  if (!parts) throw fail(col, 'is not a valid avatar');
+  return parts;
+};
+
 const contactEmail: Validator = (v, col) => {
   if (v === null) return null;
   if (typeof v !== 'string') throw fail(col, 'must be a string');
@@ -113,6 +132,10 @@ export const PROFILE_WRITABLE: Readonly<Record<string, Validator>> = {
   preferred_rated_only: bool,
   preferred_time_controls: timeControls,
   board_theme: oneOf(BOARD_THEMES),
+  // cosmetics (0004); unlocks are client-checked like flair
+  theme: oneOf(ALL_THEMES, true),
+  piece_set: oneOf(PIECE_SETS, true),
+  avatar,
   // updateTrainingPrefs + milestone flags
   show_engine_evals: bool,
   reveal_before_solve: bool,
@@ -378,6 +401,38 @@ export const handlers: RpcRegistry = {
   }),
 
   /**
+   * Banks the streak freeze a /path rung awards (src/lib/rewards.ts
+   * FREEZE_RUNGS), once per rung. The server re-checks the rung against
+   * lifetime positions trained (sum of training_sessions.blunders_attempted,
+   * the daily-goal count) and records it in path_rewards_claimed whether or
+   * not the bank (capped at 2) had room. Returns the new freeze count.
+   */
+  'profile.claimPathReward': userRpc<{ rung: number }>(async (ctx, args) => {
+    const rung = args.rung;
+    if (typeof rung !== 'number' || !FREEZE_RUNGS.includes(rung)) throw badRequest('not a streak-freeze rung');
+    const trained = Number(
+      (await scalar<number>(
+        ctx.db,
+        'SELECT coalesce(sum(blunders_attempted), 0) FROM training_sessions WHERE user_id = ?',
+        [ctx.user.id],
+      )) ?? 0,
+    );
+    if (trained < rung) return { granted: false, reason: 'not_reached', streakFreezes: null };
+    const row = await first<{ streak_freezes: number }>(
+      ctx.db,
+      `UPDATE profiles
+          SET streak_freezes = min(streak_freezes + 1, ?1),
+              path_rewards_claimed = json_insert(path_rewards_claimed, '$[#]', CAST(?2 AS INTEGER))
+        WHERE id = ?3
+          AND NOT EXISTS (SELECT 1 FROM json_each(path_rewards_claimed) WHERE value = CAST(?2 AS INTEGER))
+        RETURNING streak_freezes`,
+      [STREAK_FREEZE_CAP, rung, ctx.user.id],
+    );
+    if (!row) return { granted: false, reason: 'already_claimed', streakFreezes: null };
+    return { granted: true, reason: null, streakFreezes: row.streak_freezes };
+  }),
+
+  /**
    * claim_referral(code): record who invited the caller (once, never self,
    * only for accounts under 7 days old) and credit the referrer.
    */
@@ -456,6 +511,8 @@ export const handlers: RpcRegistry = {
       `UPDATE training_sessions SET ${cols.map((c) => `"${c}" = ?`).join(', ')} WHERE id = ? AND user_id = ?`,
       [...cols.map((c) => enc[c]), id, ctx.user.id],
     );
+    // A referred friend's progress may earn their referrer the reward.
+    if ('blunders_attempted' in enc) await maybeGrantReferralReward(ctx.db, ctx.user.id);
     return null;
   }),
 
@@ -549,14 +606,36 @@ export const handlers: RpcRegistry = {
 
   // --- supporters -----------------------------------------------------------------
 
-  /** The caller's own supporters row (the Stripe mirror), or null. */
-  'supporters.mine': userRpc(async (ctx) =>
-    first(
-      ctx.db,
-      'SELECT status, current_period_end, cancel_at_period_end, first_supported_at FROM supporters WHERE user_id = ?',
-      [ctx.user.id],
-      'supporters',
-    ),
-  ),
+  /**
+   * The caller's own supporters row (the Stripe mirror) plus `grant_ends_at`
+   * (the end of their running supporter_grants, e.g. the referral reward), or
+   * null when they have neither. Perks = a PERK_STATUSES status OR a grant.
+   */
+  'supporters.mine': userRpc(async (ctx) => {
+    const [row, grantEndsAt] = await Promise.all([
+      first<Record<string, unknown>>(
+        ctx.db,
+        'SELECT status, current_period_end, cancel_at_period_end, first_supported_at FROM supporters WHERE user_id = ?',
+        [ctx.user.id],
+        'supporters',
+      ),
+      grantPerksUntil(ctx.db, ctx.user.id),
+    ]);
+    if (!row && !grantEndsAt) return null;
+    return {
+      status: 'none',
+      current_period_end: null,
+      cancel_at_period_end: false,
+      first_supported_at: null,
+      ...(row ?? {}),
+      grant_ends_at: grantEndsAt,
+    };
+  }),
+
+  /** InviteCard: referral rewards earned so far, perks end, and the friend threshold. */
+  'referral.summary': userRpc(async (ctx) => ({
+    ...(await referralRewardSummary(ctx.db, ctx.user.id)),
+    positionsNeeded: REFERRAL_REWARD_POSITIONS,
+  })),
   // admin_supporters() lives in ./admin.ts as `admin.supporters`.
 };

@@ -151,8 +151,8 @@ describe('leaderboard (SQLite)', () => {
     const all = await __test.leaderboard(db, 'u1', 'solved', 'all', 20, NOW);
     expect(all.since).toBeNull();
     expect(all.rows).toEqual([
-      { rank: 1, label: 'beta', value: 10, isMe: false, flair: null, supporter: 'supporter' },
-      { rank: 2, label: 'Alpha', value: 7, isMe: true, flair: 'f1', supporter: null },
+      { rank: 1, label: 'beta', value: 10, isMe: false, flair: null, supporter: 'supporter', avatar: expect.any(Object) },
+      { rank: 2, label: 'Alpha', value: 7, isMe: true, flair: 'f1', supporter: null, avatar: expect.any(Object) },
     ]);
     expect(all.me).toMatchObject({ rank: 2, value: 7, isMe: true });
 
