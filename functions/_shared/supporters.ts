@@ -105,8 +105,7 @@ function hasPrice(sub: Stripe.Subscription, priceId: string): boolean {
 /**
  * Mirrors one subscription into `supporters`. Always re-reads the
  * subscription from Stripe, so events arriving out of order or twice leave
- * the same result. Subscriptions on other products (this Stripe account also
- * bills Find Local) are ignored.
+ * the same result. Subscriptions on any other product are ignored.
  */
 export async function syncSubscription(env: StripeEnv, stripe: Stripe, subscriptionId: string): Promise<string> {
   const sub = await stripe.subscriptions.retrieve(subscriptionId);

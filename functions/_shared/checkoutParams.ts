@@ -1,11 +1,11 @@
 import type Stripe from 'stripe';
 
 /**
- * PatternChess look for the hosted Checkout page. The Stripe account also
- * bills Find Local, so its account-level branding can't be ours: each session
- * carries its own display name, colours (the default board theme's paper and
- * gold, src/styles/themes.css) and copy. The account's public business name on
- * card statements and receipts is a dashboard setting, outside this code.
+ * PatternChess look for the hosted Checkout page: each session carries its own
+ * display name, colours (the default board theme's paper and gold,
+ * src/styles/themes.css) and copy, so it never depends on the account's
+ * dashboard branding. The public business name on card statements and receipts
+ * is a dashboard setting, outside this code.
  */
 export const CHECKOUT_BRANDING = {
   display_name: 'PatternChess',
