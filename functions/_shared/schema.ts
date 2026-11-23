@@ -90,6 +90,8 @@ export const TABLES: Record<string, TableSpec> = {
   landing_stats_cache: spec({ json: ['payload'], ts: ['computed_at'] }),
   public_leaderboard_cache: spec({ json: ['payload'], ts: ['computed_at'] }),
   benchmarks: spec({}),
+  // D1-native (0003): the daily Instagram/TikTok puzzle queue (scripts/social/).
+  social_posts: spec({ json: ['puzzle'], ts: ['insights_at', 'posted_at', 'created_at'] }),
   // better-auth tables (camelCase columns; better-auth's own adapter handles
   // them, these entries exist for admin queries and the importer).
   user: spec({ bool: ['emailVerified'], ts: ['createdAt', 'updatedAt'] }),
@@ -100,9 +102,9 @@ export const TABLES: Record<string, TableSpec> = {
   verification: spec({ ts: ['expiresAt', 'createdAt', 'updatedAt'] }),
 };
 
-/** The 17 app tables ported from Supabase `public` (excludes better-auth's). */
+/** The 17 app tables ported from Supabase `public` (excludes better-auth's and the D1-native ones). */
 export const APP_TABLES: readonly string[] = Object.keys(TABLES).filter(
-  (t) => !['user', 'session', 'account', 'verification'].includes(t),
+  (t) => !['user', 'session', 'account', 'verification', 'social_posts'].includes(t),
 );
 
 function tableSpec(table: string): TableSpec {

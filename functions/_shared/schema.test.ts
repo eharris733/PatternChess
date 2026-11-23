@@ -163,7 +163,7 @@ describe('timeCategory', () => {
 });
 
 describe('TABLES vs d1/migrations', () => {
-  const sql = ['0001_app.sql', '0002_auth.sql']
+  const sql = ['0001_app.sql', '0002_auth.sql', '0003_social_posts.sql']
     .map((f) => readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../d1/migrations', f), 'utf8'))
     .join('\n');
 
