@@ -5,7 +5,9 @@
 // Buffer posts (sent / error, the Instagram link) and pulls Reel insights when
 // an Instagram token is in KV.
 //
-//   node scripts/social/publish.ts [--remote] [--skip-insights]
+//   node scripts/social/publish.ts [--remote] [--skip-insights] [--day YYYY-MM-DD]
+//
+// --day (draft / dry only) previews an upcoming day's video in Buffer.
 //
 // SOCIAL_MODE: live = schedule in Buffer; draft = Buffer drafts (nothing
 // publishes, nothing is recorded, reruns make new drafts); anything else logs.
@@ -44,8 +46,20 @@ const CHANNELS: { channel: BufferChannel; idVar: string; column: 'buffer_ig_post
   { channel: 'tiktok', idVar: 'BUFFER_TIKTOK_CHANNEL_ID', column: 'buffer_tiktok_post_id' },
 ];
 
-async function publishToday(target: Target, mode: 'live' | 'draft' | 'dry'): Promise<void> {
-  const today = utcToday();
+/**
+ * Which day to hand to Buffer: today, or (draft / dry only) the day given with
+ * --day, to preview an upcoming video in Buffer. A live run never posts
+ * another day's video.
+ */
+export function publishDay(mode: 'live' | 'draft' | 'dry', requested: string | null, today = utcToday()): string {
+  if (!requested || requested === today) return today;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(requested)) throw new Error(`--day must be YYYY-MM-DD, got ${requested}`);
+  if (mode === 'live') throw new Error('--day is for SOCIAL_MODE=draft or dry; live only posts today');
+  return requested;
+}
+
+async function publishToday(target: Target, mode: 'live' | 'draft' | 'dry', requestedDay: string | null): Promise<void> {
+  const today = publishDay(mode, requestedDay);
   const rows = d1<PostRow>(
     `SELECT id, status, caption, tiktok_caption, media_url, buffer_ig_post_id, buffer_tiktok_post_id FROM social_posts
      WHERE scheduled_for = ${sql(today)} AND status IN ('queued', 'posted', 'failed')`,
@@ -164,7 +178,7 @@ async function main() {
   const args = parseArgs();
   const target: Target = { remote: !!args.remote };
   const mode = socialMode();
-  await publishToday(target, mode);
+  await publishToday(target, mode, typeof args.day === 'string' && args.day.trim() ? args.day.trim() : null);
   if (mode !== 'live') return;
   await syncBuffer(target);
   if (args['skip-insights']) return;

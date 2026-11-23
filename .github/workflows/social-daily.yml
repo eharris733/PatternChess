@@ -20,6 +20,9 @@ on:
       days:
         description: Days to keep queued ahead
         default: '7'
+      day:
+        description: 'publish only, SOCIAL_MODE=draft/dry: preview this day (YYYY-MM-DD) in Buffer instead of today'
+        default: ''
 
 # Never two runs at once: the planner fills slots.
 concurrency:
@@ -90,7 +93,9 @@ jobs:
 
       - name: Publish today's video (Buffer)
         if: github.event_name == 'schedule' || inputs.step == 'all' || inputs.step == 'publish'
-        run: node scripts/social/publish.ts --remote
+        env:
+          DAY: ${{ inputs.day }}
+        run: node scripts/social/publish.ts --remote ${DAY:+--day "$DAY"}
 
       # Alerting (workers/notifier/src/alerts.ts): a failed run emails the admin
       # through the notifier; the next good run sends "recovered". Needs the
