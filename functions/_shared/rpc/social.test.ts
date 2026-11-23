@@ -42,6 +42,26 @@ describe('social queue', () => {
     expect(q.upcoming[0].puzzle).toEqual({ side: 'white' });
   });
 
+  it('returns the v2 columns: format, the decoded script, Buffer state (0008)', async () => {
+    const script = { hookStyle: 'would-you-fall', headline: 'Would you fall for this?', subline: 'x', beats: { hook: 'h' }, captionLead: 'c' };
+    addPost('t1', '2026-11-23', 'queued', {
+      blunder_id: 'trap:8/8/8/8/8/8/8/8 w - -|a1a2',
+      format: 'fall',
+      fell_count: 11,
+      script: JSON.stringify(script),
+      script_source: 'claude',
+      voice: 'am_michael',
+      buffer_ig_post_id: 'buf1',
+    });
+    const [row] = (await socialQueue(db, '2026-11-22')).upcoming;
+    expect(row).toMatchObject({ format: 'fall', fell_count: 11, script, script_source: 'claude', voice: 'am_michael', buffer_ig_post_id: 'buf1', buffer_error: null });
+    // Old rows default to the blunder format; unknown formats and sources are refused.
+    addPost('o1', '2026-11-24', 'queued');
+    expect((await socialQueue(db, '2026-11-22')).upcoming[1].format).toBe('blunder');
+    expect(() => addPost('x1', '2026-11-25', 'queued', { format: 'meme' })).toThrow();
+    expect(() => addPost('x2', '2026-11-26', 'queued', { script_source: 'gpt' })).toThrow();
+  });
+
   it('one live row per day', () => {
     addPost('a', '2026-11-23', 'queued');
     expect(() => addPost('b', '2026-11-23', 'queued')).toThrow();

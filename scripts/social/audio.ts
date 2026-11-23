@@ -55,14 +55,43 @@ function voice(kind: Cue['kind']): { length: number; fn: Voice } {
   }
 }
 
-export function renderWav(cues: readonly Cue[], duration: number): Buffer {
+/** A narration clip placed at `t` seconds (mono floats at SAMPLE_RATE). */
+export interface VoiceClip {
+  t: number;
+  samples: Float32Array;
+}
+
+/** Effects drop to this gain (about −10 dB) while the narrator speaks. */
+export const DUCK_GAIN = 0.32;
+const DUCK_RAMP = 0.08;
+const VOICE_GAIN = 0.95;
+
+export function renderWav(cues: readonly Cue[], duration: number, narration: readonly VoiceClip[] = []): Buffer {
   const n = Math.ceil(duration * SAMPLE_RATE);
-  const mix = new Float32Array(n);
+  const fx = new Float32Array(n);
   for (const cue of cues) {
     const v = voice(cue.kind);
     const start = Math.round(cue.t * SAMPLE_RATE);
     const len = Math.min(Math.round(v.length * SAMPLE_RATE), n - start);
-    for (let i = 0; i < len; i++) mix[start + i] += v.fn(i / SAMPLE_RATE);
+    for (let i = 0; i < len; i++) fx[start + i] += v.fn(i / SAMPLE_RATE);
+  }
+  // Ducking envelope: 1 outside narration, DUCK_GAIN inside, with short ramps.
+  const gain = new Float32Array(n).fill(1);
+  const ramp = Math.round(DUCK_RAMP * SAMPLE_RATE);
+  for (const c of narration) {
+    const a = Math.round(c.t * SAMPLE_RATE);
+    const b = Math.min(n, a + c.samples.length);
+    for (let i = Math.max(0, a - ramp); i < Math.min(n, b + ramp); i++) {
+      const edge = i < a ? (a - i) / ramp : i >= b ? (i - b) / ramp : 0;
+      gain[i] = Math.min(gain[i], DUCK_GAIN + (1 - DUCK_GAIN) * Math.min(1, edge));
+    }
+  }
+  const mix = new Float32Array(n);
+  for (let i = 0; i < n; i++) mix[i] = fx[i] * gain[i];
+  for (const c of narration) {
+    const a = Math.round(c.t * SAMPLE_RATE);
+    const len = Math.min(c.samples.length, n - a);
+    for (let i = 0; i < len; i++) mix[a + i] += VOICE_GAIN * c.samples[i];
   }
   const data = Buffer.alloc(n * 2);
   for (let i = 0; i < n; i++) data.writeInt16LE(Math.round(Math.max(-1, Math.min(1, mix[i])) * 32767), i * 2);

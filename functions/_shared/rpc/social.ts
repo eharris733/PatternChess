@@ -1,9 +1,10 @@
 /**
- * Review queue for the daily puzzle video (Instagram Reel + TikTok inbox
- * draft). scripts/social/plan.ts fills `social_posts` a week ahead from a
- * GitHub Actions cron and scripts/social/publish.ts posts today's row; this
- * module only lets the admin look at the queue and veto / restore a day
- * (SocialQueueCard on /analytics). Table: d1/migrations/0003_social_posts.sql.
+ * Review queue for the daily puzzle video (Instagram Reel + TikTok, published
+ * through Buffer). scripts/social/plan.ts fills `social_posts` a week ahead
+ * from a GitHub Actions cron and scripts/social/publish.ts hands today's row to
+ * Buffer; this module only lets the admin look at the queue and veto / restore
+ * a day (SocialQueueCard on /analytics). Table: d1/migrations/0003_social_posts.sql
+ * + 0008_social_v2.sql.
  */
 import { adminRpc, argString, badRequest, conflict, notFound, type RpcRegistry } from './core';
 import { all, first, run } from '../db';
@@ -12,7 +13,8 @@ const DAY_MS = 86400_000;
 
 const COLUMNS = `id, blunder_id, scheduled_for, status, hook_template, motif, caption, tiktok_caption, puzzle,
   media_url, poster_url, permalink, ig_error, tiktok_status, tiktok_error,
-  plays, reach, likes, comments, saves, shares, insights_at, posted_at`;
+  plays, reach, likes, comments, saves, shares, insights_at, posted_at,
+  format, fell_count, script, script_source, voice, buffer_ig_post_id, buffer_tiktok_post_id, buffer_error`;
 
 /** UTC date (YYYY-MM-DD) — the planner schedules by UTC day. */
 export function utcToday(now = new Date()): string {

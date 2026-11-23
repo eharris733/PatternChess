@@ -99,6 +99,29 @@ export async function publishReel(opts: { videoUrl: string; caption: string; thu
   return { id: media.id, permalink: info.permalink ?? null };
 }
 
+/** The shortcode in an Instagram post URL (…/reel/<code>/ or …/p/<code>/). */
+export function shortcodeOf(permalink: string): string | null {
+  return /instagram\.com\/(?:[^/]+\/)?(?:reel|reels|p)\/([A-Za-z0-9_-]+)/.exec(permalink)?.[1] ?? null;
+}
+
+/**
+ * The media id of a post Buffer published, found by its permalink among the
+ * account's recent media (insights need the id; Buffer only returns the link).
+ */
+export async function mediaIdForPermalink(permalink: string): Promise<string | null> {
+  const code = shortcodeOf(permalink);
+  if (!code) return null;
+  const t = loadIgToken();
+  const res = await call<{ data: { id: string; permalink?: string }[] }>(
+    'GET',
+    `${t.user_id}/media`,
+    { fields: 'id,permalink', limit: '50' },
+    t.access_token,
+    hostOf(t),
+  );
+  return res.data.find((m) => m.permalink && shortcodeOf(m.permalink) === code)?.id ?? null;
+}
+
 export interface ReelInsights {
   views: number | null;
   reach: number | null;

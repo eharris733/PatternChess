@@ -1,8 +1,9 @@
-# Daily puzzle video: tops up the review queue (render + R2) and posts today's
-# video to Instagram (Reel) and TikTok (inbox draft). See scripts/social/README.md.
+# Daily puzzle video: tops up the review queue (Claude script + Kokoro voice +
+# render + R2) and hands today's video to Buffer, which posts it to Instagram
+# (Reel) and TikTok. See scripts/social/README.md.
 #
-# Nothing posts until the repository variable SOCIAL_MODE is "live"; until then
-# the publish step only logs what it would do. Review / veto the queue on
+# Nothing posts until the repository variable SOCIAL_MODE is "live" ("draft"
+# makes Buffer drafts; anything else only logs). Review / veto the queue on
 # /analytics (admin).
 name: social-daily
 
@@ -14,13 +15,13 @@ on:
       step:
         description: Which step to run
         type: choice
-        options: [all, plan, publish]
+        options: [all, plan, publish, refresh]
         default: all
       days:
         description: Days to keep queued ahead
         default: '7'
 
-# Never two runs at once: TikTok refresh tokens rotate, and the planner fills slots.
+# Never two runs at once: the planner fills slots.
 concurrency:
   group: social-daily
   cancel-in-progress: false
@@ -31,16 +32,22 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 75
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       SOCIAL_OWNER_USER_ID: ${{ secrets.SOCIAL_OWNER_USER_ID }}
       SOCIAL_KV_NAMESPACE_ID: ${{ vars.SOCIAL_KV_NAMESPACE_ID }}
       SOCIAL_MODE: ${{ vars.SOCIAL_MODE || 'dry' }}
+      SOCIAL_VOICE: ${{ vars.SOCIAL_VOICE }}
       IG_API_VERSION: ${{ vars.IG_API_VERSION }}
-      TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
-      TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+      # Scripts: Claude Code on the subscription (`claude setup-token`), never API credits.
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      # Publishing: Buffer (https://publish.buffer.com/settings/api).
+      BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+      BUFFER_INSTAGRAM_CHANNEL_ID: ${{ vars.BUFFER_INSTAGRAM_CHANNEL_ID }}
+      BUFFER_TIKTOK_CHANNEL_ID: ${{ vars.BUFFER_TIKTOK_CHANNEL_ID }}
+      SOCIAL_TTS_CACHE: ${{ github.workspace }}/.cache/tts
       STOCKFISH_PATH: /usr/games/stockfish
     steps:
       - uses: actions/checkout@v4
@@ -55,10 +62,24 @@ jobs:
 
       - run: npm ci
 
+      # Without the token, script.ts falls back to the template scripts.
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code@2.1.330
+
+      # The Kokoro voice model (~90 MB): downloaded once, then cached.
+      - uses: actions/cache@v4
+        with:
+          path: .cache/tts
+          key: kokoro-82m-v1.0-q8
+
+      - name: Re-render the queued week (look / voice change)
+        if: inputs.step == 'refresh'
+        run: node scripts/social/plan.ts --remote --refresh-queued --days "${{ inputs.days || '7' }}"
+
       - name: Plan (fill the queue)
         if: github.event_name == 'schedule' || inputs.step == 'all' || inputs.step == 'plan'
         run: node scripts/social/plan.ts --remote --days "${{ inputs.days || '7' }}"
 
-      - name: Publish today's video
+      - name: Publish today's video (Buffer)
         if: github.event_name == 'schedule' || inputs.step == 'all' || inputs.step == 'publish'
         run: node scripts/social/publish.ts --remote

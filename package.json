@@ -66,6 +66,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.4.20",
     "gray-matter": "^4.0.3",
+    "kokoro-js": "^1.2.1",
     "markdown-it": "^14.2.0",
     "postcss": "^8.4.47",
     "stockfish": "18.0.5",

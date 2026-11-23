@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import clsx from 'clsx';
-import { useSetSocialStatus, useSocialQueue, type SocialPost } from '../../hooks/useSocialQueue';
+import { useSetSocialStatus, useSocialQueue, type SocialPost, type SocialScript } from '../../hooks/useSocialQueue';
 
 const ACTION_BASE =
   'font-mono uppercase text-[10px] tracking-tight px-2 py-1 border-2 rounded-none transition-colors disabled:opacity-50';
@@ -70,6 +70,37 @@ function Stat({ label, value }: { label: string; value: number | null }) {
   );
 }
 
+const BEAT_LABEL: Record<keyof SocialScript['beats'], string> = {
+  hook: 'Hook',
+  challenge: 'Challenge',
+  played: 'Played',
+  refutation: 'Punishment',
+  reveal: 'Reveal',
+  cta: 'Close',
+};
+
+/** The narrated script, folded: what the voice says in each scene. */
+function ScriptDetails({ post, script }: { post: SocialPost; script: SocialScript }) {
+  return (
+    <details className="text-xs" data-testid="social-post-script">
+      <summary className="cursor-pointer">
+        Voiceover: <span className="font-semibold">{script.headline}</span> ({post.script_source === 'claude' ? 'written by Claude' : 'template'}
+        {post.voice && <>, voice {post.voice}</>})
+      </summary>
+      <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
+        {(Object.keys(BEAT_LABEL) as (keyof SocialScript['beats'])[]).map((b) =>
+          script.beats[b] ? (
+            <div key={b} className="contents">
+              <dt className="font-semibold">{BEAT_LABEL[b]}</dt>
+              <dd>{script.beats[b]}</dd>
+            </div>
+          ) : null,
+        )}
+      </dl>
+    </details>
+  );
+}
+
 function PostRow({ post, today }: { post: SocialPost; today: string }) {
   const setStatus = useSetSocialStatus();
   const vetoed = post.status === 'vetoed';
@@ -88,13 +119,22 @@ function PostRow({ post, today }: { post: SocialPost; today: string }) {
             {vetoed ? 'Vetoed: will not post' : post.status === 'failed' ? 'Failed' : post.status === 'posted' ? 'Posted' : 'Queued'}
           </span>
         </div>
-        {p && (
-          <p className="text-xs">
-            {p.side === 'white' ? 'White' : 'Black'} to move · played <span className="font-mono">{p.played}</span> · answer{' '}
+        {p && post.format === 'fall' ? (
+          <p className="text-xs" data-testid="social-post-puzzle">
+            Would you fall for this · {post.fell_count ?? p.fellCount} players played <span className="font-mono">{p.played}</span> ·
+            punished by <span className="font-mono">{(p.refutation ?? []).join(' ')}</span> · right move{' '}
             <span className="font-mono">{p.solution.join(' ')}</span>
-            {p.motifLabel && <> · {p.motifLabel}</>}
           </p>
+        ) : (
+          p && (
+            <p className="text-xs" data-testid="social-post-puzzle">
+              Blunder of the day · {p.side === 'white' ? 'White' : 'Black'} to move · played <span className="font-mono">{p.played}</span> · answer{' '}
+              <span className="font-mono">{p.solution.join(' ')}</span>
+              {p.motifLabel && <> · {p.motifLabel}</>}
+            </p>
+          )
         )}
+        {post.script && <ScriptDetails post={post} script={post.script} />}
         {post.caption && <p className="text-xs whitespace-pre-line line-clamp-3">{post.caption}</p>}
         {post.status === 'posted' && (
           <p className="text-xs flex flex-wrap gap-x-3">
@@ -107,8 +147,15 @@ function PostRow({ post, today }: { post: SocialPost; today: string }) {
             {post.hook_template && <span className="text-text-secondary">hook {post.hook_template}</span>}
           </p>
         )}
-        {(post.ig_error || post.tiktok_error) && (
+        {(post.buffer_ig_post_id || post.buffer_tiktok_post_id) && (
+          <p className="text-xs" data-testid="social-post-buffer">
+            Buffer: {post.buffer_ig_post_id ? 'Instagram scheduled' : 'Instagram not sent'} ·{' '}
+            {post.buffer_tiktok_post_id ? `TikTok ${post.tiktok_status ?? 'scheduled'}` : 'TikTok not sent'}
+          </p>
+        )}
+        {(post.ig_error || post.tiktok_error || post.buffer_error) && (
           <p className="text-xs text-incorrect">
+            {post.buffer_error && <>{post.buffer_error} </>}
             {post.ig_error && <>Instagram: {post.ig_error} </>}
             {post.tiktok_error && <>TikTok: {post.tiktok_error}</>}
           </p>
@@ -153,7 +200,7 @@ export function SocialQueueCard() {
     <section className="card flex flex-col gap-3" data-testid="social-queue-card">
       <header className="flex items-baseline justify-between gap-3">
         <span className="label">Daily puzzle video</span>
-        <span className="text-text-secondary text-xs">Instagram Reel + TikTok draft · posts daily ~17:00 UTC unless vetoed</span>
+        <span className="text-text-secondary text-xs">Instagram Reel + TikTok via Buffer · posts daily ~17:10 UTC unless vetoed</span>
       </header>
       {data.upcoming.length === 0 ? (
         <p className="text-sm">Nothing queued. The next run of the social workflow fills the coming week.</p>

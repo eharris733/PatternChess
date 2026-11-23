@@ -5,6 +5,13 @@ import { MOTIF_LABEL } from '../../workers/notifier/src/motifLabels.ts';
 
 export type Side = 'white' | 'black';
 
+/**
+ * blunder: one of the owner's own blunders ("I'm 2056 and I missed this").
+ * fall: a move many PatternChess players got wrong in the same position
+ * ("11 of our players fell for this. Would you?").
+ */
+export type Format = 'blunder' | 'fall';
+
 /** The blunders + games columns plan.ts selects (decoded: JSON parsed). */
 export interface BlunderRow {
   id: string;
@@ -31,16 +38,27 @@ export interface Ply {
   fen: string;
   capture: boolean;
   check: boolean;
+  /** The moving piece and the captured one ('p','n','b','r','q','k'), for the script's fact sheet. */
+  piece?: string;
+  captured?: string | null;
 }
 
 export interface Puzzle {
+  format: Format;
   blunderId: string;
   fen: string;
   side: Side;
   rating: number | null;
   /** "blitz", "rapid", … (as stored); null when unknown. */
   timeControl: string | null;
+  /** blunder: what I played. fall: the tempting move most people play. */
   played: Ply;
+  /** fall only: how the opponent punishes `played` (starts with their reply). Empty for blunder. */
+  refutation: Ply[];
+  /** fall only: distinct players who played `played` here. */
+  fellCount: number | null;
+  /** fall only: `<epd>|<uci>`, the dedup key. */
+  trapKey: string | null;
   /** The winning line shown in the reveal: the user's moves and the replies, trimmed. */
   solution: Ply[];
   /** The motif shown on the reveal ("Missed fork"), or null. */
@@ -77,6 +95,8 @@ function toPly(chess: Chess, uci: string): Ply | null {
       fen: chess.fen(),
       capture: m.isCapture() || m.isEnPassant(),
       check: chess.inCheck(),
+      piece: m.piece,
+      captured: m.captured ?? null,
     };
   } catch {
     return null;
@@ -122,12 +142,16 @@ export function buildPuzzle(row: BlunderRow): Puzzle | null {
   const motif = pickMotif(row.motifs);
   const last = new Chess(solution[solution.length - 1].fen);
   return {
+    format: 'blunder',
     blunderId: row.id,
     fen: row.fen,
     side: row.side_to_move,
     rating: row.user_rating,
     timeControl: row.time_category,
     played,
+    refutation: [],
+    fellCount: null,
+    trapKey: null,
     solution,
     motif,
     motifLabel: motif ? (MOTIF_LABEL[motif] ?? null) : null,
@@ -157,4 +181,74 @@ export function candidateScore(row: BlunderRow): number {
 
 export function sideLabel(side: Side): string {
   return side === 'white' ? 'White' : 'Black';
+}
+
+/** The first four FEN fields (board, side, castling, en passant): one position whatever the move counters. */
+export function epdOf(fen: string): string {
+  return fen.split(' ').slice(0, 4).join(' ');
+}
+
+export const MAX_REFUTATION_PLIES = 5;
+
+/**
+ * The punishment after a tempting move: up to MAX_REFUTATION_PLIES plies from
+ * the opponent's reply, stopping at mate, trimmed back to the opponent's last
+ * capture / check / promotion (even indexes are the opponent's moves). Never
+ * empty when the first reply is legal.
+ */
+export function trimRefutation(fenAfterPlayed: string, pv: readonly string[]): Ply[] {
+  const chess = new Chess(fenAfterPlayed);
+  const plies: Ply[] = [];
+  for (const uci of pv.slice(0, MAX_REFUTATION_PLIES)) {
+    const ply = toPly(chess, uci);
+    if (!ply) break;
+    plies.push(ply);
+    if (chess.isCheckmate()) return plies;
+  }
+  const payoff = (i: number) => i % 2 === 0 && (plies[i].capture || plies[i].check || plies[i].uci.length === 5);
+  let end = plies.length;
+  while (end > 1 && !payoff(end - 1)) end--;
+  return plies.slice(0, end);
+}
+
+export interface FallInput {
+  /** A representative blunder row (any player's; only its position is used). */
+  blunderId: string;
+  fen: string;
+  tempting: string;
+  fellCount: number;
+  /** Engine PV after the tempting move (the opponent's reply first). */
+  refutationPv: readonly string[];
+  /** Engine PV for the right move. */
+  bestPv: readonly string[];
+  /** Mover's centipawns after the right move (mates as ±(10000 − n)). */
+  bestCp: number;
+}
+
+/** A "would you fall for this?" puzzle; null when the moves don't replay. */
+export function buildFallPuzzle(f: FallInput): Puzzle | null {
+  const played = toPly(new Chess(f.fen), f.tempting);
+  if (!played || !f.bestPv.length || f.bestPv[0] === f.tempting) return null;
+  const refutation = trimRefutation(played.fen, f.refutationPv);
+  if (refutation.length === 0) return null;
+  // The right move: the whole winning line when it wins outright, else just the move.
+  const solution = trimSolution(f.fen, f.bestCp >= 300 ? f.bestPv : f.bestPv.slice(0, 1));
+  if (solution.length === 0) return null;
+  const last = new Chess(solution[solution.length - 1].fen);
+  return {
+    format: 'fall',
+    blunderId: f.blunderId,
+    fen: f.fen,
+    side: f.fen.split(' ')[1] === 'w' ? 'white' : 'black',
+    rating: null,
+    timeControl: null,
+    played,
+    refutation,
+    fellCount: f.fellCount,
+    trapKey: `${epdOf(f.fen)}|${f.tempting}`,
+    solution,
+    motif: null,
+    motifLabel: null,
+    mate: last.isCheckmate(),
+  };
 }

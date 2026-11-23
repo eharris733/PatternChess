@@ -168,6 +168,51 @@ const SOCIAL_POST = {
   shares: null,
   insights_at: null,
   posted_at: null,
+  format: 'blunder',
+  fell_count: null,
+  script: null,
+  script_source: null,
+  voice: null,
+  buffer_ig_post_id: null,
+  buffer_tiktok_post_id: null,
+  buffer_error: null,
+};
+
+const FALL_POST = {
+  ...SOCIAL_POST,
+  blunder_id: 'trap:rnbqkbnr/pppp1ppp/8/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR b KQkq -|g7g6',
+  format: 'fall',
+  fell_count: 11,
+  puzzle: {
+    format: 'fall',
+    fen: 'rnbqkbnr/pppp1ppp/8/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR b KQkq - 1 2',
+    side: 'black',
+    rating: null,
+    timeControl: null,
+    played: 'g6',
+    refutation: ['Qxe5+', 'Qe7', 'Qxh8'],
+    solution: ['Nc6'],
+    motifLabel: null,
+    fellCount: 11,
+    headline: '11 players fell for this',
+    hook: 'would-you-fall',
+  },
+  script: {
+    hookStyle: 'would-you-fall',
+    headline: '11 players fell for this',
+    subline: 'Black to move. Find it.',
+    beats: {
+      hook: '11 PatternChess players fell for this. Would you?',
+      challenge: 'Pause now. Find the move for Black.',
+      played: 'Most people play g6. It loses the rook.',
+      refutation: 'Queen takes e5, check. Queen e7. Then queen takes h8.',
+      reveal: 'The answer is knight c6.',
+      cta: 'PatternChess finds the traps you fall for.',
+    },
+    captionLead: '11 PatternChess players fell for this. Would you?',
+  },
+  script_source: 'claude',
+  voice: 'am_michael',
 };
 
 const SOCIAL_QUEUE = {
@@ -175,6 +220,7 @@ const SOCIAL_QUEUE = {
   upcoming: [
     { ...SOCIAL_POST, id: 'q1', scheduled_for: '2026-11-23', status: 'queued' },
     { ...SOCIAL_POST, id: 'v1', scheduled_for: '2026-11-24', status: 'vetoed' },
+    { ...FALL_POST, id: 'f1', scheduled_for: '2026-11-25', status: 'queued' },
   ],
   recent: [
     {
@@ -186,6 +232,16 @@ const SOCIAL_QUEUE = {
       tiktok_status: 'SEND_TO_USER_INBOX',
       plays: 1234,
       saves: 12,
+    },
+    {
+      ...SOCIAL_POST,
+      id: 'p2',
+      scheduled_for: '2026-11-20',
+      status: 'posted',
+      buffer_ig_post_id: 'buf-ig-1',
+      buffer_tiktok_post_id: 'buf-tt-1',
+      tiktok_status: 'sent',
+      buffer_error: null,
     },
   ],
 };
@@ -377,14 +433,21 @@ test('admin reviews the daily puzzle-video queue: veto and restore', async ({ pa
   const card = page.getByTestId('social-queue-card');
   await expect(card).toBeVisible({ timeout: 20_000 });
   const posts = card.getByTestId('social-post');
-  await expect(posts).toHaveCount(3);
+  await expect(posts).toHaveCount(5);
   await expect(posts.nth(0)).toContainText('Queued');
   await expect(posts.nth(0)).toContainText('answer Qxh7+ Kxh7 Rh3#');
   await expect(posts.nth(1)).toContainText('Vetoed: will not post');
-  await expect(posts.nth(2)).toContainText('1,234 views');
-  await expect(posts.nth(2)).toContainText('TikTok draft is in your inbox');
-  await expect(posts.nth(2).getByRole('link', { name: 'Instagram' })).toHaveAttribute('href', 'https://www.instagram.com/reel/abc/');
-
+  // The fall format: counts, the punishment and the folded voiceover script.
+  await expect(posts.nth(2).getByTestId('social-post-puzzle')).toContainText('11 players played g6');
+  await expect(posts.nth(2).getByTestId('social-post-puzzle')).toContainText('Qxe5+ Qe7 Qxh8');
+  const script = posts.nth(2).getByTestId('social-post-script');
+  await expect(script).toContainText('written by Claude, voice am_michael');
+  await script.locator('summary').click();
+  await expect(script).toContainText('Queen takes e5, check.');
+  await expect(posts.nth(3)).toContainText('1,234 views');
+  await expect(posts.nth(3)).toContainText('TikTok draft is in your inbox');
+  await expect(posts.nth(3).getByRole('link', { name: 'Instagram' })).toHaveAttribute('href', 'https://www.instagram.com/reel/abc/');
+  await expect(posts.nth(4).getByTestId('social-post-buffer')).toContainText('Instagram scheduled · TikTok sent');
   await posts.nth(0).getByRole('button', { name: 'Veto' }).click();
   await rpc.waitFor('admin.socialSetStatus', (a) => a.id === 'q1' && a.status === 'vetoed');
   await posts.nth(1).getByRole('button', { name: 'Restore' }).click();

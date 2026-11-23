@@ -54,3 +54,57 @@ export function nextCandidate(pool: BlunderRow[], previousMotif: string | null):
   const i = idx >= 0 ? idx : 0;
   return pool.length ? pool.splice(i, 1)[0] : null;
 }
+
+// --- "Would you fall for this?" ---------------------------------------------
+
+/** At least this many different players, in this many different games, made the same move. */
+export const MIN_FALL_PLAYERS = 3;
+
+export interface FallCandidate {
+  /** `<epd>|<uci>`; stored as social_posts.blunder_id = `trap:<key>`. */
+  trapKey: string;
+  fen: string;
+  played_move: string;
+  move_number: number;
+  players: number;
+  games: number;
+}
+
+/** social_posts.blunder_id for a fall post (the table's per-source dedup key). */
+export function trapBlunderId(trapKey: string): string {
+  return `trap:${trapKey}`;
+}
+
+/**
+ * The EPD of a stored FEN in SQLite: strip the fullmove and halfmove counters
+ * from the right. An en passant square ("e3") survives because each rtrim stops
+ * at the space before it.
+ */
+const EPD_SQL = `rtrim(rtrim(rtrim(rtrim(b.fen, '0123456789'), ' '), '0123456789'), ' ')`;
+
+/** Opening and early-middlegame traps first, then the most players. */
+export function fallScore(c: Pick<FallCandidate, 'players' | 'move_number'>): number {
+  const phase = c.move_number <= 12 ? 2 : c.move_number <= 20 ? 1 : 0.5;
+  return c.players * phase;
+}
+
+/**
+ * Positions where several players (all users, live tactic rows) played the same
+ * losing move, never used or rejected before, best first. Only the position,
+ * the move and the counts leave the database: never who played it.
+ */
+export function fetchFallCandidates(target: Target, minPlayers = MIN_FALL_PLAYERS): FallCandidate[] {
+  const rows = d1<{ epd: string; played_move: string; fen: string; move_number: number; players: number; games: number }>(
+    `SELECT ${EPD_SQL} AS epd, b.played_move, min(b.fen) AS fen, min(b.move_number) AS move_number,
+            count(DISTINCT b.user_id) AS players, count(DISTINCT g.platform || ':' || g.external_game_id) AS games
+     FROM blunders b JOIN games g ON g.id = b.game_id
+     WHERE b.kind = 'tactic' AND b.retired_at IS NULL AND b.user_id IS NOT NULL
+     GROUP BY epd, b.played_move
+     HAVING players >= ${minPlayers} AND games >= ${minPlayers}
+       AND ('trap:' || epd || '|' || b.played_move) NOT IN (SELECT blunder_id FROM social_posts)`,
+    target,
+  );
+  return rows
+    .map((r) => ({ trapKey: `${r.epd}|${r.played_move}`, fen: r.fen, played_move: r.played_move, move_number: r.move_number, players: r.players, games: r.games }))
+    .sort((a, b) => fallScore(b) - fallScore(a));
+}

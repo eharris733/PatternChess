@@ -5,14 +5,29 @@ import { rpc } from '../lib/api';
 
 /** What scripts/social/plan.ts drew (social_posts.puzzle). */
 export interface SocialPuzzle {
+  /** Missing on rows made before the fall format (= blunder). */
+  format?: 'blunder' | 'fall';
   fen: string;
   side: 'white' | 'black';
   rating: number | null;
   timeControl: string | null;
   played: string;
+  /** fall: the opponent's punishment. */
+  refutation?: string[];
   solution: string[];
   motifLabel: string | null;
+  fellCount?: number | null;
+  headline?: string;
   hook: string;
+}
+
+/** The narrated script (social_posts.script, scripts/social/script.ts VideoScript). */
+export interface SocialScript {
+  hookStyle: string;
+  headline: string;
+  subline: string;
+  beats: Partial<Record<'hook' | 'challenge' | 'played' | 'refutation' | 'reveal' | 'cta', string>>;
+  captionLead: string;
 }
 
 export interface SocialPost {
@@ -39,6 +54,14 @@ export interface SocialPost {
   shares: number | null;
   insights_at: string | null;
   posted_at: string | null;
+  format: 'blunder' | 'fall';
+  fell_count: number | null;
+  script: SocialScript | null;
+  script_source: 'claude' | 'template' | null;
+  voice: string | null;
+  buffer_ig_post_id: string | null;
+  buffer_tiktok_post_id: string | null;
+  buffer_error: string | null;
 }
 
 export interface SocialQueue {
