@@ -4,6 +4,7 @@ import { resolveOutcome, type GameOutcome } from '../models/gameRecord';
 import { derivePhase } from '../models/blunder';
 import type { BookTier } from '../chess/bookFormat';
 import type { BlunderCandidate } from '../stockfish/stockfishWorkerClient';
+import type { Translator } from '../i18n/useT';
 
 /**
  * The signed-out landing demo's "Your plan for today": the same three parts as
@@ -175,7 +176,11 @@ export function buildDemoPlan(games: DemoPlanGame[]): DemoPlan {
 }
 
 /** "1 point", "1.5 points": whole numbers without a trailing ".0". */
-export function formatPoints(points: number): string {
+export function formatPoints(points: number, t?: Translator): string {
+  if (t) {
+    const n = new Intl.NumberFormat(t.locale, { maximumFractionDigits: 1 }).format(points);
+    return t('demo.points', { count: points, n });
+  }
   const n = Number.isInteger(points) ? String(points) : points.toFixed(1);
   return `${n} point${points === 1 ? '' : 's'}`;
 }

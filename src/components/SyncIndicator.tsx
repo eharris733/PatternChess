@@ -4,10 +4,11 @@ import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
 import { retryWithProfile, useSyncStore } from '../state/syncStore';
 import type { ProviderProgress } from '../services/syncService';
-import { fetchingHeadline, summarizeFetch } from '../lib/syncProgress';
+import { fetchingHeadline, monthDetail, summarizeFetch } from '../lib/syncProgress';
 import { CheckIcon } from './icons/CheckIcon';
 import { CloseIcon } from './icons/CloseIcon';
 import { PlatformLogo, type PlatformId } from './icons/PlatformLogos';
+import { useT } from '../i18n/useT';
 
 type Aggregate = 'none' | 'idle' | 'syncing' | 'done' | 'error';
 
@@ -35,6 +36,7 @@ function aggregate(
 }
 
 export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
+  const t = useT();
   const navigate = useNavigate();
   const { profile } = useAuth();
   const providers = useSyncStore((s) => s.providers);
@@ -83,27 +85,27 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
   ).map((p) => p.id);
 
   const headline = (() => {
-    if (display === 'none') return 'Connect account';
+    if (display === 'none') return t('sync.connect');
     if (display === 'syncing') {
       // A provider still downloading leads: its count is the one that moves.
-      if (fetch) return fetchingHeadline(fetch);
+      if (fetch) return fetchingHeadline(fetch, t);
       if (saving.length > 0) {
         const n = saving.reduce((sum, p) => sum + (p.total ?? p.fetched), 0);
-        return `Saving ${n} ${n === 1 ? 'game' : 'games'}`;
+        return t('sync.saving', { count: n });
       }
       if (analyzing.length > 0 && analyzeTotal > 0) {
-        return `Analyzing ${Math.min(analyzedGames + 1, analyzeTotal)}/${analyzeTotal}`;
+        return t('sync.analyzing', { at: Math.min(analyzedGames + 1, analyzeTotal), total: analyzeTotal });
       }
-      return 'Syncing…';
+      return t('sync.syncing');
     }
     if (display === 'done') {
       const parts: string[] = [];
-      if (totalInserted > 0) parts.push(`+${totalInserted} games`);
-      if (totalBlundersFound > 0) parts.push(`+${totalBlundersFound} blunders`);
-      return parts.length > 0 ? parts.join(' · ') : 'Up to date';
+      if (totalInserted > 0) parts.push(t('sync.plusGames', { count: totalInserted }));
+      if (totalBlundersFound > 0) parts.push(t('sync.plusBlunders', { count: totalBlundersFound }));
+      return parts.length > 0 ? parts.join(' · ') : t('sync.upToDate');
     }
-    if (display === 'error') return rateLimited ? 'Rate limited' : 'Sync failed';
-    return 'Up to date';
+    if (display === 'error') return rateLimited ? t('sync.rateLimited') : t('sync.failed');
+    return t('sync.upToDate');
   })();
 
   const glyph =
@@ -141,15 +143,20 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
 
   const subTitle = (() => {
     if (display === 'syncing') {
-      if (fetch) return fetch.months ? `Games · ${fetch.months}` : 'Games';
+      if (fetch) {
+        const months = fetch.monthCounts
+          ? monthDetail({ monthsDone: fetch.monthCounts.done, monthsTotal: fetch.monthCounts.total }, t)
+          : null;
+        return months ? t('sync.gamesMonths', { months }) : t('sync.games');
+      }
       if (analyzing.length > 0 && totalBlundersFound > 0) {
-        return `${totalBlundersFound} ${totalBlundersFound === 1 ? 'blunder' : 'blunders'} found`;
+        return t('sync.blundersFound', { count: totalBlundersFound });
       }
       return null;
     }
-    if (display === 'none') return 'Sync games to start';
-    if (display === 'error') return rateLimited ? 'Wait a minute, then tap to retry' : 'Tap to retry';
-    return 'Tap to sync now';
+    if (display === 'none') return t('sync.toStart');
+    if (display === 'error') return rateLimited ? t('sync.waitRetry') : t('sync.tapRetry');
+    return t('sync.tapSync');
   })();
 
   return (
@@ -157,7 +164,7 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
       type="button"
       onClick={onClick}
       disabled={isBusy}
-      aria-label={`Sync: ${headline}`}
+      aria-label={t('sync.aria', { headline })}
       title={collapsed ? headline : undefined}
       className={clsx(
         'mx-2 mb-1 flex items-center gap-3 py-2 rounded-none font-mono uppercase text-xs tracking-tight transition-colors text-left',

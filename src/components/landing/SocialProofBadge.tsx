@@ -1,6 +1,7 @@
 import { useCountUp } from '../../hooks/useCountUp';
 import { useInView } from '../../hooks/useInView';
 import { LANDING_STATS_SNAPSHOT, useLandingStats } from '../../hooks/useLandingStats';
+import { useT } from '../../i18n/useT';
 
 const numberFormat = new Intl.NumberFormat('en-US');
 
@@ -13,6 +14,7 @@ const numberFormat = new Intl.NumberFormat('en-US');
  * the live RPC resolves.
  */
 export function SocialProofBadge() {
+  const t = useT();
   const { data: live } = useLandingStats();
   const { ref, inView } = useInView<HTMLElement>(0.3);
 
@@ -28,14 +30,14 @@ export function SocialProofBadge() {
           <div className="flex items-center gap-2.5 border-b-2 border-text-primary px-5 py-3">
             <span className="h-2 w-2 rounded-full bg-gold-dark" aria-hidden />
             <span className="font-mono uppercase text-[10px] tracking-[0.18em] text-text-secondary">
-              Across every PatternChess account
+              {t('social.across')}
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 divide-y-2 sm:divide-y-0 sm:divide-x-2 divide-text-primary">
-            <Stat target={data.positionsReviewed} label="Positions reviewed" active={inView} />
+            <Stat target={data.positionsReviewed} label={t('social.reviewed')} active={inView} />
             <Stat
               target={data.eloGained}
-              label="Elo gained by players"
+              label={t('social.elo')}
               prefix="+"
               accent
               active={inView}

@@ -68,8 +68,13 @@ describe('i18n catalogs', () => {
       });
 
       it('keeps the same placeholders as English', () => {
+        // A singular form may spell the count out ("De tu última partida").
+        const names = (k: string, v: string) =>
+          placeholders(v)
+            .filter((p) => !(k.endsWith('_one') && p === 'count'))
+            .join();
         const bad = Object.keys(EN).filter(
-          (k) => catalog[k] !== undefined && placeholders(catalog[k]).join() !== placeholders(EN[k]).join(),
+          (k) => catalog[k] !== undefined && names(k, catalog[k]) !== names(k, EN[k]),
         );
         expect(bad).toEqual([]);
       });

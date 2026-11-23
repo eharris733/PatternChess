@@ -6,6 +6,7 @@ import { BrandLockup } from './BrandLogo';
 import { readDemoUser } from '../lib/demoUser';
 import { GameTypePreferences } from './GameTypePreferences';
 import { ChesscomLogo, LichessLogo } from './icons/PlatformLogos';
+import { useT } from '../i18n/useT';
 
 /**
  * First step of the new-user onboarding flow: connect a Lichess/Chess.com
@@ -15,6 +16,7 @@ import { ChesscomLogo, LichessLogo } from './icons/PlatformLogos';
  */
 export function OnboardingConnect() {
   const { profile, refreshProfile } = useAuth();
+  const t = useT();
   // Prefill from the landing demo, if this visitor ran one before signing up.
   const [demoUser] = useState(readDemoUser);
   const [lichess, setLichess] = useState(
@@ -63,7 +65,7 @@ export function OnboardingConnect() {
       await refreshProfile();
     } catch (e) {
       console.error('[onboarding] could not start import', e);
-      setError("We couldn't save your account. Please try again.");
+      setError(t('onboarding.connect.saveError'));
     } finally {
       setSaving(false);
     }
@@ -73,20 +75,19 @@ export function OnboardingConnect() {
     <div className="flex flex-col items-center min-h-[60vh] max-w-xl mx-auto">
       <BrandLockup size="lg" className="mb-4" />
       <p className="text-text-primary mb-8 text-center">
-        Connect your chess account. We'll find the blunders in your games and
-        build your daily plan from them.
+        {t('onboarding.connect.lede')}
       </p>
 
       <div className="w-full space-y-5 bg-surface rounded-none p-6 border-2 border-text-primary shadow-card">
         <div className="flex flex-col gap-2">
           <label className="label flex items-center gap-2" htmlFor="onboarding-lichess">
             <LichessLogo className="h-4 w-4 shrink-0" />
-            Lichess username
+            {t('profile.lichessUsername')}
           </label>
           <input
             id="onboarding-lichess"
             className="input"
-            placeholder="e.g. drnykterstein"
+            placeholder={t('profile.examplePlaceholder', { name: 'drnykterstein' })}
             value={lichess}
             onChange={(e) => setLichess(e.target.value)}
           />
@@ -94,22 +95,21 @@ export function OnboardingConnect() {
         <div className="flex flex-col gap-2">
           <label className="label flex items-center gap-2" htmlFor="onboarding-chesscom">
             <ChesscomLogo className="h-4 w-4 shrink-0" />
-            Chess.com username
+            {t('profile.chesscomUsername')}
           </label>
           <input
             id="onboarding-chesscom"
             className="input"
-            placeholder="e.g. hikaru"
+            placeholder={t('profile.examplePlaceholder', { name: 'hikaru' })}
             value={chesscom}
             onChange={(e) => setChesscom(e.target.value)}
           />
         </div>
 
         <div className="pt-2 border-t-2 border-text-primary/15">
-          <h2 className="heading-md mb-1">Which games to train on?</h2>
+          <h2 className="heading-md mb-1">{t('onboarding.connect.whichGames')}</h2>
           <p className="text-text-primary text-sm mb-3">
-            Pick the games that count toward training. You can change this any
-            time in your profile.
+            {t('onboarding.connect.whichGamesHelp')}
           </p>
           <GameTypePreferences
             ratedOnly={ratedOnly}
@@ -121,8 +121,7 @@ export function OnboardingConnect() {
       </div>
 
       <p className="mt-4 text-xs text-text-primary text-center">
-        We'll import your recent games now. New games get added automatically
-        every time you come back.
+        {t('onboarding.connect.importNote')}
       </p>
 
       <button
@@ -131,14 +130,12 @@ export function OnboardingConnect() {
         disabled={!canStart || saving}
         className="btn-primary mt-6"
       >
-        {saving ? 'Starting…' : 'Build my plan'}
+        {saving ? t('onboarding.connect.starting') : t('onboarding.connect.build')}
       </button>
 
       {error && (
         <div className="mt-4 w-full bg-incorrect/10 border-2 border-incorrect/50 text-incorrect rounded-none p-4 text-sm text-left">
-          <div className="font-semibold mb-1">
-            Something went wrong
-          </div>
+          <div className="font-semibold mb-1">{t('onboarding.somethingWrong')}</div>
           <div className="text-text-primary">{error}</div>
         </div>
       )}

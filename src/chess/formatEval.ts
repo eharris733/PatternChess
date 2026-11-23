@@ -1,3 +1,4 @@
+import type { Translator } from '../i18n/useT';
 /**
  * Format a raw engine evaluation (centipawns, player's perspective) for display.
  *
@@ -86,6 +87,7 @@ export function formatMoveCost(cost: MoveCost): string {
 }
 
 /** Phrase for prose: "mate in 1", or "a forced mate" when the count is unknown. */
-export function mateInPhrase(moves: number | null): string {
+export function mateInPhrase(moves: number | null, t?: Translator): string {
+  if (t) return moves ? t('puzzle.mateIn', { count: moves }) : t('puzzle.forcedMate');
   return moves ? `mate in ${moves}` : 'a forced mate';
 }

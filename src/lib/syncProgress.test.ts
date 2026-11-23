@@ -1,3 +1,7 @@
+import es from '../i18n/es.json';
+import { EN_CATALOG } from '../i18n/i18n';
+import { useLocaleStore } from '../i18n/localeStore';
+import { currentT } from '../i18n/useT';
 import { describe, expect, it } from 'vitest';
 import type { ProviderProgress } from '../services/syncService';
 import { fetchCount, fetchingHeadline, fetchingLine, monthDetail, summarizeFetch } from './syncProgress';
@@ -29,8 +33,8 @@ describe('syncProgress', () => {
   it('sums only the providers still fetching', () => {
     const chesscom = { ...base, fetched: 57, total: 200, monthsDone: 3, monthsTotal: null };
     const lichess = { ...base, fetched: 40, total: 200 };
-    expect(summarizeFetch([chesscom, lichess])).toEqual({ fetched: 97, target: 400, months: '3 months back' });
-    expect(summarizeFetch([chesscom, { ...lichess, phase: 'analyzing' }])).toEqual({
+    expect(summarizeFetch([chesscom, lichess])).toMatchObject({ fetched: 97, target: 400, months: '3 months back' });
+    expect(summarizeFetch([chesscom, { ...lichess, phase: 'analyzing' }])).toMatchObject({
       fetched: 57,
       target: 200,
       months: '3 months back',
@@ -53,5 +57,16 @@ describe('syncProgress', () => {
     expect(fetchingHeadline({ fetched: 0, target: null, months: null })).toBe('Fetching…');
     expect(fetchingHeadline({ fetched: 57, target: 200, months: '3 months back' })).toBe('Fetching 57 of 200');
     expect(fetchingHeadline({ fetched: 0, target: null, months: 'month 1/2' })).toBe('Fetching 0');
+  });
+
+  it('formats the line in the active language', () => {
+    useLocaleStore.setState({ locale: 'es', catalog: es });
+    const t = currentT();
+    const chesscom = { ...base, fetched: 57, total: 200, monthsDone: 3, monthsTotal: null };
+    const summary = summarizeFetch([chesscom])!;
+    expect(fetchingLine(summary, t)).toBe('Descargando partidas… 57 de 200 (3 meses atrás)');
+    expect(fetchingHeadline(summary, t)).toBe('Descargando 57 de 200');
+    expect(monthDetail({ monthsDone: 1, monthsTotal: 2 }, t)).toBe('mes 1/2');
+    useLocaleStore.setState({ locale: 'en', catalog: EN_CATALOG });
   });
 });

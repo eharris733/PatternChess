@@ -5,20 +5,22 @@ import { DemoProgressPanel } from './DemoProgressPanel';
 import { DemoStatsCard } from './DemoStatsCard';
 import { DemoPlanPreview } from './DemoPlanPreview';
 import { trackCtaClick } from '../../services/funnelService';
+import { useT } from '../../i18n/useT';
 
 interface Props {
   demo: UseDemoAnalysisReturn;
 }
 
 export function DemoResult({ demo }: Props) {
+  const t = useT();
   if (demo.status === 'idle') return null;
 
   if (demo.status === 'loading') {
     return (
       <div className="flex flex-col gap-3">
-        <DemoProgressPanel label={demo.progressLabel || 'Starting…'} />
+        <DemoProgressPanel label={demo.progressLabel || t('demo.starting')} />
         <p className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
-          Running Stockfish in your browser. No data leaves your machine until you sign up.
+          {t('demo.inBrowser')}
         </p>
       </div>
     );
@@ -29,14 +31,14 @@ export function DemoResult({ demo }: Props) {
     return (
       <div className="border-2 border-text-primary bg-surface p-6">
         <div className="font-mono uppercase text-xs tracking-tight text-gold-dark mb-2">
-          {notFound ? 'Player not found' : "Couldn't run the demo"}
+          {notFound ? t('demo.notFound') : t('demo.couldNotRun')}
         </div>
         <p className="text-text-primary mb-4">{demo.error?.message}</p>
         <button
           onClick={demo.reset}
           className="font-mono uppercase tracking-tight text-xs border-2 border-text-primary bg-transparent text-text-primary px-4 py-2 rounded-none hover:bg-text-primary hover:text-bg transition-colors"
         >
-          {notFound ? 'Try a different username' : 'Try again'}
+          {notFound ? t('demo.tryDifferent') : t('common.tryAgain')}
         </button>
       </div>
     );
@@ -61,7 +63,11 @@ export function DemoResult({ demo }: Props) {
       {!clean && r.blunder && (
         <BlunderPreview
           blunder={r.blunder}
-          moveLabel={`Move ${r.blunder.moveNumber} · ${r.blunder.sideToMove === 'white' ? 'White' : 'Black'} to move`}
+          moveLabel={
+            r.blunder.sideToMove === 'white'
+              ? t('demo.moveLabelWhite', { move: r.blunder.moveNumber })
+              : t('demo.moveLabelBlack', { move: r.blunder.moveNumber })
+          }
         />
       )}
       <div
@@ -70,16 +76,14 @@ export function DemoResult({ demo }: Props) {
       >
         <div>
           <div className="font-mono uppercase tracking-tight text-sm sm:text-base">
-            {clean ? 'Suspiciously clean' : 'Blunders cost you more rating than any opening'}
+            {clean ? t('demo.clean') : t('demo.blundersCost')}
           </div>
           <div className="font-sans text-bg text-sm mt-1">
-            {clean
-              ? "Sign up free and we'll check your full history for the plan."
-              : 'So your plan starts with them, a few a day, until the right move is automatic. Free.'}
+            {clean ? t('demo.cleanBody') : t('demo.blundersBody')}
           </div>
         </div>
         <SignUpCta source={clean ? 'demo_clean' : 'demo_result'}>
-          Get my plan <span aria-hidden="true">→</span>
+          {t('landing.getPlan')} <span aria-hidden="true">→</span>
         </SignUpCta>
       </div>
     </div>

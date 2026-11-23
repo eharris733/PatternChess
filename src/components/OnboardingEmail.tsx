@@ -4,6 +4,7 @@ import { useOnboardingStore } from '../state/onboardingStore';
 import { BrandLockup } from './BrandLogo';
 import { ContactEmailForm, ContactEmailPending } from './email/ContactEmailForm';
 import { LichessLogo } from './icons/PlatformLogos';
+import { useT } from '../i18n/useT';
 
 /**
  * Required step for Lichess sign-ins, which share no email address
@@ -15,6 +16,7 @@ import { LichessLogo } from './icons/PlatformLogos';
  */
 export function OnboardingEmail() {
   const { user, profile, signOut } = useAuth();
+  const t = useT();
   const savedEmail = useOnboardingStore((s) => s.savedEmail);
   const setSavedEmail = useOnboardingStore((s) => s.setSavedEmail);
   const [editing, setEditing] = useState(false);
@@ -30,28 +32,25 @@ export function OnboardingEmail() {
           <p className="flex items-center gap-2 text-sm text-text-primary">
             <LichessLogo className="h-4 w-4 shrink-0" />
             <span>
-              Signed in with Lichess as <span className="font-semibold">{lichessName}</span>
+              {t.rich('onboarding.email.signedInAs', { name: <span className="font-semibold">{lichessName}</span> })}
             </span>
           </p>
         )}
-        <h1 className="heading-md">Where should we send your daily plan?</h1>
+        <h1 className="heading-md">{t('onboarding.email.title')}</h1>
         {showForm ? (
           <>
             <p className="text-text-primary">
-              Lichess keeps your email private, so we need one from you. We'll send your plan on days
-              you have positions due and a progress report each Sunday. Your games keep importing in
-              the meantime.
+              {t('onboarding.email.body')}
             </p>
             <ContactEmailForm
-              submitLabel="Continue"
+              submitLabel={t('onboarding.email.continue')}
               onSaved={(email) => {
                 setSavedEmail(email);
                 setEditing(false);
               }}
             />
             <p className="text-sm text-text-primary">
-              Turn reminders off any time in your profile, or with one click from any email. We never
-              share your address.
+              {t('onboarding.email.footer')}
             </p>
           </>
         ) : (
@@ -59,17 +58,20 @@ export function OnboardingEmail() {
             <ContactEmailPending email={savedEmail} onChange={() => setEditing(true)} />
             <div>
               <button type="button" className="btn-primary" onClick={() => setSavedEmail(null)}>
-                Continue
+                {t('onboarding.email.continue')}
               </button>
             </div>
           </>
         )}
       </div>
       <p className="mt-4 text-sm text-text-primary">
-        Not you?{' '}
-        <button type="button" className="underline" onClick={() => void signOut()}>
-          Sign out
-        </button>
+        {t.rich('onboarding.email.notYou', {
+          signOut: (
+            <button type="button" className="underline" onClick={() => void signOut()}>
+              {t('profile.signOut')}
+            </button>
+          ),
+        })}
       </p>
     </div>
   );
