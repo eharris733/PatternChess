@@ -3,6 +3,7 @@ import type { UseDemoAnalysisReturn } from '../../hooks/useDemoAnalysis';
 import { BlunderPreview } from './BlunderPreview';
 import { DemoProgressPanel } from './DemoProgressPanel';
 import { DemoStatsCard } from './DemoStatsCard';
+import { DemoPlanPreview } from './DemoPlanPreview';
 import { trackCtaClick } from '../../services/funnelService';
 
 interface Props {
@@ -44,57 +45,42 @@ export function DemoResult({ demo }: Props) {
   const r = demo.result;
   if (!r) return null;
 
-  if (demo.status === 'no-blunders') {
-    return (
-      <div className="flex flex-col gap-6">
-        <DemoStatsCard
-          gamesAnalyzed={r.gamesAnalyzed}
-          blundersFound={0}
-          biggestSwing={null}
-          eco={r.eco}
-          openingName={r.openingName}
-        />
-        <div className="border-2 border-text-primary bg-surface p-6">
-          <div className="font-mono uppercase text-xs tracking-tight text-text-secondary mb-2">
-            Suspiciously clean
-          </div>
-          <p className="text-text-primary mb-4">
-            No trainable blunders in your last {r.gamesAnalyzed} game
-            {r.gamesAnalyzed === 1 ? '' : 's'}. Either you're in form or we need more games. Sign up
-            and we'll check your full history.
-          </p>
-          <SignUpCta source="demo_clean">Sign up free</SignUpCta>
-        </div>
-      </div>
-    );
-  }
+  const clean = demo.status === 'no-blunders';
 
-  // success
   return (
     <div className="flex flex-col gap-6">
+      {/* The plan names the opening from the board; the stats card skips the header guess. */}
       <DemoStatsCard
         gamesAnalyzed={r.gamesAnalyzed}
-        blundersFound={r.blundersFound}
-        biggestSwing={r.biggestSwing}
-        eco={r.eco}
-        openingName={r.openingName}
+        blundersFound={clean ? 0 : r.blundersFound}
+        biggestSwing={clean ? null : r.biggestSwing}
+        eco={null}
+        openingName={null}
       />
-      {r.blunder && (
+      <DemoPlanPreview result={r} />
+      {!clean && r.blunder && (
         <BlunderPreview
           blunder={r.blunder}
           moveLabel={`Move ${r.blunder.moveNumber} · ${r.blunder.sideToMove === 'white' ? 'White' : 'Black'} to move`}
         />
       )}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between border-2 border-text-primary bg-text-primary text-bg p-6">
+      <div
+        className="flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between border-2 border-text-primary bg-text-primary text-bg p-6"
+        data-testid="demo-plan-cta"
+      >
         <div>
           <div className="font-mono uppercase tracking-tight text-sm sm:text-base">
-            {r.blundersFound} blunder{r.blundersFound === 1 ? '' : 's'}. That's your training plan.
+            {clean ? 'Suspiciously clean' : 'Blunders cost you more rating than any opening'}
           </div>
-          <div className="font-sans text-bg/70 text-sm mt-1">
-            Sign up free. We'll give you a few a day until the right move is automatic.
+          <div className="font-sans text-bg text-sm mt-1">
+            {clean
+              ? "Sign up free and we'll check your full history for the plan."
+              : 'So your plan starts with them, a few a day, until the right move is automatic. Free.'}
           </div>
         </div>
-        <SignUpCta source="demo_result">Start my plan →</SignUpCta>
+        <SignUpCta source={clean ? 'demo_clean' : 'demo_result'}>
+          Get my plan <span aria-hidden="true">→</span>
+        </SignUpCta>
       </div>
     </div>
   );

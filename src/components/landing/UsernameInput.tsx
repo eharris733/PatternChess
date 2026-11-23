@@ -86,7 +86,13 @@ export function UsernameInput({
           disabled={loading || !username.trim()}
           className="font-mono uppercase tracking-tight text-sm border-2 border-text-primary bg-gold-dark text-bg px-6 py-3 rounded-none shadow-card hover:shadow-card-hover hover:translate-x-[2px] hover:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-card disabled:hover:translate-x-0 disabled:hover:translate-y-0 transition-all whitespace-nowrap"
         >
-          {loading ? 'Digging through your games…' : 'Find my blunders →'}
+          {loading ? (
+            'Digging through your games…'
+          ) : (
+            <>
+              Get my plan <span aria-hidden="true">→</span>
+            </>
+          )}
         </button>
       </div>
       <p className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
