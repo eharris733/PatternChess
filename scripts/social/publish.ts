@@ -1,30 +1,34 @@
-// Posts today's queued video: an Instagram Reel (published) and a TikTok inbox
-// draft (you tap Post in the app). The channels are independent — one failing
-// never blocks the other — and a rerun retries only what didn't go out. Then
-// pulls Reel insights for the last 14 days and refreshes the Instagram token.
+// Hands today's queued video to Buffer, which publishes it a few minutes later
+// as an Instagram Reel and a public TikTok post. The channels are independent —
+// one failing never blocks the other — and a rerun retries only the channel
+// that has no Buffer post yet. Each run also reads back the last 14 days of
+// Buffer posts (sent / error, the Instagram link) and pulls Reel insights when
+// an Instagram token is in KV.
 //
 //   node scripts/social/publish.ts [--remote] [--skip-insights]
 //
-// SOCIAL_MODE=live is required to post; anything else logs what it would do.
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+// SOCIAL_MODE: live = schedule in Buffer; draft = Buffer drafts (nothing
+// publishes, nothing is recorded, reruns make new drafts); anything else logs.
+// Channels: BUFFER_INSTAGRAM_CHANNEL_ID / BUFFER_TIKTOK_CHANNEL_ID (unset = skip
+// that channel); BUFFER_API_KEY.
+import { createVideoPost, postState, type BufferChannel } from './buffer.ts';
 import { d1, sql, type Target } from './cloudflare.ts';
-import { parseArgs, socialMode } from './env.ts';
-import { publishReel, reelInsights, refreshIgTokenIfStale } from './instagram.ts';
+import { env, parseArgs, socialMode } from './env.ts';
+import { mediaIdForPermalink, reelInsights, refreshIgTokenIfStale } from './instagram.ts';
 import { addDays, utcToday } from './plan.ts';
-import { sendToInbox, tiktokAccessToken, tiktokConfigured } from './tiktok.ts';
+
+/** Buffer publishes this long after the run (time to fetch the video). */
+const POST_DELAY_MIN = 10;
 
 interface PostRow {
   id: string;
   status: string;
   caption: string;
+  tiktok_caption: string | null;
   media_url: string;
-  ig_media_id: string | null;
-  tiktok_status: string | null;
+  buffer_ig_post_id: string | null;
+  buffer_tiktok_post_id: string | null;
 }
-
-const TIKTOK_DONE = new Set(['SEND_TO_USER_INBOX', 'PUBLISH_COMPLETE']);
 
 function update(id: string, fields: Record<string, string | number | null>, target: Target): void {
   const set = Object.entries(fields)
@@ -35,18 +39,15 @@ function update(id: string, fields: Record<string, string | number | null>, targ
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 500);
 
-async function downloadTo(url: string, dir: string): Promise<string> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`download ${url}: HTTP ${res.status}`);
-  const file = join(dir, 'video.mp4');
-  writeFileSync(file, Buffer.from(await res.arrayBuffer()));
-  return file;
-}
+const CHANNELS: { channel: BufferChannel; idVar: string; column: 'buffer_ig_post_id' | 'buffer_tiktok_post_id' }[] = [
+  { channel: 'instagram', idVar: 'BUFFER_INSTAGRAM_CHANNEL_ID', column: 'buffer_ig_post_id' },
+  { channel: 'tiktok', idVar: 'BUFFER_TIKTOK_CHANNEL_ID', column: 'buffer_tiktok_post_id' },
+];
 
-async function publishToday(target: Target, live: boolean): Promise<void> {
+async function publishToday(target: Target, mode: 'live' | 'draft' | 'dry'): Promise<void> {
   const today = utcToday();
   const rows = d1<PostRow>(
-    `SELECT id, status, caption, media_url, ig_media_id, tiktok_status FROM social_posts
+    `SELECT id, status, caption, tiktok_caption, media_url, buffer_ig_post_id, buffer_tiktok_post_id FROM social_posts
      WHERE scheduled_for = ${sql(today)} AND status IN ('queued', 'posted', 'failed')`,
     target,
   );
@@ -55,66 +56,105 @@ async function publishToday(target: Target, live: boolean): Promise<void> {
     console.log(`${today}: nothing queued (vetoed or the queue ran dry)`);
     return;
   }
-  const needIg = !row.ig_media_id;
-  const needTikTok = tiktokConfigured() && !TIKTOK_DONE.has(row.tiktok_status ?? '');
-  if (!needIg && !needTikTok) {
-    console.log(`${today}: already out`);
+  const todo = CHANNELS.filter((c) => env(c.idVar) && !row[c.column]);
+  if (todo.length === 0) {
+    console.log(`${today}: already handed to Buffer (or no channel configured)`);
     return;
   }
-  if (!live) {
-    console.log(`[dry] ${today}: would post ${row.media_url}`);
-    if (needIg) console.log(`[dry]   Instagram Reel, caption:\n${row.caption}`);
-    if (needTikTok) console.log('[dry]   TikTok inbox draft');
+  if (mode === 'dry') {
+    console.log(`[dry] ${today}: would schedule ${row.media_url} on ${todo.map((c) => c.channel).join(' + ')}`);
+    console.log(`[dry]   Instagram caption:\n${row.caption}`);
     return;
   }
 
-  let igOk = !needIg;
-  let ttOk = !needTikTok;
-  if (needIg) {
+  const dueAt = new Date(Date.now() + POST_DELAY_MIN * 60_000).toISOString();
+  const errors: string[] = [];
+  let scheduled = 0;
+  for (const c of todo) {
     try {
-      const media = await publishReel({ videoUrl: row.media_url, caption: row.caption });
-      update(row.id, { ig_media_id: media.id, permalink: media.permalink, ig_error: null, posted_at: new Date().toISOString() }, target);
-      console.log(`Instagram: ${media.permalink ?? media.id}`);
-      igOk = true;
+      const post = await createVideoPost({
+        channel: c.channel,
+        channelId: env(c.idVar)!,
+        text: c.channel === 'tiktok' ? (row.tiktok_caption ?? row.caption) : row.caption,
+        videoUrl: row.media_url,
+        dueAt,
+        draft: mode === 'draft',
+      });
+      console.log(`${c.channel}: Buffer ${mode === 'draft' ? 'draft' : 'post'} ${post.id} (${post.status}, due ${dueAt})`);
+      if (mode === 'live') {
+        update(row.id, { [c.column]: post.id, ...(c.channel === 'tiktok' ? { tiktok_status: post.status } : {}) }, target);
+        scheduled++;
+      }
     } catch (e) {
-      update(row.id, { ig_error: errText(e) }, target);
-      console.error(`Instagram failed: ${errText(e)}`);
+      errors.push(`${c.channel}: ${errText(e)}`);
+      console.error(`${c.channel} failed: ${errText(e)}`);
     }
   }
-  if (needTikTok) {
-    const dir = mkdtempSync(join(tmpdir(), 'pc-tt-'));
-    try {
-      const res = await sendToInbox(await downloadTo(row.media_url, dir));
-      update(row.id, { tiktok_publish_id: res.publishId, tiktok_status: res.status, tiktok_error: null }, target);
-      console.log(`TikTok: ${res.status}`);
-      ttOk = TIKTOK_DONE.has(res.status);
-    } catch (e) {
-      update(row.id, { tiktok_status: 'FAILED', tiktok_error: errText(e) }, target);
-      console.error(`TikTok failed: ${errText(e)}`);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+  if (mode === 'live') {
+    const handedOff = scheduled > 0 || CHANNELS.some((c) => row[c.column]);
+    update(row.id, { status: handedOff ? 'posted' : 'failed', buffer_error: errors.length ? errors.join(' | ') : null }, target);
   }
-  update(row.id, { status: igOk || ttOk ? 'posted' : 'failed' }, target);
-  if (!igOk || !ttOk) process.exitCode = 1; // a red run in Actions; a rerun retries the failed channel
+  if (errors.length) process.exitCode = 1; // a red run in Actions; a rerun retries the failed channel
+}
+
+/** Reads back what Buffer did with the last 14 days of posts. */
+async function syncBuffer(target: Target): Promise<void> {
+  const rows = d1<{ id: string; buffer_ig_post_id: string | null; buffer_tiktok_post_id: string | null; permalink: string | null }>(
+    `SELECT id, buffer_ig_post_id, buffer_tiktok_post_id, permalink FROM social_posts
+     WHERE (buffer_ig_post_id IS NOT NULL OR buffer_tiktok_post_id IS NOT NULL)
+       AND scheduled_for >= ${sql(addDays(utcToday(), -14))}`,
+    target,
+  );
+  for (const r of rows) {
+    const errors: string[] = [];
+    const fields: Record<string, string | number | null> = {};
+    let anySent = false;
+    let allFailed = true;
+    for (const [channel, id] of [['instagram', r.buffer_ig_post_id], ['tiktok', r.buffer_tiktok_post_id]] as const) {
+      if (!id) continue;
+      try {
+        const s = await postState(id);
+        if (s.status !== 'error') allFailed = false;
+        if (s.status === 'sent') anySent = true;
+        if (s.error) errors.push(`${channel}: ${s.error}`);
+        if (channel === 'tiktok') fields.tiktok_status = s.status;
+        if (channel === 'instagram' && s.externalLink && s.externalLink !== r.permalink) fields.permalink = s.externalLink;
+        if (s.sentAt && channel === 'instagram') fields.posted_at = s.sentAt;
+      } catch (e) {
+        allFailed = false; // unknown: don't mark the row failed on a read error
+        console.warn(`buffer ${channel} ${id}: ${errText(e)}`);
+      }
+    }
+    fields.buffer_error = errors.length ? errors.join(' | ') : null;
+    if (allFailed) fields.status = 'failed';
+    else if (anySent) fields.status = 'posted';
+    update(r.id, fields, target);
+  }
+  if (rows.length) console.log(`buffer: synced ${rows.length} post(s)`);
 }
 
 async function pullInsights(target: Target): Promise<void> {
-  const rows = d1<{ id: string; ig_media_id: string }>(
-    `SELECT id, ig_media_id FROM social_posts
-     WHERE ig_media_id IS NOT NULL AND scheduled_for >= ${sql(addDays(utcToday(), -14))}`,
+  const rows = d1<{ id: string; ig_media_id: string | null; permalink: string | null }>(
+    `SELECT id, ig_media_id, permalink FROM social_posts
+     WHERE (ig_media_id IS NOT NULL OR permalink IS NOT NULL) AND scheduled_for >= ${sql(addDays(utcToday(), -14))}`,
     target,
   );
   for (const r of rows) {
     try {
-      const i = await reelInsights(r.ig_media_id);
+      let mediaId = r.ig_media_id;
+      if (!mediaId && r.permalink) {
+        mediaId = await mediaIdForPermalink(r.permalink);
+        if (mediaId) update(r.id, { ig_media_id: mediaId }, target);
+      }
+      if (!mediaId) continue;
+      const i = await reelInsights(mediaId);
       update(
         r.id,
         { plays: i.views, reach: i.reach, likes: i.likes, comments: i.comments, saves: i.saved, shares: i.shares, insights_at: new Date().toISOString() },
         target,
       );
     } catch (e) {
-      console.warn(`insights ${r.ig_media_id}: ${errText(e)}`);
+      console.warn(`insights ${r.id}: ${errText(e)}`);
     }
   }
   if (rows.length) console.log(`insights: ${rows.length} Reel(s)`);
@@ -123,13 +163,18 @@ async function pullInsights(target: Target): Promise<void> {
 async function main() {
   const args = parseArgs();
   const target: Target = { remote: !!args.remote };
-  const live = socialMode() === 'live';
-  await publishToday(target, live);
-  if (!live) return;
-  if (!args['skip-insights']) await pullInsights(target);
-  if (await refreshIgTokenIfStale()) console.log('Instagram token refreshed');
-  // Exercise the TikTok refresh on quiet days too, so the rotating pair never lapses.
-  if (tiktokConfigured()) await tiktokAccessToken();
+  const mode = socialMode();
+  await publishToday(target, mode);
+  if (mode !== 'live') return;
+  await syncBuffer(target);
+  if (args['skip-insights']) return;
+  try {
+    await pullInsights(target);
+    if (await refreshIgTokenIfStale()) console.log('Instagram token refreshed');
+  } catch (e) {
+    // Insights are optional: no Instagram token in KV just means no stats on /analytics.
+    console.warn(`insights skipped: ${errText(e)}`);
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

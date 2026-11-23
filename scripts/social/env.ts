@@ -32,9 +32,14 @@ export function requireEnv(name: string): string {
   return v;
 }
 
-/** `live` posts for real; anything else logs what it would do (like the notifier's SEND_MODE). */
-export function socialMode(): 'live' | 'dry' {
-  return env('SOCIAL_MODE') === 'live' ? 'live' : 'dry';
+/**
+ * `live` schedules the posts in Buffer; `draft` saves them as Buffer drafts
+ * (review in Buffer, nothing publishes); anything else logs what it would do
+ * (like the notifier's SEND_MODE).
+ */
+export function socialMode(): 'live' | 'draft' | 'dry' {
+  const m = env('SOCIAL_MODE');
+  return m === 'live' || m === 'draft' ? m : 'dry';
 }
 
 /** Args like `--blunder x --local --out dir`. */

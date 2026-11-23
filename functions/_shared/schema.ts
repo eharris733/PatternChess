@@ -90,8 +90,8 @@ export const TABLES: Record<string, TableSpec> = {
   landing_stats_cache: spec({ json: ['payload'], ts: ['computed_at'] }),
   public_leaderboard_cache: spec({ json: ['payload'], ts: ['computed_at'] }),
   benchmarks: spec({}),
-  // D1-native (0003): the daily Instagram/TikTok puzzle queue (scripts/social/).
-  social_posts: spec({ json: ['puzzle'], ts: ['insights_at', 'posted_at', 'created_at'] }),
+  // D1-native (0003, 0008): the daily Instagram/TikTok puzzle queue (scripts/social/).
+  social_posts: spec({ json: ['puzzle', 'script'], ts: ['insights_at', 'posted_at', 'created_at'] }),
   // D1-native (0005): Supporter perks granted without Stripe (the referral reward).
   supporter_grants: spec({ ts: ['starts_at', 'ends_at', 'created_at'] }),
   // D1-native (0006_courses.sql): finished course days and the followed course.
