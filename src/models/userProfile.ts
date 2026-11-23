@@ -22,8 +22,10 @@ export interface UserProfile {
   streakFreezes: number;
   lastDrillLocalDate: string | null;
   timezone: string | null;
-  /** US state for OTB events (dashboard card + weekly email); null = not chosen. Read/write via `useEventsState`. */
+  /** US state for OTB events (dashboard card + weekly email); null = not chosen. Read/write via `useEventsRegion`. */
   eventsState: string | null;
+  /** Events country ('CA', 'GB-ENG', 'US'; src/lib/eventRegions.ts); null = not chosen. Read/write via `useEventsRegion`. */
+  eventsCountry: string | null;
   /** App + board theme: `profiles.theme`, else the legacy `board_theme` (migration 0005). */
   boardTheme: BoardTheme;
   /** Pixel avatar parts (src/lib/avatar.ts); null = the default generated from `id` (resolveAvatar). */
@@ -134,6 +136,7 @@ export function userProfileFromJson(json: any): UserProfile {
     lastDrillLocalDate: (json.last_drill_local_date as string | null) ?? null,
     timezone: (json.timezone as string | null) ?? null,
     eventsState: typeof json.events_state === 'string' && json.events_state ? json.events_state : null,
+    eventsCountry: typeof json.events_country === 'string' && json.events_country ? json.events_country : null,
     boardTheme: parseBoardTheme(json.theme ?? json.board_theme),
     avatar: sanitizeAvatar(json.avatar),
     pieceSet: isPieceSet(json.piece_set) ? json.piece_set : DEFAULT_PIECE_SET,

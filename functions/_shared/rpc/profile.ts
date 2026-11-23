@@ -2,6 +2,7 @@ import { createProfileForUser } from '../auth';
 import { all, first, nowIso, run, scalar, stmt, type SqlParam } from '../db';
 import { encodeRow } from '../schema';
 import { US_STATE_CODES } from '../../../src/lib/usStates';
+import { EVENT_COUNTRY_CODES } from '../../../src/lib/eventRegions';
 import {
   REFERRAL_REWARD_POSITIONS,
   grantPerksUntil,
@@ -174,6 +175,7 @@ export const PROFILE_WRITABLE: Readonly<Record<string, Validator>> = {
   contact_email: contactEmail,
   // OTB events (dashboard card + weekly email); src/lib/usStates.ts
   events_state: oneOf(US_STATE_CODES, true),
+  events_country: oneOf(EVENT_COUNTRY_CODES, true),
 };
 
 /** Validate + normalize a client patch against the allowlist (throws 400 on anything else). */

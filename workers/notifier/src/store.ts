@@ -15,7 +15,7 @@ import { all, first, run, stmt } from './db';
 import type { OutboxData, OutboxRow } from './outbox';
 import type { Prefs } from './pages';
 import type { EventsLoader } from './events';
-import { decide, eventsStateFor, realEmail, REMINDER_KINDS, REPORT_KINDS, type CandidateFacts } from './rules';
+import { decide, eventsRegionFor, realEmail, REMINDER_KINDS, REPORT_KINDS, type CandidateFacts } from './rules';
 import type { EmailKind } from './templates';
 
 const DAY = 86_400_000;
@@ -41,7 +41,7 @@ WITH base AS (
          coalesce(p.daily_games_goal, 1) AS games_goal,
          nullif(u.email, '') AS auth_email,
          p.display_name, p.lichess_username, p.chesscom_username, p.timezone,
-         p.events_state
+         p.events_state, p.events_country
   FROM profiles p
   JOIN "user" u ON u.id = p.id
   WHERE (?1 IS NULL AND p.email_opt_in = 1) OR p.id = ?1
@@ -214,7 +214,7 @@ export interface CandidateOptions {
  * One row per player considered (kind null = nothing this hour), with the
  * template data. The report is attached for weekly_report rows, and always
  * when a single user is asked for (admin preview), as in Postgres; the same
- * goes for "Events near you" when the player saved a state (eventsStateFor).
+ * goes for "Events near you" when the player saved a place (eventsRegionFor).
  */
 export async function emailCandidates(
   db: D1Database,
@@ -242,10 +242,10 @@ export async function emailCandidates(
     if (d.kind === 'weekly_report' || userId !== null) {
       data.report = await reportData(db, f.id, new Date(now.getTime() - 7 * DAY), now);
     }
-    const eventsState = eventsStateFor(userId !== null ? 'weekly_report' : d.kind, f);
-    if (eventsState) {
-      data.eventsState = eventsState;
-      data.events = opts.loadEvents ? await opts.loadEvents(eventsState, d.local.today).catch(() => null) : null;
+    const eventsRegion = eventsRegionFor(userId !== null ? 'weekly_report' : d.kind, f);
+    if (eventsRegion) {
+      data.eventsRegion = eventsRegion;
+      data.events = opts.loadEvents ? await opts.loadEvents(eventsRegion, d.local.today).catch(() => null) : null;
     }
     rows.push({ user_id: f.id, kind: d.kind, to_email: d.to_email, unsub_token: f.email_unsub_token, data });
   }

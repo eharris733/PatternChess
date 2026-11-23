@@ -24,8 +24,9 @@
 //
 // Content rules (what goes inside an email, not which one is sent):
 //   events near you  weekly_report only, and only for a state the player
-//                    saved (profiles.events_state); see eventsStateFor.
+//                    saved (profiles.events_country / events_state); see eventsRegionFor.
 
+import { EVENT_COUNTRY } from './eventCountries';
 import type { EmailKind } from './templates';
 import { isUsStateCode } from './usStates';
 
@@ -67,6 +68,8 @@ export interface CandidateFacts {
   timezone: string | null;
   /** Saved US state for OTB events (profiles.events_state); null = never picked. */
   events_state: string | null;
+  /** Saved events country (profiles.events_country: 'US', 'CA', 'GB-ENG'); null = never picked. */
+  events_country: string | null;
   due_now: number;
   live_total: number;
   last_trained: string | null;
@@ -182,12 +185,20 @@ export function firstNameOf(f: Pick<CandidateFacts, 'display_name' | 'lichess_us
 }
 
 /**
- * The state whose OTB tournaments the email lists under "Events near you":
- * weekly reports only, and only a state the player picked themselves (the
- * app's location guess is never saved). Null = no section.
+ * The region whose OTB tournaments the email lists under "Events near you"
+ * (events.ts RegionKey: `US-MA` or a country code): weekly reports only, and
+ * only a place the player picked themselves (the app's location guess is
+ * never saved). A lone events_state (from before countries) means the US.
+ * Null = no section.
  */
-export function eventsStateFor(kind: EmailKind | null, f: Pick<CandidateFacts, 'events_state'>): string | null {
-  return kind === 'weekly_report' && isUsStateCode(f.events_state) ? f.events_state : null;
+export function eventsRegionFor(
+  kind: EmailKind | null,
+  f: Pick<CandidateFacts, 'events_state' | 'events_country'>,
+): string | null {
+  if (kind !== 'weekly_report') return null;
+  const country = f.events_country;
+  if (country && country !== 'US') return EVENT_COUNTRY[country] ? country : null;
+  return isUsStateCode(f.events_state) ? `US-${f.events_state}` : null;
 }
 
 export function decide(f: CandidateFacts, nowDate: Date): Decision {

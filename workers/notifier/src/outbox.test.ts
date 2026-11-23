@@ -119,7 +119,7 @@ describe('events near you', () => {
     { title: 'Boylston Saturday Open', when: 'Sat, Dec 5 · 10:00 AM', where: 'Boylston Chess Foundation · Boston', url: 'https://events.patternchess.com/events/7' },
     { title: 'MCC <Monthly> Swiss', when: 'Rd 2 of 4 · Tue, Dec 1 · 7:30 PM', where: 'MetroWest Chess Club · Framingham', url: 'https://events.patternchess.com/events/41' },
   ];
-  const WITH = { ...DATA, eventsState: 'MA', events: EVENTS };
+  const WITH = { ...DATA, eventsRegion: 'US-MA', events: EVENTS };
 
   it('maps a saved state and its listing into the template data', () => {
     expect(toEmailData(WITH).nearbyEvents).toEqual({
@@ -133,7 +133,14 @@ describe('events near you', () => {
     expect(toEmailData(DATA).nearbyEvents).toBeUndefined();
     expect(toEmailData({ ...WITH, events: [] }).nearbyEvents).toBeUndefined();
     expect(toEmailData({ ...WITH, events: null }).nearbyEvents).toBeUndefined();
-    expect(toEmailData({ ...WITH, eventsState: 'XX' }).nearbyEvents).toBeUndefined();
+    expect(toEmailData({ ...WITH, eventsRegion: 'XX' }).nearbyEvents).toBeUndefined();
+  });
+
+  it('names a country region and links its page', () => {
+    expect(toEmailData({ ...WITH, eventsRegion: 'GB-ENG' }).nearbyEvents).toMatchObject({
+      stateName: 'England',
+      seeAllUrl: 'https://events.patternchess.com/england',
+    });
   });
 
   it('renders the listings in both parts of the weekly report, escaped', () => {

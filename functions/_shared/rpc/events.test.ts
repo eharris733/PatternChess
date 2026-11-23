@@ -99,6 +99,17 @@ describe('events.locate', () => {
     expect(locationFromRequest(withCf(undefined))).toEqual({ country: null, region: null });
   });
 
+  it('splits the UK into its home nations (events.patternchess.com country codes)', () => {
+    expect(locationFromRequest(withCf({ country: 'GB', regionCode: 'SCT' }))).toEqual({ country: 'GB-SCT', region: null });
+    expect(locationFromRequest(withCf({ country: 'GB', regionCode: 'ENG' }))).toEqual({ country: 'GB-ENG', region: null });
+  });
+
+  it('profile.update accepts covered countries only', () => {
+    expect(sanitizeProfilePatch({ events_country: 'GB-ENG' })).toEqual({ events_country: 'GB-ENG' });
+    expect(sanitizeProfilePatch({ events_country: null })).toEqual({ events_country: null });
+    expect(() => sanitizeProfilePatch({ events_country: 'BR' })).toThrow(RpcError);
+  });
+
   it('normalizes case', () => {
     expect(locationFromRequest(withCf({ country: 'us', regionCode: 'ny' }))).toEqual({ country: 'US', region: 'NY' });
   });

@@ -22,9 +22,9 @@
 //
 // SEND_MODE gates real mail: anything but "live" sends only to TEST_RECIPIENTS.
 //
-// weekly_report adds "Events near you" for players with a saved
-// profiles.events_state, fetched from the public events API (EVENTS_URL,
-// default events.patternchess.com) once per state per run; if that API is
+// weekly_report adds "Events near you" for players with a saved region
+// (profiles.events_country / events_state), fetched from the public events API (EVENTS_URL,
+// default events.patternchess.com) once per region per run; if that API is
 // down the section is simply left out (events.ts).
 //
 // Local only (`--var DEV_MAILBOX:1`, devMailbox.ts): /dev/mailbox keeps every
@@ -43,7 +43,7 @@ import {
   type LinkBases,
   type OutboxRow,
 } from './outbox';
-import { EVENTS_SITE, stateEventsLoader } from './events';
+import { EVENTS_SITE, regionEventsLoader } from './events';
 import {
   confirmEmail,
   emailCandidates,
@@ -94,9 +94,9 @@ function bases(env: Env): LinkBases {
   return { app: env.APP_URL.replace(/\/$/, ''), email: env.EMAIL_URL.replace(/\/$/, '') };
 }
 
-/** A fresh per-run events loader (one API call per state per run). */
+/** A fresh per-run events loader (one API call per region per run). */
 function eventsLoader(env: Env) {
-  return stateEventsLoader((input, init) => fetch(input, init), (env.EVENTS_URL || EVENTS_SITE).replace(/\/$/, ''));
+  return regionEventsLoader((input, init) => fetch(input, init), (env.EVENTS_URL || EVENTS_SITE).replace(/\/$/, ''));
 }
 
 function json(body: unknown, status = 200): Response {
