@@ -10,7 +10,7 @@
  * loadPieceImages) both read. Pure module: the server validates ids with it.
  */
 
-export const PIECE_SETS = ['cburnett', 'chessnut', 'rhosgfx', 'fantasy', 'celtic', 'spatial'] as const;
+export const PIECE_SETS = ['cburnett', 'chessnut', 'rhosgfx', 'fantasy', 'celtic', 'spatial', 'sticker'] as const;
 export type PieceSet = (typeof PIECE_SETS)[number];
 
 export interface PieceSetInfo {
@@ -27,6 +27,8 @@ export const PIECE_SET_INFO: Record<PieceSet, PieceSetInfo> = {
   fantasy: { id: 'fantasy', label: 'Fantasy', author: 'Maurizio Monge', licence: 'MIT' },
   celtic: { id: 'celtic', label: 'Celtic', author: 'Maurizio Monge', licence: 'MIT' },
   spatial: { id: 'spatial', label: 'Spatial', author: 'Maurizio Monge', licence: 'MIT' },
+  // Drawn for PatternChess (scripts/gen-sticker-pieces.py), 2026-11-23.
+  sticker: { id: 'sticker', label: 'Sticker', author: 'PatternChess', licence: 'Original' },
 };
 
 export const DEFAULT_PIECE_SET: PieceSet = 'cburnett';

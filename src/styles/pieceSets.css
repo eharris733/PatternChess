@@ -64,3 +64,15 @@
 [data-piece-set='spatial'] .cg-wrap piece.bishop.black { background-image: url('/pieces/spatial/bB.svg'); }
 [data-piece-set='spatial'] .cg-wrap piece.knight.black { background-image: url('/pieces/spatial/bN.svg'); }
 [data-piece-set='spatial'] .cg-wrap piece.pawn.black { background-image: url('/pieces/spatial/bP.svg'); }
+[data-piece-set='sticker'] .cg-wrap piece.king.white { background-image: url('/pieces/sticker/wK.svg'); }
+[data-piece-set='sticker'] .cg-wrap piece.queen.white { background-image: url('/pieces/sticker/wQ.svg'); }
+[data-piece-set='sticker'] .cg-wrap piece.rook.white { background-image: url('/pieces/sticker/wR.svg'); }
+[data-piece-set='sticker'] .cg-wrap piece.bishop.white { background-image: url('/pieces/sticker/wB.svg'); }
+[data-piece-set='sticker'] .cg-wrap piece.knight.white { background-image: url('/pieces/sticker/wN.svg'); }
+[data-piece-set='sticker'] .cg-wrap piece.pawn.white { background-image: url('/pieces/sticker/wP.svg'); }
+[data-piece-set='sticker'] .cg-wrap piece.king.black { background-image: url('/pieces/sticker/bK.svg'); }
+[data-piece-set='sticker'] .cg-wrap piece.queen.black { background-image: url('/pieces/sticker/bQ.svg'); }
+[data-piece-set='sticker'] .cg-wrap piece.rook.black { background-image: url('/pieces/sticker/bR.svg'); }
+[data-piece-set='sticker'] .cg-wrap piece.bishop.black { background-image: url('/pieces/sticker/bB.svg'); }
+[data-piece-set='sticker'] .cg-wrap piece.knight.black { background-image: url('/pieces/sticker/bN.svg'); }
+[data-piece-set='sticker'] .cg-wrap piece.pawn.black { background-image: url('/pieces/sticker/bP.svg'); }
