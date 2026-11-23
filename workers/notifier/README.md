@@ -26,13 +26,12 @@ production and compared with live `email_candidates(t, user)` for all 184
 players at five hours (Sunday report hour, weekday morning/evening): identical
 kinds, recipients, due/fresh counts and report numbers.
 
-## Deploying — only at the cutover
+## Deploying
 
-**Do not deploy this version until the Supabase -> Cloudflare cutover.**
-Production keeps running the previous (Supabase) build until then; this one
-would read a D1 copy that stops being current and log sends there.
-
-At the cutover, after the final `migrate:import -- --remote --fresh` (d1/README.md):
+The cutover is done: the deployed Worker has been this D1 build since
+2026-11-23 (`SUPABASE_SERVICE_ROLE_KEY` deleted). Deploy changes with the
+first command below; run any new D1 migration remotely first. The original
+cutover steps were:
 
 ```sh
 cd ~ && npx --prefix ~/PatternChess wrangler deploy --config ~/PatternChess/workers/notifier/wrangler.jsonc
