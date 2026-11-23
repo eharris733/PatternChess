@@ -43,6 +43,7 @@ export function DevSignInForm() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="Email"
+        aria-label="Email"
         autoComplete="username"
         className="rounded border border-text-primary bg-bg px-2 py-1.5 text-sm"
       />
@@ -53,6 +54,7 @@ export function DevSignInForm() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="Password"
+        aria-label="Password"
         autoComplete="current-password"
         className="rounded border border-text-primary bg-bg px-2 py-1.5 text-sm"
       />

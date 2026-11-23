@@ -64,6 +64,21 @@ test('profile training card saves the two preferences on toggle', async ({ page 
   await expect.poll(() => patches(rec)).toContainEqual(expect.objectContaining({ show_answer_on_miss: true }));
 });
 
+test('linked-account fields are labelled and save the usernames', async ({ page }) => {
+  const rec = await stubAuth(page);
+  await page.goto('/profile');
+
+  const lichess = page.getByLabel('Lichess username');
+  await expect(lichess).toHaveValue('tester');
+  await page.getByLabel('Chess.com username').fill('hikaru');
+  await expect(page.getByRole('group', { name: 'Time controls' })).toBeVisible();
+
+  await page.locator('#settings').getByRole('button', { name: 'Save' }).click();
+  await expect
+    .poll(() => patches(rec))
+    .toContainEqual(expect.objectContaining({ lichess_username: 'tester', chesscom_username: 'hikaru' }));
+});
+
 test('training toggles flip optimistically while the profile write is in flight', async ({ page }) => {
   await stubAuth(page, { patchBehavior: 'slow' });
   await page.goto('/profile');

@@ -256,18 +256,24 @@ export function ProfileRoute() {
       <section id="settings" className="card flex flex-col gap-4 scroll-mt-6">
         <h2 className="heading-md">{t('profile.linkedAccounts')}</h2>
         <div className="flex flex-col gap-2">
-          <label className="label">{t('profile.lichessUsername')}</label>
+          <label className="label" htmlFor="profile-lichess-username">{t('profile.lichessUsername')}</label>
           <input
+            id="profile-lichess-username"
             className="input"
+            autoComplete="off"
+            spellCheck={false}
             placeholder={t('profile.examplePlaceholder', { name: 'drnykterstein' })}
             value={lichess}
             onChange={(e) => setLichess(e.target.value)}
           />
         </div>
         <div className="flex flex-col gap-2">
-          <label className="label">{t('profile.chesscomUsername')}</label>
+          <label className="label" htmlFor="profile-chesscom-username">{t('profile.chesscomUsername')}</label>
           <input
+            id="profile-chesscom-username"
             className="input"
+            autoComplete="off"
+            spellCheck={false}
             placeholder={t('profile.examplePlaceholder', { name: 'hikaru' })}
             value={chesscom}
             onChange={(e) => setChesscom(e.target.value)}

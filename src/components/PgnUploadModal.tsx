@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
@@ -39,6 +39,7 @@ export function PgnUploadModal() {
   const [result, setResult] = useState<PgnUploadResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const fieldId = useId();
 
   // Reset state whenever the modal opens fresh.
   useEffect(() => {
@@ -206,9 +207,10 @@ export function PgnUploadModal() {
             </p>
 
             <div className="flex flex-col gap-2">
-              <label className="label">Import from Lichess study URL</label>
+              <label className="label" htmlFor={`${fieldId}-study`}>Import from Lichess study URL</label>
               <div className="flex gap-2">
                 <input
+                  id={`${fieldId}-study`}
                   className="input flex-1"
                   placeholder="https://lichess.org/study/XXXXXXXX"
                   value={studyUrl}
@@ -236,8 +238,9 @@ export function PgnUploadModal() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="label">Your name in these games</label>
+              <label className="label" htmlFor={`${fieldId}-name`}>Your name in these games</label>
               <input
+                id={`${fieldId}-name`}
                 className="input"
                 placeholder="e.g. drnykterstein"
                 value={userPgnName}
@@ -249,8 +252,9 @@ export function PgnUploadModal() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="label">PGN file(s)</label>
+              <label className="label" htmlFor={`${fieldId}-files`}>PGN file(s)</label>
               <input
+                id={`${fieldId}-files`}
                 ref={fileInputRef}
                 type="file"
                 accept=".pgn,.txt,application/x-chess-pgn,text/plain"
@@ -264,8 +268,9 @@ export function PgnUploadModal() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="label">…or paste PGN</label>
+              <label className="label" htmlFor={`${fieldId}-text`}>…or paste PGN</label>
               <textarea
+                id={`${fieldId}-text`}
                 className="input font-mono text-xs h-40"
                 placeholder={'[Event "..."]\n[Site "..."]\n[White "..."]\n[Black "..."]\n\n1. e4 e5 ...'}
                 value={pgnText}

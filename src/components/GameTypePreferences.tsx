@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import type { TimeControlCategory } from '../services/chessApiService';
 import { useT } from '../i18n/useT';
 import type { MessageKey } from '../i18n/i18n';
@@ -26,6 +27,7 @@ export function GameTypePreferences({
   onToggleTimeControl: (value: TimeControlCategory) => void;
 }) {
   const t = useT();
+  const groupId = useId();
   return (
     <div className="flex flex-col gap-4">
       <label className="flex items-center gap-2 select-none">
@@ -37,11 +39,16 @@ export function GameTypePreferences({
         <span>{t('gameType.ratedOnly')}</span>
       </label>
       <div className="flex flex-col gap-2">
-        <label className="label">{t('gameType.timeControls')}</label>
-        <p className="text-text-primary text-xs -mt-1">
+        <div className="label" id={`${groupId}-label`}>{t('gameType.timeControls')}</div>
+        <p className="text-text-primary text-xs -mt-1" id={`${groupId}-help`}>
           {t('gameType.timeControlsHelp')}
         </p>
-        <div className="flex flex-wrap gap-3">
+        <div
+          className="flex flex-wrap gap-3"
+          role="group"
+          aria-labelledby={`${groupId}-label`}
+          aria-describedby={`${groupId}-help`}
+        >
           {TIME_CONTROL_OPTIONS.map((opt) => (
             <label
               key={opt.value}

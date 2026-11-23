@@ -240,6 +240,7 @@ export function ReviewRoute() {
             <textarea
               className="input min-h-[80px] py-2"
               placeholder="Coach's note (optional)"
+              aria-label="Coach's note"
               value={currentAnnotation?.text ?? ''}
               onChange={(e) => r.setText(e.target.value)}
             />
