@@ -1,20 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../../auth/useAuth';
 import { useGames } from '../../hooks/useGames';
 import { supabaseService } from '../../services/supabaseService';
 import { fenSideToMove, uciToSan } from '../../chess/moveUtils';
+import { MOTIF_LABEL, type Motif } from '../../chess/motifs';
 import {
   DRILL_KIND_LABEL,
   SR_BUCKET_LABEL,
-  SR_BUCKET_ORDER,
   SPACED_REPETITION_DAYS,
   srBucket,
   type Blunder,
   type DrillKind,
-  type SrBucket,
 } from '../../models/blunder';
 import type { GameRecord } from '../../models/gameRecord';
 import { MiniBoard } from '../MiniBoard';
@@ -25,6 +24,17 @@ import { SR_BUCKET_PILL } from '../training/PositionSrState';
 import { PositionShareModal } from '../share/PositionShareModal';
 import { PositionPreviewModal } from './PositionPreviewModal';
 import { blunderOrientation, formatDate } from './vaultHelpers';
+import { VaultFilterBar } from './VaultFilterBar';
+import { VaultExportMenu } from './VaultExportMenu';
+import {
+  clearFilterParams,
+  effectiveFilters,
+  matchesFilters,
+  positionFacts,
+  readFilters,
+  writeFilters,
+  type PositionFilters,
+} from './vaultFilters';
 
 export type PositionsMode = 'blunders' | 'mastered';
 
@@ -54,44 +64,39 @@ function positionTitle(b: Blunder): string {
 
 /**
  * Blunders (tactics + endgame slips) or mastered positions (every kind) as a
- * board grid — each one trainable on demand and shareable.
+ * board grid — each one trainable on demand and shareable. Filters live in
+ * the URL (see vaultFilters.ts) and Export takes exactly the filtered set.
  */
 export function VaultPositionsTab({ mode }: { mode: PositionsMode }) {
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
   const positions = useVaultPositions();
   const { data: games } = useGames();
   const gameById = useMemo(() => new Map((games ?? []).map((g) => [g.id, g])), [games]);
 
-  const [kind, setKind] = useState<DrillKind | 'all'>('all');
-  const [bucket, setBucket] = useState<SrBucket | 'all'>('all');
   const [shown, setShown] = useState(PAGE);
   const [preview, setPreview] = useState<Blunder | null>(null);
   const [sharing, setSharing] = useState<Blunder | null>(null);
 
+  const paramKey = params.toString();
+  const filters = useMemo(
+    () => effectiveFilters(readFilters(new URLSearchParams(paramKey)), mode),
+    [paramKey, mode],
+  );
+  const setFilters = (patch: Partial<PositionFilters>) =>
+    setParams((prev) => writeFilters(prev, patch), { replace: true });
+  const clearFilters = () => setParams((prev) => clearFilterParams(prev), { replace: true });
+  // A new filter starts from the top of the list.
+  useEffect(() => setShown(PAGE), [paramKey]);
+
   const pool = useMemo(
     () =>
-      (positions.data ?? []).filter((b) =>
-        mode === 'mastered' ? srBucket(b) === 'mastered' : BLUNDER_KINDS.includes(b.kind),
-      ),
-    [positions.data, mode],
+      (positions.data ?? [])
+        .filter((b) => (mode === 'mastered' ? srBucket(b) === 'mastered' : BLUNDER_KINDS.includes(b.kind)))
+        .map((b) => positionFacts(b, b.gameId ? (gameById.get(b.gameId) ?? null) : null)),
+    [positions.data, mode, gameById],
   );
-  const kindsPresent = useMemo(() => {
-    const set = new Set(pool.map((b) => b.kind));
-    return (['tactic', 'endgame', 'opening'] as const).filter((k) => set.has(k));
-  }, [pool]);
-  const bucketCounts = useMemo(() => {
-    const counts = {} as Record<SrBucket, number>;
-    for (const k of SR_BUCKET_ORDER) counts[k] = 0;
-    for (const b of pool) if (kind === 'all' || b.kind === kind) counts[srBucket(b)]++;
-    return counts;
-  }, [pool, kind]);
-  const items = useMemo(
-    () =>
-      pool.filter(
-        (b) => (kind === 'all' || b.kind === kind) && (mode === 'mastered' || bucket === 'all' || srBucket(b) === bucket),
-      ),
-    [pool, kind, bucket, mode],
-  );
+  const items = useMemo(() => pool.filter((f) => matchesFilters(f, filters)), [pool, filters]);
 
   const train = (b: Blunder) =>
     navigate('/training', { state: { blunderIds: [b.id], focusLabel: positionTitle(b) } });
@@ -126,47 +131,35 @@ export function VaultPositionsTab({ mode }: { mode: PositionsMode }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        {kindsPresent.length > 1 && (
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by type">
-            <button type="button" className="pill" aria-pressed={kind === 'all'} onClick={() => setKind('all')}>
-              All<span className="ml-1.5 text-text-secondary/70">{pool.length}</span>
-            </button>
-            {kindsPresent.map((k) => (
-              <button key={k} type="button" className="pill" aria-pressed={kind === k} onClick={() => setKind(k)}>
-                {DRILL_KIND_LABEL[k]}
-                <span className="ml-1.5 text-text-secondary/70">{pool.filter((b) => b.kind === k).length}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        {mode === 'blunders' && (
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by progress">
-            <button type="button" className="pill" aria-pressed={bucket === 'all'} onClick={() => setBucket('all')}>
-              Any progress
-            </button>
-            {SR_BUCKET_ORDER.map((k) => (
-              <button key={k} type="button" className="pill" aria-pressed={bucket === k} onClick={() => setBucket(k)}>
-                {SR_BUCKET_LABEL[k]}
-                <span className="ml-1.5 text-text-secondary/70">{bucketCounts[k]}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        <p className="text-text-primary text-sm">
+      <VaultFilterBar mode={mode} facts={pool} filters={filters} onChange={setFilters} onClear={clearFilters} />
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-text-primary text-sm" data-testid="vault-count">
           {items.length} {items.length === 1 ? 'position' : 'positions'}
+          {items.length !== pool.length && ` of ${pool.length}`}
         </p>
+        <VaultExportMenu mode={mode} items={items} />
       </div>
 
+      {items.length === 0 && (
+        <div className="card flex flex-col items-start gap-2" data-testid="vault-no-matches">
+          <p className="text-text-primary text-sm">No positions match these filters.</p>
+          <button type="button" className="pill" onClick={clearFilters}>
+            Clear filters
+          </button>
+        </div>
+      )}
+
       <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" data-testid={`vault-${mode}-list`}>
-        {items.slice(0, shown).map((b) => (
+        {items.slice(0, shown).map(({ blunder: b, game }) => (
           <PositionCard
             key={b.id}
             blunder={b}
-            game={b.gameId ? (gameById.get(b.gameId) ?? null) : null}
+            game={game}
+            activeMotif={filters.motif}
             onPreview={() => setPreview(b)}
             onTrain={() => train(b)}
             onShare={() => setSharing(b)}
+            onMotif={(m) => setFilters({ motif: filters.motif === m ? null : m })}
           />
         ))}
       </ul>
@@ -197,15 +190,19 @@ export function VaultPositionsTab({ mode }: { mode: PositionsMode }) {
 function PositionCard({
   blunder,
   game,
+  activeMotif,
   onPreview,
   onTrain,
   onShare,
+  onMotif,
 }: {
   blunder: Blunder;
   game: GameRecord | null;
+  activeMotif: Motif | null;
   onPreview: () => void;
   onTrain: () => void;
   onShare: () => void;
+  onMotif: (m: Motif) => void;
 }) {
   const bucket = srBucket(blunder);
   const orientation = game ? blunderOrientation(game, blunder) : fenSideToMove(blunder.fen);
@@ -232,8 +229,29 @@ function PositionCard({
           {SR_BUCKET_LABEL[bucket]}
         </span>
       </div>
+      {blunder.motifs.length > 0 && (
+        <ul className="flex flex-wrap gap-1" aria-label="Motifs" data-testid="vault-position-motifs">
+          {blunder.motifs.map((m) => (
+            <li key={m}>
+              <button
+                type="button"
+                aria-pressed={activeMotif === m}
+                title={activeMotif === m ? 'Show every motif' : `Show only: ${MOTIF_LABEL[m]}`}
+                onClick={() => onMotif(m)}
+                className={clsx(
+                  'px-1.5 py-0.5 border-2 font-mono text-[10px] uppercase tracking-tight text-text-primary transition-colors',
+                  activeMotif === m ? 'border-accent bg-accent/15' : 'border-text-primary/30 hover:bg-accent/15',
+                )}
+              >
+                {MOTIF_LABEL[m]}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <MasteryDots cycleNumber={blunder.cycleNumber} size="sm" />
-      <div className="flex gap-2">
+      {/* Bottom-aligned so cards with and without motif chips line up. */}
+      <div className="flex gap-2 mt-auto">
         <button type="button" className="btn-primary flex-1" onClick={onTrain}>
           Train
         </button>

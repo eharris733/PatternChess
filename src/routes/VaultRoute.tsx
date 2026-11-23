@@ -4,6 +4,7 @@ import { usePgnUploadStore } from '../state/pgnUploadStore';
 import { VaultGamesTab } from '../components/vault/VaultGamesTab';
 import { VaultPositionsTab } from '../components/vault/VaultPositionsTab';
 import { VaultRepertoireTab } from '../components/vault/VaultRepertoireTab';
+import { clearFilterParams } from '../components/vault/vaultFilters';
 
 type VaultTab = 'blunders' | 'mastered' | 'repertoire' | 'games';
 
@@ -23,7 +24,8 @@ export function VaultRoute() {
   const raw = params.get('tab');
   const tab: VaultTab = isTab(raw) ? raw : 'blunders';
   const setTab = (next: VaultTab) => {
-    const p = new URLSearchParams(params);
+    // Position filters carry between Blunders and Mastered; the other tabs don't use them.
+    const p = next === 'blunders' || next === 'mastered' ? new URLSearchParams(params) : clearFilterParams(params);
     if (next === 'blunders') p.delete('tab');
     else p.set('tab', next);
     setParams(p, { replace: true });

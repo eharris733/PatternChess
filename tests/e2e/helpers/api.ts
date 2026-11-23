@@ -172,6 +172,7 @@ const LIST_RPCS = new Set([
   'endgameScenarios.list',
   'endgameScenarios.unverified',
   'repertoire.list',
+  'vault.gameLinks',
   'sessions.recent',
   'sessions.since',
   'benchmarks.list',
@@ -348,6 +349,15 @@ export function seededHandlers(seed: SeedData): RpcHandlers {
       'games.countUnanalyzed': () => games.filter((g) => !g.analyzed_at).length,
       'games.playedSince': (a: Row) =>
         games.filter((g) => g.played_at && String(g.played_at) >= String(a.since)).map((g) => g.played_at),
+      'vault.gameLinks': (a: Row) =>
+        games
+          .filter((g) => inIds(a.ids, g.id))
+          .map((g) => ({
+            id: g.id,
+            platform: g.platform,
+            external_game_id: g.external_game_id ?? null,
+            time_control: g.time_control ?? null,
+          })),
       'games.externalIds': (a: Row) =>
         games.filter((g) => g.platform === a.platform).map((g) => g.external_game_id ?? null),
       'stats.gameRows': (a: Row) => games.filter((g) => !a.afterId || String(g.id) > String(a.afterId)),
