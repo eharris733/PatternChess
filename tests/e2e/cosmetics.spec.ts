@@ -17,7 +17,7 @@ const AVATAR = {
   accessory: 'none',
 };
 
-/** One blunder row carrying `solved` first-attempt solves (BlunderStats.reviewed = the path metric today). */
+/** One blunder row carrying `solved` first-attempt solves (blunder stats; the path reads sessions, below). */
 function blunders(solved: number) {
   return solved
     ? [
@@ -35,10 +35,23 @@ function blunders(solved: number) {
     : [];
 }
 
+/**
+ * The path counts first-attempt positions like the daily goal: the sum of
+ * training_sessions.blunders_attempted (profile.trainingTotals -> positions).
+ */
+function sessions(solved: number) {
+  if (!solved) return [];
+  const day = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  return [
+    { id: 's1', local_date: day, started_at: new Date().toISOString(), ended_at: null, blunders_attempted: solved, blunders_correct: solved, cycles_completed: 0 },
+  ];
+}
+
 async function stub(page: Page, opts: { solved?: number; profile?: Record<string, unknown>; rpc?: Record<string, (a: any) => unknown> } = {}) {
   const rec = await stubApp(page, {
     profile: { lichess_username: 'tester', ...opts.profile },
     blunders: blunders(opts.solved ?? 0),
+    sessions: sessions(opts.solved ?? 0),
     gameCount: 3,
     rpc: opts.rpc,
   });
