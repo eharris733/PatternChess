@@ -232,6 +232,11 @@ export interface TrainingStateShape {
   openingIntro: IntroLine | null;
   /** Opening drills: set on a correct answer. */
   openingVerdict: OpeningVerdict | null;
+  /**
+   * Set on a solve of a position that wasn't due yet: mastery stayed put and
+   * the position is next due at this date (applyDrillResult's `practice`).
+   */
+  practiceDueAt: Date | null;
   /** The user's repertoire (mirrored in by TrainingRoute); the saved move is the expected answer. */
   repertoire: RepertoireMap | null;
 
@@ -355,6 +360,7 @@ function makeInitial(): InitialShape {
     persistError: null,
     openingIntro: null,
     openingVerdict: null,
+    practiceDueAt: null,
     repertoire: null,
   };
 }
@@ -809,6 +815,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         phase: 'reviewing',
         openingIntro: null,
         openingVerdict: null,
+        practiceDueAt: null,
         fen: preplay.afterFen,
         orientation: playerSide,
         movableFor: null,
@@ -864,6 +871,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         lastMove: null,
         openingIntro,
         openingVerdict: null,
+        practiceDueAt: null,
         shapes: [],
         blunderSan,
         game,
@@ -1130,7 +1138,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     const isFirstAttempt = !state.attemptedBlunderIds.has(blunder.id);
 
     if (isCorrect) {
-      applyDrillResult(blunder, { success: true, isFirstAttempt }, { trackWrite: trackDrillWrite });
+      const srOutcome = applyDrillResult(blunder, { success: true, isFirstAttempt }, { trackWrite: trackDrillWrite });
 
       const playedSequence = [...drillPlies.slice(0, drillPly), uci];
       // The swing panel describes the user's own move once solved: the live
@@ -1151,6 +1159,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         return {
           phase: 'correct',
           openingVerdict,
+          practiceDueAt: srOutcome.practice ? blunder.nextDrillAt : null,
           pendingTryAgain: false,
           interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
           totalCorrect: isFirstAttempt && firstAttemptRecalled ? s.totalCorrect + 1 : s.totalCorrect,
@@ -1321,7 +1330,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     if (!blunder) return;
 
     const isFirstAttempt = !state.attemptedBlunderIds.has(blunder.id);
-    applyDrillResult(
+    const srOutcome = applyDrillResult(
       blunder,
       { success: opts.success, isFirstAttempt },
       { trackWrite: trackDrillWrite },
@@ -1333,6 +1342,7 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
         : s.attemptedBlunderIds;
       return {
         phase: opts.success ? 'correct' : 'incorrect',
+        practiceDueAt: srOutcome.practice ? blunder.nextDrillAt : null,
         pendingTryAgain: false,
         interactedBlunderIds: new Set(s.interactedBlunderIds).add(blunder.id),
         totalCorrect: isFirstAttempt && opts.success ? s.totalCorrect + 1 : s.totalCorrect,

@@ -581,6 +581,8 @@
   "sr.repetition": "Repetición",
   "sr.cycle": "ciclo {done}/{total}",
   "sr.nextReview": "Resuélvela → próximo repaso en {count} días",
+  "sr.notDueYet": "Toca el {date}. Resolverla ahora es práctica.",
+  "sr.practiced": "Práctica. El dominio avanza cuando toque, el {date}.",
   "sr.recalled": "{correct}/{total} acertadas",
   "sr.seen": "vista {when}",
   "sr.ago": "hace {value}",

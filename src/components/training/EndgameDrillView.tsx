@@ -236,6 +236,7 @@ export function EndgameDrillView({
           blunder={blunder}
           showTryAgainLabel={training.pendingTryAgain}
           showNextReview={playing && !revealed}
+          practiceDueAt={training.phase === 'correct' ? training.practiceDueAt : null}
         />
 
         {playing && <SideToPlay color={userColor} />}

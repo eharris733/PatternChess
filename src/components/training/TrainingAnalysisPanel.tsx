@@ -111,6 +111,7 @@ export function TrainingAnalysisPanel({
           showNextReview={
             state.phase === 'reviewing' || state.phase === 'solving' || state.phase === 'introducing'
           }
+          practiceDueAt={state.phase === 'correct' ? state.practiceDueAt : null}
         />
       )}
 

@@ -581,6 +581,8 @@
   "sr.repetition": "Repetition",
   "sr.cycle": "cycle {done}/{total}",
   "sr.nextReview": "Solve it → next review in {count} days",
+  "sr.notDueYet": "Due {date}. Solving it now is practice.",
+  "sr.practiced": "Practice. Mastery moves when it's due on {date}.",
   "sr.recalled": "{correct}/{total} recalled",
   "sr.seen": "seen {when}",
   "sr.ago": "{value} ago",

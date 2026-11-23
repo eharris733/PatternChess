@@ -269,6 +269,54 @@ async function updateOwned(
   await updateStmt(ctx.db, table, patch, 'id = ? AND user_id = ?', [id, ctx.user.id]).run();
 }
 
+/**
+ * Clock slack for the due check: the client decides "due" on its own clock,
+ * so a few minutes of skew must not turn a real review into practice.
+ */
+const DUE_SLACK_MS = 10 * 60_000;
+
+/**
+ * Server half of the SR rules (advanceSr in src/state/drills/applyDrillResult.ts
+ * is the client half). Never trust the client with the ladder:
+ * - a write moves `cycle_number` up by at most one rung;
+ * - a row that isn't due yet can't climb at all: unless the patch is a miss
+ *   (cycle back to 0), the ladder and recall fields are dropped and only
+ *   `last_drilled_at` (+ play-out fields) land, so re-drilling a position
+ *   over and over never masters it.
+ * Returns the patch to write (a copy).
+ */
+export function guardSrPatch(
+  stored: { cycle_number: number | null; next_drill_at: string | null },
+  patch: Record<string, unknown>,
+  now: Date = new Date(),
+): Record<string, unknown> {
+  const out = { ...patch };
+  const storedCycle = Number(stored.cycle_number ?? 0);
+  const due = !stored.next_drill_at || Date.parse(stored.next_drill_at) <= now.getTime() + DUE_SLACK_MS;
+  const isMiss = out.cycle_number === 0;
+  if (!due && !isMiss) {
+    for (const k of ['cycle_number', 'next_drill_at', 'times_correct', 'times_attempted', 'last_drill_failed']) delete out[k];
+    return out;
+  }
+  if (typeof out.cycle_number === 'number' && out.cycle_number > storedCycle + 1) out.cycle_number = storedCycle + 1;
+  return out;
+}
+
+async function guardedSrUpdate(
+  ctx: UserRpcContext,
+  table: 'blunders' | 'endgame_scenarios',
+  id: string,
+  patch: Record<string, unknown>,
+): Promise<void> {
+  const stored = await first<{ cycle_number: number | null; next_drill_at: string | null }>(
+    ctx.db,
+    `SELECT cycle_number, next_drill_at FROM ${table} WHERE id = ? AND user_id = ?`,
+    [id, ctx.user.id],
+  );
+  if (!stored) return;
+  await updateOwned(ctx, table, id, guardSrPatch(stored, patch));
+}
+
 async function count(ctx: UserRpcContext, sql: string, params: readonly SqlParam[]): Promise<number> {
   return Number((await scalar<number>(ctx.db, sql, params)) ?? 0);
 }
@@ -707,7 +755,7 @@ const blunders: RpcRegistry = {
     return null;
   }),
 
-  /** updateBlunderAfterDrill (the client computes the SR fields + next_drill_at). */
+  /** updateBlunderAfterDrill (the client computes the SR fields + next_drill_at; guardSrPatch checks them). */
   'blunders.updateAfterDrill': userRpc<Args>(async (ctx, args) => {
     const patch = pickPatch(args.patch, [
       'cycle_number',
@@ -717,7 +765,7 @@ const blunders: RpcRegistry = {
       'times_attempted',
       'last_drill_failed',
     ]);
-    await updateOwned(ctx, 'blunders', argId(args, 'id'), patch);
+    await guardedSrUpdate(ctx, 'blunders', argId(args, 'id'), patch);
     return null;
   }),
 
@@ -885,7 +933,7 @@ const endgameScenarios: RpcRegistry = {
     return null;
   }),
 
-  /** updateEndgameScenarioSr (the client computes the SR fields + next_drill_at). */
+  /** updateEndgameScenarioSr (the client computes the SR fields + next_drill_at; guardSrPatch checks them). */
   'endgameScenarios.updateSr': userRpc<Args>(async (ctx, args) => {
     const patch = pickPatch(args.patch, [
       'status',
@@ -898,7 +946,7 @@ const endgameScenarios: RpcRegistry = {
       'last_drilled_at',
       'next_drill_at',
     ]);
-    await updateOwned(ctx, 'endgame_scenarios', argId(args, 'id'), patch);
+    await guardedSrUpdate(ctx, 'endgame_scenarios', argId(args, 'id'), patch);
     return null;
   }),
 };

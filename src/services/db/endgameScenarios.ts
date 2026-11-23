@@ -80,7 +80,7 @@ export async function updateEndgameScenarioSr(s: EndgameScenario): Promise<void>
       times_attempted: s.timesAttempted,
       last_drill_failed: s.lastDrillFailed,
       last_drilled_at: (s.lastDrilledAt ?? new Date()).toISOString(),
-      next_drill_at: nextDrillDate(s).toISOString(),
+      next_drill_at: (s.nextDrillAt ?? nextDrillDate(s)).toISOString(),
     },
   });
 }
