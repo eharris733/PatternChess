@@ -2,6 +2,12 @@ import { extractHeaders } from './pgnParserService';
 import { analyzePgn } from './analysisService';
 import { getStockfish } from '../hooks/useStockfish';
 import type { BlunderCandidate } from '../stockfish/stockfishWorkerClient';
+import { classifyMoves, loadOpeningBook, movesFromPgn } from '../chess/openingClassifier';
+import { findDeviation, walkFens, type DeviationWalk } from '../chess/openingDeviation';
+import { bookEpd } from '../chess/bookFormat';
+import { fetchBook } from './openingBookService';
+import { buildDemoPlan, type DemoColor, type DemoPlan } from './demoPlan';
+import { currentT } from '../i18n/useT';
 
 export type DemoPlatform = 'lichess' | 'chesscom';
 
@@ -15,6 +21,8 @@ export interface DemoResult {
   eco: string | null;
   openingName: string | null;
   blunder: BlunderCandidate | null;
+  /** "Your plan for today" preview: openings + endgames from the same games. */
+  plan: DemoPlan;
 }
 
 export type DemoErrorCode =
@@ -42,6 +50,67 @@ interface RunOpts {
 
 const MAX_PLIES = 120;
 const MAX_GAMES = 5;
+/** The opening part of the plan is a nice-to-have: never hold the demo up for it. */
+const OPENING_PREP_TIMEOUT_MS = 8000;
+
+interface OpeningPrep {
+  family: string | null;
+  color: DemoColor | null;
+  walk: DeviationWalk | null;
+}
+
+function demoColor(headers: Record<string, string>, username: string): DemoColor | null {
+  const lower = username.toLowerCase();
+  if (headers.White?.toLowerCase() === lower) return 'white';
+  if (headers.Black?.toLowerCase() === lower) return 'black';
+  return null;
+}
+
+/**
+ * Each game's opening family (from the board) and its walk through the
+ * opening book, in one batched /api/book request. Network only, no engine.
+ * A failed book request leaves every walk null; the plan then shows the
+ * opening share without the theory exit.
+ */
+async function prepareOpenings(
+  games: { pgn: string; headers: Record<string, string> }[],
+  username: string,
+): Promise<OpeningPrep[]> {
+  const book = await loadOpeningBook().catch(() => null);
+  const parsed = games.map((g) => {
+    const moves = movesFromPgn(g.pgn);
+    return {
+      moves,
+      color: demoColor(g.headers, username),
+      family: book && moves ? (classifyMoves(book, moves)?.family ?? null) : null,
+    };
+  });
+  const fens = parsed.flatMap((p) => (p.moves && p.color ? walkFens(p.moves) : []));
+  const positions = fens.length > 0 ? await fetchBook(fens) : null;
+  return Promise.all(
+    parsed.map(async (p) => {
+      if (!positions || !p.moves || !p.color) return { family: p.family, color: p.color, walk: null };
+      const walk = await findDeviation(p.moves, p.color, async (fen) => positions.get(bookEpd(fen)) ?? null);
+      return { family: p.family, color: p.color, walk: walk === 'retry' ? null : walk };
+    }),
+  );
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const t = setTimeout(() => resolve(fallback), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      () => {
+        clearTimeout(t);
+        resolve(fallback);
+      },
+    );
+  });
+}
 
 export async function runDemoAnalysis(opts: RunOpts): Promise<DemoResult> {
   const { platform, username, onProgress, signal } = opts;
@@ -49,7 +118,10 @@ export async function runDemoAnalysis(opts: RunOpts): Promise<DemoResult> {
     if (signal.aborted) throw new DemoError('aborted', 'Run aborted');
   };
 
-  onProgress(`Fetching ${platform === 'lichess' ? 'Lichess' : 'Chess.com'} games…`);
+  // Progress and error copy follow the visitor's language at run time.
+  const t = currentT();
+  const platformName = platform === 'lichess' ? 'Lichess' : 'Chess.com';
+  onProgress(t('demo.progress.fetching', { platform: platformName }));
   let pgns: string[];
   try {
     pgns =
@@ -61,7 +133,7 @@ export async function runDemoAnalysis(opts: RunOpts): Promise<DemoResult> {
     if (signal.aborted) throw new DemoError('aborted', 'Run aborted');
     throw new DemoError(
       'network',
-      e instanceof Error ? e.message : 'Network request failed',
+      e instanceof Error ? e.message : t('demo.err.network'),
     );
   }
   ensureLive();
@@ -69,7 +141,7 @@ export async function runDemoAnalysis(opts: RunOpts): Promise<DemoResult> {
   if (pgns.length === 0) {
     throw new DemoError(
       'not-found',
-      `We couldn't find any recent games for "${username}" on ${platform === 'lichess' ? 'Lichess' : 'Chess.com'}. Check the spelling or try the other platform.`,
+      t('demo.err.noGames', { username, platform: platformName }),
     );
   }
 
@@ -82,23 +154,27 @@ export async function runDemoAnalysis(opts: RunOpts): Promise<DemoResult> {
   if (gamesWithHeaders.length === 0) {
     throw new DemoError(
       'too-short',
-      'Those games were too short to analyze. Try a username with longer games.',
+      t('demo.err.tooShort'),
     );
   }
 
-  onProgress('Loading engine…');
+  // Book walk runs while the engine analyzes.
+  const openingPrep = prepareOpenings(gamesWithHeaders, username).catch(() => null);
+
+  onProgress(t('demo.progress.engine'));
   let sf;
   try {
     sf = await getStockfish();
   } catch (e) {
     throw new DemoError(
       'engine-failed',
-      e instanceof Error ? e.message : 'Engine failed to start.',
+      e instanceof Error ? e.message : t('demo.err.engine'),
     );
   }
   ensureLive();
 
   const allBlunders: BlunderCandidate[] = [];
+  const blundersByGame: BlunderCandidate[][] = [];
   let positionsAnalyzed = 0;
   let openingName: string | null = null;
   let eco: string | null = null;
@@ -122,19 +198,38 @@ export async function runDemoAnalysis(opts: RunOpts): Promise<DemoResult> {
       onProgress: (current, total) => {
         if (signal.aborted) return;
         if (current % 3 === 0 || current === total - 1) {
-          const gameNum =
+          onProgress(
             gamesWithHeaders.length > 1
-              ? ` (game ${gi + 1}/${gamesWithHeaders.length})`
-              : '';
-          onProgress(`Analyzing position ${current + 1}/${total}${gameNum}…`);
+              ? t('demo.progress.analyzingGame', {
+                  at: current + 1,
+                  total,
+                  game: gi + 1,
+                  games: gamesWithHeaders.length,
+                })
+              : t('demo.progress.analyzing', { at: current + 1, total }),
+          );
         }
       },
     });
     positionsAnalyzed += positions.length;
     allBlunders.push(...blunders);
+    blundersByGame.push(blunders);
   }
 
   ensureLive();
+
+  onProgress(t('demo.progress.building'));
+  const prep = await withTimeout(openingPrep, OPENING_PREP_TIMEOUT_MS, null);
+  ensureLive();
+  const plan = buildDemoPlan(
+    gamesWithHeaders.map((g, i) => ({
+      family: prep?.[i]?.family ?? null,
+      color: prep?.[i]?.color ?? demoColor(g.headers, username),
+      result: g.headers.Result ?? null,
+      blunders: blundersByGame[i] ?? [],
+      walk: prep?.[i]?.walk ?? null,
+    })),
+  );
 
   allBlunders.sort((a, b) => b.evalSwing - a.evalSwing);
   const top = allBlunders[0] ?? null;
@@ -149,6 +244,7 @@ export async function runDemoAnalysis(opts: RunOpts): Promise<DemoResult> {
     eco,
     openingName,
     blunder: top,
+    plan,
   };
 }
 
@@ -170,17 +266,17 @@ async function fetchLichessPgns(
   if (res.status === 404) {
     throw new DemoError(
       'not-found',
-      `Lichess doesn't have a user called "${username}". Check the spelling or try Chess.com.`,
+      currentT()('demo.err.lichessNoUser', { username }),
     );
   }
   if (res.status === 429) {
     throw new DemoError(
       'rate-limited',
-      'Lichess is rate-limiting us right now. Try again in a minute, or sign up to import your full history.',
+      currentT()('demo.err.lichessRate'),
     );
   }
   if (!res.ok) {
-    throw new DemoError('network', `Lichess returned ${res.status}.`);
+    throw new DemoError('network', currentT()('demo.err.status', { platform: 'Lichess', status: res.status }));
   }
   const text = await res.text();
   if (text.trim().length === 0) return [];
@@ -199,17 +295,17 @@ async function fetchChessComPgns(
   if (archivesRes.status === 404) {
     throw new DemoError(
       'not-found',
-      `Chess.com doesn't have a user called "${username}". Check the spelling or try Lichess.`,
+      currentT()('demo.err.chesscomNoUser', { username }),
     );
   }
   if (archivesRes.status === 429) {
     throw new DemoError(
       'rate-limited',
-      'Chess.com is rate-limiting us right now. Try again in a minute.',
+      currentT()('demo.err.chesscomRate'),
     );
   }
   if (!archivesRes.ok) {
-    throw new DemoError('network', `Chess.com returned ${archivesRes.status}.`);
+    throw new DemoError('network', currentT()('demo.err.status', { platform: 'Chess.com', status: archivesRes.status }));
   }
   const archivesJson = (await archivesRes.json()) as { archives?: string[] };
   const archives = [...(archivesJson.archives ?? [])].sort((a, b) => b.localeCompare(a));

@@ -1,0 +1,609 @@
+{
+  "version": 1,
+  "freeDays": 2,
+  "courses": [
+    {
+      "slug": "caro-kann-foundations",
+      "title": "Caro-Kann Foundations",
+      "summary": "Five short sessions on the Caro-Kann's main lines, its structures and the sharpest ways White attacks it.",
+      "topic": {
+        "type": "opening",
+        "keys": [
+          "Caro-Kann Defense"
+        ],
+        "color": "black"
+      },
+      "creator": {
+        "name": "Hanging Pawns",
+        "channelUrl": "https://www.youtube.com/@HangingPawns"
+      },
+      "permission": {
+        "status": "pending",
+        "date": null,
+        "note": ""
+      },
+      "days": [
+        {
+          "title": "The main lines at a glance",
+          "youtubeId": "Jiz7KLKjLas",
+          "start": 0,
+          "end": 811,
+          "takeaway": "1...c6 prepares ...d5, so Black challenges e4 with a pawn behind it. The Classical ...Bf5, the Karpov ...Nd7 and the ...Nf6 lines all grow from the same 3.Nc3 dxe4 4.Nxe4 position."
+        },
+        {
+          "title": "Advance, Fantasy, Exchange and Panov",
+          "youtubeId": "Jiz7KLKjLas",
+          "start": 811,
+          "end": 1564,
+          "takeaway": "White's main ways to sidestep the Classical lines are 3.e5, 3.f3 and the exchange on d5, often followed by c4 in the Panov. Each one hands you a different pawn structure, and the structure tells you the plan."
+        },
+        {
+          "title": "What the Caro-Kann is really about"
+        },
+        {
+          "title": "The scariest attacks, part 1"
+        },
+        {
+          "title": "The scariest attacks, part 2"
+        }
+      ]
+    },
+    {
+      "slug": "sicilian-essentials",
+      "title": "Sicilian Essentials",
+      "summary": "Understand why 1...c5 works, which variation you're in, and how to handle the anti-Sicilians club players love.",
+      "topic": {
+        "type": "opening",
+        "keys": [
+          "Sicilian Defense"
+        ],
+        "color": "black"
+      },
+      "creator": {
+        "name": "Hanging Pawns",
+        "channelUrl": "https://www.youtube.com/@HangingPawns"
+      },
+      "permission": {
+        "status": "pending",
+        "date": null,
+        "note": ""
+      },
+      "days": [
+        {
+          "title": "Why 1...c5 works",
+          "youtubeId": "UQlQjco7Mc8",
+          "start": 541,
+          "end": 966,
+          "takeaway": "1...c5 fights for d4 from the flank. In the Open Sicilian, Black trades the c-pawn for White's d-pawn and keeps an extra central pawn, an edge that often counts later in the game."
+        },
+        {
+          "title": "The anti-Sicilians",
+          "youtubeId": "impkeLfyyVM",
+          "start": 372,
+          "end": 889,
+          "takeaway": "Plenty of club opponents skip the Open Sicilian with 2.Nc3, 2.c3, 2.f4 or the Smith-Morra Gambit. Have a simple, confident answer ready for each one."
+        },
+        {
+          "title": "Every main variation in one sitting"
+        },
+        {
+          "title": "Strategy of the Sicilian"
+        }
+      ]
+    },
+    {
+      "slug": "french-defense-plans",
+      "title": "French Defense: Plans and Traps",
+      "summary": "The French's core ideas, its main variations from Black's side, and the traps that decide club games.",
+      "topic": {
+        "type": "opening",
+        "keys": [
+          "French Defense"
+        ],
+        "color": "black"
+      },
+      "creator": {
+        "name": "Remote Chess Academy (GM Igor Smirnov)",
+        "channelUrl": "https://www.youtube.com/@GMIgorSmirnov"
+      },
+      "permission": {
+        "status": "pending",
+        "date": null,
+        "note": ""
+      },
+      "days": [
+        {
+          "title": "The French in one idea",
+          "youtubeId": "ETPmKM8PfMs",
+          "start": 47,
+          "end": 617,
+          "takeaway": "1...e6 builds a solid centre but locks in the c8-bishop, so finding that bishop a job is a theme you'll meet again and again. Smirnov also flags early traps for both sides."
+        },
+        {
+          "title": "The Advance Variation and Black's middlegame plan",
+          "youtubeId": "bfSqm6_OsW8",
+          "start": 64,
+          "end": 703,
+          "takeaway": "After 3.e5, Black has a standard middlegame plan. This session maps it out and covers White's common tries, including a3 to stop ...Nb4."
+        },
+        {
+          "title": "Classical, Fort Knox and Exchange"
+        },
+        {
+          "title": "Seven traps, both colours"
+        }
+      ]
+    },
+    {
+      "slug": "italian-game-club-guide",
+      "title": "The Italian Game, Club Edition",
+      "summary": "Plans, sidelines and traps in the Italian from both sides of the board, from Black's gambits to the Fried Liver.",
+      "topic": {
+        "type": "opening",
+        "keys": [
+          "Italian Game"
+        ]
+      },
+      "creator": {
+        "name": "Remote Chess Academy (GM Igor Smirnov)",
+        "channelUrl": "https://www.youtube.com/@GMIgorSmirnov"
+      },
+      "permission": {
+        "status": "pending",
+        "date": null,
+        "note": ""
+      },
+      "days": [
+        {
+          "title": "Basic ideas and Black's tricky sidelines",
+          "youtubeId": "6ACqk117Q7U",
+          "start": 12,
+          "end": 537,
+          "takeaway": "Starting plans for both sides, then the sidelines club players love: the Paris Defense, Légal's mate, the Blackburne Shilling Gambit and the Rousseau Gambit."
+        },
+        {
+          "title": "Giuoco Piano with c3 and d4",
+          "youtubeId": "qUews8fEGkc",
+          "start": 12,
+          "end": 797,
+          "takeaway": "Why White plays 4.c3: it prepares d4 and the Center Attack. Includes a nine-move trap and a natural-looking queen move to avoid."
+        },
+        {
+          "title": "The slow Italian from Black's side"
+        },
+        {
+          "title": "Carlsen's Italian without theory"
+        },
+        {
+          "title": "Two Knights and the Fried Liver"
+        }
+      ]
+    },
+    {
+      "slug": "london-system-model-games",
+      "title": "London System Model Games",
+      "summary": "IM Eric Rosen's London System games to know by heart, with the traps that win club games.",
+      "topic": {
+        "type": "opening",
+        "keys": [
+          "London System",
+          "London System, with Bd3",
+          "London System, with Be2",
+          "Queen's Pawn Game",
+          "Indian Defense"
+        ],
+        "color": "white"
+      },
+      "creator": {
+        "name": "Saint Louis Chess Club",
+        "channelUrl": "https://www.youtube.com/@STLChessClub"
+      },
+      "permission": {
+        "status": "pending",
+        "date": null,
+        "note": ""
+      },
+      "days": [
+        {
+          "title": "Why the London, and a bullet masterclass",
+          "youtubeId": "_g1xMZhGOuc",
+          "start": 0,
+          "end": 677,
+          "takeaway": "Rosen makes his case for the London System, then walks through a fast game to show how the setup plays when the clock is short."
+        },
+        {
+          "title": "Kamsky's classic trap",
+          "youtubeId": "_g1xMZhGOuc",
+          "start": 677,
+          "end": 1380,
+          "takeaway": "A London game from Gata Kamsky against Sam Shankland (2014), built around a trap worth knowing by heart."
+        },
+        {
+          "title": "The Ashwin trap"
+        },
+        {
+          "title": "A long fight against Agdestein"
+        }
+      ]
+    },
+    {
+      "slug": "scandinavian-defense-explained",
+      "title": "Scandinavian Defense Explained",
+      "summary": "Jonathan Schrantz on 1.e4 d5: the main lines, where the queen belongs, and top-level games in the opening.",
+      "topic": {
+        "type": "opening",
+        "keys": [
+          "Scandinavian Defense"
+        ],
+        "color": "black"
+      },
+      "creator": {
+        "name": "Saint Louis Chess Club",
+        "channelUrl": "https://www.youtube.com/@STLChessClub"
+      },
+      "permission": {
+        "status": "pending",
+        "date": null,
+        "note": ""
+      },
+      "days": [
+        {
+          "title": "1.e4 d5 and the main line",
+          "youtubeId": "OGehkS76Q24",
+          "start": 0,
+          "end": 813,
+          "takeaway": "After 2.exd5 Qxd5 the black queen is out early, and the whole opening turns on where it goes next. Start with the main line."
+        },
+        {
+          "title": "Modern lines and alternatives",
+          "youtubeId": "OGehkS76Q24",
+          "start": 813,
+          "end": 1460,
+          "takeaway": "A survey of the modern alternatives to the main line, so a deviation on move three or four doesn't leave you guessing."
+        },
+        {
+          "title": "A model game at the top"
+        },
+        {
+          "title": "Where the queen goes"
+        }
+      ]
+    },
+    {
+      "slug": "stop-hanging-pieces",
+      "title": "Stop Hanging Pieces",
+      "summary": "Real positions where pieces get left hanging, and a short checklist that keeps yours protected.",
+      "topic": {
+        "type": "motif",
+        "keys": [
+          "leftPieceHanging",
+          "hangingPiece"
+        ]
+      },
+      "creator": {
+        "name": "Dr. Can's Chess Clinic (Can Kabadayi)",
+        "channelUrl": "https://www.youtube.com/@Dr.CansClinic"
+      },
+      "permission": {
+        "status": "pending",
+        "date": null,
+        "note": ""
+      },
+      "days": [
+        {
+          "title": "Positions 1 to 3",
+          "youtubeId": "UhKxU9dM72s",
+          "start": 0,
+          "end": 460,
+          "takeaway": "Dr. Can sorts hung pieces into three common kinds of blunder. Pause on each position and find the loose piece before he does."
+        },
+        {
+          "title": "Positions 4 and 5",
+          "youtubeId": "UhKxU9dM72s",
+          "start": 460,
+          "end": 958,
+          "takeaway": "Two more positions. As you watch, name which of the three blunder types each one shows; naming the pattern is how you start catching it at the board."
+        },
+        {
+          "title": "Positions 6, 7 and homework"
+        },
+        {
+          "title": "A simple mental checklist"
+        }
+      ]
+    },
+    {
+      "slug": "avoid-knight-forks",
+      "title": "Avoid Knight Forks",
+      "summary": "Six practical tips from GM Igor Smirnov for keeping your pieces out of fork range, and for fighting back when one lands.",
+      "topic": {
+        "type": "motif",
+        "keys": [
+          "allowedFork",
+          "missedFork"
+        ]
+      },
+      "creator": {
+        "name": "Remote Chess Academy (GM Igor Smirnov)",
+        "channelUrl": "https://www.youtube.com/@GMIgorSmirnov"
+      },
+      "permission": {
+        "status": "pending",
+        "date": null,
+        "note": ""
+      },
+      "days": [
+        {
+          "title": "Tips 1 to 3",
+          "youtubeId": "FGx28GrVrY8",
+          "start": 0,
+          "end": 378,
+          "takeaway": "Forks rarely come from nowhere; they follow a threat you didn't notice. The first three tips cover the knight patterns that set them up."
+        },
+        {
+          "title": "Tip 4 and a very common fork",
+          "youtubeId": "FGx28GrVrY8",
+          "start": 378,
+          "end": 659,
+          "takeaway": "Tip 4, a fork blunder more than two million players have made, and how to start saving the game once you've been forked."
+        },
+        {
+          "title": "Tips 5 and 6: fighting back"
+        }
+      ]
+    },
+    {
+      "slug": "power-of-the-pin",
+      "title": "The Power of the Pin",
+      "summary": "ChessNetwork's lesson on pins from both sides: why they bite, how to handle being pinned, and how to use one well.",
+      "topic": {
+        "type": "motif",
+        "keys": [
+          "allowedPin",
+          "missedPin"
+        ]
+      },
+      "creator": {
+        "name": "ChessNetwork",
+        "channelUrl": "https://www.youtube.com/@ChessNetwork"
+      },
+      "permission": {
+        "status": "pending",
+        "date": null,
+        "note": ""
+      },
+      "days": [
+        {
+          "title": "What makes a pin powerful",
+          "youtubeId": "851pCMJv2Sg",
+          "start": 0,
+          "end": 480,
+          "takeaway": "How pins work, which pieces can pin, and the first steps for handling a pin against you."
+        },
+        {
+          "title": "Strategic tips for pins",
+          "youtubeId": "851pCMJv2Sg",
+          "start": 480,
+          "end": 1037,
+          "takeaway": "Practical advice for both situations: when you're stuck in a pin, and when your opponent is."
+        },
+        {
+          "title": "Pins in action"
+        },
+        {
+          "title": "Restriction over capture"
+        }
+      ]
+    },
+    {
+      "slug": "discovered-attacks",
+      "title": "Discovered Attacks and Double Checks",
+      "summary": "Learn to see discovered attacks, discovered checks and double checks, so you stop missing them in your own games.",
+      "topic": {
+        "type": "motif",
+        "keys": [
+          "missedDiscoveredAttack",
+          "allowedDiscoveredAttack"
+        ]
+      },
+      "creator": {
+        "name": "Chess Vibes",
+        "channelUrl": "https://www.youtube.com/@ChessVibesOfficial"
+      },
+      "permission": {
+        "status": "pending",
+        "date": null,
+        "note": ""
+      },
+      "days": [
+        {
+          "title": "The concept and first examples",
+          "youtubeId": "XTNplr3nwck",
+          "start": 0,
+          "end": 431,
+          "takeaway": "A discovered attack happens when one piece moves out of the way and uncovers another's attack, so two threats land at once. Start with the idea and simple examples."
+        },
+        {
+          "title": "Building one from scratch",
+          "youtubeId": "XTNplr3nwck",
+          "start": 431,
+          "end": 927,
+          "takeaway": "How to set up a discovered attack when it isn't there yet, including removing the defender, then a harder final puzzle."
+        },
+        {
+          "title": "Discovered check and double check"
+        },
+        {
+          "title": "Harder examples, including smothered mate"
+        }
+      ]
+    },
+    {
+      "slug": "opening-principles",
+      "title": "What to Do in the Opening",
+      "summary": "Build a combative pawn structure and develop efficiently, with ChessNetwork's opening fundamentals.",
+      "topic": {
+        "type": "phase",
+        "keys": [
+          "opening"
+        ]
+      },
+      "creator": {
+        "name": "ChessNetwork",
+        "channelUrl": "https://www.youtube.com/@ChessNetwork"
+      },
+      "permission": {
+        "status": "pending",
+        "date": null,
+        "note": ""
+      },
+      "days": [
+        {
+          "title": "Basic opening ideas",
+          "youtubeId": "C_hJS29_IUk",
+          "takeaway": "The opening checklist in its simplest form, aimed at players who know the rules and want a starting plan."
+        },
+        {
+          "title": "The pawn duo",
+          "youtubeId": "pOjzvVVrxWw",
+          "start": 0,
+          "end": 512,
+          "takeaway": "The opening is about building a combative structure and developing efficiently. Two pawns side by side in the centre, a pawn duo, are the backbone of that structure."
+        },
+        {
+          "title": "Challenging and managing the centre"
+        },
+        {
+          "title": "Indirect challenges and pawn breaks"
+        }
+      ]
+    },
+    {
+      "slug": "blunder-check-habits",
+      "title": "Blunder-Check Habits",
+      "summary": "Why middlegame blunders happen (focus, time, tunnel vision, overcomplicating) and the habits that stop them.",
+      "topic": {
+        "type": "phase",
+        "keys": [
+          "middlegame"
+        ]
+      },
+      "creator": {
+        "name": "GM Noel Studer",
+        "channelUrl": "https://www.youtube.com/@GMnoelstuder"
+      },
+      "permission": {
+        "status": "pending",
+        "date": null,
+        "note": ""
+      },
+      "days": [
+        {
+          "title": "What counts as a blunder",
+          "youtubeId": "sY342LJSb5w",
+          "start": 0,
+          "end": 478,
+          "takeaway": "A real game full of mistakes, then a working definition of a blunder. Knowing what you're trying to prevent is step one."
+        },
+        {
+          "title": "Focus and the clock",
+          "youtubeId": "sY342LJSb5w",
+          "start": 478,
+          "end": 965,
+          "takeaway": "The first two causes: losing focus, and time trouble. Studer gives concrete do's and don'ts for playing with focus."
+        },
+        {
+          "title": "Tunnel vision and overcomplicating"
+        },
+        {
+          "title": "Make the blunder check consistent"
+        }
+      ]
+    },
+    {
+      "slug": "rook-endgame-essentials",
+      "title": "Rook Endgame Essentials",
+      "summary": "The five rook-and-pawn positions every club player should know, one short lesson at a time.",
+      "topic": {
+        "type": "phase",
+        "keys": [
+          "endgame"
+        ],
+        "endgameType": "rook"
+      },
+      "creator": {
+        "name": "John Bartholomew",
+        "channelUrl": "https://www.youtube.com/@JohnBartholomewChess"
+      },
+      "permission": {
+        "status": "pending",
+        "date": null,
+        "note": ""
+      },
+      "days": [
+        {
+          "title": "The Lucena position",
+          "youtubeId": "mQxterlZPnE",
+          "takeaway": "The standard winning method with rook and pawn against rook: cut off the enemy king, then build a bridge with your rook to shelter your own king from checks."
+        },
+        {
+          "title": "The Philidor position",
+          "youtubeId": "gkP44VKT9Rw",
+          "takeaway": "The defender's first resource. Learn the common ways to get it wrong, then the correct method for holding the draw."
+        },
+        {
+          "title": "Short side, long side"
+        },
+        {
+          "title": "First-rank defence"
+        },
+        {
+          "title": "The Vancura position"
+        }
+      ]
+    },
+    {
+      "slug": "king-and-pawn-endgames",
+      "title": "King and Pawn Endgames",
+      "summary": "Opposition, shouldering and the decision to trade into a pawn ending, the basics that decide close games.",
+      "topic": {
+        "type": "phase",
+        "keys": [
+          "endgame"
+        ],
+        "endgameType": "pawn"
+      },
+      "creator": {
+        "name": "John Bartholomew",
+        "channelUrl": "https://www.youtube.com/@JohnBartholomewChess"
+      },
+      "permission": {
+        "status": "pending",
+        "date": null,
+        "note": ""
+      },
+      "days": [
+        {
+          "title": "King and pawn vs king: the rules",
+          "youtubeId": "aLyRWZPXUzI",
+          "start": 0,
+          "end": 581,
+          "takeaway": "Common errors, then the basic evaluation. Opposition: the kings face each other on the same file with an odd number of squares between them, and it's the other side to move."
+        },
+        {
+          "title": "Winning paths and distant opposition",
+          "youtubeId": "aLyRWZPXUzI",
+          "start": 581,
+          "end": 1220,
+          "takeaway": "Correcting the winning path, taking the opposition from a distance, and the exceptions to the rule."
+        },
+        {
+          "title": "Opposition, shouldering and reserve tempi"
+        },
+        {
+          "title": "Think before you trade into a pawn ending"
+        }
+      ]
+    }
+  ]
+}

@@ -17,10 +17,12 @@ const ROUTES: Array<{ path: string; name: string; expect: (p: import('@playwrigh
     path: '/',
     name: 'dashboard',
     expect: async (p) => {
-      // Stubbed session has games (gate hidden) but no linked account and an
-      // empty games list -> first-run hero.
-      await expect(p.getByText(/Welcome to PatternChess/i)).toBeVisible();
-      await expect(p.getByRole('button', { name: /Connect Lichess or Chess\.com/i })).toBeVisible();
+      // The stubbed session has 3 games (games.totalCount), so it is past the
+      // first run even with no linked account (PGN uploads count as games):
+      // the plan shows, and the Vault card reports the count, not the list.
+      await expect(p.getByText("Today's plan")).toBeVisible();
+      await expect(p.getByText(/Welcome to PatternChess/i)).toHaveCount(0);
+      await expect(p.getByTestId('dashboard-insights').getByText('3 games')).toBeVisible();
     },
   },
   {

@@ -1,34 +1,28 @@
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { useAuth } from '../../auth/useAuth';
-import { useDrillsToday } from '../../hooks/useTrainingActivity';
 import { useAchievements } from '../../hooks/useAchievements';
-import { useDueCount } from '../../hooks/useDueCount';
-import { useEndgameScenarios } from '../../hooks/useEndgameScenarios';
-import { useDrillsOfKind } from '../../hooks/useDrillsOfKind';
-import { isScenarioDue } from '../../models/endgameScenario';
-import { COMMITMENT_LABEL, DEFAULT_DAILY_GOALS } from '../../lib/dailyGoal';
-import { useGamesPlayedToday } from '../../hooks/useGamesPlayedToday';
+import { useDailyPlan } from '../../hooks/useDailyPlan';
+import { COMMITMENT_LABEL } from '../../lib/dailyGoal';
 import { useSyncStore } from '../../state/syncStore';
 import { streakNoticeText, useStreakNoticeStore } from '../../state/streakNoticeStore';
 import { nearestAchievement } from '../../lib/achievements';
-import { detectTimezone, localDate } from '../../services/streakService';
 import { CheckIcon } from '../icons/CheckIcon';
 import { TrophyIcon } from '../icons/TrophyIcon';
 import { EndgameIcon } from '../icons/EndgameIcon';
 import { TrainIcon } from '../icons/TrainIcon';
 import { OpeningIcon } from '../icons/OpeningIcon';
 import { KingIcon } from '../icons/KingIcon';
+import { PlatformLogo } from '../icons/PlatformLogos';
+import { LockIcon } from '../icons/LockIcon';
 import { SnowflakeIcon } from '../icons/SnowflakeIcon';
 import { CloseIcon } from '../icons/CloseIcon';
 import { Skeleton } from '../Skeleton';
 import { usePathProgress } from '../../hooks/usePathProgress';
 import { useFeature } from '../../hooks/useFeature';
-
-/** Endgame play-outs the plan asks for per day (the list may hold many more). */
-export const PLAYOUTS_PER_DAY = 2;
-/** Opening reviews the plan asks for per day, when any are due. */
-export const OPENINGS_PER_DAY = 3;
+import type { TrainingFocus } from '../../routes/training/trainingFocus';
+import { CourseIcon } from '../icons/CourseIcon';
+import { useAuth } from '../../auth/useAuth';
+import { useLabel, useT } from '../../i18n/useT';
 
 function PlanStep({
   icon,
@@ -37,9 +31,13 @@ function PlanStep({
   done,
   goal,
   action,
+  actionShort,
   onAction,
   href,
   loading,
+  idle,
+  locked,
+  testId,
 }: {
   icon: React.ReactNode;
   title: string;
@@ -47,20 +45,43 @@ function PlanStep({
   done: number;
   goal: number;
   action: string;
+  /** Shorter label for phone widths (e.g. "Practice" for "Practice ahead"). */
+  actionShort?: string;
   onAction?: () => void;
   /** External link (opens a new tab) instead of `onAction`. */
   href?: string;
   loading?: boolean;
+  /** Nothing to do here yet (no material): no count, never blocks the plan. */
+  idle?: boolean;
+  /** Visible but closed until the rest of the plan is done. */
+  locked?: boolean;
+  testId?: string;
 }) {
-  const complete = done >= goal;
+  const t = useT();
+  const complete = !idle && done >= goal;
+  const label = actionShort ? (
+    <>
+      <span className="sm:hidden">{actionShort}</span>
+      <span className="hidden sm:inline">{action}</span>
+    </>
+  ) : (
+    action
+  );
   return (
-    <li className="flex items-center gap-3 py-3" data-plan-step>
+    <li
+      className={clsx('flex items-center gap-3 py-3', locked && !complete && 'opacity-60')}
+      data-plan-step
+      data-testid={testId}
+      data-state={locked && !complete ? 'locked' : complete ? 'done' : idle ? 'idle' : 'open'}
+    >
       <span
         className={clsx(
           'flex h-6 w-6 shrink-0 items-center justify-center border-2',
           complete
             ? 'border-correct bg-correct/15 text-correct'
-            : 'border-text-primary/30 bg-surface text-transparent',
+            : idle
+              ? 'border-text-primary/15 bg-surface text-transparent'
+              : 'border-text-primary/30 bg-surface text-transparent',
         )}
         aria-hidden
       >
@@ -72,34 +93,45 @@ function PlanStep({
           {title}
         </span>
         {detail && (
-          <span className={clsx('block text-xs text-text-primary', typeof detail === 'string' && 'truncate')}>
+          <span className="block text-xs text-text-primary">
             {detail}
           </span>
         )}
       </span>
       {loading ? (
         <Skeleton className="h-4 w-10" />
-      ) : (
+      ) : idle ? null : (
         <span className="font-mono text-sm tabular-nums text-text-primary shrink-0">
           {Math.min(done, goal)}/{goal}
         </span>
       )}
-      {href ? (
+      {locked && !complete ? (
+        <button
+          type="button"
+          disabled
+          className="btn-outline h-9 px-3 text-xs shrink-0 gap-1.5"
+          aria-label={t('plan.lockedSuffix', { action })}
+        >
+          <LockIcon className="h-3.5 w-3.5" />
+          {action}
+        </button>
+      ) : href ? (
         <a
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className={clsx(complete ? 'btn-outline' : 'btn-primary', 'h-9 px-4 text-xs shrink-0')}
+          className={clsx(complete || idle ? 'btn-outline' : 'btn-primary', 'h-9 px-4 text-xs shrink-0 whitespace-nowrap')}
         >
-          {action}
+          {label}
         </a>
       ) : (
         <button
           type="button"
-          className={clsx(complete ? 'btn-outline' : 'btn-primary', 'h-9 px-4 text-xs shrink-0')}
+          className={clsx(complete || idle ? 'btn-outline' : 'btn-primary', 'h-9 px-4 text-xs shrink-0 whitespace-nowrap')}
           onClick={onAction}
+          aria-label={actionShort ? action : undefined}
         >
-          {action}
+          {label}
         </button>
       )}
     </li>
@@ -123,30 +155,25 @@ function PlanStepSkeleton() {
   );
 }
 
-/** Where the Play step sends you: the platform you sync from (Lichess first). */
-function playUrl(lichess: string | null, chesscom: string | null): string | null {
-  if (lichess) return 'https://lichess.org/';
-  if (chesscom) return 'https://www.chess.com/play/online';
-  return null;
-}
-
 /**
- * Today's plan: a checklist sized by the player's commitment level — play
- * games (detected from sync), drill the SR queue, review openings, play
- * endgames — each with its own progress, check, and button. (The streak lives
- * in the sidebar badge and on the profile.)
+ * Today's plan: a checklist sized by the player's commitment level, in order
+ * (Lesson →) Train → Openings → Endgames → Play. "Today's lesson" shows only
+ * while you follow a course (/courses): it walks the lesson, its drill and
+ * your own mistakes on the same idea, and is done once a lesson is finished
+ * today (the next one is open right away). Every other step always shows (a skeleton
+ * while its data loads); with nothing due, Train and Openings offer "Practice
+ * ahead" and Endgames a replay, so the plan never dead-ends. Play stays
+ * locked until the rest is done. A step with no material at all (no games
+ * analyzed yet) is idle and never blocks Play. (The streak lives in the
+ * sidebar badge and on the profile.)
  */
 export function DailyHabitCard() {
+  const t = useT();
+  const label = useLabel();
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const drillsQuery = useDrillsToday();
-  // Count only: the full due list (solution lines, drill data) was downloaded
-  // here just to show its length.
-  const dueQuery = useDueCount({ excludeKind: 'opening' });
-  const scenariosQuery = useEndgameScenarios();
-  const openingDrillsQuery = useDrillsOfKind('opening');
+  const plan = useDailyPlan();
   const { achievements } = useAchievements();
-  const gamesTodayQuery = useGamesPlayedToday();
   const syncing = useSyncStore((s) =>
     Object.values(s.providers).some((p) => p.phase === 'fetching' || p.phase === 'inserting' || p.phase === 'analyzing'),
   );
@@ -155,96 +182,101 @@ export function DailyHabitCard() {
   const clearNotice = useStreakNoticeStore((s) => s.clear);
   const path = usePathProgress();
   const pathOn = useFeature('path');
-  const goals = profile?.dailyGoals ?? DEFAULT_DAILY_GOALS;
-  const playHref = playUrl(profile?.lichessUsername ?? null, profile?.chesscomUsername ?? null);
-  // PGN-only players have nothing to sync, so the Play step can't detect games.
-  const showPlay = goals.gamesPerDay > 0 && playHref != null;
+  const {
+    goals,
+    play,
+    playHref,
+    showPlay,
+    drillsToday,
+    dueCount,
+    upcomingCount,
+    trainPending,
+    trainIdle,
+    practiceNext,
+    openingsPending,
+    openingsToday,
+    openingsDue,
+    openingsGoal,
+    openingsIdle,
+    scenariosPending,
+    playoutsToday,
+    playoutsDue,
+    endgamesGoal,
+    endgamesIdle,
+    lessonPending,
+    lessonCourse,
+    lessonDoneToday,
+    lessonNext,
+    lessonNextOpen,
+    showLesson,
+    lessonTarget,
+    gamesToday,
+    gamesTodayPending,
+    playLocked,
+    restPending,
+    stepsDone,
+    stepsTotal,
+    allDone,
+  } = plan;
 
-  const tz = profile?.timezone ?? detectTimezone();
-  const today = localDate(tz);
-
-  if (drillsQuery.isPending) {
+  if (plan.drillsPending) {
     return (
       <section className="card flex flex-col gap-4" aria-busy="true">
         <header className="flex items-baseline justify-between">
-          <span className="label">Today's plan</span>
+          <span className="label">{t('plan.title')}</span>
           <Skeleton className="h-3 w-20" />
         </header>
+        <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-full" />
       </section>
     );
   }
 
-  // The endgame step depends on games → scenario scan, which resolves after the
-  // drills query. Reserve its row with a skeleton while that's still pending so
-  // the two steps appear together rather than the endgame step sliding in late.
-  const scenariosPending = scenariosQuery.isPending;
-  const scenarios = scenariosQuery.data ?? [];
-  const playoutsToday = scenarios.filter(
-    (s) => s.lastPlayedAt && localDate(tz, s.lastPlayedAt) === today,
-  ).length;
-  const playoutsDue = scenarios.filter((s) => isScenarioDue(s)).length;
-  const showEndgames = playoutsDue > 0 || playoutsToday > 0;
+  const train = (focus?: TrainingFocus) => navigate('/training', focus ? { state: focus } : undefined);
 
-  // Openings: drills done today vs due now. The goal counts today's work in,
-  // so it doesn't shrink as you clear the due ones.
-  const openingDrills = [...(openingDrillsQuery.data?.values() ?? [])].filter(
-    (b) => b.kind === 'opening',
-  );
-  const openingsToday = openingDrills.filter(
-    (b) => b.lastDrilledAt && localDate(tz, b.lastDrilledAt) === today,
-  ).length;
-  const now = Date.now();
-  // Same rule as the due queue: next_drill_at <= now (retired rows are
-  // already excluded by useDrillsOfKind).
-  const openingsDue = openingDrills.filter(
-    (b) => b.nextDrillAt && b.nextDrillAt.getTime() <= now,
-  ).length;
-  const openingsGoal = Math.min(OPENINGS_PER_DAY, openingsDue + openingsToday);
-  const showOpenings = openingsGoal > 0;
-  const drillsToday = drillsQuery.data ?? 0;
-  // Openings have their own step; the train step's "due" excludes them.
-  const dueCount = dueQuery.data ?? 0;
+  const lessonDetail = !lessonCourse
+    ? null
+    : lessonDoneToday
+      ? lessonNextOpen && lessonNext
+        ? t('plan.lesson.doneNext', { course: lessonCourse.title, day: lessonNext.day })
+        : t('plan.lesson.done', { course: lessonCourse.title })
+      : lessonNext
+        ? t('plan.lesson.next', {
+            course: lessonCourse.title,
+            day: lessonNext.day,
+            lesson: lessonCourse.days[lessonNext.day - 1].title,
+          })
+        : null;
 
-  const gamesToday = gamesTodayQuery.data ?? 0;
-
-  const steps = [
-    ...(showPlay ? [{ done: gamesToday, goal: goals.gamesPerDay }] : []),
-    { done: drillsToday, goal: goals.positionsPerDay },
-    ...(showOpenings ? [{ done: openingsToday, goal: openingsGoal }] : []),
-    ...(showEndgames ? [{ done: playoutsToday, goal: PLAYOUTS_PER_DAY }] : []),
-  ];
-  const stepsDone = steps.filter((s) => s.done >= s.goal).length;
-  const allDone = stepsDone === steps.length;
   const next = nearestAchievement(achievements);
 
   return (
-    <section className="card flex flex-col gap-3">
+    <section className="card flex flex-col gap-3" data-testid="daily-plan">
       <header className="flex items-baseline justify-between">
         <span className="label">
-          Today's plan
+          {t('plan.title')}
           <button
             type="button"
             onClick={() => navigate('/profile#commitment')}
-            className="ml-2 normal-case tracking-normal text-text-secondary underline-offset-2 hover:underline"
-            title="Change your daily commitment"
+            className="ml-2 font-normal text-text-primary underline underline-offset-2 decoration-text-primary/30 hover:decoration-text-primary"
             data-testid="commitment-level"
           >
-            {COMMITMENT_LABEL[goals.level]}
+            {label('commitment', goals.level, COMMITMENT_LABEL[goals.level])}
           </button>
         </span>
-        {scenariosPending ? (
+        {restPending ? (
           <Skeleton className="h-3 w-20" />
         ) : (
           <span
             className={clsx(
               'font-mono text-xs uppercase tracking-tight inline-flex items-center gap-1.5',
-              allDone ? 'text-correct' : 'text-text-secondary',
+              allDone ? 'text-correct' : 'text-text-primary',
             )}
+            data-testid="plan-progress"
           >
-            {allDone && <CheckIcon className="h-3.5 w-3.5" title="Plan complete" />}
-            {allDone ? 'Plan done. See you tomorrow.' : `${stepsDone}/${steps.length} done`}
+            {allDone && <CheckIcon className="h-3.5 w-3.5" />}
+            {allDone ? t('plan.done') : t('plan.progress', { done: stepsDone, total: stepsTotal })}
           </span>
         )}
       </header>
@@ -252,82 +284,159 @@ export function DailyHabitCard() {
       {notice && (
         <div className="flex items-start gap-2 border-2 border-accent/40 bg-accent/10 px-3 py-2 text-sm" role="status">
           <SnowflakeIcon className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-          <span className="flex-1 text-text-primary">{streakNoticeText(notice)}</span>
-          <button type="button" onClick={clearNotice} aria-label="Dismiss" className="shrink-0 text-text-secondary">
+          <span className="flex-1 text-text-primary">{streakNoticeText(notice, t)}</span>
+          <button type="button" onClick={clearNotice} aria-label={t('common.dismiss')} className="shrink-0 text-text-primary">
             <CloseIcon className="h-4 w-4" />
           </button>
         </div>
       )}
 
       <ul className="flex flex-col divide-y-2 divide-text-primary/10 border-y-2 border-text-primary/10">
-        {showPlay && playHref && profile && (
-          <PlanStep
-            icon={<KingIcon color="white" className="h-4 w-4" />}
-            title={`Play ${goals.gamesPerDay} ${goals.gamesPerDay === 1 ? 'game' : 'games'}`}
-            detail={
-              <>
-                {syncing ? 'Checking for new games…' : 'Your new blunders become tomorrow\'s training.'}{' '}
-                {!syncing && (
-                  <button
-                    type="button"
-                    className="underline underline-offset-2 hover:text-gold-dark"
-                    onClick={() => void triggerSync(profile)}
-                    data-testid="check-new-games"
-                  >
-                    Check for new games
-                  </button>
-                )}
-              </>
-            }
-            done={gamesToday}
-            goal={goals.gamesPerDay}
-            loading={gamesTodayQuery.isPending}
-            action="Play"
-            href={playHref}
-          />
+        {lessonPending ? (
+          <PlanStepSkeleton />
+        ) : (
+          showLesson &&
+          lessonCourse &&
+          lessonTarget && (
+            <PlanStep
+              testId="plan-step-lesson"
+              icon={<CourseIcon className="h-5 w-5" />}
+              title={t('plan.lesson.title')}
+              detail={lessonDetail}
+              done={lessonDoneToday ? 1 : 0}
+              goal={1}
+              action={lessonDoneToday ? (lessonNextOpen ? t('plan.lesson.nextLesson') : t('common.review')) : t('plan.lesson.start')}
+              actionShort={lessonDoneToday && lessonNextOpen ? t('common.next') : undefined}
+              onAction={() => navigate(lessonTarget)}
+            />
+          )
         )}
         <PlanStep
-          icon={<TrainIcon className="h-4 w-4" />}
-          title={`Train ${goals.positionsPerDay} positions`}
+          testId="plan-step-train"
+          icon={<TrainIcon className="h-5 w-5" />}
+          title={t('plan.train.title', { count: goals.positionsPerDay })}
           detail={
-            dueQuery.isPending
+            trainPending
               ? null
               : dueCount > 0
-                ? `${dueCount} due in your queue`
-                : "Queue's clear. Extra drills still count."
+                ? t('plan.train.due', { count: dueCount })
+                : upcomingCount > 0
+                  ? t('plan.train.clearPractice')
+                  : drillsToday > 0
+                    ? t('plan.train.allDrilled')
+                    : t('plan.train.nothingYet')
           }
           done={drillsToday}
           goal={goals.positionsPerDay}
-          action="Train"
-          onAction={() => navigate('/training')}
+          idle={trainIdle && drillsToday === 0}
+          action={practiceNext ? t('plan.practiceAhead') : t('common.train')}
+          actionShort={practiceNext ? t('plan.practice') : undefined}
+          onAction={() => train(practiceNext ? { practiceAhead: true } : undefined)}
         />
-        {showOpenings && (
+        {openingsPending ? (
+          <PlanStepSkeleton />
+        ) : openingsIdle ? (
           <PlanStep
-            icon={<OpeningIcon className="h-4 w-4" />}
-            title={`Review ${openingsGoal} ${openingsGoal === 1 ? 'opening' : 'openings'}`}
-            detail={openingsDue > 0 ? `${openingsDue} due` : null}
+            testId="plan-step-openings"
+            icon={<OpeningIcon className="h-5 w-5" />}
+            title={t('plan.openings.idleTitle')}
+            detail={t('plan.openings.idleDetail')}
+            done={0}
+            goal={0}
+            idle
+            action={t('nav.openings')}
+            onAction={() => navigate('/openings')}
+          />
+        ) : (
+          <PlanStep
+            testId="plan-step-openings"
+            icon={<OpeningIcon className="h-5 w-5" />}
+            title={t('plan.openings.title', { count: openingsGoal })}
+            detail={openingsDue > 0 ? t('plan.openings.due', { count: openingsDue }) : t('plan.openings.nothingDue')}
             done={openingsToday}
             goal={openingsGoal}
-            action="Review"
-            onAction={() => navigate('/training', { state: { kindFilter: 'opening' } })}
+            action={openingsDue > 0 ? t('common.review') : t('plan.practice')}
+            onAction={() =>
+              train({
+                kindFilter: 'opening',
+                returnTo: '/openings',
+                ...(openingsDue > 0 ? {} : { practiceAhead: true }),
+              })
+            }
           />
         )}
         {scenariosPending ? (
           <PlanStepSkeleton />
+        ) : endgamesIdle ? (
+          <PlanStep
+            testId="plan-step-endgames"
+            icon={<EndgameIcon className="h-5 w-5" />}
+            title={t('plan.endgames.idleTitle')}
+            detail={t('plan.endgames.idleDetail')}
+            done={0}
+            goal={0}
+            idle
+            action={t('nav.endgames')}
+            onAction={() => navigate('/endgames')}
+          />
         ) : (
-          showEndgames && (
-            <PlanStep
-              icon={<EndgameIcon className="h-4 w-4" />}
-              title={`Play ${PLAYOUTS_PER_DAY} endgames`}
-              detail={playoutsDue > 0 ? `${playoutsDue} due for review` : null}
-              done={playoutsToday}
-              goal={PLAYOUTS_PER_DAY}
-              action="Play"
-              onAction={() => navigate('/endgames')}
-            />
-          )
+          <PlanStep
+            testId="plan-step-endgames"
+            icon={<EndgameIcon className="h-5 w-5" />}
+            title={t('plan.endgames.title', { count: endgamesGoal })}
+            detail={playoutsDue > 0 ? t('plan.endgames.due', { count: playoutsDue }) : t('plan.endgames.nothingDue')}
+            done={playoutsToday}
+            goal={endgamesGoal}
+            action={t('common.play')}
+            onAction={() => navigate('/endgames')}
+          />
+        )}
+        {showPlay && playHref && profile && (
+          <PlanStep
+            testId="plan-step-play"
+            icon={play ? <PlatformLogo platform={play.platform} className="h-5 w-5" /> : <KingIcon color="white" className="h-5 w-5" />}
+            title={t('plan.play.title', { count: goals.gamesPerDay })}
+            detail={
+              playLocked ? (
+                t('plan.play.locked')
+              ) : (
+                <>
+                  {syncing ? t('plan.play.checking') : t('plan.play.detail')}{' '}
+                  {!syncing && (
+                    <button
+                      type="button"
+                      className="underline underline-offset-2 hover:text-gold-dark"
+                      onClick={() => void triggerSync(profile)}
+                      data-testid="check-new-games"
+                    >
+                      {t('plan.play.check')}
+                    </button>
+                  )}
+                </>
+              )
+            }
+            done={gamesToday}
+            goal={goals.gamesPerDay}
+            loading={gamesTodayPending}
+            locked={playLocked}
+            action={t('common.play')}
+            href={playHref}
+          />
         )}
       </ul>
+
+      {allDone && (
+        <div className="flex items-center justify-between gap-3" data-testid="plan-done">
+          <span className="text-sm text-text-primary">{t('plan.allDone')}</span>
+          <button
+            type="button"
+            className="btn-outline h-9 px-4 text-xs shrink-0"
+            onClick={() => train(practiceNext ? { practiceAhead: true } : undefined)}
+          >
+            {practiceNext ? t('plan.practiceAhead') : t('plan.keepGoing')}
+          </button>
+        </div>
+      )}
 
       {pathOn && path.next && path.remaining != null && !path.isPending && (
         <button
@@ -337,10 +446,11 @@ export function DailyHabitCard() {
           data-testid="next-unlock"
         >
           <span className="text-text-primary">
-            Next unlock in <span className="font-semibold tabular-nums">{path.remaining}</span> position
-            {path.remaining === 1 ? '' : 's'}
+            {t.rich('plan.nextUnlock', {
+              count: <span className="font-semibold tabular-nums">{path.remaining}</span>,
+            }, path.remaining)}
           </span>
-          <span className="label shrink-0">Your path</span>
+          <span className="label shrink-0">{t('plan.yourPath')}</span>
         </button>
       )}
 
@@ -351,15 +461,15 @@ export function DailyHabitCard() {
           className="flex flex-col gap-1.5 pt-1 text-left transition-opacity hover:opacity-90"
         >
           <div className="flex items-baseline justify-between">
-            <span className="label">Next achievement</span>
-            <span className="text-text-secondary text-xs tabular-nums">
+            <span className="label">{t('plan.nextAchievement')}</span>
+            <span className="font-mono text-text-primary text-xs tabular-nums">
               {Math.min(next.value, next.threshold).toLocaleString()}/{next.threshold.toLocaleString()}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <TrophyIcon className="h-4 w-4 shrink-0 text-gold-dark" />
             <span className="text-sm text-text-primary">{next.title}</span>
-            <span className="truncate text-text-secondary text-xs">— {next.description}</span>
+            <span className="truncate text-text-primary text-xs">{next.description}</span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-none border border-text-primary/20 bg-text-primary/10">
             <div

@@ -3,14 +3,17 @@ import { Link, useLocation } from 'react-router-dom';
 import { SidebarNav } from './SidebarNav';
 import { ErrorBoundary } from './ErrorBoundary';
 import { PgnUploadModal } from './PgnUploadModal';
+import { RewardRevealHost } from './rewards/RewardRevealHost';
 import { BrandLockup } from './BrandLogo';
 import { MenuIcon } from './icons/MenuIcon';
 import { useAuth } from '../auth/useAuth';
 import { installSoundUnlock, setSoundsEnabled } from '../lib/sounds';
 import { useAppOpens } from '../hooks/useNextAsk';
 import clsx from 'clsx';
+import { useT } from '../i18n/useT';
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const t = useT();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { pathname } = useLocation();
@@ -58,7 +61,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={collapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
           className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 z-10 w-6 h-6 rounded-full bg-surface border-2 border-text-primary flex items-center justify-center text-text-primary hover:bg-accent/15 hover:border-accent transition-colors"
         >
           <span className="text-xs leading-none">{collapsed ? '▶' : '◀'}</span>
@@ -66,13 +69,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
       <div className="flex-1 min-w-0 flex flex-col">
         <header className="lg:hidden shrink-0 h-14 border-b-2 border-text-primary bg-surface flex items-center justify-between pl-3 pr-1">
-          <Link to="/dashboard" aria-label="Dashboard">
+          <Link to="/dashboard" aria-label={t('nav.dashboard')}>
             <BrandLockup size="md" />
           </Link>
           <button
             type="button"
             onClick={() => setMobileNavOpen(true)}
-            aria-label="Open menu"
+            aria-label={t('nav.openMenu')}
             className="h-11 w-11 flex items-center justify-center text-text-primary hover:bg-accent/10 transition-colors"
           >
             <MenuIcon className="h-6 w-6" />
@@ -88,7 +91,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="lg:hidden fixed inset-0 z-40">
           <button
             type="button"
-            aria-label="Close menu"
+            aria-label={t('nav.closeMenu')}
             onClick={() => setMobileNavOpen(false)}
             className="absolute inset-0 bg-text-primary/40 backdrop-blur-sm"
           />
@@ -98,6 +101,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       )}
       <PgnUploadModal />
+      {/* Path-rung and achievement rewards, shown once each (src/lib/rewards.ts). */}
+      <RewardRevealHost />
     </div>
   );
 }

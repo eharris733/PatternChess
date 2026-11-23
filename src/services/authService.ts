@@ -4,6 +4,7 @@ import type { AuthUser } from '../auth/AuthProvider';
 import { getAnonId } from '../lib/anonId';
 import type { Tables, TablesUpdate } from '../lib/database.types';
 import { currentUserId } from './db/currentUser';
+import { loginUrlWithNext, safeNextPath } from '../lib/nextPath';
 import { updateOwnProfile } from './db/profiles';
 import { UserProfile, userProfileFromJson, userProfileToUpdate } from '../models/userProfile';
 
@@ -15,23 +16,30 @@ function signInErrorMessage(provider: string, error: { status?: number; message?
   return error.message || `${provider} sign-in failed`;
 }
 
+/** OAuth success/error landing URLs; a failed sign-in keeps `next` for the retry. */
+function callbackUrls(next?: string | null): { callbackURL: string; errorCallbackURL: string } {
+  const origin = window.location.origin;
+  const safe = safeNextPath(next);
+  return {
+    callbackURL: `${origin}${safe ?? '/'}`,
+    errorCallbackURL: `${origin}${safe ? loginUrlWithNext(safe) : '/login'}`,
+  };
+}
+
 export const authService = {
-  async signInWithGoogle(): Promise<void> {
-    const { error } = await authClient.signIn.social({
-      provider: 'google',
-      callbackURL: `${window.location.origin}/`,
-      errorCallbackURL: `${window.location.origin}/login`,
-    });
+  /**
+   * `next` (a path vetted by safeNextPath) is where the OAuth callback lands,
+   * e.g. `/supporter?checkout=1` to resume checkout once signed in. Without
+   * it the player lands on `/`, which forwards to the dashboard.
+   */
+  async signInWithGoogle(next?: string | null): Promise<void> {
+    const { error } = await authClient.signIn.social({ provider: 'google', ...callbackUrls(next) });
     if (error) throw new Error(signInErrorMessage('Google', error));
   },
 
-  async signInWithLichess(): Promise<void> {
+  async signInWithLichess(next?: string | null): Promise<void> {
     // better-auth 1.7 serves genericOAuth providers through signIn.social.
-    const { error } = await authClient.signIn.social({
-      provider: 'lichess',
-      callbackURL: `${window.location.origin}/`,
-      errorCallbackURL: `${window.location.origin}/login`,
-    });
+    const { error } = await authClient.signIn.social({ provider: 'lichess', ...callbackUrls(next) });
     if (error) throw new Error(signInErrorMessage('Lichess', error));
   },
 
@@ -127,19 +135,6 @@ export const authService = {
   async markLearnChapterDone(key: string): Promise<number> {
     const data = await rpc<number | null>('profile.markLearnChapterDone', { key });
     return typeof data === 'number' ? data : 0;
-  },
-
-  /**
-   * Lifetime training totals: minutes (finished sessions, each capped at 120)
-   * and distinct active days (≥1 correct drill).
-   */
-  async getTrainingTotals(): Promise<{ minutes: number; activeDays: number }> {
-    const data = await rpc<unknown>('profile.trainingTotals');
-    const o = (data ?? {}) as { minutes?: unknown; activeDays?: unknown };
-    return {
-      minutes: typeof o.minutes === 'number' ? o.minutes : 0,
-      activeDays: typeof o.activeDays === 'number' ? o.activeDays : 0,
-    };
   },
 
   /** Atomic server-side bump (no read-modify-write race). Returns the new count. */

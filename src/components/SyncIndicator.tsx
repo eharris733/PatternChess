@@ -4,8 +4,11 @@ import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
 import { retryWithProfile, useSyncStore } from '../state/syncStore';
 import type { ProviderProgress } from '../services/syncService';
+import { fetchingHeadline, monthDetail, summarizeFetch } from '../lib/syncProgress';
 import { CheckIcon } from './icons/CheckIcon';
 import { CloseIcon } from './icons/CloseIcon';
+import { PlatformLogo, type PlatformId } from './icons/PlatformLogos';
+import { useT } from '../i18n/useT';
 
 type Aggregate = 'none' | 'idle' | 'syncing' | 'done' | 'error';
 
@@ -33,6 +36,7 @@ function aggregate(
 }
 
 export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
+  const t = useT();
   const navigate = useNavigate();
   const { profile } = useAuth();
   const providers = useSyncStore((s) => s.providers);
@@ -54,41 +58,54 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
     }
   }, [agg, providers.lichess.phase, providers.chesscom.phase]);
 
-  const totalInserted =
-    (hasLichess ? providers.lichess.inserted : 0) +
-    (hasChesscom ? providers.chesscom.inserted : 0);
-  const totalFetching =
-    (hasLichess && (providers.lichess.phase === 'fetching' || providers.lichess.phase === 'inserting')
-      ? providers.lichess.total ?? 0
-      : 0) +
-    (hasChesscom && (providers.chesscom.phase === 'fetching' || providers.chesscom.phase === 'inserting')
-      ? providers.chesscom.total ?? 0
-      : 0);
-  const totalBlundersFound =
-    (hasLichess ? providers.lichess.blundersFound : 0) +
-    (hasChesscom ? providers.chesscom.blundersFound : 0);
-  const isAnalyzing =
-    (hasLichess && providers.lichess.phase === 'analyzing') ||
-    (hasChesscom && providers.chesscom.phase === 'analyzing');
+  const linked: ProviderProgress[] = [
+    ...(hasLichess ? [providers.lichess] : []),
+    ...(hasChesscom ? [providers.chesscom] : []),
+  ];
+  const totalInserted = linked.reduce((n, p) => n + p.inserted, 0);
+  const totalBlundersFound = linked.reduce((n, p) => n + p.blundersFound, 0);
+  const fetch = summarizeFetch(linked);
+  const saving = linked.filter((p) => p.phase === 'inserting');
+  const analyzing = linked.filter((p) => p.phase === 'analyzing');
+  const analyzedGames = analyzing.reduce((n, p) => n + p.analyzeGameIndex, 0);
+  const analyzeTotal = analyzing.reduce((n, p) => n + p.analyzeGamesTotal, 0);
 
   const collapseToIdle = agg === 'done' && collapseDone;
   const display: Aggregate = collapseToIdle ? 'idle' : agg;
 
+  // The platforms this line is about: the ones still working while syncing,
+  // otherwise every linked one.
+  const busy = (p: ProviderProgress) => p.phase === 'fetching' || p.phase === 'inserting' || p.phase === 'analyzing';
+  const linkedPlatforms: { id: PlatformId; progress: ProviderProgress }[] = [
+    ...(hasLichess ? [{ id: 'lichess' as const, progress: providers.lichess }] : []),
+    ...(hasChesscom ? [{ id: 'chesscom' as const, progress: providers.chesscom }] : []),
+  ];
+  const shownPlatforms = (
+    display === 'syncing' ? linkedPlatforms.filter((p) => busy(p.progress)) : linkedPlatforms
+  ).map((p) => p.id);
+
   const headline = (() => {
-    if (display === 'none') return 'Connect account';
+    if (display === 'none') return t('sync.connect');
     if (display === 'syncing') {
-      if (isAnalyzing) return 'Analyzing…';
-      if (totalFetching > 0) return `Syncing ${totalInserted}/${totalFetching}`;
-      return 'Syncing…';
+      // A provider still downloading leads: its count is the one that moves.
+      if (fetch) return fetchingHeadline(fetch, t);
+      if (saving.length > 0) {
+        const n = saving.reduce((sum, p) => sum + (p.total ?? p.fetched), 0);
+        return t('sync.saving', { count: n });
+      }
+      if (analyzing.length > 0 && analyzeTotal > 0) {
+        return t('sync.analyzing', { at: Math.min(analyzedGames + 1, analyzeTotal), total: analyzeTotal });
+      }
+      return t('sync.syncing');
     }
     if (display === 'done') {
       const parts: string[] = [];
-      if (totalInserted > 0) parts.push(`+${totalInserted} games`);
-      if (totalBlundersFound > 0) parts.push(`+${totalBlundersFound} blunders`);
-      return parts.length > 0 ? parts.join(' · ') : 'Up to date';
+      if (totalInserted > 0) parts.push(t('sync.plusGames', { count: totalInserted }));
+      if (totalBlundersFound > 0) parts.push(t('sync.plusBlunders', { count: totalBlundersFound }));
+      return parts.length > 0 ? parts.join(' · ') : t('sync.upToDate');
     }
-    if (display === 'error') return rateLimited ? 'Rate limited' : 'Sync failed';
-    return 'Up to date';
+    if (display === 'error') return rateLimited ? t('sync.rateLimited') : t('sync.failed');
+    return t('sync.upToDate');
   })();
 
   const glyph =
@@ -99,7 +116,7 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
     ) : display === 'error' ? (
       <CloseIcon className="w-3.5 h-3.5 text-incorrect" />
     ) : display === 'none' ? (
-      <span className="text-text-secondary">+</span>
+      <span className="text-text-primary">+</span>
     ) : (
       <CheckIcon className="w-3.5 h-3.5 text-correct" />
     );
@@ -125,10 +142,21 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
   };
 
   const subTitle = (() => {
-    if (display === 'syncing') return null;
-    if (display === 'none') return 'Sync games to start';
-    if (display === 'error') return rateLimited ? 'Wait a minute, then tap to retry' : 'Tap to retry';
-    return 'Tap to sync now';
+    if (display === 'syncing') {
+      if (fetch) {
+        const months = fetch.monthCounts
+          ? monthDetail({ monthsDone: fetch.monthCounts.done, monthsTotal: fetch.monthCounts.total }, t)
+          : null;
+        return months ? t('sync.gamesMonths', { months }) : t('sync.games');
+      }
+      if (analyzing.length > 0 && totalBlundersFound > 0) {
+        return t('sync.blundersFound', { count: totalBlundersFound });
+      }
+      return null;
+    }
+    if (display === 'none') return t('sync.toStart');
+    if (display === 'error') return rateLimited ? t('sync.waitRetry') : t('sync.tapRetry');
+    return t('sync.tapSync');
   })();
 
   return (
@@ -136,22 +164,25 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
       type="button"
       onClick={onClick}
       disabled={isBusy}
-      aria-label={`Sync: ${headline}`}
+      aria-label={t('sync.aria', { headline })}
       title={collapsed ? headline : undefined}
       className={clsx(
         'mx-2 mb-1 flex items-center gap-3 py-2 rounded-none font-mono uppercase text-xs tracking-tight transition-colors text-left',
         collapsed ? 'justify-center px-0' : 'px-3',
-        'text-text-secondary hover:bg-text-primary/5 hover:text-text-primary',
-        'disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-text-secondary',
+        'text-text-primary hover:bg-text-primary/5 hover:text-text-primary',
+        'disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-text-primary',
       )}
     >
       <span className="shrink-0 w-4 flex items-center justify-center text-base">{glyph}</span>
       {!collapsed && (
         <span className="flex flex-col min-w-0">
           <span className="truncate text-text-primary">{headline}</span>
-          {subTitle && (
-            <span className="truncate text-[10px] tracking-tight text-text-secondary normal-case">
-              {subTitle}
+          {(subTitle || shownPlatforms.length > 0) && (
+            <span className="flex items-center gap-1 min-w-0 text-[10px] tracking-tight text-text-primary normal-case">
+              {shownPlatforms.map((id) => (
+                <PlatformLogo key={id} platform={id} className="h-3 w-3 shrink-0" />
+              ))}
+              {subTitle && <span className="truncate">{subTitle}</span>}
             </span>
           )}
         </span>

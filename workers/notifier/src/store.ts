@@ -14,7 +14,8 @@
 import { all, first, run, stmt } from './db';
 import type { OutboxData, OutboxRow } from './outbox';
 import type { Prefs } from './pages';
-import { decide, realEmail, REMINDER_KINDS, REPORT_KINDS, type CandidateFacts } from './rules';
+import type { EventsLoader } from './events';
+import { decide, eventsStateFor, realEmail, REMINDER_KINDS, REPORT_KINDS, type CandidateFacts } from './rules';
 import type { EmailKind } from './templates';
 
 const DAY = 86_400_000;
@@ -39,7 +40,8 @@ WITH base AS (
          coalesce(p.daily_positions_goal, 10) AS positions_goal,
          coalesce(p.daily_games_goal, 1) AS games_goal,
          nullif(u.email, '') AS auth_email,
-         p.display_name, p.lichess_username, p.chesscom_username, p.timezone
+         p.display_name, p.lichess_username, p.chesscom_username, p.timezone,
+         p.events_state
   FROM profiles p
   JOIN "user" u ON u.id = p.id
   WHERE (?1 IS NULL AND p.email_opt_in = 1) OR p.id = ?1
@@ -200,12 +202,26 @@ export async function reportData(db: D1Database, userId: string, since: Date, no
   };
 }
 
+export interface CandidateOptions {
+  /**
+   * Fetches "Events near you" for a state (events.ts stateEventsLoader).
+   * Omitted = no events lookups (tests, and anything that must stay offline).
+   */
+  loadEvents?: EventsLoader;
+}
+
 /**
  * One row per player considered (kind null = nothing this hour), with the
  * template data. The report is attached for weekly_report rows, and always
- * when a single user is asked for (admin preview), as in Postgres.
+ * when a single user is asked for (admin preview), as in Postgres; the same
+ * goes for "Events near you" when the player saved a state (eventsStateFor).
  */
-export async function emailCandidates(db: D1Database, now: Date, userId: string | null = null): Promise<OutboxRow[]> {
+export async function emailCandidates(
+  db: D1Database,
+  now: Date,
+  userId: string | null = null,
+  opts: CandidateOptions = {},
+): Promise<OutboxRow[]> {
   const [facts, elo] = await Promise.all([candidateFacts(db, now, userId), communityElo(db)]);
   const rows: OutboxRow[] = [];
   for (const f of facts) {
@@ -226,14 +242,23 @@ export async function emailCandidates(db: D1Database, now: Date, userId: string 
     if (d.kind === 'weekly_report' || userId !== null) {
       data.report = await reportData(db, f.id, new Date(now.getTime() - 7 * DAY), now);
     }
+    const eventsState = eventsStateFor(userId !== null ? 'weekly_report' : d.kind, f);
+    if (eventsState) {
+      data.eventsState = eventsState;
+      data.events = opts.loadEvents ? await opts.loadEvents(eventsState, d.local.today).catch(() => null) : null;
+    }
     rows.push({ user_id: f.id, kind: d.kind, to_email: d.to_email, unsub_token: f.email_unsub_token, data });
   }
   return rows;
 }
 
 /** What the hourly run sends: candidates with a kind and an address. */
-export async function emailOutbox(db: D1Database, now: Date): Promise<Array<OutboxRow & { kind: EmailKind; to_email: string }>> {
-  return (await emailCandidates(db, now)).filter(
+export async function emailOutbox(
+  db: D1Database,
+  now: Date,
+  opts: CandidateOptions = {},
+): Promise<Array<OutboxRow & { kind: EmailKind; to_email: string }>> {
+  return (await emailCandidates(db, now, null, opts)).filter(
     (r): r is OutboxRow & { kind: EmailKind; to_email: string } => r.kind !== null && r.to_email !== null,
   );
 }

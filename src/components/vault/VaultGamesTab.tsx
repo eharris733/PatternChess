@@ -30,6 +30,7 @@ import {
   type ResultFilter,
   type SortOrder,
 } from './vaultHelpers';
+import { useT } from '../../i18n/useT';
 
 /** Rows rendered per "Show more" step — thousands of rows at once made the tab sluggish. */
 const PAGE = 50;
@@ -37,6 +38,7 @@ const PAGE = 50;
 /** The synced-games list: filters, per-game blunders, delete. */
 export function VaultGamesTab() {
   const navigate = useNavigate();
+  const t = useT();
   const queryClient = useQueryClient();
   const { user, profile } = useAuth();
   const { data: games, isLoading } = useGames();
@@ -66,7 +68,7 @@ export function VaultGamesTab() {
         // No error raised, but nothing was removed — typically a row-level
         // policy block. Surface it instead of pretending the delete worked.
         setDeleteError(
-          "That game couldn't be deleted — it may be a permissions issue. Nothing was removed.",
+          t('vault.games.deleteError'),
         );
         return;
       }
@@ -76,7 +78,7 @@ export function VaultGamesTab() {
       setDeleteTarget(null);
     } catch (err) {
       console.error('Failed to delete game', err);
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.');
+      setDeleteError(err instanceof Error ? err.message : t('train.deleteFailed'));
     } finally {
       setDeleting(false);
     }
@@ -174,17 +176,17 @@ export function VaultGamesTab() {
   }, []);
 
   if (isLoading) {
-    return <div className="text-text-secondary text-sm">Loading…</div>;
+    return <div className="text-text-primary text-sm">{t('common.loading')}</div>;
   }
 
   if (!games || games.length === 0) {
     return (
       <div className="card text-center flex flex-col gap-4">
-        <h2 className="heading-lg">No games yet</h2>
-        <p className="text-text-secondary text-sm">
+        <h2 className="heading-lg">{t('vault.games.none')}</h2>
+        <p className="text-text-primary text-sm">
           {hasAccount
-            ? 'Sync your latest games, or upload your own PGNs to populate the vault.'
-            : 'Connect a Lichess or Chess.com account, or upload your own PGNs to start.'}
+            ? t('vault.games.noneSync')
+            : t('vault.games.noneConnect')}
         </p>
         <div className="flex items-center justify-center gap-3 flex-wrap">
           {hasAccount ? (
@@ -193,15 +195,15 @@ export function VaultGamesTab() {
               disabled={isSyncing || !profile}
               onClick={() => profile && void triggerNow(profile)}
             >
-              {isSyncing ? 'Syncing…' : 'Sync now'}
+              {isSyncing ? t('sync.syncing') : t('vault.games.syncNow')}
             </button>
           ) : (
             <button className="btn-primary" onClick={() => navigate('/profile')}>
-              Go to Profile
+              {t('vault.games.goProfile')}
             </button>
           )}
           <button className="btn-outline" onClick={openUpload}>
-            Upload PGNs
+            {t('vault.upload')}
           </button>
         </div>
       </div>
@@ -211,9 +213,8 @@ export function VaultGamesTab() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-text-secondary text-sm">
-          {games.length} game{games.length === 1 ? '' : 's'} synced. New games
-          are added automatically each time you visit.
+        <p className="text-text-primary text-sm">
+          {t('vault.games.synced', { count: games.length })}
         </p>
         <button
           type="button"
@@ -221,12 +222,12 @@ export function VaultGamesTab() {
           onClick={() => setBulkDeleteOpen(true)}
         >
           <TrashIcon className="h-3.5 w-3.5" />
-          Delete games…
+          {t('vault.games.deleteMany')}
         </button>
       </div>
 
       <div className="card p-4 flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter by blunders">
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('vault.games.filterBlunders')}>
           {BLUNDER_FILTERS.map((f) => (
             <button
               key={f.key}
@@ -235,8 +236,8 @@ export function VaultGamesTab() {
               aria-pressed={blunderFilter === f.key}
               onClick={() => setBlunderFilter(f.key)}
             >
-              {f.label}
-              <span className="ml-1.5 text-text-secondary/70">{filterCounts[f.key]}</span>
+              {t(f.label)}
+              <span className="ml-1.5 text-text-primary">{filterCounts[f.key]}</span>
             </button>
           ))}
         </div>
@@ -244,36 +245,35 @@ export function VaultGamesTab() {
           <input
             type="search"
             className="input h-9 flex-1 min-w-[10rem]"
-            placeholder="Search opponent or opening…"
+            placeholder={t('vault.games.search')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            aria-label="Search games"
+            aria-label={t('vault.games.searchAria')}
           />
           <VaultSelect
             value={resultFilter}
             onChange={(e) => setResultFilter(e.target.value as ResultFilter)}
-            aria-label="Filter by result"
+            aria-label={t('vault.games.filterResult')}
           >
-            <option value="all">Any result</option>
-            <option value="win">Wins</option>
-            <option value="loss">Losses</option>
-            <option value="draw">Draws</option>
+            <option value="all">{t('vault.games.anyResult')}</option>
+            <option value="win">{t('vault.games.wins')}</option>
+            <option value="loss">{t('vault.games.losses')}</option>
+            <option value="draw">{t('vault.games.draws')}</option>
           </VaultSelect>
           <VaultSelect
             value={sort}
             onChange={(e) => setSort(e.target.value as SortOrder)}
-            aria-label="Sort games"
+            aria-label={t('vault.games.sort')}
           >
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="blunders">Most blunders</option>
+            <option value="newest">{t('vault.games.newest')}</option>
+            <option value="oldest">{t('vault.games.oldest')}</option>
+            <option value="blunders">{t('vault.games.mostBlunders')}</option>
           </VaultSelect>
         </div>
         {filtersActive && (
           <div className="flex items-center justify-between gap-3">
-            <span className="text-xs text-text-secondary">
-              Showing {filteredGames.length} of {games.length} game
-              {games.length === 1 ? '' : 's'}
+            <span className="text-xs text-text-primary">
+              {t('vault.games.showing', { shown: filteredGames.length, count: games.length })}
             </span>
             <button
               type="button"
@@ -281,7 +281,7 @@ export function VaultGamesTab() {
               onClick={clearFilters}
             >
               <CloseIcon className="h-3 w-3" />
-              Clear filters
+              {t('vault.filter.clear')}
             </button>
           </div>
         )}
@@ -289,9 +289,9 @@ export function VaultGamesTab() {
 
       {filteredGames.length === 0 ? (
         <div className="card text-center flex flex-col items-center gap-3">
-          <p className="text-text-secondary text-sm">No games match the current filters.</p>
+          <p className="text-text-primary text-sm">{t('vault.games.noMatch')}</p>
           <button className="btn-outline" onClick={clearFilters}>
-            Clear filters
+            {t('vault.filter.clear')}
           </button>
         </div>
       ) : (
@@ -317,7 +317,7 @@ export function VaultGamesTab() {
               className="btn-outline self-center"
               onClick={() => setShown((n) => n + PAGE)}
             >
-              Show more ({filteredGames.length - shown} left)
+              {t('vault.showMoreLeft', { count: filteredGames.length - shown })}
             </button>
           )}
         </>
@@ -345,7 +345,7 @@ export function VaultGamesTab() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 backdrop-blur-sm p-4"
           role="dialog"
           aria-modal="true"
-          aria-label="Delete game"
+          aria-label={t('vault.games.deleteGame')}
           onClick={() => !deleting && setDeleteTarget(null)}
         >
           <div
@@ -353,19 +353,18 @@ export function VaultGamesTab() {
             onClick={(e) => e.stopPropagation()}
           >
             <header>
-              <h2 className="heading-lg">Delete this game?</h2>
+              <h2 className="heading-lg">{t('vault.games.deleteTitle')}</h2>
             </header>
-            <p className="text-text-secondary text-sm">
-              This permanently removes{' '}
-              <span className="text-text-primary font-medium">
-                {orderedPlayers(
-                  deleteTarget.username,
-                  deleteTarget.opponent,
-                  deleteTarget.userColor,
-                ).join(' vs ')}
-              </span>{' '}
-              and any blunders found in it. The positions won't appear in
-              training again. This can't be undone.
+            <p className="text-text-primary text-sm">
+              {t.rich('vault.games.deleteBody', {
+                game: (
+                  <span className="text-text-primary font-medium">
+                    {orderedPlayers(deleteTarget.username, deleteTarget.opponent, deleteTarget.userColor).reduce(
+                      (a, b) => t('train.panel.vs', { a, b }),
+                    )}
+                  </span>
+                ),
+              })}
             </p>
             {deleteError && (
               <div className="bg-incorrect/10 border-2 border-incorrect/50 text-incorrect rounded-none p-3 text-sm">
@@ -379,7 +378,7 @@ export function VaultGamesTab() {
                 disabled={deleting}
                 onClick={() => setDeleteTarget(null)}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -388,7 +387,7 @@ export function VaultGamesTab() {
                 onClick={confirmDeleteGame}
               >
                 <TrashIcon className="h-4 w-4" />
-                {deleting ? 'Deleting…' : 'Delete'}
+                {deleting ? t('deleteModal.deleting') : t('common.delete')}
               </button>
             </div>
           </div>
@@ -420,24 +419,25 @@ const GameRow = memo(function GameRow({
   onDelete,
   onPreview,
 }: GameRowProps) {
+  const t = useT();
   const externalUrl = platformGameUrl(g);
   const outcome = gameOutcome(g);
   const [first, second] = orderedPlayers(g.username, g.opponent, g.userColor);
   const blunderLabel = !g.analyzedAt
-    ? 'Not analyzed'
+    ? t('vault.games.notAnalyzed')
     : blunderCount === 0
-      ? 'No blunders'
-      : `${blunderCount} blunder${blunderCount === 1 ? '' : 's'}`;
+      ? t('vault.games.noBlunders')
+      : t('vault.games.blunders', { count: blunderCount });
   return (
     <li>
       <div className="px-5 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex flex-col min-w-0">
           <span className="text-sm font-medium truncate">
-            {first} <span className="text-text-secondary">vs</span> {second}
+            {t.rich('train.panel.vs', { a: first, b: <span className="text-text-primary">{second}</span> })}
           </span>
-          <span className="text-xs text-text-secondary mt-0.5">
+          <span className="text-xs text-text-primary mt-0.5">
             {g.platform} · {g.timeControl ?? '—'} ·{' '}
-            {g.playedAt ? formatDate(g.playedAt) : 'unknown date'}
+            {g.playedAt ? formatDate(g.playedAt, t.locale) : t('vault.games.unknownDate')}
           </span>
         </div>
         <div className="flex items-center gap-3 shrink-0">
@@ -446,7 +446,6 @@ const GameRow = memo(function GameRow({
               type="button"
               className="inline-flex items-center gap-1 text-xs text-mistake hover:underline"
               aria-expanded={expanded}
-              title={expanded ? 'Hide positions' : 'Show blunder positions'}
               onClick={() => onToggle(g.id)}
             >
               {blunderLabel}
@@ -455,7 +454,7 @@ const GameRow = memo(function GameRow({
               />
             </button>
           ) : (
-            <span className="text-xs text-text-secondary">{blunderLabel}</span>
+            <span className="text-xs text-text-primary">{blunderLabel}</span>
           )}
           <ResultBadge outcome={outcome} />
           {externalUrl ? (
@@ -463,29 +462,25 @@ const GameRow = memo(function GameRow({
               href={externalUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className={clsx('btn-ghost text-xs gap-1', analyzed && 'text-text-secondary/70')}
-              title={`Open analysis on ${g.platform}`}
+              className={clsx('btn-ghost text-xs gap-1', analyzed && 'text-text-primary')}
+              title={t('vault.games.openAnalysis', { platform: g.platform })}
               onClick={() => onAnalyze(g.id)}
               onAuxClick={(e) => {
                 if (e.button === 1) onAnalyze(g.id);
               }}
             >
-              {analyzed ? 'Re-analyze' : 'Analyze'} <span aria-hidden>↗</span>
+              {analyzed ? t('vault.games.reanalyze') : t('vault.games.analyze')} <span aria-hidden>↗</span>
             </a>
           ) : (
-            <span
-              className="btn-ghost text-xs gap-1 opacity-40 cursor-not-allowed"
-              title="No external link available"
-            >
-              Analyze <span aria-hidden>↗</span>
+            <span className="btn-ghost text-xs gap-1 opacity-40 cursor-not-allowed">
+              {t('vault.games.analyze')} <span aria-hidden>↗</span>
             </span>
           )}
           <button
             type="button"
-            className="btn-ghost text-xs text-text-secondary hover:text-incorrect inline-flex items-center"
+            className="btn-ghost text-xs text-text-primary hover:text-incorrect inline-flex items-center"
             onClick={() => onDelete(g)}
-            title="Delete game and its blunders"
-            aria-label="Delete game"
+            aria-label={t('vault.games.deleteGame')}
           >
             <TrashIcon className="h-4 w-4" />
           </button>

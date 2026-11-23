@@ -10,6 +10,9 @@ import { BrandLockup } from './BrandLogo';
 import { MiniBoard } from './MiniBoard';
 import { CommitmentPicker } from './CommitmentPicker';
 import { freshBlunderLine } from '../content/freshBlunderLines';
+import { fetchingLine, summarizeFetch } from '../lib/syncProgress';
+import { PlatformLogo, type PlatformId } from './icons/PlatformLogos';
+import { useT } from '../i18n/useT';
 
 type Phase = 'fetching' | 'analyzing' | 'done' | 'error' | 'idle';
 
@@ -25,6 +28,7 @@ function combinedPhase(active: ProviderProgress[]): Phase {
 
 export function OnboardingImport() {
   const navigate = useNavigate();
+  const t = useT();
   const { profile } = useAuth();
   const providers = useSyncStore((s) => s.providers);
   const dismiss = useOnboardingStore((s) => s.dismiss);
@@ -34,10 +38,16 @@ export function OnboardingImport() {
   if (profile?.chesscomUsername) active.push(providers.chesscom);
 
   const phase = combinedPhase(active);
+  const sources: { platform: PlatformId; username: string }[] = [
+    ...(profile?.lichessUsername ? [{ platform: 'lichess' as const, username: profile.lichessUsername }] : []),
+    ...(profile?.chesscomUsername ? [{ platform: 'chesscom' as const, username: profile.chesscomUsername }] : []),
+  ];
 
   const fetched = active.reduce((sum, p) => sum + p.fetched, 0);
   const inserted = active.reduce((sum, p) => sum + p.inserted, 0);
   const totalTarget = active.reduce((sum, p) => sum + (p.total ?? 200), 0);
+  // Live count while the sites send games: "Fetching games… 57 of 200 (3 months back)".
+  const fetchSummary = summarizeFetch(active);
 
   const analyzeIndex = active.reduce((sum, p) => sum + p.analyzeGameIndex, 0);
   const analyzeTotal = active.reduce((sum, p) => sum + p.analyzeGamesTotal, 0);
@@ -70,10 +80,8 @@ export function OnboardingImport() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-xl mx-auto text-center">
       <BrandLockup size="lg" className="mb-4" />
-      <p className="text-text-secondary mb-8">
-        We're importing your last 200 games and finding the blunders you'll
-        train against. Your first position is usually ready in a minute or two,
-        and the rest keep arriving while you train.
+      <p className="text-text-primary mb-8">
+        {t('onboarding.import.lede')}
       </p>
 
       {first && (
@@ -87,13 +95,14 @@ export function OnboardingImport() {
             className="w-40 shrink-0"
           />
           <div className="flex flex-col gap-3">
-            <span className="label">Your first position is ready</span>
+            <span className="label">{t('onboarding.import.firstReady')}</span>
             <p className="text-text-primary">
-              Move {first.moveNumber} of one of your games, {first.sideToMove === 'black' ? 'Black' : 'White'} to
-              move. You missed something here. Can you find it now?
+              {first.sideToMove === 'black'
+                ? t('onboarding.import.firstBodyBlack', { move: first.moveNumber })
+                : t('onboarding.import.firstBodyWhite', { move: first.moveNumber })}
             </p>
             <button type="button" onClick={onContinue} className="btn-primary self-start">
-              Solve it now
+              {t('onboarding.import.solveNow')}
             </button>
           </div>
         </section>
@@ -101,23 +110,25 @@ export function OnboardingImport() {
 
       <div className="w-full space-y-6 bg-surface rounded-none p-6 border-2 border-text-primary shadow-card">
         <Step
-          label="Importing games"
+          label={t('onboarding.import.importing')}
           done={phase === 'analyzing' || phase === 'done'}
           active={phase === 'fetching'}
           current={inserted || fetched}
           total={totalTarget || 200}
+          hint={fetchSummary ? fetchingLine(fetchSummary, t) : null}
+          sources={sources}
         />
         <Step
-          label="Hunting for blunders"
+          label={t('onboarding.import.hunting')}
           done={phase === 'done'}
           active={phase === 'analyzing'}
           current={analyzeIndex}
           total={analyzeTotal || 200}
           hint={
             phase === 'analyzing' && blundersFound > 0
-              ? `${blundersFound} blunder${blundersFound === 1 ? '' : 's'} found so far`
+              ? t('onboarding.import.foundSoFar', { count: blundersFound })
               : phase === 'done' && blundersFound > 0
-                ? `${blundersFound} blunder${blundersFound === 1 ? '' : 's'} found`
+                ? t('onboarding.import.found', { count: blundersFound })
                 : null
           }
         />
@@ -125,20 +136,20 @@ export function OnboardingImport() {
 
       {phase === 'done' && blundersFound > 0 && (
         <p className="mt-6 w-full text-center text-text-primary" data-testid="onboarding-celebration">
-          {freshBlunderLine(blundersFound, analyzeTotal, blundersFound)}
+          {freshBlunderLine(blundersFound, analyzeTotal, blundersFound, t)}
         </p>
       )}
 
       {phase === 'error' && (
         <div className="mt-6 w-full bg-incorrect/10 border-2 border-incorrect/50 text-incorrect rounded-none p-4 text-sm text-left">
-          <div className="font-mono uppercase text-xs tracking-tight mb-1">Something went wrong</div>
-          <div className="text-text-secondary">{errorMsg ?? 'Sync failed.'}</div>
+          <div className="font-semibold mb-1">{t('onboarding.somethingWrong')}</div>
+          <div className="text-text-primary">{errorMsg ?? t('onboarding.import.syncFailed')}</div>
           <button
             type="button"
             onClick={onEditProfile}
             className="mt-3 text-text-primary underline"
           >
-            Check your profile
+            {t('onboarding.import.checkProfile')}
           </button>
         </div>
       )}
@@ -149,7 +160,7 @@ export function OnboardingImport() {
           onClick={onEditProfile}
           className="btn-outline"
         >
-          Edit profile
+          {t('onboarding.import.editProfile')}
         </button>
         {!first && (
           <button
@@ -158,24 +169,23 @@ export function OnboardingImport() {
             disabled={phase !== 'done' && blundersFound < 1}
             className="btn-primary"
           >
-            Start today's plan
+            {t('onboarding.import.startPlan')}
           </button>
         )}
       </div>
       {phase === 'analyzing' && blundersFound >= 1 && (
-        <p className="mt-3 text-xs text-text-secondary">
-          More fuel on the way: we're still analyzing.
+        <p className="mt-3 text-xs text-text-primary">
+          {t('onboarding.import.moreFuel')}
         </p>
       )}
-      <p className="mt-3 text-xs text-text-secondary">
-        New games sync automatically each time you visit — your vault stays
-        current.
+      <p className="mt-3 text-xs text-text-primary">
+        {t('onboarding.import.autoSync')}
       </p>
 
       <section className="mt-8 w-full text-left" aria-labelledby="commitment-heading">
-        <h2 id="commitment-heading" className="heading-md">How much will you commit each day?</h2>
+        <h2 id="commitment-heading" className="heading-md">{t('onboarding.import.commitTitle')}</h2>
         <p className="mt-1 mb-3 text-sm text-text-primary">
-          Your daily plan follows this. Change it any time in your profile.
+          {t('onboarding.import.commitHelp')}
         </p>
         <CommitmentPicker compact />
       </section>
@@ -184,7 +194,7 @@ export function OnboardingImport() {
 }
 
 export function StepMarker({ done, active }: { done: boolean; active: boolean }) {
-  const cls = done ? 'text-correct' : active ? 'text-gold-dark' : 'text-text-secondary opacity-50';
+  const cls = done ? 'text-correct' : active ? 'text-gold-dark' : 'text-text-primary opacity-50';
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -219,6 +229,7 @@ function Step({
   current,
   total,
   hint,
+  sources,
 }: {
   label: string;
   done: boolean;
@@ -226,13 +237,25 @@ function Step({
   current: number;
   total: number;
   hint?: string | null;
+  /** Accounts the games come from, each named with its platform's logo. */
+  sources?: { platform: PlatformId; username: string }[];
 }) {
   return (
     <div>
-      <div className="flex items-center gap-3 mb-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
         <StepMarker done={done} active={active} />
         <span className="text-text-primary">{label}</span>
-        {hint && <span className="text-xs text-text-secondary">· {hint}</span>}
+        {sources?.map((s) => (
+          <span
+            key={s.platform}
+            className="inline-flex items-center gap-1 text-sm text-text-primary"
+            data-testid={`import-source-${s.platform}`}
+          >
+            <PlatformLogo platform={s.platform} className="h-4 w-4" />
+            {s.username}
+          </span>
+        ))}
+        {hint && <span className="text-xs text-text-primary">· {hint}</span>}
       </div>
       <ProgressBar current={done ? total : current} total={total} />
     </div>

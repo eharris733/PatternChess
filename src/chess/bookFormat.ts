@@ -26,7 +26,15 @@ export const BOOK_TIER_LABEL: Record<BookTier, string> = {
 export const BOOK_TIER_MIN_ELO: Record<BookTier, number> = { otb: 2200, elite: 2300 };
 
 /** "players rated 2200+ (OTB)" / "players rated 2300+ on Lichess". */
-export function bookPlayersLabel(tier: BookTier): string {
+/** Translator slice (structural: this module is shared with Functions, which has no React). */
+type BookLabelT = (key: 'book.playersOtb' | 'book.playersElite', vars: { elo: string }) => string;
+
+export function bookPlayersLabel(tier: BookTier, t?: BookLabelT): string {
+  if (t) {
+    return tier === 'otb'
+      ? t('book.playersOtb', { elo: String(BOOK_TIER_MIN_ELO.otb) })
+      : t('book.playersElite', { elo: String(BOOK_TIER_MIN_ELO.elite) });
+  }
   return tier === 'otb'
     ? `players rated ${BOOK_TIER_MIN_ELO.otb}+ (OTB)`
     : `players rated ${BOOK_TIER_MIN_ELO.elite}+ on Lichess`;

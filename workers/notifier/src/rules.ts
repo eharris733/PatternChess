@@ -21,8 +21,13 @@
 //                   local today, account >= 20 h old, < 6 unanswered, and the
 //                   last reminder older than 20 h (few_days: 2 d 20 h; after
 //                   3 unanswered: 6 d 20 h — the weekly back-off).
+//
+// Content rules (what goes inside an email, not which one is sent):
+//   events near you  weekly_report only, and only for a state the player
+//                    saved (profiles.events_state); see eventsStateFor.
 
 import type { EmailKind } from './templates';
+import { isUsStateCode } from './usStates';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -60,6 +65,8 @@ export interface CandidateFacts {
   lichess_username: string | null;
   chesscom_username: string | null;
   timezone: string | null;
+  /** Saved US state for OTB events (profiles.events_state); null = never picked. */
+  events_state: string | null;
   due_now: number;
   live_total: number;
   last_trained: string | null;
@@ -172,6 +179,15 @@ export interface Decision {
 export function firstNameOf(f: Pick<CandidateFacts, 'display_name' | 'lichess_username' | 'chesscom_username'>): string | null {
   const first = f.display_name == null ? null : f.display_name.split(' ')[0] || null;
   return first ?? f.lichess_username ?? f.chesscom_username ?? null;
+}
+
+/**
+ * The state whose OTB tournaments the email lists under "Events near you":
+ * weekly reports only, and only a state the player picked themselves (the
+ * app's location guess is never saved). Null = no section.
+ */
+export function eventsStateFor(kind: EmailKind | null, f: Pick<CandidateFacts, 'events_state'>): string | null {
+  return kind === 'weekly_report' && isUsStateCode(f.events_state) ? f.events_state : null;
 }
 
 export function decide(f: CandidateFacts, nowDate: Date): Decision {

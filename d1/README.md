@@ -12,6 +12,10 @@ d1/
   migrations/0001_app.sql the 17 app tables (ported from Supabase `public`)
   migrations/0002_auth.sql better-auth 1.7 tables: user, session, account,
                           verification, rateLimit
+  migrations/0003_social_posts.sql  daily puzzle video queue (scripts/social/)
+  migrations/0004_events_state.sql  profiles.events_state
+  migrations/0005_cosmetics_referral.sql  avatars, piece sets, supporter_grants
+  migrations/0006_courses.sql course_progress + course_focus (/courses)
 functions/_shared/schema.ts  decode map: TABLES + decodeRow/encodeRow
 scripts/migrate/          export-supabase.mjs, import-d1.mjs, verify.mjs, lib.mjs
 data/migrate/             export JSONL + generated SQL (gitignored, user data)
@@ -38,8 +42,11 @@ npx wrangler d1 migrations apply patternchess-app --local --config d1/wrangler.j
 npx wrangler d1 execute patternchess-app --remote --config d1/wrangler.jsonc --command "SELECT count(*) FROM games"
 ```
 
-New migrations go in `d1/migrations/NNNN_name.sql` (SQLite). Both migrations
-above are applied remotely and locally as of 2026-11-22.
+New migrations go in `d1/migrations/NNNN_name.sql` (SQLite). 0001-0003 are
+applied remotely as of 2026-11-22. feat/courses' original `0003_courses.sql` may
+also have been applied remotely from that branch: `0006_courses.sql` replaces it
+and is idempotent (`IF NOT EXISTS`, no `ALTER TABLE`), so it applies either way;
+a leftover `profiles.course_focus` column, if any, is unused.
 
 ## Local development
 

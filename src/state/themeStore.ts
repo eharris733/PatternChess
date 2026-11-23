@@ -1,22 +1,13 @@
 import { useEffect } from 'react';
 import { create } from 'zustand';
 
-export const BOARD_THEMES = ['default', 'inverse', 'frozen', 'green', 'purple'] as const;
-export type BoardTheme = (typeof BOARD_THEMES)[number];
+import { BOARD_THEMES, BOARD_THEME_LABEL, isBoardTheme, type BoardTheme } from '../lib/themeIds';
+import { applyPieceSetToDom, usePieceSetStore } from './pieceSetStore';
 
-export const BOARD_THEME_LABEL: Record<BoardTheme, string> = {
-  default: 'Default',
-  inverse: 'Inverse',
-  frozen: 'Frozen',
-  green: 'Green',
-  purple: 'Purple',
-};
+// Ids + labels live in the pure src/lib/themeIds.ts (the server validates with them).
+export { BOARD_THEMES, BOARD_THEME_LABEL, type BoardTheme };
 
 const STORAGE_KEY = 'patternchess.boardTheme';
-
-function isBoardTheme(v: unknown): v is BoardTheme {
-  return typeof v === 'string' && (BOARD_THEMES as readonly string[]).includes(v);
-}
 
 function readInitial(): BoardTheme {
   if (typeof window === 'undefined') return 'default';
@@ -71,7 +62,7 @@ export const useThemeStore = create<ThemeState>((set) => ({
 }));
 
 /**
- * Forces the document theme to "default" for the lifetime of the calling
+ * Forces the document theme to "default" (and the classic pieces) for the lifetime of the calling
  * component. On unmount, restores whatever theme the store currently holds.
  * Use on unauthenticated surfaces (login, landing) so they always render
  * on-brand regardless of the signed-in user's preference.
@@ -79,8 +70,10 @@ export const useThemeStore = create<ThemeState>((set) => ({
 export function useForceDefaultTheme() {
   useEffect(() => {
     applyToDom('default');
+    applyPieceSetToDom('cburnett');
     return () => {
       applyToDom(useThemeStore.getState().theme);
+      applyPieceSetToDom(usePieceSetStore.getState().pieceSet);
     };
   }, []);
 }

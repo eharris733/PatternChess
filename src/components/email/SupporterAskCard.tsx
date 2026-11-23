@@ -26,6 +26,7 @@ export function SupporterAskCard({ onClose }: { onClose: () => void }) {
         </p>
         <p className="text-sm text-text-primary">
           Supporters get flair next to their name, early access to the mobile app beta, and our thanks.
+          Having a stake in your training is one more reason to show up for it.
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <button
@@ -45,7 +46,7 @@ export function SupporterAskCard({ onClose }: { onClose: () => void }) {
         </div>
         {error && <p className="text-incorrect text-sm">{error}</p>}
       </div>
-      <button type="button" onClick={dismiss} aria-label="Maybe later" className="shrink-0 text-text-secondary">
+      <button type="button" onClick={dismiss} aria-label="Maybe later" className="shrink-0 text-text-primary">
         <CloseIcon className="h-4 w-4" />
       </button>
     </section>

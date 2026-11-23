@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { NearbyEvent } from './events';
 import { openTestD1, type TestD1 } from '../../../functions/_shared/rpc/testD1';
 import {
   candidateFacts,
@@ -182,6 +183,65 @@ describe('outbox', () => {
     addUser(U1, 'ada@example.com', { email_reports: 'off' });
     const [row] = await emailCandidates(db, NOW, U1);
     expect(row.data.report).toBeDefined();
+  });
+});
+
+describe('events near you', () => {
+  const LISTING: NearbyEvent[] = [{ title: 'Boylston Saturday Open', when: 'Sat, Dec 5', where: 'Boylston · Boston', url: 'https://e/1' }];
+
+  function weeklyReader(id: string, email: string, profile: Record<string, unknown> = {}) {
+    addUser(id, email, { last_drill_local_date: '2026-11-27', ...profile });
+    addBlunder(id, { last_drilled_at: ago(2 * D) });
+  }
+
+  it('reads events_state from the profile', async () => {
+    addUser(U1, 'ada@example.com', { events_state: 'MA' });
+    addUser(U2, 'bob@example.com');
+    const facts = await candidateFacts(db, NOW, null);
+    expect(facts.map((f) => [f.id, f.events_state])).toEqual([
+      [U1, 'MA'],
+      [U2, null],
+    ]);
+  });
+
+  it('loads the listing for weekly reports with a saved state, once per player, in the local day', async () => {
+    weeklyReader(U1, 'ada@example.com', { events_state: 'MA' });
+    weeklyReader(U2, 'bob@example.com'); // weekly report, no state
+    addUser(U3, 'cy@example.com', { events_state: 'NY', email_reports: 'off' }); // daily plan, not a report
+    addBlunder(U3, { last_drilled_at: ago(9 * D) });
+    const loadEvents = vi.fn(async () => LISTING);
+    const rows = await emailOutbox(db, NOW, { loadEvents });
+    expect(rows.map((r) => [r.user_id, r.kind])).toEqual([
+      [U1, 'weekly_report'],
+      [U2, 'weekly_report'],
+      [U3, 'daily_plan'],
+    ]);
+    expect(loadEvents).toHaveBeenCalledTimes(1);
+    expect(loadEvents).toHaveBeenCalledWith('MA', '2026-11-29');
+    expect(rows[0].data).toMatchObject({ eventsState: 'MA', events: LISTING });
+    expect(rows[1].data.eventsState).toBeUndefined();
+    expect(rows[2].data.eventsState).toBeUndefined();
+  });
+
+  it('still sends the report when the events lookup fails', async () => {
+    weeklyReader(U1, 'ada@example.com', { events_state: 'MA' });
+    const rows = await emailOutbox(db, NOW, { loadEvents: async () => Promise.reject(new Error('down')) });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ kind: 'weekly_report', data: { eventsState: 'MA', events: null } });
+  });
+
+  it('makes no lookups without a loader', async () => {
+    weeklyReader(U1, 'ada@example.com', { events_state: 'MA' });
+    const [row] = await emailOutbox(db, NOW);
+    expect(row.data).toMatchObject({ eventsState: 'MA', events: null });
+  });
+
+  it('a single-user preview includes events for a saved state whatever the kind', async () => {
+    addUser(U1, 'ada@example.com', { events_state: 'RI', email_reports: 'off' });
+    const loadEvents = vi.fn(async () => LISTING);
+    const [row] = await emailCandidates(db, NOW, U1, { loadEvents });
+    expect(loadEvents).toHaveBeenCalledWith('RI', '2026-11-29');
+    expect(row.data.events).toEqual(LISTING);
   });
 });
 

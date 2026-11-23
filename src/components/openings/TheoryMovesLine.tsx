@@ -2,9 +2,15 @@ import clsx from 'clsx';
 import type { OpeningDrillSource, TheoryMove } from '../../models/blunder';
 import { CASTLING_NORMALIZE } from '../../chess/moveUtils';
 import { bookPlayersLabel, type BookTier } from '../../chess/bookFormat';
+import { useT, type Translator } from '../../i18n/useT';
 
 /** "Players rated 2200+ (OTB) play" — v1 drills without a tier fall back. */
-export function playersHeading(tier: BookTier | null | undefined): string {
+export function playersHeading(tier: BookTier | null | undefined, t?: Translator): string {
+  if (t) {
+    if (!tier) return t('theory.strongPlayers');
+    const s = t('theory.playersPlay', { who: bookPlayersLabel(tier, t) });
+    return `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
+  }
   if (!tier) return 'Strong players play';
   const label = bookPlayersLabel(tier);
   return `${label.charAt(0).toUpperCase()}${label.slice(1)} play`;
@@ -33,6 +39,7 @@ export function TheoryMovesLine({
   /** The move the user played, when it is one of these (drawn green). */
   highlightUci?: string | null;
 }) {
+  const t = useT();
   const shown = moves.slice(0, max);
   if (shown.length === 0) return null;
 
@@ -42,12 +49,12 @@ export function TheoryMovesLine({
     const isMine = (t: TheoryMove) => !!highlightUci && sameUci(t.uci, highlightUci);
     return (
       <p className="text-text-primary text-sm" data-testid="theory-moves-line">
-        <span className="font-semibold">Best: </span>
+        <span className="font-semibold">{t('theory.best')} </span>
         <span className={clsx('font-mono font-semibold', isMine(engine) && 'text-correct')}>{engine.san}</span>
-        {isMine(engine) && ' (your move)'}
+        {isMine(engine) && ` ${t('theory.yourMove')}`}
         {others.length > 0 && (
           <>
-            {' · also fine: '}
+            {` · ${t('theory.alsoFine')} `}
             {others.map((t, i) => (
               <span key={t.uci}>
                 {i > 0 && ', '}
@@ -62,7 +69,7 @@ export function TheoryMovesLine({
 
   return (
     <figure className="flex flex-col gap-1.5" data-testid="theory-moves-line">
-      <figcaption className="label text-text-primary">{playersHeading(shown[0]?.tier)}</figcaption>
+      <figcaption className="label text-text-primary">{playersHeading(shown[0]?.tier, t)}</figcaption>
       <ul className="flex flex-col gap-1">
         {shown.map((t) => {
           const mine = !!highlightUci && sameUci(t.uci, highlightUci);

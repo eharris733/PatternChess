@@ -37,6 +37,15 @@ export interface EmailData {
     leaderboardRank: number | null;
     topMotif: string | null;
   };
+  /** weekly_report only: OTB tournaments in the player's saved state (listings, no pitch). */
+  nearbyEvents?: NearbyEvents;
+}
+
+export interface NearbyEvents {
+  stateName: string;
+  items: Array<{ title: string; when: string; where: string; url: string }>;
+  /** The state's page on events.patternchess.com. */
+  seeAllUrl: string;
 }
 
 export interface EmailLinks {
@@ -78,11 +87,13 @@ function hi(d: EmailData): string {
   return d.firstName ? `Hi ${esc(d.firstName)},` : 'Hi,';
 }
 
-/** Today's plan as a sentence, sized by the player's commitment level. */
+/**
+ * Today's plan as a sentence, sized by the player's commitment level. Same
+ * order as the in-app plan (DailyHabitCard): train first, play last.
+ */
 function planLine(d: EmailData): string {
-  const parts = [];
+  const parts = [`train ${plural(d.positionsGoal, 'position')}`];
   if (d.gamesGoal > 0) parts.push(`play ${plural(d.gamesGoal, 'game')}`);
-  parts.push(`train ${plural(d.positionsGoal, 'position')}`);
   return parts.join(', then ');
 }
 
@@ -90,7 +101,8 @@ type Block =
   | { kind: 'p'; html: string }
   | { kind: 'streak' }
   | { kind: 'stats'; rows: Array<[string, string]> }
-  | { kind: 'cta'; label: string; href: string };
+  | { kind: 'cta'; label: string; href: string }
+  | { kind: 'events'; events: NearbyEvents };
 
 interface Body {
   subject: string;
@@ -134,6 +146,24 @@ function statsTable(rows: Array<[string, string]>): string {
   </table>`;
 }
 
+/** "Events near you": one row per tournament (linked title, date, club), then the state's full list. */
+function eventsSection(ev: NearbyEvents): string {
+  const rows = ev.items
+    .map(
+      (e, i) => `<tr><td style="padding:10px 0;${i < ev.items.length - 1 ? `border-bottom:1px solid ${LINE};` : ''}">
+        <a href="${esc(e.url)}" style="font:bold 15px/1.4 ${SANS};color:${INK};text-decoration:none;">${esc(e.title)}</a>
+        <div style="font:13px/1.5 ${SANS};color:${MUTED};">${esc(e.when)}${e.where ? `<br>${esc(e.where)}` : ''}</div>
+      </td></tr>`,
+    )
+    .join('');
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:10px 0 20px;border-top:2px solid ${INK};">
+    <tr><td style="padding:14px 0 2px;font:bold 11px/1 ${MONO};letter-spacing:1px;text-transform:uppercase;color:${GOLD};">Events near you</td></tr>
+    <tr><td style="padding:6px 0 2px;font:13px/1.5 ${SANS};color:${INK};">Over-the-board tournaments in ${esc(ev.stateName)} in the next two weeks.</td></tr>
+    ${rows}
+    <tr><td style="padding:8px 0 0;"><a href="${esc(ev.seeAllUrl)}" style="font:bold 12px/1 ${MONO};letter-spacing:0.5px;text-transform:uppercase;color:${GOLD};">All ${esc(ev.stateName)} tournaments</a></td></tr>
+  </table>`;
+}
+
 function cta(label: string, href: string): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 20px;"><tr>
     <td bgcolor="${GOLD}" style="background-color:${GOLD};border:2px solid ${INK};">
@@ -154,6 +184,8 @@ function layout(b: Body, d: EmailData, links: EmailLinks): RenderedEmail {
           return statsTable(blk.rows);
         case 'cta':
           return cta(blk.label, blk.href);
+        case 'events':
+          return eventsSection(blk.events);
       }
     })
     .join('\n');
@@ -196,6 +228,12 @@ function layout(b: Body, d: EmailData, links: EmailLinks): RenderedEmail {
         return blk.rows.map(([l, v]) => `${l}: ${v}`).join('\n');
       case 'cta':
         return `${blk.label}: ${blk.href}`;
+      case 'events':
+        return [
+          `EVENTS NEAR YOU\nOver-the-board tournaments in ${blk.events.stateName} in the next two weeks.`,
+          ...blk.events.items.map((e) => [e.title, e.when, e.where, e.url].filter(Boolean).join('\n')),
+          `All ${blk.events.stateName} tournaments: ${blk.events.seeAllUrl}`,
+        ].join('\n\n');
     }
   });
   const text = [
@@ -302,9 +340,9 @@ export function renderEmail(kind: EmailKind, d: EmailData, links: EmailLinks): R
             {
               kind: 'stats',
               rows: [
-                ['Games to play', String(d.gamesGoal)],
                 ['Positions to train', String(d.positionsGoal)],
                 ['Due in your queue', d.dueNow.toLocaleString('en-US')],
+                ...(d.gamesGoal > 0 ? [['Games to play', String(d.gamesGoal)] as [string, string]] : []),
               ],
             },
             { kind: 'p', html: 'Stop procrastinating your improvement. Ten minutes today beats two hours next Sunday.' },
@@ -361,6 +399,7 @@ export function renderEmail(kind: EmailKind, d: EmailData, links: EmailLinks): R
               html: `Across PatternChess, players have gained <b>${d.communityElo.toLocaleString('en-US')} Elo</b> so far. Keep adding to it.`,
             },
             { kind: 'cta', label: 'See your dashboard', href: links.dashboard },
+            ...(d.nearbyEvents?.items.length ? [{ kind: 'events' as const, events: d.nearbyEvents }] : []),
           ],
         },
         d,

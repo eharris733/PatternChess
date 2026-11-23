@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { Translator } from '../i18n/useT';
 
 /** A one-off streak event worth telling the player about. */
 export type StreakNotice =
@@ -18,11 +19,8 @@ export const useStreakNoticeStore = create<StreakNoticeState>((set) => ({
   clear: () => set({ notice: null }),
 }));
 
-export function streakNoticeText(n: StreakNotice): string {
-  if (n.kind === 'freezeUsed') {
-    return n.freezes === 1
-      ? `A streak freeze saved your ${n.days}-day streak.`
-      : `${n.freezes} streak freezes saved your ${n.days}-day streak.`;
-  }
-  return `${n.days} days in a row. You earned a streak freeze: miss a day and it keeps your streak alive.`;
+export function streakNoticeText(n: StreakNotice, t: Translator): string {
+  return n.kind === 'freezeUsed'
+    ? t('streak.freezeUsed', { count: n.freezes, days: n.days })
+    : t('streak.freezeEarned', { days: n.days });
 }

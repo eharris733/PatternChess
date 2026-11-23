@@ -3,7 +3,9 @@ import type { Tables, TablesInsert } from '../../lib/database.types';
 import {
   Blunder,
   blunderFromJson,
+  type BlunderPhase,
   CorrectMove,
+  type DrillKind,
   nextDrillDate,
   sortDueQueue,
 } from '../../models/blunder';
@@ -112,6 +114,27 @@ export async function getBlundersByIds(ids: string[]): Promise<Blunder[]> {
   if (ids.length === 0) return [];
   const rows = await rpc<BlunderRow[]>('blunders.byIds', { ids });
   return sortDueQueue(rows.map(blunderFromJson));
+}
+
+/**
+ * "Practice ahead": live drills that aren't due yet, soonest first, for a
+ * player whose queue is clear. Narrowed like the training focus (kind,
+ * excluded kind, phase). Drilling one early goes through the normal SR rules
+ * (applyDrillResult), exactly like a due drill.
+ */
+export async function getUpcomingBlunders(opts: {
+  kind?: DrillKind | null;
+  excludeKind?: DrillKind | null;
+  phase?: BlunderPhase | null;
+  limit?: number;
+} = {}): Promise<Blunder[]> {
+  const rows = await rpc<BlunderRow[]>('blunders.upcoming', {
+    kind: opts.kind ?? null,
+    excludeKind: opts.excludeKind ?? null,
+    phase: opts.phase ?? null,
+    limit: opts.limit ?? 10,
+  });
+  return rows.map(blunderFromJson);
 }
 
 /** How many positions are due now (same filter as getDueBlunders), without downloading them. */

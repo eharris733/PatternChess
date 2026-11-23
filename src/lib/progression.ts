@@ -1,8 +1,10 @@
 // The progression ladder (/path): milestones on lifetime positions trained,
-// the same number as "Positions solved" (BlunderStats.reviewed = sum of
-// times_correct). Each rung unlocks one motivational article (titles and
-// teasers in src/generated/articles.json, bodies supporter-only); courses join
-// the ladder later. Supporters skip the gates.
+// counted exactly like the daily plan's "Train N positions" step: every
+// first-attempt drill (openings excluded) summed over all training sessions
+// (`profile.trainingTotals` → positions). So a day's plan always moves the
+// path by the same amount it moves the daily goal. Each rung unlocks one
+// motivational article (titles and teasers in src/generated/articles.json,
+// bodies supporter-only). Supporters skip the gates.
 
 import articlesJson from '../generated/articles.json';
 
@@ -13,7 +15,13 @@ export interface ArticleMeta {
   teaserHtml: string;
 }
 
-export const ARTICLES: readonly ArticleMeta[] = articlesJson as ArticleMeta[];
+// Dev only: `npm run articles:sync -- --local --drafts` writes a gitignored list
+// with the drafts so they can be tried locally; builds never read it.
+const localArticles = import.meta.env.DEV
+  ? Object.values(import.meta.glob<ArticleMeta[]>('../generated/articles.local.json', { eager: true, import: 'default' }))[0]
+  : undefined;
+
+export const ARTICLES: readonly ArticleMeta[] = localArticles ?? (articlesJson as ArticleMeta[]);
 
 export const PATH_RUNGS: readonly number[] = [10, 25, 50, 100, 200, 350, 500, 750, 1000];
 

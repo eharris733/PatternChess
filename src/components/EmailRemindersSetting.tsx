@@ -3,6 +3,7 @@ import { useAuth } from '../auth/useAuth';
 import { supabaseService } from '../services/supabaseService';
 import { detectTimezone } from '../services/streakService';
 import { ContactEmailForm, ContactEmailPending } from './email/ContactEmailForm';
+import { useT } from '../i18n/useT';
 
 function hourLabel(h: number): string {
   if (h === 0) return '12 am';
@@ -18,6 +19,7 @@ const HOURS = Array.from({ length: 24 }, (_, h) => h);
  * sign-ins share no email address, so they add one here and confirm it by link.
  */
 export function EmailRemindersSetting() {
+  const t = useT();
   const { user, profile, refreshProfile } = useAuth();
   const [on, setOn] = useState(profile?.emailOptIn ?? false);
   const [hour, setHour] = useState(profile?.emailHour ?? 18);
@@ -45,7 +47,7 @@ export function EmailRemindersSetting() {
       .catch((err) => {
         console.warn('[email] save failed', err);
         setOn(!next);
-        setError('Could not save this setting. Try again in a moment.');
+        setError(t('email.saveError'));
       });
   };
 
@@ -59,13 +61,13 @@ export function EmailRemindersSetting() {
       .catch((err) => {
         console.warn('[email] save failed', err);
         setHour(prev);
-        setError('Could not save this setting. Try again in a moment.');
+        setError(t('email.saveError'));
       });
   };
 
   return (
     <section className="card flex flex-col gap-4" id="email" data-testid="email-reminders-setting">
-      <h2 className="heading-md">Email</h2>
+      <h2 className="heading-md">{t('email.title')}</h2>
       {pending && contact ? (
         <ContactEmailPending email={contact} onChange={() => setChangingAddress(true)} />
       ) : email && !changingAddress ? (
@@ -73,16 +75,13 @@ export function EmailRemindersSetting() {
           <label className="flex items-start gap-2 select-none">
             <input type="checkbox" className="mt-1" checked={on} onChange={(e) => toggle(e.target.checked)} />
             <span>
-              Training reminders and progress updates
-              <span className="block text-text-secondary text-xs">
-                Sent to {email}: a nudge on days you have training due and a weekly progress report.
-                Every email also has a one-click unsubscribe.
-              </span>
+              {t('email.reminders')}
+              <span className="block text-text-primary text-xs">{t('email.remindersHelp', { email })}</span>
             </span>
           </label>
           {on && (
             <label className="flex items-center gap-2 text-sm">
-              Send reminders at
+              {t('email.sendAt')}
               <select
                 className="input w-28"
                 value={hour}
@@ -95,12 +94,12 @@ export function EmailRemindersSetting() {
                   </option>
                 ))}
               </select>
-              <span className="text-text-secondary text-xs">your time</span>
+              <span className="text-text-primary text-xs">{t('email.yourTime')}</span>
             </label>
           )}
           {contact && (
             <button type="button" className="self-start text-sm underline" onClick={() => setChangingAddress(true)}>
-              Use a different address
+              {t('email.useDifferent')}
             </button>
           )}
         </>
@@ -108,8 +107,8 @@ export function EmailRemindersSetting() {
         <>
           <p className="text-sm text-text-primary">
             {changingAddress
-              ? "Enter the new address. We'll send a confirmation link to it."
-              : "You signed in with Lichess, which doesn't share an email address. Add one to get a nudge on days you have training due and a weekly progress report."}
+              ? t('email.enterNew')
+              : t('email.lichessNoEmail')}
           </p>
           <ContactEmailForm onSaved={() => setChangingAddress(false)} />
         </>

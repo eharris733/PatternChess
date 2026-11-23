@@ -169,6 +169,7 @@ function LeadRow({ lead, segment }: { lead: OutreachLead; segment: OutreachSegme
       {open && (
         <textarea
           readOnly
+          aria-label="Outreach message"
           value={message}
           rows={5}
           className="w-full text-xs bg-bg border-2 border-text-primary/20 p-2 text-text-primary"

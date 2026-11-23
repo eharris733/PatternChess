@@ -1,22 +1,24 @@
 import { TESTIMONIALS } from '../../content/testimonials';
+import { useT } from '../../i18n/useT';
 
 /**
  * Player quotes, verbatim from src/content/testimonials.ts. Static data, so the
  * section is part of the prerendered HTML and never shifts the layout.
  */
 export function Testimonials() {
+  const t = useT();
   return (
     <section className="border-b-2 border-text-primary">
       <div className="max-w-6xl mx-auto px-6 py-16 lg:py-20">
         <div className="mb-10 border-b-2 border-text-primary pb-4">
           <h2 className="font-mono uppercase tracking-tight text-2xl sm:text-3xl text-text-primary">
-            What players say
+            {t('testimonials.title')}
           </h2>
         </div>
         <div className="grid md:grid-cols-3 gap-0 border-2 border-text-primary bg-surface">
-          {TESTIMONIALS.map((t, i) => (
+          {TESTIMONIALS.map((q, i) => (
             <figure
-              key={t.name}
+              key={q.name}
               className={
                 'm-0 p-6 lg:p-8 flex flex-col gap-5 justify-between ' +
                 (i < TESTIMONIALS.length - 1
@@ -27,15 +29,15 @@ export function Testimonials() {
               <div className="flex flex-col gap-3">
                 <QuoteMark />
                 <blockquote className="m-0 text-text-primary text-lg leading-snug">
-                  {t.quote}
+                  {q.quote}
                 </blockquote>
               </div>
               <figcaption className="flex flex-col gap-0.5">
                 <span className="font-mono uppercase tracking-tight text-sm text-text-primary">
-                  {t.name}
+                  {q.name}
                 </span>
                 <span className="font-mono uppercase text-[10px] tracking-[0.12em] text-text-secondary">
-                  {t.detail}
+                  {q.detail}
                 </span>
               </figcaption>
             </figure>

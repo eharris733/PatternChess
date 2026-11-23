@@ -26,6 +26,9 @@
     "ad:stats": "node marketing/ad/stats.ts",
     "ad:record": "node marketing/ad/record.ts",
     "ad:render": "node marketing/ad/stitch.ts",
+    "course:check": "node scripts/check-course.ts",
+    "course:record": "node marketing/course-demo/record.ts",
+    "courses:sync": "node scripts/sync-courses.mjs",
     "forum:find": "node marketing/forum/run.ts",
     "migrate:export": "node scripts/migrate/export-supabase.mjs",
     "migrate:import": "node scripts/migrate/import-d1.mjs"

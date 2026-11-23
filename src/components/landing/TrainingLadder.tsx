@@ -6,6 +6,7 @@ import {
   SPACED_REPETITION_DAYS,
   SR_BUCKET_LABEL,
 } from '../../models/blunder';
+import { useLabel, useT } from '../../i18n/useT';
 
 // Fried Liver Attack teaching position after 1.e4 e5 2.Nf3 Nc6 3.Bc4 Nf6 4.Ng5
 // d5 5.exd5. Black to move — Nxd5 looks natural but walks into 6.Nxf7!; Na5
@@ -30,6 +31,7 @@ const dayOfRep = (rep: number) => REP_DAYS[rep - 1];
 type Stage = {
   rep: number;
   state: string;
+  bucket: 'new' | 'learning' | 'mastered';
   headline: string;
   body: string;
   shapes: 'blunder' | 'both' | 'correct';
@@ -40,6 +42,7 @@ const STAGES: Stage[] = [
   {
     rep: 1,
     state: SR_BUCKET_LABEL.new,
+    bucket: 'new',
     headline: 'You blunder',
     body: "First encounter. Stockfish shows the move you missed — it stings, you log it, you move on.",
     shapes: 'blunder',
@@ -48,6 +51,7 @@ const STAGES: Stage[] = [
   {
     rep: 2,
     state: SR_BUCKET_LABEL.learning,
+    bucket: 'learning',
     headline: "You're seeing it",
     body: 'A few days in. The shape is familiar; the right move starts to surface before you finish reading the position.',
     shapes: 'both',
@@ -56,6 +60,7 @@ const STAGES: Stage[] = [
   {
     rep: REPS,
     state: SR_BUCKET_LABEL.mastered,
+    bucket: 'mastered',
     headline: 'Locked in',
     body: 'A month later, the pattern is automatic — and you spot it across the board, in your own games, without thinking.',
     shapes: 'correct',
@@ -91,19 +96,21 @@ function MiniBoard({ shapes }: { shapes: Stage['shapes'] }) {
 }
 
 export function TrainingLadder() {
+  const t = useT();
+  const label = useLabel();
   return (
     <div className="mt-12 border-2 border-text-primary bg-surface shadow-card">
       <div className="border-b-2 border-text-primary bg-bg px-6 py-4 flex items-baseline justify-between gap-4 flex-wrap">
         <div className="font-mono uppercase tracking-tight text-sm text-text-primary">
-          The four-rep ladder
+          {t('ladder.title')}
         </div>
         <div className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
-          One pattern · same position · drilled until it's yours
+          {t('ladder.subtitle')}
         </div>
       </div>
 
       <div className="grid md:grid-cols-3 divide-y-2 md:divide-y-0 md:divide-x-2 divide-text-primary">
-        {STAGES.map((stage) => (
+        {STAGES.map((stage, si) => (
           <div
             key={stage.rep}
             className={
@@ -113,7 +120,7 @@ export function TrainingLadder() {
           >
             <div className="flex items-baseline justify-between gap-3">
               <span className="font-mono uppercase text-[10px] tracking-tight text-text-secondary whitespace-nowrap">
-                Rep {stage.rep} · Day {dayOfRep(stage.rep)}
+                {t('ladder.repDay', { rep: stage.rep, day: dayOfRep(stage.rep) })}
               </span>
               <span
                 className={
@@ -121,7 +128,7 @@ export function TrainingLadder() {
                   (stage.highlight ? 'text-text-primary underline decoration-gold-dark decoration-2 underline-offset-4' : 'text-text-primary')
                 }
               >
-                {stage.state}
+                {label('srBucket', stage.bucket, stage.state)}
               </span>
             </div>
 
@@ -131,10 +138,10 @@ export function TrainingLadder() {
 
             <div className="flex flex-col gap-1.5">
               <div className="font-mono uppercase text-sm text-text-primary">
-                {stage.headline}
+                {t(`ladder.${si}.headline` as 'ladder.0.headline')}
               </div>
               <p className="text-xs sm:text-sm text-text-primary/80 leading-relaxed">
-                {stage.body}
+                {t(`ladder.${si}.body` as 'ladder.0.body')}
               </p>
             </div>
           </div>
@@ -143,7 +150,7 @@ export function TrainingLadder() {
 
       <div className="border-t-2 border-text-primary px-6 py-6 bg-bg">
         <div className="font-mono uppercase text-[10px] tracking-tight text-text-secondary mb-4">
-          Every blunder climbs the same four-rung ladder — then returns every {MASTERED_REVIEW_DAYS} days to stay sharp.
+          {t('ladder.footer', { days: MASTERED_REVIEW_DAYS })}
         </div>
         <div
           className="grid gap-1 sm:gap-3"
@@ -177,17 +184,17 @@ export function TrainingLadder() {
                     (featured ? 'text-text-primary font-bold' : 'text-text-primary/70')
                   }
                 >
-                  {last ? SR_BUCKET_LABEL.mastered : `Rep ${rep}`}
+                  {last ? label('srBucket', 'mastered', SR_BUCKET_LABEL.mastered) : t('ladder.rep', { rep })}
                 </div>
                 <div className="text-[9px] sm:text-[10px] font-mono text-gold-dark">
-                  Day {day}
+                  {t('ladder.day', { day })}
                 </div>
               </div>
             );
           })}
         </div>
         <div className="mt-4 font-mono uppercase text-[10px] tracking-tight text-text-secondary text-right">
-          Every first-try solve moves it up one rung.
+          {t('ladder.firstTry')}
         </div>
       </div>
     </div>

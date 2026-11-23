@@ -46,6 +46,7 @@ import {
 } from '../components/endgame/PlayoutPanel';
 import { Skeleton } from '../components/Skeleton';
 import { GameRecord } from '../models/gameRecord';
+import { useT, type Translator } from '../i18n/useT';
 
 type ListFilter = 'all' | 'due' | SrBucket;
 
@@ -73,14 +74,15 @@ function byReviewPriority(a: EndgameScenario, z: EndgameScenario): number {
   );
 }
 
-function scenarioHeadline(s: EndgameScenario): string {
+function scenarioHeadline(s: EndgameScenario, t: Translator): string {
   if (s.deservedResult === 'win') {
-    return s.actualResult === 'draw' ? 'Winning — only drew' : 'Winning — lost';
+    return s.actualResult === 'draw' ? t('eg.headline.winDrew') : t('eg.headline.winLost');
   }
-  return 'Holdable — lost';
+  return t('eg.headline.holdLost');
 }
 
 export function EndgamesRoute() {
+  const t = useT();
   const queryClient = useQueryClient();
   const { profile, refreshProfile } = useAuth();
   const gamesQuery = useGames();
@@ -138,10 +140,10 @@ export function EndgamesRoute() {
     );
     return ENDGAME_TYPE_ORDER.map((type) => ({
       key: type,
-      title: ENDGAME_TYPE_LABEL[type],
+      title: t.label('endgameType', type, ENDGAME_TYPE_LABEL[type]),
       items: visible.filter((s) => typeById.get(s.id) === type).sort(bySeverity),
     })).filter((sec) => sec.items.length > 0);
-  }, [typed, listFilter, typeById]);
+  }, [typed, listFilter, typeById, t]);
   // Cards shown per section; reset whenever the filters change.
   const [sectionShown, setSectionShown] = useState<Partial<Record<EndgameType, number>>>({});
   useEffect(() => setSectionShown({}), [listFilter, typeFilter]);
@@ -311,22 +313,22 @@ export function EndgamesRoute() {
 
     const passedMessage =
       playout.terminal === 'checkmate-by-user'
-        ? 'Checkmate — point rescued.'
+        ? t('eg.passed.mate')
         : selected.deservedResult === 'win'
-          ? 'Win secured — point rescued.'
+          ? t('eg.passed.win')
           : playout.terminal
-            ? 'Draw held — half point rescued.'
-            : 'Engine accepts the draw — half point rescued.';
+            ? t('eg.passed.draw')
+            : t('eg.passed.engineDraw');
     const failedMessage =
       playout.terminal === 'checkmate-by-opponent'
-        ? 'Checkmated — the point slipped away again.'
+        ? t('eg.failed.mated')
         : playout.terminal === 'stalemate'
-          ? 'Stalemate — the win slipped away.'
+          ? t('egDrill.stalemate')
           : playout.terminal === 'draw-rule'
-            ? 'Drawn by rule — the win slipped away.'
+            ? t('eg.failed.drawRule')
           : selected.deservedResult === 'win'
-            ? 'That move gives up the win.'
-            : 'That move gives up the draw.';
+            ? t('egDrill.givesUpWin')
+            : t('egDrill.givesUpDraw');
 
     return (
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
@@ -340,7 +342,7 @@ export function EndgamesRoute() {
                 // Let the lines play out visibly first; a tap jumps to the end.
                 <button
                   type="button"
-                  aria-label="Skip autoplay"
+                  aria-label={t('egDrill.skipAutoplay')}
                   onClick={slipViewer.skipAutoplay}
                   className="absolute inset-0 z-10 bg-transparent"
                 />
@@ -350,11 +352,11 @@ export function EndgamesRoute() {
                   actionLabel={
                     playout.phase === 'passed'
                       ? hasNextDue
-                        ? 'Next due'
-                        : 'Return to list'
+                        ? t('eg.nextDue')
+                        : t('eg.returnToList')
                       : playout.slip
-                        ? 'Retry from the mistake'
-                        : 'Restart play-out'
+                        ? t('eg.retryMistake')
+                        : t('eg.restart')
                   }
                   onAction={() => {
                     if (playout.phase === 'passed') {
@@ -364,8 +366,8 @@ export function EndgamesRoute() {
                   }}
                   dismissLabel={
                     playout.phase === 'failed' && playout.slip
-                      ? 'Review the lines'
-                      : 'View board'
+                      ? t('train.reviewLines')
+                      : t('egDrill.viewBoard')
                   }
                   onDismiss={overlay.dismiss}
                 />
@@ -411,39 +413,49 @@ export function EndgamesRoute() {
 
         <aside className="card flex flex-col gap-4 sticky top-6 self-start max-h-[calc(100vh-3rem)] overflow-y-auto">
           <header className="flex items-center justify-between">
-            <span className="label">{game ? `vs ${game.opponent}` : 'Endgame play-out'}</span>
+            <span className="label">{game ? t('vault.pos.vs', { name: game.opponent }) : t('eg.playout')}</span>
             <button
-              className="font-mono text-xs uppercase tracking-tight text-text-secondary hover:text-text-primary"
+              className="font-mono text-xs uppercase tracking-tight text-text-primary hover:text-text-primary"
               onClick={backToList}
             >
-              Back
+              {t('common.back')}
             </button>
           </header>
 
           <div className="text-sm">
             <p className="font-semibold text-text-primary">
-              {selected.deservedResult === 'win' ? 'Convert this win.' : 'Hold this draw.'}
+              {selected.deservedResult === 'win' ? t('eg.convert') : t('eg.hold')}
             </p>
-            <p className="text-text-secondary mt-1">
-              In the game you {selected.actualResult === 'draw' ? 'only drew' : 'lost'}. Play it
-              out against the engine —{' '}
+            <p className="text-text-primary mt-1">
               {selected.deservedResult === 'win'
-                ? 'deliver checkmate to rescue the point.'
-                : 'hold until the engine gives up on winning to rescue the half point.'}
+                ? selected.actualResult === 'draw'
+                  ? t('eg.inGameDrewWin')
+                  : t('eg.inGameLostWin')
+                : selected.actualResult === 'draw'
+                  ? t('eg.inGameDrewDraw')
+                  : t('eg.inGameLostDraw')}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <MasteryDots cycleNumber={selected.cycleNumber} />
-            <span className="text-xs font-semibold text-text-primary">{SR_BUCKET_LABEL[srBucket(selected)]}</span>
+            <span className="text-xs font-semibold text-text-primary">
+              {t.label('srBucket', srBucket(selected), SR_BUCKET_LABEL[srBucket(selected)])}
+            </span>
           </div>
 
           {playing && (
             <SideToPlay
               color={selected.userColor}
-              label={`You play ${selected.userColor === 'white' ? 'White' : 'Black'} — ${
-                playout.phase === 'thinking' ? 'opponent to move' : 'your move'
-              }`}
+              label={
+                selected.userColor === 'white'
+                  ? playout.phase === 'thinking'
+                    ? t('eg.youPlayWhiteOpp')
+                    : t('eg.youPlayWhiteMove')
+                  : playout.phase === 'thinking'
+                    ? t('eg.youPlayBlackOpp')
+                    : t('eg.youPlayBlackMove')
+              }
             />
           )}
 
@@ -458,20 +470,20 @@ export function EndgamesRoute() {
             />
           )}
 
-          {settingUp && <FeedbackBadge tone="info">Setting up the position…</FeedbackBadge>}
+          {settingUp && <FeedbackBadge tone="info">{t('eg.settingUp')}</FeedbackBadge>}
           {playout.phase === 'judging' && (
             <FeedbackBadge tone="info">
-              {playout.confirming ? 'Double-checking with a longer search…' : 'Judging your move…'}
+              {playout.confirming ? t('egDrill.doubleChecking') : t('egDrill.judging')}
             </FeedbackBadge>
           )}
           {playout.phase === 'thinking' && (
-            <FeedbackBadge tone="info">Opponent thinking…</FeedbackBadge>
+            <FeedbackBadge tone="info">{t('egDrill.opponentThinking')}</FeedbackBadge>
           )}
           {playout.engineError && (
-            <FeedbackBadge tone="warning">Engine hiccup — keep playing</FeedbackBadge>
+            <FeedbackBadge tone="warning">{t('egDrill.hiccup')}</FeedbackBadge>
           )}
           {hint.level > 0 && playing && (
-            <p className="text-text-secondary text-xs">Hint shown.</p>
+            <p className="text-text-primary text-xs">{t('eg.hintShown')}</p>
           )}
 
           {playout.phase === 'passed' && (
@@ -479,12 +491,12 @@ export function EndgamesRoute() {
               <FeedbackBadge tone="success">{passedMessage}</FeedbackBadge>
               {hasNextDue ? (
                 <button className="btn-primary" onClick={nextDue} data-testid="next-due">
-                  Next due ({reviewQueue?.length} left)
-                  <span className="hidden lg:inline ml-1.5"> (Space)</span>
+                  {t('eg.nextDueLeft', { count: reviewQueue?.length ?? 0 })}
+                  <span className="hidden lg:inline ml-1.5"> {t('train.panel.space')}</span>
                 </button>
               ) : (
                 <button className="btn-primary" onClick={backToList}>
-                  Return to list<span className="hidden lg:inline ml-1.5"> (Space)</span>
+                  {t('eg.returnToList')}<span className="hidden lg:inline ml-1.5"> {t('train.panel.space')}</span>
                 </button>
               )}
             </>
@@ -505,15 +517,15 @@ export function EndgamesRoute() {
               )}
               {playout.slip && (
                 <button className="btn-primary" onClick={() => retry('slip')}>
-                  Retry from the mistake<span className="hidden lg:inline ml-1.5"> (Space)</span>
+                  {t('eg.retryMistake')}<span className="hidden lg:inline ml-1.5"> {t('train.panel.space')}</span>
                 </button>
               )}
               <button className="btn-ghost" onClick={() => retry('start')}>
-                Restart play-out
+                {t('eg.restart')}
               </button>
               {hasNextDue && (
                 <button className="btn-ghost" onClick={nextDue}>
-                  Skip to the next due ({reviewQueue?.length} left)
+                  {t('eg.skipNext', { count: reviewQueue?.length ?? 0 })}
                 </button>
               )}
             </>
@@ -537,13 +549,10 @@ export function EndgamesRoute() {
   if (!games || games.length === 0) {
     return (
       <div className="card flex flex-col items-start gap-3 max-w-xl">
-        <h1 className="text-xl font-bold">Endgames</h1>
-        <p className="text-text-secondary">
-          No games yet. Sync your chess.com or Lichess games and analyze them — then this tab
-          finds the endgames where you dropped points and lets you replay them.
-        </p>
+        <h1 className="text-xl font-bold">{t('nav.endgames')}</h1>
+        <p className="text-text-primary">{t('eg.noGames')}</p>
         <Link to="/profile" className="btn-primary">
-          Connect an account
+          {t('eg.connect')}
         </Link>
       </div>
     );
@@ -553,58 +562,57 @@ export function EndgamesRoute() {
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h1 className="text-xl font-bold">Endgames</h1>
-          <p className="text-text-primary text-sm max-w-2xl">
-            Endgames where you dropped points. Play them out against the engine until you keep the
-            point; each one comes back on the same schedule as your other drills.
-          </p>
+          <h1 className="text-xl font-bold">{t('nav.endgames')}</h1>
+          <p className="text-text-primary text-sm max-w-2xl">{t('eg.lede')}</p>
           {(scenarios?.length ?? 0) > 0 && (
             <p className="text-text-primary text-sm font-semibold" data-testid="endgame-stats">
-              {masteredTotal} of {scenarios?.length} mastered
+              {t('eg.masteredOf', { mastered: masteredTotal, total: scenarios?.length ?? 0 })}
             </p>
           )}
         </div>
         {dueScenarios.length > 0 && (
           <button type="button" className="btn-primary" onClick={startReview} data-testid="review-due">
-            Review {dueScenarios.length} due
-            {typeFilter !== 'all' && ` · ${ENDGAME_TYPE_LABEL[typeFilter]}`}
+            {t('eg.reviewDue', { count: dueScenarios.length })}
+            {typeFilter !== 'all' && ` · ${t.label('endgameType', typeFilter, ENDGAME_TYPE_LABEL[typeFilter])}`}
           </button>
         )}
       </header>
 
       {typeCounts.size > 1 && (
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by endgame type">
+        <div className="flex flex-wrap gap-2" role="group" aria-label={t('eg.filterType')}>
           <button
             type="button"
             onClick={() => setTypeFilter('all')}
             aria-pressed={typeFilter === 'all'}
             className={filterChipClass(typeFilter === 'all')}
           >
-            All types
+            {t('eg.allTypes')}
             <span> · {scenarios?.length ?? 0}</span>
           </button>
-          {ENDGAME_TYPE_ORDER.filter((t) => typeCounts.has(t)).map((t) => (
+          {ENDGAME_TYPE_ORDER.filter((type) => typeCounts.has(type)).map((type) => (
             <button
-              key={t}
+              key={type}
               type="button"
-              onClick={() => setTypeFilter(t)}
-              aria-pressed={typeFilter === t}
-              className={filterChipClass(typeFilter === t)}
+              onClick={() => setTypeFilter(type)}
+              aria-pressed={typeFilter === type}
+              className={filterChipClass(typeFilter === type)}
             >
-              {ENDGAME_TYPE_LABEL[t]}
-              <span> · {typeCounts.get(t)}</span>
+              {t.label('endgameType', type, ENDGAME_TYPE_LABEL[type])}
+              <span> · {typeCounts.get(type)}</span>
             </button>
           ))}
         </div>
       )}
 
       {(scenarios?.length ?? 0) > 0 && (
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
+        <div className="flex flex-wrap gap-2" role="group" aria-label={t('eg.filterStatus')}>
           {(
             [
-              ['all', 'All', typed.length],
-              ['due', 'Due', dueScenarios.length],
-              ...SR_BUCKET_ORDER.map((b) => [b, SR_BUCKET_LABEL[b], bucketCounts[b]] as const),
+              ['all', t('eg.all'), typed.length],
+              ['due', t('eg.due'), dueScenarios.length],
+              ...SR_BUCKET_ORDER.map(
+                (b) => [b, t.label('srBucket', b, SR_BUCKET_LABEL[b]), bucketCounts[b]] as const,
+              ),
             ] as ReadonlyArray<readonly [ListFilter, string, number]>
           ).map(([key, label, count]) => (
             <button
@@ -623,23 +631,22 @@ export function EndgamesRoute() {
 
       {(scenarios?.length ?? 0) === 0 ? (
         <div className="card max-w-xl">
-          <p className="text-text-secondary">
-            No dropped endgames found — every endgame mistake we detected happened in games you
-            weren't winning, or you converted your winning endgames. Nice.
+          <p className="text-text-primary">
+            {t('eg.noneDropped')}
           </p>
         </div>
       ) : sections.length === 0 ? (
         <div className="card max-w-xl">
-          <p className="text-text-primary">Nothing here yet.</p>
+          <p className="text-text-primary">{t('eg.nothingHere')}</p>
         </div>
       ) : (
         sections.map((section) => {
           const shown = sectionShown[section.key] ?? SECTION_PAGE;
           return (
           <section key={section.key} className="flex flex-col gap-3">
-            <h2 className="font-mono uppercase tracking-tight text-sm text-text-secondary">
+            <h2 className="text-base font-semibold text-text-primary">
               {section.title}
-              <span className="text-text-secondary/60"> · {section.items.length}</span>
+              <span className="font-mono font-normal"> · {section.items.length}</span>
             </h2>
             <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {section.items.slice(0, shown).map((s) => {
@@ -654,7 +661,7 @@ export function EndgamesRoute() {
                     <div className="flex flex-col gap-2 min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-semibold text-text-primary">
-                          {scenarioHeadline(s)}
+                          {scenarioHeadline(s, t)}
                         </span>
                         <span
                           className={clsx(
@@ -662,29 +669,29 @@ export function EndgamesRoute() {
                             SR_BUCKET_PILL[srBucket(s)],
                           )}
                         >
-                          {SR_BUCKET_LABEL[srBucket(s)]}
+                          {t.label('srBucket', srBucket(s), SR_BUCKET_LABEL[srBucket(s)])}
                         </span>
                         {isOppositeColoredBishops(s.startFen) && (
-                          <span className="px-2 py-0.5 rounded-none font-mono text-[10px] uppercase tracking-tight border-2 border-text-primary/30 text-text-secondary">
-                            Opposite-coloured bishops
+                          <span className="px-2 py-0.5 rounded-none font-mono text-[10px] uppercase tracking-tight border-2 border-text-primary/30 text-text-primary">
+                            {t('eg.ocb')}
                           </span>
                         )}
                       </div>
                       <MasteryDots cycleNumber={s.cycleNumber} size="sm" />
                       <p className="text-text-primary text-sm">
-                        {game ? `vs ${game.opponent}` : 'Unknown game'}
+                        {game ? t('vault.pos.vs', { name: game.opponent }) : t('eg.unknownGame')}
                         {game?.playedAt ? ` · ${game.playedAt.toLocaleDateString()}` : ''}
                         {s.attempts > 0
-                          ? ` · ${s.attempts} attempt${s.attempts === 1 ? '' : 's'}`
+                          ? ` · ${t('eg.attempts', { count: s.attempts })}`
                           : ''}
                       </p>
                       <div className="mt-auto flex items-center gap-3">
                         <button className="btn-primary" onClick={() => begin(s)}>
-                          Play
+                          {t('common.play')}
                         </button>
                         {isScenarioDue(s) && (
                           <span className="text-xs font-semibold text-gold-dark" data-testid="scenario-due">
-                            Due
+                            {t('eg.dueBadge')}
                           </span>
                         )}
                       </div>
@@ -701,7 +708,7 @@ export function EndgamesRoute() {
                   setSectionShown((prev) => ({ ...prev, [section.key]: shown + SECTION_PAGE }))
                 }
               >
-                Show more ({section.items.length - shown} left)
+                {t('vault.showMoreLeft', { count: section.items.length - shown })}
               </button>
             )}
           </section>

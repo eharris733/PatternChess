@@ -1,10 +1,13 @@
+import { useId } from 'react';
 import type { TimeControlCategory } from '../services/chessApiService';
+import { useT } from '../i18n/useT';
+import type { MessageKey } from '../i18n/i18n';
 
-export const TIME_CONTROL_OPTIONS: { value: TimeControlCategory; label: string }[] = [
-  { value: 'bullet', label: 'Bullet' },
-  { value: 'blitz', label: 'Blitz' },
-  { value: 'rapid', label: 'Rapid' },
-  { value: 'classical', label: 'Classical' },
+export const TIME_CONTROL_OPTIONS: { value: TimeControlCategory; label: string; labelKey: MessageKey }[] = [
+  { value: 'bullet', label: 'Bullet', labelKey: 'gameType.bullet' },
+  { value: 'blitz', label: 'Blitz', labelKey: 'gameType.blitz' },
+  { value: 'rapid', label: 'Rapid', labelKey: 'gameType.rapid' },
+  { value: 'classical', label: 'Classical', labelKey: 'gameType.classical' },
 ];
 
 /**
@@ -23,6 +26,8 @@ export function GameTypePreferences({
   timeControls: TimeControlCategory[];
   onToggleTimeControl: (value: TimeControlCategory) => void;
 }) {
+  const t = useT();
+  const groupId = useId();
   return (
     <div className="flex flex-col gap-4">
       <label className="flex items-center gap-2 select-none">
@@ -31,14 +36,19 @@ export function GameTypePreferences({
           checked={ratedOnly}
           onChange={(e) => onRatedOnlyChange(e.target.checked)}
         />
-        <span>Rated games only</span>
+        <span>{t('gameType.ratedOnly')}</span>
       </label>
       <div className="flex flex-col gap-2">
-        <label className="label">Time controls</label>
-        <p className="text-text-secondary text-xs -mt-1">
-          Leave all unchecked to include every time control.
+        <div className="label" id={`${groupId}-label`}>{t('gameType.timeControls')}</div>
+        <p className="text-text-primary text-xs -mt-1" id={`${groupId}-help`}>
+          {t('gameType.timeControlsHelp')}
         </p>
-        <div className="flex flex-wrap gap-3">
+        <div
+          className="flex flex-wrap gap-3"
+          role="group"
+          aria-labelledby={`${groupId}-label`}
+          aria-describedby={`${groupId}-help`}
+        >
           {TIME_CONTROL_OPTIONS.map((opt) => (
             <label
               key={opt.value}
@@ -49,7 +59,7 @@ export function GameTypePreferences({
                 checked={timeControls.includes(opt.value)}
                 onChange={() => onToggleTimeControl(opt.value)}
               />
-              <span>{opt.label}</span>
+              <span>{t(opt.labelKey)}</span>
             </label>
           ))}
         </div>

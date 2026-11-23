@@ -73,6 +73,7 @@ describe('default profile', () => {
       lichess_username: 'The_Ski_Patrol',
       avatar_url: null,
       email_opt_in: false,
+      preferred_rated_only: true,
       preferred_time_controls: ['bullet', 'blitz', 'rapid', 'classical'],
       commitment_level: 'regular',
       daily_positions_goal: 10,
@@ -84,7 +85,7 @@ describe('default profile', () => {
 
   it('fills a Google profile with name, avatar and email opt-in', () => {
     const row = defaultProfileRow({ id: 'u2', email: 'a@gmail.com', name: 'Ann Lee', image: 'https://img' });
-    expect(row).toMatchObject({ display_name: 'Ann Lee', avatar_url: 'https://img', lichess_username: null, email_opt_in: true });
+    expect(row).toMatchObject({ display_name: 'Ann Lee', avatar_url: 'https://img', lichess_username: null, email_opt_in: true, preferred_rated_only: true });
   });
 
   it('referral codes avoid ambiguous characters', () => {

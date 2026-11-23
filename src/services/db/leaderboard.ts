@@ -1,5 +1,6 @@
 import { rpc } from '../../lib/api';
 import { supporterBadgeFromJson, type SupporterBadge } from '../../components/SupporterMark';
+import { sanitizeAvatar, type AvatarParts } from '../../lib/avatar';
 
 export type LeaderboardMetric = 'solved' | 'mastered' | 'openings' | 'endgames' | 'elo' | 'streak';
 export type LeaderboardWindow = 'all' | 'week';
@@ -14,6 +15,8 @@ export interface LeaderboardRow {
   flair: string | null;
   /** 'supporter' (active) or 'early' (lapsed), per supporterBadge() on the server; null otherwise. */
   supporter: SupporterBadge | null;
+  /** Pixel avatar (theirs or the id-seeded default); null from an older server. */
+  avatar: AvatarParts | null;
 }
 
 export interface Leaderboard {
@@ -34,6 +37,7 @@ function rowFromJson(j: any): LeaderboardRow {
     isMe: Boolean(j.isMe),
     flair: typeof j.flair === 'string' && j.flair ? j.flair : null,
     supporter: supporterBadgeFromJson(j.supporter),
+    avatar: sanitizeAvatar(j.avatar),
   };
 }
 

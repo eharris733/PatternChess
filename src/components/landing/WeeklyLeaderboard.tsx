@@ -4,8 +4,19 @@ import { FlairBadge } from '../FlairBadge';
 import { PUBLIC_LEADERBOARD_SNAPSHOT, usePublicLeaderboard } from '../../hooks/usePublicLeaderboard';
 import { trackCtaClick } from '../../services/funnelService';
 import type { PublicLeaderboardRow } from '../../services/db/leaderboard';
+import { useT } from '../../i18n/useT';
 
-const numberFormat = new Intl.NumberFormat('en-US');
+// en-US for English (stable prerendered HTML); the visitor's language otherwise.
+const formats = new Map<string, Intl.NumberFormat>();
+function numberFormat(locale: string): Intl.NumberFormat {
+  const tag = locale === 'en' ? 'en-US' : locale;
+  let f = formats.get(tag);
+  if (!f) {
+    f = new Intl.NumberFormat(tag);
+    formats.set(tag, f);
+  }
+  return f;
+}
 
 /** Fewer rows than this reads as an empty gym; hide the section instead. */
 const MIN_ROWS = 3;
@@ -29,6 +40,7 @@ function playerDetail(r: PublicLeaderboardRow): string | null {
  * from the anon `public_leaderboard` RPC.
  */
 export function WeeklyLeaderboard() {
+  const t = useT();
   const { data: live } = usePublicLeaderboard();
   const data = live ?? PUBLIC_LEADERBOARD_SNAPSHOT;
   if (data.rows.length < MIN_ROWS) return null;
@@ -38,18 +50,18 @@ export function WeeklyLeaderboard() {
       <div className="max-w-6xl mx-auto px-6 py-16 lg:py-20">
         <div className="mb-10 border-b-2 border-text-primary pb-4 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-mono uppercase tracking-tight text-2xl sm:text-3xl text-text-primary">
-            Top trainers this week
+            {t('weekly.title')}
           </h2>
           <span className="font-mono uppercase text-[10px] tracking-[0.12em] text-text-secondary">
-            Ranked by blunders reviewed in the last 7 days
+            {t('weekly.subtitle')}
           </span>
         </div>
         <div className="grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-6 items-start">
           <div className="border-2 border-text-primary bg-surface">
             <div className="flex items-center gap-4 px-5 py-2 border-b-2 border-text-primary font-mono uppercase text-[10px] tracking-[0.12em] text-text-secondary">
               <span className="w-6 shrink-0">#</span>
-              <span className="flex-1">Player</span>
-              <span>Blunders reviewed</span>
+              <span className="flex-1">{t('weekly.player')}</span>
+              <span>{t('weekly.reviewed')}</span>
             </div>
             <ol className="m-0 p-0 list-none divide-y-2 divide-text-primary">
               {data.rows.map((r) => {
@@ -77,7 +89,7 @@ export function WeeklyLeaderboard() {
                       )}
                     </span>
                     <span className="font-mono tabular-nums text-lg text-text-primary">
-                      {numberFormat.format(r.value)}
+                      {numberFormat(t.locale).format(r.value)}
                     </span>
                   </li>
                 );
@@ -87,10 +99,10 @@ export function WeeklyLeaderboard() {
           <div className="border-2 border-text-primary bg-text-primary text-bg p-6 flex flex-col gap-4">
             <div>
               <div className="font-mono uppercase tracking-tight text-sm sm:text-base">
-                Your name could be here.
+                {t('weekly.yourName')}
               </div>
               <div className="font-sans text-bg/70 text-sm mt-1">
-                Every blunder you review counts. Show up daily and watch yourself climb.
+                {t('weekly.body')}
               </div>
             </div>
             <Link
@@ -98,7 +110,7 @@ export function WeeklyLeaderboard() {
               onClick={() => trackCtaClick('leaderboard')}
               className="self-start font-mono uppercase tracking-tight text-sm border-2 border-bg bg-gold-dark text-bg px-6 py-3 rounded-none shadow-[3px_3px_0_#F4F4F0] hover:shadow-[1px_1px_0_#F4F4F0] hover:translate-x-[2px] hover:translate-y-[2px] transition-all whitespace-nowrap"
             >
-              Sign up free to join →
+              {t('weekly.join')}
             </Link>
           </div>
         </div>

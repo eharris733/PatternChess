@@ -166,12 +166,14 @@ const LIST_RPCS = new Set([
   'blunders.drillsOfKind',
   'blunders.allLive',
   'blunders.byIds',
+  'blunders.upcoming',
   'blunders.endgameCandidates',
   'blunders.forDeepening',
   'blunders.unenriched',
   'endgameScenarios.list',
   'endgameScenarios.unverified',
   'repertoire.list',
+  'vault.gameLinks',
   'sessions.recent',
   'sessions.since',
   'benchmarks.list',
@@ -185,6 +187,7 @@ const LIST_RPCS = new Set([
   'admin.userList',
   'admin.landingCtas',
   'admin.supporters',
+  'courses.completeDay',
 ]);
 
 const NUMBER_RPCS = new Set([
@@ -225,6 +228,10 @@ export function defaultRpcValue(name: string, _args: Record<string, any> = {}): 
       return { since: null, rows: [], me: null };
     case 'leaderboard.public':
       return { since: null, computedAt: new Date().toISOString(), rows: [] };
+    case 'courses.progress':
+      return { focus: null, days: [] };
+    case 'courses.setFocus':
+      return { focus: _args.slug ?? null };
     default:
       return null;
   }
@@ -348,6 +355,15 @@ export function seededHandlers(seed: SeedData): RpcHandlers {
       'games.countUnanalyzed': () => games.filter((g) => !g.analyzed_at).length,
       'games.playedSince': (a: Row) =>
         games.filter((g) => g.played_at && String(g.played_at) >= String(a.since)).map((g) => g.played_at),
+      'vault.gameLinks': (a: Row) =>
+        games
+          .filter((g) => inIds(a.ids, g.id))
+          .map((g) => ({
+            id: g.id,
+            platform: g.platform,
+            external_game_id: g.external_game_id ?? null,
+            time_control: g.time_control ?? null,
+          })),
       'games.externalIds': (a: Row) =>
         games.filter((g) => g.platform === a.platform).map((g) => g.external_game_id ?? null),
       'stats.gameRows': (a: Row) => games.filter((g) => !a.afterId || String(g.id) > String(a.afterId)),
@@ -361,6 +377,19 @@ export function seededHandlers(seed: SeedData): RpcHandlers {
       'blunders.firstDueTactic': () => due().find((b) => kindOf(b) === 'tactic') ?? null,
       'blunders.allLive': () => blunders.filter(live),
       'blunders.byIds': (a: Row) => blunders.filter((b) => live(b) && inIds(a.ids, b.id)),
+      // Practice ahead: live, not yet due, soonest first.
+      'blunders.upcoming': (a: Row) =>
+        blunders
+          .filter(
+            (b) =>
+              live(b) &&
+              !isDue(b) &&
+              (!a.kind || kindOf(b) === a.kind) &&
+              (!a.excludeKind || kindOf(b) !== a.excludeKind) &&
+              (!a.phase || b.phase === a.phase),
+          )
+          .sort((x, y) => String(x.next_drill_at).localeCompare(String(y.next_drill_at)))
+          .slice(0, typeof a.limit === 'number' ? a.limit : 10),
       'blunders.forGames': (a: Row) => blunders.filter((b) => inIds(a.gameIds, b.game_id)),
       'blunders.liveIdsForGames': (a: Row) =>
         blunders
@@ -415,6 +444,12 @@ export function seededHandlers(seed: SeedData): RpcHandlers {
       'sessions.recent': () => sessions,
       'sessions.since': (a: Row) =>
         sessions.filter((s) => !s.local_date || String(s.local_date) >= String(a.sinceDate)),
+      // positions = lifetime first-attempt drills (the /path metric); minutes aren't modelled.
+      'profile.trainingTotals': () => ({
+        minutes: 0,
+        activeDays: new Set(sessions.filter((s) => Number(s.blunders_correct) > 0).map((s) => s.local_date)).size,
+        positions: sessions.reduce((n, s) => n + (Number(s.blunders_attempted) || 0), 0),
+      }),
     } satisfies RpcHandlers);
   }
   if (seed.deviations) {

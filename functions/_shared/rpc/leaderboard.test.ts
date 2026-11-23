@@ -10,6 +10,7 @@ import {
   supporterBadge,
 } from './leaderboard';
 import { openTestD1, type TestD1 } from './testD1';
+import { AVATAR_OPTIONS, defaultAvatar } from '../../../src/lib/avatar';
 
 describe('isoWeekStart', () => {
   it('returns Monday 00:00 UTC', () => {
@@ -151,8 +152,8 @@ describe('leaderboard (SQLite)', () => {
     const all = await __test.leaderboard(db, 'u1', 'solved', 'all', 20, NOW);
     expect(all.since).toBeNull();
     expect(all.rows).toEqual([
-      { rank: 1, label: 'beta', value: 10, isMe: false, flair: null, supporter: 'supporter' },
-      { rank: 2, label: 'Alpha', value: 7, isMe: true, flair: 'f1', supporter: null },
+      { rank: 1, label: 'beta', value: 10, isMe: false, flair: null, supporter: 'supporter', avatar: expect.any(Object) },
+      { rank: 2, label: 'Alpha', value: 7, isMe: true, flair: 'f1', supporter: null, avatar: expect.any(Object) },
     ]);
     expect(all.me).toMatchObject({ rank: 2, value: 7, isMe: true });
 
@@ -160,6 +161,19 @@ describe('leaderboard (SQLite)', () => {
     expect(week.since).toBe('2026-11-16T00:00:00.000Z');
     expect(week.rows.map((r) => [r.label, r.value])).toEqual([['Alpha', 6]]);
     expect(week.me).toBeNull();
+  });
+
+  it("returns each player's stored avatar, and a generated one for players without", async () => {
+    const base = defaultAvatar('u1');
+    const pick = AVATAR_OPTIONS.hair.find((o) => o.id !== base.hair)!.id;
+    const stored = { ...base, hair: pick };
+    addUser('u1', { lichess_username: 'Alpha', avatar: JSON.stringify(stored) });
+    addUser('u2', { lichess_username: 'beta' });
+    addBlunder('u1', { times_correct: 5 });
+    addBlunder('u2', { times_correct: 3 });
+    const res = await __test.leaderboard(db, 'u2', 'solved', 'all', 20, NOW);
+    expect(res.rows.find((r) => r.label === 'Alpha')!.avatar).toEqual(stored);
+    expect(res.rows.find((r) => r.label === 'beta')!.avatar).toEqual(defaultAvatar('u2'));
   });
 
   it('mastered, openings, endgames and streak', async () => {

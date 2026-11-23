@@ -19,6 +19,14 @@
 //   POST /admin/send-sample?user=<uuid>&kind=<kind>&to=<addr>
 //
 // SEND_MODE gates real mail: anything but "live" sends only to TEST_RECIPIENTS.
+//
+// weekly_report adds "Events near you" for players with a saved
+// profiles.events_state, fetched from the public events API (EVENTS_URL,
+// default events.patternchess.com) once per state per run; if that API is
+// down the section is simply left out (events.ts).
+//
+// Local only (`--var DEV_MAILBOX:1`, devMailbox.ts): /dev/mailbox keeps every
+// email in memory instead of sending it, and can run the job for one account.
 
 import {
   buildLinks,
@@ -31,6 +39,7 @@ import {
   type LinkBases,
   type OutboxRow,
 } from './outbox';
+import { EVENTS_SITE, stateEventsLoader } from './events';
 import {
   confirmEmail,
   emailCandidates,
@@ -49,6 +58,15 @@ import {
   unsubscribedPage,
 } from './pages';
 import { FROM_ADDRESS, FROM_NAME, renderEmail, type EmailKind } from './templates';
+import {
+  capture,
+  devMailboxOn,
+  mailboxPage,
+  messagePage,
+  nextCandidate,
+  redirectToMailbox,
+  userIdByEmail,
+} from './devMailbox';
 
 export interface Env {
   EMAIL: SendEmail;
@@ -59,6 +77,10 @@ export interface Env {
   EMAIL_URL: string;
   SEND_MODE: string;
   TEST_RECIPIENTS: string;
+  /** Events API origin for "Events near you"; defaults to https://events.patternchess.com. */
+  EVENTS_URL?: string;
+  /** "1" only in local dev (wrangler dev --var DEV_MAILBOX:1): capture instead of sending. */
+  DEV_MAILBOX?: string;
 }
 
 /** Well under the account's daily quota; a backlog drains over the next hours. */
@@ -66,6 +88,11 @@ const MAX_PER_RUN = 300;
 
 function bases(env: Env): LinkBases {
   return { app: env.APP_URL.replace(/\/$/, ''), email: env.EMAIL_URL.replace(/\/$/, '') };
+}
+
+/** A fresh per-run events loader (one API call per state per run). */
+function eventsLoader(env: Env) {
+  return stateEventsLoader((input, init) => fetch(input, init), (env.EVENTS_URL || EVENTS_SITE).replace(/\/$/, ''));
 }
 
 function json(body: unknown, status = 200): Response {
@@ -85,6 +112,7 @@ function timingSafeEqual(a: string, b: string): boolean {
 async function deliver(env: Env, row: OutboxRow & { kind: EmailKind; to_email: string }, to: string, confirmToken?: string) {
   const links = buildLinks(bases(env), row.kind, row.unsub_token, confirmToken);
   const email = renderEmail(row.kind, toEmailData(row.data), links);
+  if (devMailboxOn(env)) return { email, messageId: capture(row.kind, to, email) };
   const result = await env.EMAIL.send({
     from: { email: FROM_ADDRESS, name: FROM_NAME },
     to,
@@ -108,7 +136,7 @@ interface RunSummary {
 }
 
 async function runOutbox(env: Env, now: Date, dryRun: boolean): Promise<RunSummary> {
-  const rows = await emailOutbox(env.DB, now);
+  const rows = await emailOutbox(env.DB, now, { loadEvents: eventsLoader(env) });
   const allow = parseRecipients(env.TEST_RECIPIENTS);
   const summary: RunSummary = {
     now: now.toISOString(),
@@ -149,7 +177,7 @@ async function runOutbox(env: Env, now: Date, dryRun: boolean): Promise<RunSumma
 }
 
 async function candidate(env: Env, userId: string, now: Date): Promise<OutboxRow | null> {
-  const rows = await emailCandidates(env.DB, now, userId.toLowerCase());
+  const rows = await emailCandidates(env.DB, now, userId.toLowerCase(), { loadEvents: eventsLoader(env) });
   return rows[0] ?? null;
 }
 
@@ -198,6 +226,38 @@ async function handleAdmin(req: Request, env: Env, url: URL): Promise<Response> 
     return json({ sent: true, to, kind, subject: email.subject, messageId });
   }
 
+  return json({ error: 'not found' }, 404);
+}
+
+async function handleDev(req: Request, env: Env, url: URL): Promise<Response> {
+  if (url.pathname === '/dev/mailbox' && req.method === 'GET') return mailboxPage(url.searchParams.get('flash'));
+  const m = /^\/dev\/mailbox\/(\d+)$/.exec(url.pathname);
+  if (m && req.method === 'GET') return messagePage(Number(m[1]));
+  if (req.method !== 'POST') return json({ error: 'not found' }, 404);
+
+  const form = await req.formData();
+  const email = String(form.get('email') ?? '');
+  const userId = await userIdByEmail(env.DB, email);
+  if (!userId) return redirectToMailbox(`No account with the address ${email}.`);
+
+  if (url.pathname === '/dev/run') {
+    const next = await nextCandidate(env.DB, userId, new Date());
+    if (!next) return redirectToMailbox(`${email}: nothing to send in the next 24 hours (reminders off, no address, or already mailed).`);
+    const r = next.row as OutboxRow & { kind: EmailKind; to_email: string };
+    const confirmToken = r.kind === 'confirm' ? await newConfirmToken(env.DB, r.user_id, r.to_email) : undefined;
+    const { messageId } = await deliver(env, r, r.to_email, confirmToken);
+    await logSend(env.DB, { user_id: r.user_id, kind: r.kind, to_email: r.to_email, provider_id: messageId ?? null });
+    return redirectToMailbox(`Sent ${r.kind} to ${r.to_email} (as of ${next.at.toISOString().slice(0, 16)}Z).`);
+  }
+
+  if (url.pathname === '/dev/sample') {
+    const kind = String(form.get('kind')) as EmailKind;
+    if (!EMAIL_KINDS.includes(kind)) return redirectToMailbox('Unknown kind.');
+    const row = await candidate(env, userId, new Date());
+    if (!row) return redirectToMailbox(`No profile for ${email}.`);
+    await deliver(env, { ...row, kind, to_email: email }, email, kind === 'confirm' ? 'sample' : undefined);
+    return redirectToMailbox(`Rendered a ${kind} sample for ${email} (not logged).`);
+  }
   return json({ error: 'not found' }, 404);
 }
 
@@ -260,6 +320,7 @@ export default {
     const url = new URL(req.url);
     try {
       if (url.pathname.startsWith('/admin/')) return await handleAdmin(req, env, url);
+      if (url.pathname.startsWith('/dev/') && devMailboxOn(env)) return await handleDev(req, env, url);
       return await handlePublic(req, env, url);
     } catch (err) {
       console.error('[notifier] request failed', url.pathname, err);

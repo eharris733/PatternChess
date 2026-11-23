@@ -1,4 +1,5 @@
 import { formatOpeningDisplay, resolveOpeningName } from '../../chess/openingNames';
+import { useT } from '../../i18n/useT';
 
 interface Props {
   gamesAnalyzed: number;
@@ -15,14 +16,15 @@ export function DemoStatsCard({
   eco,
   openingName,
 }: Props) {
+  const t = useT();
   const opening = formatOpeningDisplay(resolveOpeningName(eco, openingName));
   return (
     <div className="border-2 border-text-primary bg-surface">
       <div className="grid grid-cols-3 divide-x-2 divide-text-primary">
-        <Stat label="Games analyzed" value={String(gamesAnalyzed)} />
-        <Stat label="Blunders found" value={String(blundersFound)} />
+        <Stat label={t('demo.stats.games')} value={String(gamesAnalyzed)} />
+        <Stat label={t('demo.stats.blunders')} value={String(blundersFound)} />
         <Stat
-          label="Biggest swing"
+          label={t('demo.stats.swing')}
           value={biggestSwing != null ? `${biggestSwing}%` : '—'}
           accent={biggestSwing != null}
         />
@@ -30,7 +32,7 @@ export function DemoStatsCard({
       {opening && (
         <div className="border-t-2 border-text-primary px-4 py-3 flex items-center justify-between gap-4">
           <span className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
-            Opening
+            {t('demo.stats.opening')}
           </span>
           <span className="font-mono uppercase text-xs tracking-tight text-text-primary truncate">
             {opening}

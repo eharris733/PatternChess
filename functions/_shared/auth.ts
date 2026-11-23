@@ -27,7 +27,16 @@ export const SESSION_UPDATE_AGE_S = 60 * 60 * 24; // refresh the expiry at most 
 
 /** Production + Pages preview hosts. Branch previews are `<branch>.patternchess-1et.pages.dev`. */
 const PROD_HOSTS = ['patternchess.com', 'www.patternchess.com', 'patternchess-1et.pages.dev', '*.patternchess-1et.pages.dev'];
-const LOCAL_HOSTS = ['localhost:8788', 'localhost:5173', '127.0.0.1:8788', '127.0.0.1:5173'];
+/**
+ * Local dev hosts (trusted only when BETTER_AUTH_URL is localhost): the API on
+ * 8788 and Vite on 5173 by default, plus the ports parallel checkouts use
+ * (`PC_API_PORT` 8789–8799, `PORT` 5174–5199).
+ */
+const LOCAL_PORTS = [
+  ...Array.from({ length: 12 }, (_, i) => 8788 + i),
+  ...Array.from({ length: 27 }, (_, i) => 5173 + i),
+];
+const LOCAL_HOSTS = ['localhost', '127.0.0.1'].flatMap((h) => LOCAL_PORTS.map((p) => `${h}:${p}`));
 
 export function isPlaceholderEmail(email: string | null | undefined): boolean {
   return !!email && email.toLowerCase().endsWith(LICHESS_PLACEHOLDER_DOMAIN);
@@ -128,7 +137,9 @@ export function defaultProfileRow(user: NewAuthUser): Record<string, unknown> {
     created_at: nowIso(),
     last_synced_lichess_at: null,
     last_synced_chesscom_at: null,
-    preferred_rated_only: false,
+    // Casual games are noise for training (2026-11-22 feedback): new accounts
+    // train on rated games only. Existing accounts keep their choice.
+    preferred_rated_only: true,
     preferred_time_controls: ['bullet', 'blitz', 'rapid', 'classical'],
     current_streak_days: 0,
     longest_streak_days: 0,

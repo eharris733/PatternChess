@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { getStockfish } from '../../hooks/useStockfish';
 import { PlatformPill } from './PlatformPill';
+import { useT } from '../../i18n/useT';
 
 // Engine warm-up is deferred to submit (below). Eagerly fetching the ~7 MB
 // Stockfish WASM on field focus made every landing visitor who merely clicked
@@ -22,6 +23,7 @@ export function UsernameInput({
   initialPlatform = 'lichess',
   initialUsername = '',
 }: Props) {
+  const t = useT();
   const [platform, setPlatform] = useState<DemoPlatform>(initialPlatform);
   const [username, setUsername] = useState(initialUsername);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -46,7 +48,7 @@ export function UsernameInput({
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <fieldset className="flex flex-wrap items-center gap-2 border-0 p-0 m-0 min-w-0">
         <legend className="float-left font-mono uppercase text-[10px] tracking-tight text-text-secondary mr-1">
-          Platform
+          {t('landing.platform')}
         </legend>
         <PlatformPill
           platform="lichess"
@@ -65,7 +67,7 @@ export function UsernameInput({
             {platform === 'lichess' ? 'lichess.org/@' : 'chess.com/member/'}
           </span>
           <label htmlFor="demo-username" className="sr-only">
-            {platform === 'lichess' ? 'Lichess username' : 'Chess.com username'}
+            {platform === 'lichess' ? t('profile.lichessUsername') : t('profile.chesscomUsername')}
           </label>
           <input
             id="demo-username"
@@ -73,7 +75,7 @@ export function UsernameInput({
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="ENTER USERNAME"
+            placeholder={t('landing.enterUsername')}
             autoComplete="off"
             autoCapitalize="off"
             spellCheck={false}
@@ -86,11 +88,17 @@ export function UsernameInput({
           disabled={loading || !username.trim()}
           className="font-mono uppercase tracking-tight text-sm border-2 border-text-primary bg-gold-dark text-bg px-6 py-3 rounded-none shadow-card hover:shadow-card-hover hover:translate-x-[2px] hover:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-card disabled:hover:translate-x-0 disabled:hover:translate-y-0 transition-all whitespace-nowrap"
         >
-          {loading ? 'Digging through your games…' : 'Find my blunders →'}
+          {loading ? (
+            t('landing.digging')
+          ) : (
+            <>
+              {t('landing.getPlan')} <span aria-hidden="true">→</span>
+            </>
+          )}
         </button>
       </div>
       <p className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
-        We only read your public games. Promise.
+        {t('landing.publicOnly')}
       </p>
     </form>
   );

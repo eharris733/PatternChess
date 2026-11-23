@@ -2,6 +2,7 @@ import { Chess } from 'chess.js';
 import { extractHeaders } from './pgnParserService';
 import type { GameRecord } from '../models/gameRecord';
 import { parseUciMove } from '../chess/moveUtils';
+import { currentT } from '../i18n/useT';
 
 const CASTLING_NORMALIZE: Record<string, string> = {
   e1a1: 'e1c1',
@@ -108,7 +109,7 @@ export function externalAnalysisUrl(
     orientation?: BoardOrientation | null;
   },
 ): { url: string; label: string } {
-  const label = platform === 'lichess' ? 'Open on lichess' : 'Open on chess.com';
+  const label = currentT()('board.openOn', { site: platform === 'lichess' ? 'lichess' : 'chess.com' });
   const moves = options?.movesFromStart ?? [];
   const startFen = options?.startFen;
   const orientation = options?.orientation;

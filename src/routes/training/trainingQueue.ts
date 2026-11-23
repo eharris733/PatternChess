@@ -3,6 +3,7 @@ import type { Tables } from '../../lib/database.types';
 import { GameRecord, gameRecordFromJson } from '../../models/gameRecord';
 import { Blunder } from '../../models/blunder';
 import { ContextFilter, GAME_STATE_LABEL, computeBlunderContext } from '../../chess/blunderContext';
+import type { Translator } from '../../i18n/useT';
 
 /** Fetch the given games by id into a lookup map (used for batch context/opening filtering). */
 export async function fetchGamesByIds(ids: string[]): Promise<Map<string, GameRecord>> {
@@ -32,8 +33,8 @@ export function applyContextFilter(
 }
 
 /** Human label for a context filter (time buckets + game-state labels). */
-export function filterLabel(filter: ContextFilter): string {
-  if (filter === 'timeTrouble') return 'Time trouble';
-  if (filter === 'longThink') return 'Long think';
-  return GAME_STATE_LABEL[filter];
+export function filterLabel(filter: ContextFilter, t?: Translator): string {
+  if (filter === 'timeTrouble') return t ? t('train.timeTrouble') : 'Time trouble';
+  if (filter === 'longThink') return t ? t('train.longThink') : 'Long think';
+  return t ? t.label('gameState', filter, GAME_STATE_LABEL[filter]) : GAME_STATE_LABEL[filter];
 }

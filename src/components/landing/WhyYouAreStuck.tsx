@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { ChevronIcon } from '../icons/ChevronIcon';
+import { useT } from '../../i18n/useT';
 
 function Cite({ n }: { n: string }) {
   return (
@@ -14,67 +15,15 @@ function Cite({ n }: { n: string }) {
   );
 }
 
-type Beat = {
-  num: string;
-  title: string;
-  body: ReactNode;
-};
-
 type Footnote = {
   num: string;
   text: ReactNode;
   href: string;
 };
 
-const BEATS: Beat[] = [
-  {
-    num: '01',
-    title: 'Learning needs friction',
-    body: (
-      <>
-        To improve, your brain has to struggle with the same idea — many times over. Most chess
-        training skips this. Blitz while half-watching TV trains nothing. Puzzles fade within a
-        day of solving them.<Cite n="1" /> Patterns stick when you face the same position on
-        different days until the answer is automatic.<Cite n="2" /><Cite n="3" />
-      </>
-    ),
-  },
-  {
-    num: '02',
-    title: 'Blunders decide your games',
-    body: (
-      <>
-        Most games below 2000 Elo are decided by one player handing the other a winning position.
-        I've coached adult improvers for years and climbed to 2300+ on chess.com myself, and I see
-        the same thing every time: one missed move decides the game. That's what you need to drill.
-      </>
-    ),
-  },
-  {
-    num: '03',
-    title: 'Drill the games you actually played',
-    body: (
-      <>
-        The patterns that keep beating you are sitting in your own losses. PatternChess pulls
-        your games from Chess.com or Lichess, runs Stockfish over them, and collects the moves
-        where you actually lost ground into one structured set. It's the same
-        repeat-until-automatic idea Tikkanen used on his way to three GM norms in seven
-        weeks.<Cite n="4" />
-      </>
-    ),
-  },
-  {
-    num: '04',
-    title: 'Consistency compounds',
-    body: (
-      <>
-        Ten minutes today does more than two hours next Sunday. Spaced practice works because it
-        gives you time to digest new chess patterns.<Cite n="3" /> The hard part is showing up, so
-        we made it easy: a daily plan, a streak, and reminders to keep you consistent.
-      </>
-    ),
-  },
-];
+// Copy lives in the i18n catalogs (`why.<i>.title` / `why.<i>.body`); `{cN}` marks a citation.
+const BEATS = ['01', '02', '03', '04'] as const;
+const CITES = { c1: <Cite n="1" />, c2: <Cite n="2" />, c3: <Cite n="3" />, c4: <Cite n="4" /> };
 
 const FOOTNOTES: Footnote[] = [
   {
@@ -126,31 +75,32 @@ const FOOTNOTES: Footnote[] = [
 ];
 
 export function WhyYouAreStuck() {
+  const t = useT();
   return (
     <section className="border-b-2 border-text-primary">
       <div className="max-w-6xl mx-auto px-6 py-16 lg:py-24">
         <div className="mb-12 border-b-2 border-text-primary pb-4">
           <h2 className="font-mono uppercase tracking-tight text-2xl sm:text-3xl text-text-primary">
-            Why you're stuck
+            {t('why.title')}
           </h2>
         </div>
 
         <div className="flex flex-col">
-          {BEATS.map((b, i) => (
+          {BEATS.map((num, i) => (
             <div
-              key={b.num}
+              key={num}
               className={
                 'grid grid-cols-[auto_1fr] gap-6 lg:gap-10 py-8 lg:py-10 ' +
                 (i < BEATS.length - 1 ? 'border-b border-text-primary/15' : '')
               }
             >
-              <span className="font-mono text-3xl text-gold-dark">{b.num}</span>
+              <span className="font-mono text-3xl text-gold-dark">{num}</span>
               <div className="flex flex-col gap-3 max-w-3xl">
                 <h3 className="font-mono uppercase tracking-tight text-lg sm:text-xl text-text-primary">
-                  {b.title}
+                  {t(`why.${i}.title` as 'why.0.title')}
                 </h3>
                 <p className="text-base sm:text-lg text-text-primary/85 leading-relaxed">
-                  {b.body}
+                  {t.rich(`why.${i}.body` as 'why.0.body', CITES)}
                 </p>
               </div>
             </div>
@@ -159,7 +109,7 @@ export function WhyYouAreStuck() {
 
         <details className="group mt-12 border-2 border-text-primary bg-surface">
           <summary className="flex cursor-pointer select-none items-center justify-between gap-3 p-6 font-mono uppercase text-[10px] tracking-tight text-text-secondary list-none [&::-webkit-details-marker]:hidden">
-            <span>Footnotes</span>
+            <span>{t('why.footnotes')}</span>
             <ChevronIcon className="h-4 w-4 transition-transform duration-200 group-open:rotate-90" />
           </summary>
           <ol className="flex flex-col gap-3 px-6 pb-6 text-xs sm:text-sm text-text-primary/75 leading-relaxed">
@@ -178,7 +128,7 @@ export function WhyYouAreStuck() {
                     rel="noopener noreferrer"
                     className="font-mono uppercase text-[10px] tracking-tight underline underline-offset-2 text-text-primary hover:text-gold-dark"
                   >
-                    Source
+                    {t('why.source')}
                   </a>
                 </span>
               </li>

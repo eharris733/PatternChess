@@ -8,6 +8,7 @@ import { winPercent } from '../../chess/winningChances';
 import { mateInPhrase, moveCost } from '../../chess/formatEval';
 import { getStockfish } from '../../hooks/useStockfish';
 import type { BlunderCandidate } from '../../stockfish/stockfishWorkerClient';
+import { useT } from '../../i18n/useT';
 
 interface Props {
   blunder: BlunderCandidate;
@@ -26,6 +27,7 @@ type Phase = 'solving' | 'checking' | 'correct' | 'wrong' | 'revealed';
  * Stockfish instance the demo already booted.
  */
 export function BlunderPreview({ blunder, moveLabel }: Props) {
+  const t = useT();
   const orientation = blunder.sideToMove === 'black' ? 'black' : 'white';
   const [phase, setPhase] = useState<Phase>('solving');
   const [tried, setTried] = useState<{ uci: string; san: string; fen: string } | null>(null);
@@ -144,25 +146,22 @@ export function BlunderPreview({ blunder, moveLabel }: Props) {
           {phase === 'solving' || phase === 'checking' || phase === 'wrong' ? (
             <div className="flex flex-col gap-3" data-testid="demo-puzzle">
               <div className="font-mono uppercase text-base sm:text-lg leading-relaxed text-text-primary">
-                You played <span className="font-bold">{playedSan}</span> here.
-                <br />
+                <p>{t.rich('puzzle.youPlayedHere', { san: <span className="font-bold">{playedSan}</span> })}</p>{' '}
                 {phase === 'wrong' && tried ? (
-                  <>
-                    <span className="font-bold">{tried.san}</span> isn&rsquo;t it either.
-                  </>
+                  <p>{t.rich('puzzle.notItEither', { san: <span className="font-bold">{tried.san}</span> })}</p>
                 ) : (
-                  <span className="text-gold-dark">Find the better move.</span>
+                  <p className="text-gold-dark">{t('puzzle.findBetter')}</p>
                 )}
               </div>
               {phase === 'checking' && (
                 <div className="font-mono uppercase text-[10px] tracking-tight text-text-secondary" role="status">
-                  Checking your move…
+                  {t('puzzle.checking')}
                 </div>
               )}
               <div className="flex flex-wrap gap-3">
                 {phase === 'wrong' && (
                   <button type="button" className="btn-primary" onClick={retry}>
-                    Try again
+                    {t('common.tryAgain')}
                   </button>
                 )}
                 <button
@@ -171,7 +170,7 @@ export function BlunderPreview({ blunder, moveLabel }: Props) {
                   disabled={phase === 'checking'}
                   onClick={() => setPhase('revealed')}
                 >
-                  Show me
+                  {t('puzzle.showMe')}
                 </button>
               </div>
             </div>
@@ -180,38 +179,34 @@ export function BlunderPreview({ blunder, moveLabel }: Props) {
               {phase === 'correct' && tried && (
                 <div className="font-mono uppercase text-base sm:text-lg leading-relaxed text-correct" role="status">
                   {tried.uci === bestUci
-                    ? `Found it. ${tried.san} is right.`
-                    : `${tried.san} works too. The engine's top choice was ${bestSan}.`}
+                    ? t('puzzle.foundIt', { san: tried.san })
+                    : t('puzzle.worksToo', { san: tried.san, best: bestSan })}
                 </div>
               )}
               <div className="font-mono uppercase text-base sm:text-lg leading-relaxed text-text-primary">
-                You played{' '}
-                <span className="font-bold">{playedSan}</span>.
-                <br />
-                {cost.kind === 'allowsMate' ? (
-                  <>
-                    That allows{' '}
-                    <span className="text-gold-dark font-bold">{mateInPhrase(cost.moves)}</span>.{' '}
-                    <span className="text-gold-dark">{bestSan}</span> was safe.
-                  </>
-                ) : cost.kind === 'missedMate' ? (
-                  <>
-                    <span className="text-gold-dark">{bestSan}</span> was{' '}
-                    <span className="text-gold-dark font-bold">{mateInPhrase(cost.moves)}</span>.
-                  </>
-                ) : (
-                  <>
-                    <span className="text-gold-dark">{bestSan}</span> was{' '}
-                    <span className="text-gold-dark font-bold">{Math.round(Math.abs(cost.cp))}cp</span>{' '}
-                    stronger.
-                  </>
-                )}
+                <p>{t.rich('puzzle.youPlayed', { san: <span className="font-bold">{playedSan}</span> })}</p>{' '}
+                <p>
+                  {cost.kind === 'allowsMate'
+                    ? t.rich('puzzle.allowsMate', {
+                        mate: <span className="text-gold-dark font-bold">{mateInPhrase(cost.moves, t)}</span>,
+                        best: <span className="text-gold-dark">{bestSan}</span>,
+                      })
+                    : cost.kind === 'missedMate'
+                      ? t.rich('puzzle.wasMate', {
+                          best: <span className="text-gold-dark">{bestSan}</span>,
+                          mate: <span className="text-gold-dark font-bold">{mateInPhrase(cost.moves, t)}</span>,
+                        })
+                      : t.rich('puzzle.wasStronger', {
+                          best: <span className="text-gold-dark">{bestSan}</span>,
+                          cp: <span className="text-gold-dark font-bold">{Math.round(Math.abs(cost.cp))}cp</span>,
+                        })}
+                </p>
               </div>
             </>
           )}
           <div className="mt-auto pt-4 border-t-2 border-text-primary/10">
             <div className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
-              This is one position. We find every blunder like it.
+              {t('puzzle.onePosition')}
             </div>
           </div>
         </div>

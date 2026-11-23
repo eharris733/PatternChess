@@ -37,11 +37,19 @@ const BLUNDERS = [
   { id: 'b1', game_id: 'g1', fen: STARTPOS, move_number: 10, played_move: 'e2e4', correct_moves: [{ move: 'd2d4', eval: 20 }], eval_before: 10, eval_after: -200, eval_swing: 210, side_to_move: 'white', cycle_number: 1, last_drilled_at: PAST, next_drill_at: PAST, times_correct: 1, times_attempted: 1, last_drill_failed: false, created_at: PAST, phase: 'opening', kind: 'tactic' },
 ];
 
-async function stub(page: Page, opts: { profile?: Partial<typeof BASE_PROFILE>; gamesToday?: number } = {}) {
+async function stub(
+  page: Page,
+  opts: { profile?: Partial<typeof BASE_PROFILE>; gamesToday?: number; drillsToday?: number } = {},
+) {
   const gamesToday = opts.gamesToday ?? 0;
+  const today = new Date().toLocaleDateString('en-CA');
+  const sessions = opts.drillsToday
+    ? [{ id: 's1', user_id: 'e2e-user', local_date: today, started_at: new Date().toISOString(), ended_at: null, blunders_attempted: opts.drillsToday, blunders_correct: opts.drillsToday, cycles_completed: 0 }]
+    : [];
   const rec = await stubApp(page, {
     profile: { ...BASE_PROFILE, ...opts.profile },
     blunders: BLUNDERS,
+    sessions,
     gameCount: 1,
     rpc: {
       'games.playedSince': () => Array.from({ length: gamesToday }, () => new Date().toISOString()),
@@ -67,12 +75,48 @@ test('the commitment level sizes the plan and the Play step counts games played 
   await expect(page.getByTestId('commitment-level')).toHaveText('Serious');
   await expect(page.getByText('Play 2 games')).toBeVisible();
   await expect(page.getByText('Train 20 positions')).toBeVisible();
-  const playStep = page.locator('[data-plan-step]').filter({ hasText: 'Play 2 games' });
+  const playStep = page.getByTestId('plan-step-play');
   await expect(playStep.getByText('1/2')).toBeVisible();
+  // Play comes last, and stays locked until the rest of the plan is done.
+  await expect(page.locator('[data-plan-step]').last()).toContainText('Play 2 games');
+  await expect(playStep).toHaveAttribute('data-state', 'locked');
+  await expect(playStep.getByText('Unlocks when your plan is done.')).toBeVisible();
+  await expect(playStep.getByRole('button', { name: 'Play (locked)' })).toBeDisabled();
+  await expect(playStep.getByRole('link', { name: 'Play' })).toHaveCount(0);
+});
+
+test('the plan runs Train, Openings, Endgames, Play and always shows every step', async ({ page }) => {
+  await stub(page);
+  await page.goto('/dashboard');
+  const steps = page.locator('[data-plan-step]');
+  await expect(steps).toHaveCount(4);
+  await expect(steps.nth(0)).toContainText('Train 10 positions');
+  // No opening drills or saved endgames yet: the steps still show, idle, with a way in.
+  await expect(steps.nth(1)).toHaveAttribute('data-testid', 'plan-step-openings');
+  await expect(steps.nth(1)).toHaveAttribute('data-state', 'idle');
+  await expect(steps.nth(1).getByRole('button', { name: 'Openings' })).toBeVisible();
+  await expect(steps.nth(2)).toHaveAttribute('data-testid', 'plan-step-endgames');
+  await expect(steps.nth(2)).toHaveAttribute('data-state', 'idle');
+  await expect(steps.nth(3)).toContainText('Play 1 game');
+});
+
+test('Play unlocks once the rest of the plan is done', async ({ page }) => {
+  await stub(page, { drillsToday: 10 });
+  await page.goto('/dashboard');
+  const playStep = page.getByTestId('plan-step-play');
+  await expect(playStep).toHaveAttribute('data-state', 'open');
   await expect(playStep.getByRole('link', { name: 'Play' })).toHaveAttribute('href', 'https://lichess.org/');
+  await expect(playStep.getByTestId('logo-lichess')).toBeVisible();
   await expect(page.getByTestId('check-new-games')).toBeVisible();
-  // Play comes first in the plan.
-  await expect(page.locator('[data-plan-step]').first()).toContainText('Play 2 games');
+  await expect(page.getByTestId('plan-done')).toHaveCount(0);
+});
+
+test('a finished plan invites you to keep going instead of saying see you tomorrow', async ({ page }) => {
+  await stub(page, { drillsToday: 10, gamesToday: 1 });
+  await page.goto('/dashboard');
+  await expect(page.getByTestId('plan-progress')).toContainText('Plan done');
+  await expect(page.getByTestId('plan-done')).toContainText('Plan done. Keep going?');
+  await expect(page.getByTestId('daily-plan').getByText(/tomorrow/i)).toHaveCount(0);
 });
 
 test('a zero-game commitment hides the Play step', async ({ page }) => {
@@ -97,6 +141,10 @@ test('picking a commitment on /profile saves it', async ({ page }) => {
   await expect(picker).toBeVisible();
   await picker.getByRole('button', { name: /Obsessed/ }).click();
   await expect(picker.getByRole('button', { name: /Obsessed/ })).toHaveAttribute('aria-pressed', 'true');
+  // Every level describes the whole day, openings and endgames included.
+  await expect(picker.getByTestId('commitment-summary')).toHaveText(
+    'Your day: 30 positions, 3 opening reviews, 2 endgames, 3 games.',
+  );
   await expect
     .poll(() => profilePatches(rec).find((p) => p.commitment_level))
     .toEqual({ commitment_level: 'obsessed', daily_positions_goal: 30, daily_games_goal: 3 });

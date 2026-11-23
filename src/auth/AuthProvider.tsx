@@ -1,5 +1,6 @@
 import { createContext, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { authClient, isPlaceholderEmail } from '../lib/authClient';
+import { ApiError } from '../lib/api';
 import { queryClient } from '../lib/queryClient';
 import { clearPersistedQueries, shouldPersistQuery } from '../lib/queryPersist';
 import { authService } from '../services/authService';
@@ -9,6 +10,8 @@ import type { UserProfile } from '../models/userProfile';
 import { useSyncStore } from '../state/syncStore';
 import { useOnboardingStore } from '../state/onboardingStore';
 import { hasStoredTheme, useThemeStore } from '../state/themeStore';
+import { hasStoredPieceSet, usePieceSetStore } from '../state/pieceSetStore';
+import { updateCosmetics } from '../services/db/cosmetics';
 import { setCachedUserId } from '../services/db/currentUser';
 
 export type AuthProviderId = 'google' | 'lichess' | 'email';
@@ -126,6 +129,22 @@ function clearUserState() {
   useOnboardingStore.getState().reset();
 }
 
+/**
+ * A session whose account row is gone (deleted from D1 while its KV session
+ * lived on) can never load a profile: sign it out so the visitor lands on
+ * /login instead of an empty shell. Re-reads the session first, so a newer
+ * sign-in that replaced the cookie meanwhile is never the one revoked.
+ */
+async function endOrphanSession(orphanId: string): Promise<void> {
+  try {
+    const { data } = await authClient.getSession();
+    if (data?.user?.id !== orphanId) return;
+    await authService.signOut();
+  } catch (err) {
+    console.warn('[auth] could not end orphan session', err);
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { data, isPending, refetch } = authClient.useSession();
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -213,6 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn('[auth] getOrCreateProfile failed', err);
         // Let the next session emission retry.
         if (loadedUserId.current === user.id) loadedUserId.current = null;
+        if (err instanceof ApiError && err.code === 'no_user') void endOrphanSession(user.id);
       });
     return () => {
       cancelled = true;
@@ -257,6 +277,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       void authService
         .updateProfile(next)
         .catch((err) => console.warn('[auth] sync boardTheme failed', err));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id]);
+
+  // Same reconciliation for the piece set (profiles.piece_set, migration 0005).
+  useEffect(() => {
+    if (!profile) return;
+    const local = usePieceSetStore.getState().pieceSet;
+    if (!hasStoredPieceSet()) {
+      if (profile.pieceSet !== local) usePieceSetStore.getState().setPieceSet(profile.pieceSet);
+      return;
+    }
+    if (profile.pieceSet !== local) {
+      setProfile((p) => (p ? { ...p, pieceSet: local } : p));
+      void updateCosmetics({ pieceSet: local }).catch((err) => console.warn('[auth] sync pieceSet failed', err));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);

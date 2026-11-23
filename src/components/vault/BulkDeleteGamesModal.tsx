@@ -3,6 +3,7 @@ import { supabaseService } from '../../services/supabaseService';
 import type { GameRecord } from '../../models/gameRecord';
 import { TrashIcon } from '../icons/TrashIcon';
 import { gameSortTime } from './vaultHelpers';
+import { useT } from '../../i18n/useT';
 
 type Mode = 'before' | 'all';
 
@@ -19,6 +20,7 @@ export function BulkDeleteGamesModal({
   onClose: () => void;
   onDeleted: () => void;
 }) {
+  const t = useT();
   const [mode, setMode] = useState<Mode>('before');
   const [before, setBefore] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -49,14 +51,14 @@ export function BulkDeleteGamesModal({
       onDeleted();
       if (deleted < n) {
         setError(
-          `${deleted} of ${n} games were deleted. The rest couldn't be removed — it may be a permissions issue.`,
+          t('vault.bulk.partial', { deleted, total: n }),
         );
         return;
       }
       onClose();
     } catch (err) {
       console.error('Bulk delete failed', err);
-      setError(err instanceof Error ? err.message : 'Delete failed.');
+      setError(err instanceof Error ? err.message : t('train.deleteFailed'));
       onDeleted();
     } finally {
       setDeleting(false);
@@ -68,7 +70,7 @@ export function BulkDeleteGamesModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Delete games"
+      aria-label={t('vault.bulk.title')}
       onClick={() => !deleting && onClose()}
     >
       <div
@@ -76,11 +78,11 @@ export function BulkDeleteGamesModal({
         onClick={(e) => e.stopPropagation()}
       >
         <header>
-          <h2 className="heading-lg">Delete games</h2>
+          <h2 className="heading-lg">{t('vault.bulk.title')}</h2>
         </header>
 
         <fieldset className="flex flex-col gap-3" disabled={deleting}>
-          <legend className="sr-only">Which games</legend>
+          <legend className="sr-only">{t('vault.bulk.which')}</legend>
           <label className="flex items-start gap-2 text-sm">
             <input
               type="radio"
@@ -90,7 +92,7 @@ export function BulkDeleteGamesModal({
               onChange={() => setMode('before')}
             />
             <span className="flex flex-col gap-2">
-              Games played before
+              {t('vault.bulk.before')}
               <input
                 type="date"
                 className="input h-9 w-44"
@@ -99,7 +101,7 @@ export function BulkDeleteGamesModal({
                   setBefore(e.target.value);
                   setMode('before');
                 }}
-                aria-label="Delete games played before this date"
+                aria-label={t('vault.bulk.beforeAria')}
               />
             </span>
           </label>
@@ -110,18 +112,16 @@ export function BulkDeleteGamesModal({
               checked={mode === 'all'}
               onChange={() => setMode('all')}
             />
-            All {games.length} games
+            {t('vault.bulk.all', { count: games.length })}
           </label>
         </fieldset>
 
         <p className="text-text-primary text-sm">
           {n === 0
             ? mode === 'before' && !before
-              ? 'Pick a date to see how many games that removes.'
-              : 'No games match.'
-            : `This permanently removes ${n} game${n === 1 ? '' : 's'} and every position found in ${
-                n === 1 ? 'it' : 'them'
-              }, including your training progress on those positions. This can't be undone.`}
+              ? t('vault.bulk.pickDate')
+              : t('vault.bulk.noMatch')
+            : t('vault.bulk.body', { count: n })}
         </p>
 
         {error && (
@@ -132,7 +132,7 @@ export function BulkDeleteGamesModal({
 
         <div className="flex items-center justify-end gap-3">
           <button type="button" className="btn-ghost" disabled={deleting} onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -141,7 +141,7 @@ export function BulkDeleteGamesModal({
             onClick={confirm}
           >
             <TrashIcon className="h-4 w-4" />
-            {deleting ? `Deleting ${progress}/${n}…` : `Delete ${n} game${n === 1 ? '' : 's'}`}
+            {deleting ? t('vault.bulk.deleting', { done: progress, total: n }) : t('vault.bulk.action', { count: n })}
           </button>
         </div>
       </div>

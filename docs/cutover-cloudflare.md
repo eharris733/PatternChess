@@ -1,5 +1,12 @@
 # Cutover: Supabase → Cloudflare (D1 + better-auth)
 
+> **Status (checked 2026-11-23): done.** Production (`patternchess.com`) runs the Cloudflare backend from
+> `main` (PR #47 merged 2026-11-22): `/api/auth/ok` answers, the bundle has no Supabase client, and the
+> notifier Worker runs the D1 build with `SUPABASE_SERVICE_ROLE_KEY` deleted (steps 2–4). Preview and
+> production share D1 `patternchess-app`. Still open: production Stripe live keys (step 0; until then
+> `/supporter` checkout works only on previews), confirming steps 6–7, and step 9 from 2026-12-06.
+> The steps below are kept as the record of how it was done.
+
 Everything is built on `feat/cloudflare-backend` and verified on its preview against a full copy of
 production data. This runbook moves **production** over. It takes about 20 minutes; pick a quiet hour
 (writes made on the old site between the final export and the new deploy going live are lost).

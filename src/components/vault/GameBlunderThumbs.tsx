@@ -5,6 +5,7 @@ import type { GameRecord } from '../../models/gameRecord';
 import type { Blunder } from '../../models/blunder';
 import { MiniBoard } from '../MiniBoard';
 import { blunderOrientation } from './vaultHelpers';
+import { useT } from '../../i18n/useT';
 
 export function GameBlunderThumbs({
   game,
@@ -13,6 +14,7 @@ export function GameBlunderThumbs({
   game: GameRecord;
   onPreview: (b: Blunder) => void;
 }) {
+  const t = useT();
   const { data: blunders, isLoading } = useQuery({
     queryKey: ['gameBlunders', game.id],
     queryFn: () => supabaseService.getBlundersForGames([game.id]),
@@ -21,15 +23,15 @@ export function GameBlunderThumbs({
 
   if (isLoading) {
     return (
-      <div className="px-5 py-4 border-t-2 border-text-primary/10 text-xs text-text-secondary">
-        Loading positions…
+      <div className="px-5 py-4 border-t-2 border-text-primary/10 text-xs text-text-primary">
+        {t('vault.games.loadingPositions')}
       </div>
     );
   }
   if (!blunders || blunders.length === 0) {
     return (
-      <div className="px-5 py-4 border-t-2 border-text-primary/10 text-xs text-text-secondary">
-        No stored positions for this game.
+      <div className="px-5 py-4 border-t-2 border-text-primary/10 text-xs text-text-primary">
+        {t('vault.games.noStored')}
       </div>
     );
   }
@@ -44,17 +46,14 @@ export function GameBlunderThumbs({
               type="button"
               className="group flex flex-col items-start gap-1.5 text-left"
               onClick={() => onPreview(b)}
-              title="Expand position"
             >
               <MiniBoard
                 fen={b.fen}
                 orientation={blunderOrientation(game, b)}
                 className="w-28 transition-transform group-hover:-translate-y-0.5"
               />
-              <span className="font-mono text-[10px] uppercase tracking-tight text-text-secondary">
-                Move {b.moveNumber} ·{' '}
-                {/* SAN is case-sensitive (Nxd5 ≠ NXD5) — undo the label uppercasing */}
-                <span className="text-mistake normal-case">{played}?</span>
+              <span className="text-xs text-text-primary">
+                Move {b.moveNumber} · <span className="font-mono text-mistake">{played}?</span>
               </span>
             </button>
           );

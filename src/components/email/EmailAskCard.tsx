@@ -59,7 +59,7 @@ export function EmailAskCard({ variant, onClose }: { variant: EmailAskVariant; o
             </p>
           )}
         </div>
-        <button type="button" onClick={onClose} aria-label="Close" className="shrink-0 text-text-secondary">
+        <button type="button" onClick={onClose} aria-label="Close" className="shrink-0 text-text-primary">
           <CloseIcon className="h-4 w-4" />
         </button>
       </section>
@@ -115,10 +115,10 @@ export function EmailAskCard({ variant, onClose }: { variant: EmailAskVariant; o
         )}
         {error && <p className="text-incorrect text-sm">{error}</p>}
 
-        <p className="text-xs text-text-secondary">
+        <p className="text-xs text-text-primary">
           Change the hour or turn it off any time in your profile, or with one click from any email.
         </p>
-        <p id="email-ask-sources" className="text-xs text-text-secondary">
+        <p id="email-ask-sources" className="text-xs text-text-primary">
           [1]{' '}
           <a href={AIRSHIP_URL} target="_blank" rel="noopener noreferrer" className="underline">
             Airship mobile app retention study
@@ -129,7 +129,7 @@ export function EmailAskCard({ variant, onClose }: { variant: EmailAskVariant; o
           </a>
         </p>
       </div>
-      <button type="button" onClick={dismiss} aria-label="Not now" className="shrink-0 text-text-secondary">
+      <button type="button" onClick={dismiss} aria-label="Not now" className="shrink-0 text-text-primary">
         <CloseIcon className="h-4 w-4" />
       </button>
     </section>

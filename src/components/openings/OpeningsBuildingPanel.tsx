@@ -5,6 +5,7 @@ import { scanItemsLeft, type OpeningScanState } from '../../state/openingScanSto
 import type { LibraryProgress } from '../../hooks/useLibraryProgress';
 import { ProgressBar } from '../ProgressBar';
 import { StepMarker } from '../OnboardingImport';
+import { useT } from '../../i18n/useT';
 
 /**
  * Shown on /openings until the first full report is ready: the three things
@@ -22,6 +23,7 @@ export function OpeningsBuildingPanel({
   onShowPartial?: () => void;
 }) {
   const { profile } = useAuth();
+  const t = useT();
   const triggerNow = useSyncStore((s) => s.triggerNow);
 
   const importing = library.phase === 'importing';
@@ -31,62 +33,63 @@ export function OpeningsBuildingPanel({
   // The queue shrinks as games are checked: measure against its high-water mark.
   const peak = useRef(0);
   peak.current = Math.max(peak.current, left);
-  const checking = analysisDone && scan.phase !== 'done';
+  // The walk (and the most-played opening's engine checks) run during sync too.
+  const checking = scan.phase === 'checking' || (analysisDone && scan.phase !== 'done');
 
   const analyzeDetail = analyzing
-    ? `${library.analyzed} / ${library.analyzeTotal} games`
+    ? t('building.analyzeOf', { done: library.analyzed, total: library.analyzeTotal })
     : importing
-      ? 'Starts once your games are imported'
+      ? t('building.afterImport')
       : scan.unanalyzed > 0
-        ? `${scan.unanalyzed} ${scan.unanalyzed === 1 ? 'game is' : 'games are'} waiting to be analyzed`
+        ? t('openings.waiting', { count: scan.unanalyzed }).replace(/\.$/, '')
         : scan.phase === 'idle'
-          ? 'Checking…'
-          : 'All games analyzed';
+          ? t('building.checking')
+          : t('building.allAnalyzed');
 
   const checkDetail = !analysisDone
-    ? 'Starts once every game is analyzed'
+    ? scan.phase === 'checking' || scan.phase === 'waiting'
+      ? t('building.mostPlayedFirst')
+      : t('building.asGamesComeIn')
     : scan.bookUnavailable
-      ? "Can't reach the opening book right now. Retrying shortly."
+      ? t('openings.bookDown')
       : scan.phase === 'done'
-        ? 'Done'
+        ? t('building.done')
         : left > 0
-          ? `${left} ${left === 1 ? 'item' : 'items'} left`
-          : 'Finishing up…';
+          ? t('building.itemsLeft', { count: left })
+          : t('building.finishing');
 
   return (
     <section className="card flex flex-col gap-5" data-testid="openings-building" aria-live="polite">
       <div className="flex flex-col gap-2">
-        <h2 className="heading-md">Building your openings report</h2>
+        <h2 className="heading-md">{t('building.title')}</h2>
         <p className="text-text-primary text-sm">
-          We compare every game you've played with master theory to find where you leave the book and
-          which of those exits cost you. That needs all of your games analyzed first, so your report
-          appears here once the steps below are done.
+          {t('building.body')}
         </p>
       </div>
 
       <ol className="flex flex-col gap-4">
         <Step
-          label="Import your games"
+          label={t('building.import')}
           done={!importing}
           active={importing}
           detail={
             importing
               ? library.importTotal
-                ? `${library.imported} / ${library.importTotal}`
-                : `${library.imported} new ${library.imported === 1 ? 'game' : 'games'} so far`
-              : 'Your games are in'
+                ? t('building.importOf', { done: library.imported, total: library.importTotal })
+                : t('building.importNew', { count: library.imported })
+              : t('building.importDone')
           }
           bar={importing && library.importTotal ? { current: library.imported, total: library.importTotal } : null}
         />
         <Step
-          label="Analyze every game"
+          label={t('building.analyze')}
           done={analysisDone}
           active={analyzing || (!importing && !analysisDone)}
           detail={analyzeDetail}
           bar={analyzing && library.analyzeTotal > 0 ? { current: library.analyzed, total: library.analyzeTotal } : null}
         />
         <Step
-          label="Check your openings against theory"
+          label={t('building.check')}
           done={analysisDone && scan.phase === 'done'}
           active={checking}
           detail={checkDetail}
@@ -96,21 +99,20 @@ export function OpeningsBuildingPanel({
 
       {!importing && !analyzing && scan.unanalyzed > 0 && (profile?.lichessUsername || profile?.chesscomUsername) && (
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-text-primary text-sm">Game analysis runs while your games sync.</p>
+          <p className="text-text-primary text-sm">{t('building.analysisRuns')}</p>
           <button type="button" className="btn-outline" onClick={() => profile && void triggerNow(profile)}>
-            Sync now
+            {t('vault.games.syncNow')}
           </button>
         </div>
       )}
 
       <p className="text-text-primary text-sm">
-        This keeps running while this page or the dashboard is open, and the page updates by itself when
-        it's ready.
+        {t('building.background')}
       </p>
 
       {onShowPartial && (scan.bookUnavailable || scan.phase === 'stopped') && (
         <button type="button" className="pill self-start" onClick={onShowPartial}>
-          Show what's ready so far
+          {t('building.showPartial')}
         </button>
       )}
     </section>

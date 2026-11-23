@@ -3,21 +3,24 @@ import type { UseDemoAnalysisReturn } from '../../hooks/useDemoAnalysis';
 import { BlunderPreview } from './BlunderPreview';
 import { DemoProgressPanel } from './DemoProgressPanel';
 import { DemoStatsCard } from './DemoStatsCard';
+import { DemoPlanPreview } from './DemoPlanPreview';
 import { trackCtaClick } from '../../services/funnelService';
+import { useT } from '../../i18n/useT';
 
 interface Props {
   demo: UseDemoAnalysisReturn;
 }
 
 export function DemoResult({ demo }: Props) {
+  const t = useT();
   if (demo.status === 'idle') return null;
 
   if (demo.status === 'loading') {
     return (
       <div className="flex flex-col gap-3">
-        <DemoProgressPanel label={demo.progressLabel || 'Starting…'} />
+        <DemoProgressPanel label={demo.progressLabel || t('demo.starting')} />
         <p className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
-          Running Stockfish in your browser. No data leaves your machine until you sign up.
+          {t('demo.inBrowser')}
         </p>
       </div>
     );
@@ -28,14 +31,14 @@ export function DemoResult({ demo }: Props) {
     return (
       <div className="border-2 border-text-primary bg-surface p-6">
         <div className="font-mono uppercase text-xs tracking-tight text-gold-dark mb-2">
-          {notFound ? 'Player not found' : "Couldn't run the demo"}
+          {notFound ? t('demo.notFound') : t('demo.couldNotRun')}
         </div>
         <p className="text-text-primary mb-4">{demo.error?.message}</p>
         <button
           onClick={demo.reset}
           className="font-mono uppercase tracking-tight text-xs border-2 border-text-primary bg-transparent text-text-primary px-4 py-2 rounded-none hover:bg-text-primary hover:text-bg transition-colors"
         >
-          {notFound ? 'Try a different username' : 'Try again'}
+          {notFound ? t('demo.tryDifferent') : t('common.tryAgain')}
         </button>
       </div>
     );
@@ -44,57 +47,44 @@ export function DemoResult({ demo }: Props) {
   const r = demo.result;
   if (!r) return null;
 
-  if (demo.status === 'no-blunders') {
-    return (
-      <div className="flex flex-col gap-6">
-        <DemoStatsCard
-          gamesAnalyzed={r.gamesAnalyzed}
-          blundersFound={0}
-          biggestSwing={null}
-          eco={r.eco}
-          openingName={r.openingName}
-        />
-        <div className="border-2 border-text-primary bg-surface p-6">
-          <div className="font-mono uppercase text-xs tracking-tight text-text-secondary mb-2">
-            Suspiciously clean
-          </div>
-          <p className="text-text-primary mb-4">
-            No trainable blunders in your last {r.gamesAnalyzed} game
-            {r.gamesAnalyzed === 1 ? '' : 's'}. Either you're in form or we need more games. Sign up
-            and we'll check your full history.
-          </p>
-          <SignUpCta source="demo_clean">Sign up free</SignUpCta>
-        </div>
-      </div>
-    );
-  }
+  const clean = demo.status === 'no-blunders';
 
-  // success
   return (
     <div className="flex flex-col gap-6">
+      {/* The plan names the opening from the board; the stats card skips the header guess. */}
       <DemoStatsCard
         gamesAnalyzed={r.gamesAnalyzed}
-        blundersFound={r.blundersFound}
-        biggestSwing={r.biggestSwing}
-        eco={r.eco}
-        openingName={r.openingName}
+        blundersFound={clean ? 0 : r.blundersFound}
+        biggestSwing={clean ? null : r.biggestSwing}
+        eco={null}
+        openingName={null}
       />
-      {r.blunder && (
+      <DemoPlanPreview result={r} />
+      {!clean && r.blunder && (
         <BlunderPreview
           blunder={r.blunder}
-          moveLabel={`Move ${r.blunder.moveNumber} · ${r.blunder.sideToMove === 'white' ? 'White' : 'Black'} to move`}
+          moveLabel={
+            r.blunder.sideToMove === 'white'
+              ? t('demo.moveLabelWhite', { move: r.blunder.moveNumber })
+              : t('demo.moveLabelBlack', { move: r.blunder.moveNumber })
+          }
         />
       )}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between border-2 border-text-primary bg-text-primary text-bg p-6">
+      <div
+        className="flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between border-2 border-text-primary bg-text-primary text-bg p-6"
+        data-testid="demo-plan-cta"
+      >
         <div>
           <div className="font-mono uppercase tracking-tight text-sm sm:text-base">
-            {r.blundersFound} blunder{r.blundersFound === 1 ? '' : 's'}. That's your training plan.
+            {clean ? t('demo.clean') : t('demo.blundersCost')}
           </div>
-          <div className="font-sans text-bg/70 text-sm mt-1">
-            Sign up free. We'll give you a few a day until the right move is automatic.
+          <div className="font-sans text-bg text-sm mt-1">
+            {clean ? t('demo.cleanBody') : t('demo.blundersBody')}
           </div>
         </div>
-        <SignUpCta source="demo_result">Start my plan →</SignUpCta>
+        <SignUpCta source={clean ? 'demo_clean' : 'demo_result'}>
+          {t('landing.getPlan')} <span aria-hidden="true">→</span>
+        </SignUpCta>
       </div>
     </div>
   );

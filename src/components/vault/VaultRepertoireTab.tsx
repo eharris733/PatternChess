@@ -17,6 +17,7 @@ import { TrashIcon } from '../icons/TrashIcon';
 import { ImageShareActions } from '../share/ImageShareActions';
 import { ShareImagePreview } from '../share/ShareImagePreview';
 import { useRenderedImage } from '../share/useRenderedImage';
+import { useT } from '../../i18n/useT';
 
 /** Board + caption bar + footer bar (boardCanvas layout: 8 + 0.8 + 0.85 squares tall). */
 const SHARE_IMAGE_ASPECT = 8 / 9.65;
@@ -53,6 +54,7 @@ function useRepertoireNames(moves: RepertoireMove[]) {
 
 /** Your saved repertoire moves, by colour — each shareable as an image. */
 export function VaultRepertoireTab() {
+  const t = useT();
   const navigate = useNavigate();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -76,7 +78,7 @@ export function VaultRepertoireTab() {
       });
     } catch (err) {
       console.warn('[vault] remove repertoire move failed', err);
-      setRemoveError("Couldn't remove that move. Try again.");
+      setRemoveError(t('vault.rep.removeError'));
     }
   };
 
@@ -90,18 +92,17 @@ export function VaultRepertoireTab() {
     );
   }
   if (repertoire.isError) {
-    return <p className="text-text-primary text-sm">Couldn't load your repertoire. Try again later.</p>;
+    return <p className="text-text-primary text-sm">{t('vault.rep.loadError')}</p>;
   }
   if (moves.length === 0) {
     return (
       <div className="card flex flex-col gap-2" data-testid="vault-repertoire-empty">
-        <h2 className="heading-md">Your repertoire is empty</h2>
+        <h2 className="heading-md">{t('vault.rep.empty')}</h2>
         <p className="text-text-primary text-sm">
-          When you solve an opening drill, choose <span className="font-medium">Add to repertoire</span> to save
-          that move as your answer. Saved moves collect here.
+          {t.rich('vault.rep.emptyHelp', { add: <span className="font-medium">{t('verdict.add')}</span> })}
         </p>
         <button type="button" className="pill self-start" onClick={() => navigate('/openings')}>
-          Go to openings
+          {t('vault.rep.goOpenings')}
         </button>
       </div>
     );
@@ -116,7 +117,7 @@ export function VaultRepertoireTab() {
         return (
           <section key={color} className="flex flex-col gap-3">
             <h2 className="heading-md">
-              {COLOR_LABEL[color]} <span className="text-text-primary text-sm font-normal">· {list.length}</span>
+              {t.label('color', color, COLOR_LABEL[color])} <span className="text-text-primary text-sm font-normal">· {list.length}</span>
             </h2>
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" data-testid={`vault-repertoire-${color}`}>
               {list.map((m) => (
@@ -124,7 +125,7 @@ export function VaultRepertoireTab() {
                   <MiniBoard fen={fenOf(m)} orientation={m.color} className="w-full" />
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-text-primary">
-                      You play <span className="font-mono">{m.san}</span>
+                      {t.rich('vault.rep.youPlay', { san: <span className="font-mono">{m.san}</span> })}
                     </p>
                     {names.data?.get(m.id) && (
                       <p className="text-xs text-text-primary truncate">{names.data.get(m.id)}</p>
@@ -137,12 +138,12 @@ export function VaultRepertoireTab() {
                       onClick={() => setSharing(m)}
                     >
                       <ShareIcon className="h-4 w-4" />
-                      Share
+                      {t('vault.share')}
                     </button>
                     <button
                       type="button"
                       className="btn-ghost inline-flex items-center gap-1.5"
-                      aria-label={`Remove ${m.san} from your repertoire`}
+                      aria-label={t('vault.rep.remove', { san: m.san })}
                       onClick={() => void remove(m)}
                     >
                       <TrashIcon className="h-4 w-4" />
@@ -171,6 +172,7 @@ function RepertoireShareModal({
   openingName: string | null;
   onClose: () => void;
 }) {
+  const t = useT();
   const { profile, refreshProfile } = useAuth();
   const caption = `My repertoire as ${move.color === 'white' ? 'White' : 'Black'}: ${move.san}`;
   const parsed = parseUciMove(move.uci);
@@ -193,7 +195,7 @@ function RepertoireShareModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Share this repertoire move"
+      aria-label={t('vault.rep.shareAria')}
       onClick={onClose}
     >
       <div
@@ -202,13 +204,13 @@ function RepertoireShareModal({
       >
         <button
           type="button"
-          aria-label="Close"
+          aria-label={t('common.close')}
           className="btn-ghost absolute top-3 right-3 p-1 text-text-primary"
           onClick={onClose}
         >
           <CloseIcon className="h-5 w-5" />
         </button>
-        <h2 className="heading-lg text-center">Share this move</h2>
+        <h2 className="heading-lg text-center">{t('vault.rep.shareTitle')}</h2>
         <div className="max-w-[300px] w-full mx-auto">
           <ShareImagePreview image={image} aspect={SHARE_IMAGE_ASPECT} />
         </div>

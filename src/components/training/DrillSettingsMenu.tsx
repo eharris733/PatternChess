@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { GearIcon } from '../icons/GearIcon';
 import { useDrillFeedbackPrefs } from '../../hooks/useDrillFeedbackPrefs';
+import { useT } from '../../i18n/useT';
 
 /**
  * Gear button + popover with the post-miss drill-feedback settings. Lives in
@@ -9,6 +10,7 @@ import { useDrillFeedbackPrefs } from '../../hooks/useDrillFeedbackPrefs';
  * useDrillFeedbackPrefs so they stay in sync.
  */
 export function DrillSettingsMenu() {
+  const t = useT();
   const { showAnswer, autoplay, error, setShowAnswer, setAutoplay } = useDrillFeedbackPrefs();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -34,10 +36,10 @@ export function DrillSettingsMenu() {
       <button
         type="button"
         className="btn-ghost h-8 lg:h-10 px-2 inline-flex items-center"
-        aria-label="Drill settings"
+        aria-label={t('drillSettings.label')}
         aria-expanded={open}
         aria-haspopup="dialog"
-        title="Drill settings"
+        title={t('drillSettings.label')}
         onClick={() => setOpen((o) => !o)}
       >
         <GearIcon className="h-4 w-4" />
@@ -45,10 +47,10 @@ export function DrillSettingsMenu() {
       {open && (
         <div
           role="dialog"
-          aria-label="Drill settings"
+          aria-label={t('drillSettings.label')}
           className="card absolute bottom-full right-0 mb-2 z-30 w-72 flex flex-col gap-3 p-4 shadow-lg"
         >
-          <p className="label">After a miss</p>
+          <p className="label">{t('drillSettings.afterMiss')}</p>
           <label className="flex items-start gap-2 select-none text-sm">
             <input
               type="checkbox"
@@ -57,10 +59,8 @@ export function DrillSettingsMenu() {
               onChange={(e) => setShowAnswer(e.target.checked)}
             />
             <span>
-              Show the answer
-              <span className="block text-text-secondary text-xs">
-                Draws the best move and adds the solution line.
-              </span>
+              {t('drillSettings.showAnswer')}
+              <span className="block text-text-primary text-xs">{t('drillSettings.showAnswerHelp')}</span>
             </span>
           </label>
           <label className="flex items-start gap-2 select-none text-sm">
@@ -71,10 +71,8 @@ export function DrillSettingsMenu() {
               onChange={(e) => setAutoplay(e.target.checked)}
             />
             <span>
-              Autoplay the lines
-              <span className="block text-text-secondary text-xs">
-                Plays why your move fails on the board, then the solution when it&rsquo;s shown.
-              </span>
+              {t('drillSettings.autoplay')}
+              <span className="block text-text-primary text-xs">{t('drillSettings.autoplayHelp')}</span>
             </span>
           </label>
           {error && <p className="text-incorrect text-xs">{error}</p>}

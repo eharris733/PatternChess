@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import { useT } from '../i18n/useT';
 
 /**
  * Colour dot + "White to play" line shared by the trainer screens. `label`
@@ -13,7 +14,7 @@ export function SideToPlay({
   label?: string;
   className?: string;
 }) {
-  const name = color === 'white' ? 'White' : 'Black';
+  const t = useT();
   return (
     <div className={clsx('flex items-center gap-2 text-text-primary', className)}>
       <span
@@ -22,7 +23,7 @@ export function SideToPlay({
           color === 'white' ? 'bg-surface' : 'bg-black',
         )}
       />
-      <span className="font-medium">{label ?? `${name} to play`}</span>
+      <span className="font-medium">{label ?? (color === 'white' ? t('train.panel.whiteToPlay') : t('train.panel.blackToPlay'))}</span>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { TrainingLadder } from './TrainingLadder';
+import { useT } from '../../i18n/useT';
 
 export const HOW_IT_WORKS_STEPS = [
   {
@@ -36,18 +37,19 @@ function stepBorders(i: number, n: number): string {
 }
 
 export function HowItWorks() {
+  const t = useT();
   return (
     <section className="border-b-2 border-text-primary">
       <div className="max-w-6xl mx-auto px-6 py-16 lg:py-24">
         <div className="mb-12 border-b-2 border-text-primary pb-4 flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="font-mono uppercase tracking-tight text-2xl sm:text-3xl text-text-primary">
-            How it works
+            {t('how.title')}
           </h2>
           <Link
             to="/watch"
             className="font-mono uppercase text-xs tracking-tight text-text-primary underline underline-offset-4 hover:text-gold-dark"
           >
-            Watch the 1-minute video →
+            {t('how.watch')}
           </Link>
         </div>
 
@@ -59,9 +61,9 @@ export function HowItWorks() {
             >
               <span className="font-mono text-3xl text-gold-dark">{s.num}</span>
               <h3 className="font-mono uppercase tracking-tight text-base text-text-primary">
-                {s.title}
+                {t(`how.${i}.title` as 'how.0.title')}
               </h3>
-              <p className="text-sm text-text-primary/80 leading-relaxed">{s.body}</p>
+              <p className="text-sm text-text-primary/80 leading-relaxed">{t(`how.${i}.body` as 'how.0.body')}</p>
             </div>
           ))}
         </div>

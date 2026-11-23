@@ -7,9 +7,10 @@ import { fetchWithRetry } from './chessApiService';
 
 export const EVENTS_SITE_URL = 'https://events.patternchess.com';
 
-/** The events service now covers all US states; the dashboard card stays
- * MA-scoped until a per-user state preference exists. */
-const EVENTS_STATE = 'MA';
+/** The state's page on the events site, e.g. https://events.patternchess.com/ma */
+export function eventsStateUrl(state: string): string {
+  return `${EVENTS_SITE_URL}/${state.toLowerCase()}`;
+}
 
 /** One meeting day of an event. Weekly multi-round Swisses expand to one
  * occurrence per round; a contiguous weekend block stays one occurrence
@@ -49,6 +50,9 @@ interface ApiEventRow {
   title: string;
   club_name: string;
   club_city: string | null;
+  /** Aggregator rows (US Chess TLA, FIDE) carry the town here instead. */
+  event_city?: string | null;
+  status?: string | null;
   start_date: string;
   end_date: string;
   start_time: string | null;
@@ -92,34 +96,37 @@ function parseSections(json: string | null): string[] | null {
   }
 }
 
-export async function fetchUpcomingEvents(): Promise<OtbEvent[]> {
+/** Upcoming OTB events in one US state (`state` = USPS code, e.g. "MA"). */
+export async function fetchUpcomingEvents(state: string): Promise<OtbEvent[]> {
   const res = await fetchWithRetry(
-    `${EVENTS_SITE_URL}/api/events?state=${EVENTS_STATE}`,
+    `${EVENTS_SITE_URL}/api/events?state=${encodeURIComponent(state.toUpperCase())}`,
     undefined,
     'PatternChess Events',
   );
   if (!res.ok) throw new Error(`events API ${res.status}`);
   const body = (await res.json()) as { data: ApiEventRow[] };
-  return body.data.map((row) => ({
-    id: row.id,
-    title: row.title,
-    clubName: row.club_name,
-    clubCity: row.club_city,
-    startDate: row.start_date,
-    endDate: row.end_date,
-    startTime: row.start_time,
-    occurrences: row.occurrences?.length
-      ? row.occurrences.map((o) => ({
-          date: o.date,
-          endDate: o.end_date,
-          round: o.round,
-          totalRounds: o.total_rounds,
-        }))
-      : expandOccurrences(row.start_date, row.end_date),
-    sections: parseSections(row.sections),
-    entryFee: row.entry_fee,
-    timeControl: row.time_control,
-    eventUrl: `${EVENTS_SITE_URL}/events/${row.id}`,
-    registrationUrl: row.registration_url,
-  }));
+  return body.data
+    .filter((row) => row.status !== 'cancelled')
+    .map((row) => ({
+      id: row.id,
+      title: row.title,
+      clubName: row.club_name,
+      clubCity: row.event_city || row.club_city,
+      startDate: row.start_date,
+      endDate: row.end_date,
+      startTime: row.start_time,
+      occurrences: row.occurrences?.length
+        ? row.occurrences.map((o) => ({
+            date: o.date,
+            endDate: o.end_date,
+            round: o.round,
+            totalRounds: o.total_rounds,
+          }))
+        : expandOccurrences(row.start_date, row.end_date),
+      sections: parseSections(row.sections),
+      entryFee: row.entry_fee,
+      timeControl: row.time_control,
+      eventUrl: `${EVENTS_SITE_URL}/events/${row.id}`,
+      registrationUrl: row.registration_url,
+    }));
 }

@@ -57,7 +57,7 @@ export function RatingProgressChartList({
     <section id="rating-progress" className="card flex flex-col gap-5 scroll-mt-6">
       <header className="flex items-baseline justify-between">
         <span className="label">Rating progress</span>
-        <span className="text-text-secondary text-xs">since you joined</span>
+        <span className="text-text-primary text-xs">Since you joined</span>
       </header>
       <ul className="flex flex-col gap-6">
         {progress.map((cat) => (
@@ -155,7 +155,7 @@ function CategoryLegend({ series }: { series: PlatformSeries[] }) {
             className="inline-block w-3 h-0.5"
             style={{ backgroundColor: PLATFORM_STROKE[s.platform] }}
           />
-          <span className="text-text-secondary">{PLATFORM_LABEL[s.platform]}</span>
+          <span className="text-text-primary">{PLATFORM_LABEL[s.platform]}</span>
           <span className="text-text-primary tabular-nums">{s.latestRating}</span>
           <span
             className={clsx(
@@ -164,26 +164,14 @@ function CategoryLegend({ series }: { series: PlatformSeries[] }) {
                 ? 'text-correct border-correct/50 bg-correct/10'
                 : s.delta < 0
                   ? 'text-incorrect border-incorrect/50 bg-incorrect/10'
-                  : 'text-text-secondary border-text-primary/40 bg-surface-3',
+                  : 'text-text-primary border-text-primary/40 bg-surface-3',
             )}
           >
             {s.delta >= 0 ? '+' : ''}
             {s.delta}
           </span>
-          <span
-            className="tabular-nums text-text-secondary"
-            title={`Started at ${s.startRating}; peaked at ${s.peakRating}`}
-          >
-            peak {s.peakRating}
-          </span>
-          {s.biggestGain && (
-            <span
-              className="tabular-nums text-text-secondary"
-              title={`Biggest single-game gain, ${s.biggestGain.at.toLocaleDateString()}`}
-            >
-              best +{s.biggestGain.delta}
-            </span>
-          )}
+          <span className="tabular-nums text-text-primary">peak {s.peakRating}</span>
+          {s.biggestGain && <span className="tabular-nums text-text-primary">best +{s.biggestGain.delta}</span>}
         </div>
       ))}
     </div>

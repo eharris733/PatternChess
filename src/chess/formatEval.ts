@@ -1,3 +1,4 @@
+import type { Translator } from '../i18n/useT';
 /**
  * Format a raw engine evaluation (centipawns, player's perspective) for display.
  *
@@ -79,13 +80,18 @@ export function moveCost(evalBefore: number, evalAfter: number): MoveCost {
 }
 
 /** Short label for a `MoveCost`: "−320cp", "allows M1", "missed M3". */
-export function formatMoveCost(cost: MoveCost): string {
+export function formatMoveCost(cost: MoveCost, t?: Translator): string {
   if (cost.kind === 'cp') return `${cost.cp > 0 ? '−' : '+'}${Math.round(Math.abs(cost.cp))}cp`;
+  if (t) {
+    const m = cost.moves ? `M${cost.moves}` : t('swing.mate');
+    return cost.kind === 'allowsMate' ? t('swing.allowsMate', { m }) : t('swing.missedMate', { m });
+  }
   const m = cost.moves ? `M${cost.moves}` : 'mate';
   return cost.kind === 'allowsMate' ? `allows ${m}` : `missed ${m}`;
 }
 
 /** Phrase for prose: "mate in 1", or "a forced mate" when the count is unknown. */
-export function mateInPhrase(moves: number | null): string {
+export function mateInPhrase(moves: number | null, t?: Translator): string {
+  if (t) return moves ? t('puzzle.mateIn', { count: moves }) : t('puzzle.forcedMate');
   return moves ? `mate in ${moves}` : 'a forced mate';
 }

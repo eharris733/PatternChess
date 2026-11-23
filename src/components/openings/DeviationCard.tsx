@@ -10,6 +10,7 @@ import type { RepertoireMove } from '../../models/repertoire';
 import { TheoryMovesLine } from './TheoryMovesLine';
 import { useAuth } from '../../auth/useAuth';
 import { recordOpeningReview } from '../../lib/openingReviews';
+import { useT } from '../../i18n/useT';
 
 /** Arrow for a UCI move; none for a malformed one (it would draw at NaN). */
 function arrow(uci: string, brush: string): DrawShape[] {
@@ -43,6 +44,7 @@ export function DeviationCard({
   repertoireMove: RepertoireMove | null;
 }) {
   const navigate = useNavigate();
+  const t = useT();
   const { refreshProfile } = useAuth();
   const shapes = useMemo(
     () => [...leak.theoryMoves.slice(0, 3).flatMap((t) => arrow(t.uci, 'green')), ...arrow(leak.playedUci, 'red')],
@@ -72,7 +74,7 @@ export function DeviationCard({
   return (
     <li data-testid="deviation-card" className="flex flex-col sm:flex-row gap-4 border-2 border-text-primary/20 p-3">
       {train ? (
-        <button type="button" onClick={train} className="w-full sm:w-40 shrink-0 block" aria-label={`Train ${label}`}>
+        <button type="button" onClick={train} className="w-full sm:w-40 shrink-0 block" aria-label={t('deviation.trainAria', { move: label })}>
           {board}
         </button>
       ) : (
@@ -80,22 +82,22 @@ export function DeviationCard({
       )}
       <div className="flex flex-col gap-2 min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="font-mono text-lg font-semibold text-incorrect">You played {label}</span>
+          <span className="font-mono text-lg font-semibold text-incorrect">{t('deviation.youPlayed', { move: label })}</span>
           <span className="text-text-primary text-sm font-semibold" data-testid="deviation-count">
-            {leak.count === 1 ? 'once' : `in ${leak.count} games`}
+            {leak.count === 1 ? t('deviation.once') : t('deviation.inGames', { count: leak.count })}
           </span>
         </div>
         <span className="label text-text-primary" data-testid="deviation-reason">
-          {DEVIATION_REASON_LABEL[leak.reason]}
+          {t.label('deviationReason', leak.reason, DEVIATION_REASON_LABEL[leak.reason])}
         </span>
         {leak.theoryMoves.length > 0 ? (
           <TheoryMovesLine moves={leak.theoryMoves} source={leak.reason === 'past_book' ? 'engine' : 'book'} />
         ) : (
-          <p className="text-text-primary text-sm">Strong players have no clear main move here.</p>
+          <p className="text-text-primary text-sm">{t('deviation.noMainMove')}</p>
         )}
         {repertoireMove && (
           <p className="text-text-primary text-sm" data-testid="repertoire-note">
-            <span className="font-semibold">Your repertoire: </span>
+            <span className="font-semibold">{t('deviation.repertoire')} </span>
             <span className="font-mono font-semibold">{repertoireMove.san}</span>
           </p>
         )}
@@ -105,7 +107,7 @@ export function DeviationCard({
             <>
               <span className="inline-flex items-center gap-2">
                 <MasteryDots cycleNumber={drill.cycleNumber} size="sm" />
-                <span className="text-xs font-semibold text-text-primary">{SR_BUCKET_LABEL[srBucket(drill)]}</span>
+                <span className="text-xs font-semibold text-text-primary">{t.label('srBucket', srBucket(drill), SR_BUCKET_LABEL[srBucket(drill)])}</span>
               </span>
               <button
                 type="button"
@@ -113,11 +115,11 @@ export function DeviationCard({
                 data-testid="train-position"
                 onClick={train ?? undefined}
               >
-                Train
+                {t('common.train')}
               </button>
             </>
           ) : leak.avgChancesLost == null ? (
-            <span className="text-xs text-text-primary">Engine check pending</span>
+            <span className="text-xs text-text-primary">{t('deviation.pending')}</span>
           ) : null}
         </div>
       </div>

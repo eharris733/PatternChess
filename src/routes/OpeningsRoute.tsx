@@ -30,13 +30,15 @@ import { startOpeningDeviationScan } from '../services/openingDeviationService';
 import { scanItemsLeft, useOpeningScanStore } from '../state/openingScanStore';
 import { useLibraryProgress, type LibraryProgress } from '../hooks/useLibraryProgress';
 import { OpeningsBuildingPanel } from '../components/openings/OpeningsBuildingPanel';
+import { useT } from '../i18n/useT';
+import type { MessageKey } from '../i18n/i18n';
 
 type ColorTab = 'all' | 'white' | 'black';
 
-const COLOR_TABS: Array<[ColorTab, string]> = [
-  ['all', 'All'],
-  ['white', 'As White'],
-  ['black', 'As Black'],
+const COLOR_TABS: Array<[ColorTab, MessageKey]> = [
+  ['all', 'openings.tab.all'],
+  ['white', 'openings.tab.white'],
+  ['black', 'openings.tab.black'],
 ];
 
 const LEAKS_SHOWN = 5;
@@ -45,9 +47,6 @@ function familyName(s: OpeningSummary): string {
   return formatOpeningDisplay({ name: s.family, eco: null }) ?? s.family;
 }
 
-function colorName(c: 'white' | 'black'): string {
-  return c === 'white' ? 'White' : 'Black';
-}
 
 /** Small square in the side's colour — the chess way to say "as White/Black". */
 function SideSwatch({ color }: { color: 'white' | 'black' }) {
@@ -102,6 +101,7 @@ function OpeningsHero({
   drills: Blunder[];
   onDrill: () => void;
 }) {
+  const t = useT();
   const costly = trainableLeaks(summary).filter((l) => l.avgChancesLost != null);
   const top = [...costly].sort((a, b) => b.count - a.count || b.score - a.score)[0];
   const games = costlyExitGames(summary);
@@ -130,23 +130,30 @@ function OpeningsHero({
         />
       </div>
       <div className="flex flex-col gap-3 min-w-0">
-        <span className="label">Your biggest opening leak</span>
+        <span className="label">{t('openings.hero.label')}</span>
         <h2 className="heading-lg">
-          {familyName(summary)} as {colorName(summary.color)}: you left theory
-          {exitMove != null ? ` by move ${exitMove}` : ''} in {games} {games === 1 ? 'game' : 'games'}.
+          {t(exitMove != null ? 'openings.hero.titleBy' : 'openings.hero.title', {
+            family: familyName(summary),
+            color: summary.color === 'white' ? t('openings.hero.white') : t('openings.hero.black'),
+            move: exitMove ?? '',
+            count: games,
+          })}
         </h2>
         <p className="text-text-primary">
-          Most repeated:{' '}
-          <span className="font-mono font-semibold text-incorrect">
-            {moveLabel(top.fenBefore, top.moveNumber, top.playedSan)}
-          </span>
-          {top.count > 1 ? ` in ${top.count} games` : ''}.
+          {t.rich(top.count > 1 ? 'openings.hero.mostRepeatedN' : 'openings.hero.mostRepeated', {
+            move: (
+              <span className="font-mono font-semibold text-incorrect">
+                {moveLabel(top.fenBefore, top.moveNumber, top.playedSan)}
+              </span>
+            ),
+            count: top.count,
+          })}
           {main && (
             <>
               {' '}
-              {playersHeading(main.tier)}{' '}
+              {playersHeading(main.tier, t)}{' '}
               <span className="font-mono font-semibold text-correct">{main.san}</span>
-              {main.games > 0 ? ` ${Math.round(main.share)}% of the time` : ''}.
+              {main.games > 0 ? ` ${t('openings.hero.pctOfTime', { pct: Math.round(main.share) })}` : ''}.
             </>
           )}
         </p>
@@ -157,7 +164,7 @@ function OpeningsHero({
             onClick={onDrill}
             data-testid="hero-drill"
           >
-            Drill {drills.length === 1 ? 'this position' : `these ${drills.length} positions`}
+            {drills.length === 1 ? t('openings.hero.drillOne') : t('openings.hero.drillMany', { count: drills.length })}
           </button>
         )}
       </div>
@@ -180,6 +187,7 @@ function OpeningPatternCard({
   repertoire: RepertoireMap | undefined;
   onDrill: (ids: string[], label: string) => void;
 }) {
+  const t = useT();
   const [showAll, setShowAll] = useState(false);
   const trainable = trainableLeaks(summary);
   const leaks = showAll ? summary.leaks : trainable;
@@ -208,10 +216,12 @@ function OpeningPatternCard({
           </span>
           <span className="text-text-primary text-sm">
             {costlyGames > 0
-              ? `Left theory in ${costlyGames} of ${summary.games} ${summary.games === 1 ? 'game' : 'games'}${
-                  exitMove != null ? `, usually by move ${exitMove}` : ''
+              ? `${t('openings.card.leftTheory', { costly: costlyGames, count: summary.games })}${
+                  exitMove != null ? t('openings.card.usuallyBy', { move: exitMove }) : ''
                 }`
-              : `${summary.games} ${summary.games === 1 ? 'game' : 'games'}, no costly exits`}
+              : summary.pendingEvals > 0
+                ? t('openings.card.checking', { count: summary.games })
+                : t('openings.card.noCostly', { count: summary.games })}
           </span>
           {drills.length > 0 && (
             <span className="flex items-center gap-2 text-sm text-text-primary" data-testid="opening-mastery">
@@ -220,9 +230,9 @@ function OpeningPatternCard({
                 size="sm"
               />
               <span className="font-semibold">
-                {mastered}/{drills.length} mastered
+                {t('openings.card.mastered', { mastered, total: drills.length })}
               </span>
-              {due > 0 && <span className="font-semibold text-gold-dark">· {due} due</span>}
+              {due > 0 && <span className="font-semibold text-gold-dark">{t('openings.card.due', { count: due })}</span>}
             </span>
           )}
         </button>
@@ -233,7 +243,7 @@ function OpeningPatternCard({
             data-testid="drill-opening"
             onClick={() => onDrill(drills.map((d) => d.id), name)}
           >
-            Drill {drills.length}
+            {t('openings.card.drill', { count: drills.length })}
           </button>
         )}
       </div>
@@ -243,10 +253,10 @@ function OpeningPatternCard({
           {leaks.length === 0 ? (
             <p className="text-text-primary text-sm">
               {summary.pendingEvals > 0
-                ? 'Still checking your exits from this opening with the engine.'
+                ? t('openings.card.stillChecking')
                 : summary.userLeft === 0
-                  ? 'You never left theory first in this opening.'
-                  : 'Every time you left theory here, your move held up.'}
+                  ? t('openings.card.neverLeft')
+                  : t('openings.card.allHeld')}
             </p>
           ) : (
             <ul className="flex flex-col gap-3">
@@ -270,14 +280,14 @@ function OpeningPatternCard({
               data-testid="toggle-all-exits"
             >
               {showAll
-                ? 'Hide exits that held up'
-                : `Show ${hiddenSound} ${hiddenSound === 1 ? 'exit' : 'exits'} that held up`}
+                ? t('openings.card.hideHeld')
+                : t('openings.card.showHeld', { count: hiddenSound })}
             </button>
           )}
 
           {studies.length > 0 && (
             <div className="flex flex-col gap-2" data-testid="suggested-studies">
-              <span className="label">Suggested studies</span>
+              <span className="label">{t('openings.card.studies')}</span>
               <ul className="flex flex-wrap gap-2">
                 {studies.map((s) => (
                   <li key={s.slug}>
@@ -325,6 +335,51 @@ function useReportReady(uid: string | null): [boolean, () => void] {
   return [ready, markReady];
 }
 
+/**
+ * While the first report is still being built, the openings that are ready
+ * show right away and this slim line says the rest is on its way.
+ */
+function CheckingMoreBanner({
+  library,
+  scan,
+}: {
+  library: LibraryProgress;
+  scan: ReturnType<typeof useOpeningScanStore.getState>;
+}) {
+  const t = useT();
+  const left = scanItemsLeft(scan);
+  const detail =
+    library.phase === 'importing'
+      ? library.importTotal
+        ? t('openings.checking.importingOf', { count: library.imported, total: library.importTotal })
+        : t('openings.checking.importing', { count: library.imported })
+      : library.phase === 'analyzing'
+        ? t('openings.checking.analyzing', { done: library.analyzed, total: library.analyzeTotal })
+        : scan.bookUnavailable
+          ? t('openings.bookDown')
+          : left > 0
+            ? t('openings.checking.left', { count: left })
+            : scan.unanalyzed > 0
+              ? t('openings.waiting', { count: scan.unanalyzed })
+              : null;
+  return (
+    <p
+      className="flex items-center gap-2 text-text-primary text-sm border-2 border-text-primary/20 px-3 py-2"
+      data-testid="openings-checking"
+      aria-live="polite"
+    >
+      <span
+        aria-hidden
+        className="inline-block w-3 h-3 shrink-0 border-2 border-gold-dark border-t-transparent rounded-full animate-spin"
+      />
+      <span>
+        <span className="font-semibold">{t('openings.checking.label')}</span>
+        {detail ? ` ${detail}` : ''}
+      </span>
+    </p>
+  );
+}
+
 /** Once the report exists, new games join it in the background — say so, never block it. */
 function ReportUpdatingBanner({
   library,
@@ -333,17 +388,18 @@ function ReportUpdatingBanner({
   library: LibraryProgress;
   scan: ReturnType<typeof useOpeningScanStore.getState>;
 }) {
+  const t = useT();
   const left = scanItemsLeft(scan);
   let text: string | null = null;
   if (library.phase === 'importing') {
-    text = 'Importing your new games. They will be added to this report once they are analyzed.';
+    text = t('openings.updating.importing');
   } else if (library.phase === 'analyzing') {
-    text = `Analyzing new games (${library.analyzed} / ${library.analyzeTotal}). They will be added to this report when done.`;
+    text = t('openings.updating.analyzing', { done: library.analyzed, total: library.analyzeTotal });
   } else if ((scan.phase === 'checking' || scan.phase === 'waiting') && (left > 0 || scan.unanalyzed > 0)) {
     text =
       scan.unanalyzed > 0
-        ? `${scan.unanalyzed} new ${scan.unanalyzed === 1 ? 'game is' : 'games are'} waiting to be analyzed before joining this report.`
-        : `Adding new games to this report: ${left} ${left === 1 ? 'item' : 'items'} left to check against theory.`;
+        ? t('openings.updating.waiting', { count: scan.unanalyzed })
+        : t('openings.updating.adding', { count: left });
   }
   if (!text) return null;
   return (
@@ -359,6 +415,7 @@ function ReportUpdatingBanner({
 
 export function OpeningsRoute() {
   const { refreshProfile, user } = useAuth();
+  const t = useT();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const colorParam = params.get('color');
@@ -415,12 +472,17 @@ export function OpeningsRoute() {
     navigate('/training', { state: { blunderIds: ids, focusLabel: label } });
   };
 
-  if (!ready) {
+  // Until the first full report exists, the building panel shows only while
+  // there's nothing to show: the first opening with data replaces it, and
+  // a slim banner covers the rest.
+  const hasData = (query.data?.length ?? 0) > 0;
+  const firstBuild = !ready && !complete && scan.phase !== 'stopped';
+  if (!ready && !hasData) {
     return (
       <div className="max-w-3xl mx-auto flex flex-col gap-6">
         <header className="flex flex-col gap-1">
-          <span className="label">Openings</span>
-          <h1 className="heading-xl">Where you leave theory</h1>
+          <span className="label">{t('nav.openings')}</span>
+          <h1 className="heading-xl">{t('openings.title')}</h1>
         </header>
         {scan.phase === 'idle' ? (
           <Skeleton className="h-64 w-full" />
@@ -435,12 +497,11 @@ export function OpeningsRoute() {
     <div className="max-w-3xl mx-auto flex flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <span className="label">Openings</span>
-          <h1 className="heading-xl">Where you leave theory</h1>
+          <span className="label">{t('nav.openings')}</span>
+          <h1 className="heading-xl">{t('openings.title')}</h1>
           {allDrills.length > 0 && (
             <p className="text-text-primary text-sm" data-testid="openings-stats">
-              {allDrills.length} {allDrills.length === 1 ? 'position' : 'positions'} in training ·{' '}
-              {masteredCount} mastered
+              {t('openings.stats', { count: allDrills.length, mastered: masteredCount })}
             </p>
           )}
         </div>
@@ -454,16 +515,20 @@ export function OpeningsRoute() {
               navigate('/training', { state: { kindFilter: 'opening' } });
             }}
           >
-            Review {dueCount} due
+            {t('openings.reviewDue', { count: dueCount })}
           </button>
         )}
       </header>
 
-      <ReportUpdatingBanner library={library} scan={scan} />
+      {firstBuild ? (
+        <CheckingMoreBanner library={library} scan={scan} />
+      ) : (
+        <ReportUpdatingBanner library={library} scan={scan} />
+      )}
 
       {hero && <OpeningsHero summary={hero} drills={heroDrills} onDrill={() => drill(heroDrills.map((d) => d.id), familyName(hero))} />}
 
-      <div role="tablist" aria-label="Colour" className="flex gap-1.5">
+      <div role="tablist" aria-label={t('openings.tab.aria')} className="flex gap-1.5">
         {COLOR_TABS.map(([id, label]) => (
           <button
             key={id}
@@ -479,7 +544,7 @@ export function OpeningsRoute() {
                 : 'bg-surface text-text-primary border-text-primary hover:bg-accent/15',
             )}
           >
-            {label}
+            {t(label)}
           </button>
         ))}
       </div>
@@ -491,15 +556,15 @@ export function OpeningsRoute() {
           ))}
         </div>
       ) : query.isError ? (
-        <p className="text-text-primary text-sm">Couldn't load your opening analysis. Try again later.</p>
+        <p className="text-text-primary text-sm">{t('openings.loadError')}</p>
       ) : summaries.length === 0 ? (
         <div className="card flex flex-col gap-2" data-testid="openings-empty">
-          <h2 className="heading-md">Nothing to show yet</h2>
+          <h2 className="heading-md">{t('openings.empty')}</h2>
           <p className="text-text-primary text-sm">
-            Sync your Lichess or Chess.com games from the dashboard and they will be checked here.
+            {t('openings.emptyHelp')}
           </p>
           <Link to="/dashboard" className="pill self-start">
-            Go to dashboard
+            {t('openings.goDashboard')}
           </Link>
         </div>
       ) : (
@@ -521,20 +586,24 @@ export function OpeningsRoute() {
         </div>
       )}
 
-      <p className="text-text-secondary text-xs" data-testid="book-attribution">
-        Opening statistics from the{' '}
-        <a className="underline" href="https://database.lichess.org/#broadcasts" target="_blank" rel="noreferrer">
-          Lichess broadcast database
-        </a>{' '}
-        (both players rated 2200+, CC BY-SA 4.0) and the{' '}
-        <a className="underline" href="https://database.nikonoel.fr/" target="_blank" rel="noreferrer">
-          Lichess Elite Database
-        </a>
-        , with move checks from the{' '}
-        <a className="underline" href="https://database.lichess.org/#evals" target="_blank" rel="noreferrer">
-          Lichess evaluation database
-        </a>{' '}
-        and Stockfish.
+      <p className="text-text-primary text-xs" data-testid="book-attribution">
+        {t.rich('openings.attribution', {
+          broadcast: (
+            <a className="underline" href="https://database.lichess.org/#broadcasts" target="_blank" rel="noreferrer">
+              {t('openings.attr.broadcast')}
+            </a>
+          ),
+          elite: (
+            <a className="underline" href="https://database.nikonoel.fr/" target="_blank" rel="noreferrer">
+              {t('openings.attr.elite')}
+            </a>
+          ),
+          evals: (
+            <a className="underline" href="https://database.lichess.org/#evals" target="_blank" rel="noreferrer">
+              {t('openings.attr.evals')}
+            </a>
+          ),
+        })}
       </p>
     </div>
   );

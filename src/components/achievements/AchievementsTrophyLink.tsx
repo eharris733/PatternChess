@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAchievements } from '../../hooks/useAchievements';
 import { TrophyIcon } from '../icons/TrophyIcon';
+import { useT } from '../../i18n/useT';
 
 /** Badge text for unseen unlocks: 1, 2, then "3+". */
 export function unseenBadgeLabel(count: number): string | null {
@@ -14,14 +15,15 @@ export function unseenBadgeLabel(count: number): string | null {
  * unlocks you haven't looked at yet (cleared when /achievements is visited).
  */
 export function AchievementsTrophyLink({ className }: { className?: string }) {
+  const t = useT();
   const { unseenIds } = useAchievements();
   const badge = unseenBadgeLabel(unseenIds.length);
   return (
     <Link
       to="/achievements"
       data-testid="achievements-link"
-      aria-label={badge ? `Achievements, ${unseenIds.length} new` : 'Achievements'}
-      title="Achievements"
+      aria-label={badge ? t('achievements.linkNew', { count: unseenIds.length }) : t('achievements.link')}
+      title={t('achievements.link')}
       className={clsx(
         'relative inline-flex h-9 w-9 items-center justify-center border-2 border-text-primary/20 text-gold-dark transition-colors hover:border-accent',
         className,

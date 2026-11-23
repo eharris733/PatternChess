@@ -3,6 +3,7 @@ import { useAuth } from '../../auth/useAuth';
 import { streakStatus } from '../../services/streakService';
 import { FlameIcon } from '../icons/FlameIcon';
 import { SnowflakeIcon } from '../icons/SnowflakeIcon';
+import { useT } from '../../i18n/useT';
 
 interface StreakBadgeProps {
   collapsed?: boolean;
@@ -16,6 +17,7 @@ interface StreakBadgeProps {
  * streak freezes show as snowflakes.
  */
 export function StreakBadge({ collapsed }: StreakBadgeProps) {
+  const t = useT();
   const { profile } = useAuth();
   if (!profile) return null;
 
@@ -29,7 +31,7 @@ export function StreakBadge({ collapsed }: StreakBadgeProps) {
   const stale = !status.alive;
   const days = profile.currentStreakDays;
   const freezes = profile.streakFreezes;
-  const freezeTitle = freezes > 0 ? ` · ${freezes} streak freeze${freezes === 1 ? '' : 's'} banked` : '';
+  const freezeTitle = freezes > 0 ? t('streakBadge.banked', { count: freezes }) : '';
 
   if (days === 0) return null;
 
@@ -42,10 +44,12 @@ export function StreakBadge({ collapsed }: StreakBadgeProps) {
       )}
       title={
         stale
-          ? `Streak: ${days} (resets on next drill — last drill ${last ?? 'never'})`
+          ? t('streakBadge.stale', { count: days, last: last ?? t('streakBadge.never') })
           : status.freezesNeeded > 0
-            ? `${days}-day streak · train today and ${status.freezesNeeded === 1 ? 'a freeze covers' : `${status.freezesNeeded} freezes cover`} the missed ${status.freezesNeeded === 1 ? 'day' : 'days'}`
-            : `${days}-day streak${freezeTitle}`
+            ? status.freezesNeeded === 1
+              ? t('streakBadge.freezeCovers', { count: days })
+              : t('streakBadge.freezesCover', { count: days, freezes: status.freezesNeeded })
+            : `${t('streakBadge.streak', { count: days })}${freezeTitle}`
       }
     >
       <FlameIcon className="h-4 w-4 shrink-0" />
@@ -55,8 +59,11 @@ export function StreakBadge({ collapsed }: StreakBadgeProps) {
         </span>
       ) : (
         <span className="text-sm tabular-nums">
-          <span className="font-mono font-semibold text-gold-dark">{days}</span>
-          <span className="text-text-secondary"> day{days === 1 ? '' : 's'}</span>
+          {t.rich(
+            'streakBadge.days',
+            { count: <span className="font-mono font-semibold text-gold-dark">{days}</span> },
+            days,
+          )}
         </span>
       )}
       {!collapsed && freezes > 0 && !stale && (

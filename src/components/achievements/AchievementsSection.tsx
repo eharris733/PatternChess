@@ -24,6 +24,7 @@ import { InstagramIcon } from '../icons/InstagramIcon';
 import { ShareIcon } from '../icons/ShareIcon';
 import { Skeleton } from '../Skeleton';
 import { ShareImageModal } from '../share/ShareImageModal';
+import { resolveAvatar } from '../../lib/avatar';
 
 const TILE_ICON: Record<AchievementIcon, typeof TrophyIcon> = {
   trophy: TrophyIcon,
@@ -54,7 +55,7 @@ function AchievementTile({
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <span className={clsx('shrink-0', a.earned ? 'text-gold-dark' : 'text-text-secondary/50')}>
+        <span className={clsx('shrink-0', a.earned ? 'text-gold-dark' : 'text-text-primary/50')}>
           <Icon className="h-6 w-6" />
         </span>
         {a.earned ? (
@@ -63,14 +64,14 @@ function AchievementTile({
             Unlocked
           </span>
         ) : (
-          <span className="text-text-secondary text-xs tabular-nums">
+          <span className="text-text-primary text-xs tabular-nums">
             {Math.min(a.value, a.threshold).toLocaleString()}/{a.threshold.toLocaleString()}
           </span>
         )}
       </div>
       <div>
-        <p className="font-mono text-sm uppercase tracking-tight text-text-primary">{a.title}</p>
-        <p className="text-text-secondary text-xs mt-0.5">{a.description}</p>
+        <p className="text-sm font-semibold text-text-primary">{a.title}</p>
+        <p className="text-text-primary text-xs mt-0.5">{a.description}</p>
       </div>
       {a.earned && (
         <button
@@ -139,7 +140,7 @@ export function AchievementsSection({ id }: { id?: string }) {
           {isPending ? (
             <Skeleton className="h-4 w-16" />
           ) : (
-            <span className="text-text-secondary text-sm tabular-nums">
+            <span className="text-text-primary text-sm tabular-nums">
               <span className="font-mono text-text-primary">{earned}</span> / {total}
             </span>
           )}
@@ -167,7 +168,7 @@ export function AchievementsSection({ id }: { id?: string }) {
             <div key={category} className="flex flex-col gap-3">
               <header className="flex items-baseline justify-between">
                 <h3 className="heading-md">{ACHIEVEMENT_CATEGORY_LABEL[category]}</h3>
-                <span className="text-text-secondary text-xs tabular-nums">
+                <span className="text-text-primary text-xs tabular-nums">
                   {earnedInCat}/{items.length}
                 </span>
               </header>
@@ -195,6 +196,7 @@ export function AchievementsSection({ id }: { id?: string }) {
               categoryLabel: ACHIEVEMENT_CATEGORY_LABEL[sharing.category],
               playerLabel,
               flairTitle: flairById(profile?.flair)?.title ?? null,
+              avatar: profile ? resolveAvatar(profile.avatar, profile.id) : null,
             });
           }}
           onShared={() => recordShare(!!profile, refreshProfile)}

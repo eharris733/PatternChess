@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
@@ -18,32 +18,57 @@ import { flairById } from '../lib/flair';
 import clsx from 'clsx';
 import { GameTypePreferences } from '../components/GameTypePreferences';
 import { ThemePicker } from '../components/ThemePicker';
+import { PieceSetPicker } from '../components/PieceSetPicker';
+import { AvatarBuilder } from '../components/avatar/AvatarBuilder';
+import { MyAvatar } from '../components/avatar/PixelAvatar';
+import { SettingToggleCard } from '../components/settings/SettingToggleCard';
+import { EventsStateSetting } from '../components/settings/EventsStateSetting';
+import {
+  AutoplayPreview,
+  HideInfoPreview,
+  RawEvalPreview,
+  ShowAnswerPreview,
+  SoundsPreview,
+} from '../components/settings/TrainingPrefPreviews';
 import { useRecentTrainingSessions } from '../hooks/useTrainingActivity';
 import { useDrillFeedbackPrefs } from '../hooks/useDrillFeedbackPrefs';
-import { useThemeStore, type BoardTheme } from '../state/themeStore';
+import { useCosmetics } from '../hooks/useCosmetics';
 import { CommitmentPicker } from '../components/CommitmentPicker';
 import { EmailRemindersSetting } from '../components/EmailRemindersSetting';
 import { SupporterSetting } from '../components/SupporterSetting';
+import { LanguageSetting } from '../components/settings/LanguageSetting';
+import { useT } from '../i18n/useT';
+import type { MessageKey } from '../i18n/i18n';
+
+/** In-page sections, in order; the chips at the top jump to them (also reachable as /profile#<id>). */
+const SECTIONS: readonly { id: string; label: MessageKey }[] = [
+  { id: 'settings', label: 'profile.section.accounts' },
+  { id: 'commitment', label: 'profile.section.dailyPlan' },
+  { id: 'training', label: 'profile.section.training' },
+  { id: 'look', label: 'profile.section.look' },
+  { id: 'language', label: 'profile.section.language' },
+  { id: 'email', label: 'profile.section.email' },
+  { id: 'supporter', label: 'profile.section.supporter' },
+  { id: 'community', label: 'profile.section.community' },
+];
 
 export function ProfileRoute() {
   const { profile, refreshProfile, user } = useAuth();
+  const t = useT();
   const queryClient = useQueryClient();
   const location = useLocation();
   const [flairOpen, setFlairOpen] = useState(false);
-  const settingsRef = useRef<HTMLElement>(null);
-  const commitmentRef = useRef<HTMLElement>(null);
   // Router doesn't scroll to hashes: the sidebar / header gear links to
-  // /profile#settings. Re-runs on each click (location.key changes).
+  // /profile#settings, the plan to #commitment, rewards to #look. Re-runs on
+  // each click (location.key changes). Instant, not smooth: a smooth scroll is
+  // cancelled by the layout shifts while the profile's cards load.
   useEffect(() => {
-    // Instant, not smooth: a smooth scroll is cancelled by the layout shifts
-    // while the profile's cards load.
-    if (!profile) return;
-    if (location.hash === '#settings') settingsRef.current?.scrollIntoView({ block: 'start' });
-    else if (location.hash === '#commitment') commitmentRef.current?.scrollIntoView({ block: 'start' });
+    if (!profile || !location.hash) return;
+    const el = document.getElementById(location.hash.slice(1));
+    el?.scrollIntoView({ block: 'start' });
   }, [location.hash, location.key, profile?.id]);
 
-  const activeTheme = useThemeStore((s) => s.theme);
-  const setStoreTheme = useThemeStore((s) => s.setTheme);
+  const cosmetics = useCosmetics();
   const [lichess, setLichess] = useState('');
   const [chesscom, setChesscom] = useState('');
   const [ratedOnly, setRatedOnly] = useState(false);
@@ -53,8 +78,8 @@ export function ProfileRoute() {
   const [backfillRunning, setBackfillRunning] = useState(false);
   const [backfillProgress, setBackfillProgress] = useState<BackfillProgress | null>(null);
   const [trainingPrefsError, setTrainingPrefsError] = useState<string | null>(null);
-  // Optimistic copy of the two training toggles: the checkbox flips instantly,
-  // the PATCH runs in the background, and a failure reverts the flip.
+  // Optimistic copy of the training toggles: the switch flips instantly,
+  // the write runs in the background, and a failure reverts the flip.
   const [trainingPrefs, setTrainingPrefs] = useState({
     showEngineEvals: false,
     revealBeforeSolve: false,
@@ -94,20 +119,8 @@ export function ProfileRoute() {
       .catch((err) => {
         console.warn('[profile] persist training prefs failed', err);
         setTrainingPrefs((cur) => ({ ...cur, [pref]: !value }));
-        setTrainingPrefsError(
-          'Could not save this preference. If this keeps happening, the latest profiles migration may not be applied yet.',
-        );
+        setTrainingPrefsError(t('profile.prefSaveError'));
       });
-  };
-
-  const onPickTheme = (next: BoardTheme) => {
-    setStoreTheme(next);
-    if (profile && profile.boardTheme !== next) {
-      void authService
-        .updateProfile({ ...profile, boardTheme: next })
-        .then(() => refreshProfile())
-        .catch((err) => console.warn('[profile] persist boardTheme failed', err));
-    }
   };
 
   const unparsedQuery = useQuery({
@@ -190,24 +203,17 @@ export function ProfileRoute() {
 
   const flair = flairById(profile?.flair);
   const ring = flair ? clsx('ring-2 ring-offset-2 ring-offset-surface', FLAIR_RING_CLASS[flair.tone]) : null;
+  const hideExtraInfo = !trainingPrefs.revealBeforeSolve;
 
   return (
-    <div className="max-w-xl mx-auto flex flex-col gap-6">
+    <div className="max-w-2xl mx-auto flex flex-col gap-6">
       <header className="flex items-center gap-4">
-        {profile?.avatarUrl ? (
-          <img
-            src={profile.avatarUrl}
-            alt=""
-            crossOrigin="anonymous"
-            referrerPolicy="no-referrer"
-            className={clsx('w-14 h-14 rounded-full border-2 border-text-primary', ring)}
-          />
-        ) : (
-          <div className={clsx('w-14 h-14 rounded-full bg-text-primary', ring)} />
-        )}
+        <a href="#look" aria-label={t('profile.editAvatar')} className="shrink-0" data-testid="profile-avatar">
+          <MyAvatar className={clsx('w-14 h-14 border-2 border-text-primary', ring)} />
+        </a>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex items-center gap-3">
-            <h1 className="heading-lg min-w-0 truncate">{profile?.displayName ?? 'Your profile'}</h1>
+            <h1 className="heading-lg min-w-0 truncate">{profile?.displayName ?? t('profile.yourProfile')}</h1>
             <div className="ml-auto flex shrink-0 items-center gap-2">
               <AchievementsTrophyLink />
               <SettingsLink />
@@ -216,7 +222,7 @@ export function ProfileRoute() {
           <button
             type="button"
             onClick={() => setFlairOpen(true)}
-            aria-label={flair ? `Flair: ${flair.title}. Change flair` : 'Choose flair'}
+            aria-label={flair ? t('profile.flairChange', { title: flair.title }) : t('profile.chooseFlair')}
             data-testid="flair-open"
             className="self-start transition-opacity hover:opacity-80"
           >
@@ -224,42 +230,59 @@ export function ProfileRoute() {
               <FlairBadge flair={profile?.flair} size="md" />
             ) : (
               <span className="inline-flex items-center border border-dashed border-text-primary/40 px-2 py-0.5 font-mono text-xs uppercase text-text-primary">
-                Choose flair
+                {t('profile.chooseFlair')}
               </span>
             )}
           </button>
-          <p className="text-text-secondary text-sm">{user?.email}</p>
+          <p className="text-text-primary text-sm">{user?.email}</p>
         </div>
       </header>
       {flairOpen && <FlairPickerModal onClose={() => setFlairOpen(false)} />}
 
       <RankBadge />
 
-      <section id="settings" ref={settingsRef} className="card flex flex-col gap-4 scroll-mt-6">
-        <h2 className="heading-md">Linked accounts</h2>
+      <nav aria-label={t('profile.sectionsNav')} className="flex flex-wrap gap-1.5" data-testid="profile-sections">
+        {SECTIONS.map((s) => (
+          <a
+            key={s.id}
+            href={`#${s.id}`}
+            className="border-2 border-text-primary/40 bg-surface px-2.5 py-1 font-mono text-xs uppercase tracking-tight text-text-primary transition-colors hover:border-text-primary"
+          >
+            {t(s.label)}
+          </a>
+        ))}
+      </nav>
+
+      <section id="settings" className="card flex flex-col gap-4 scroll-mt-6">
+        <h2 className="heading-md">{t('profile.linkedAccounts')}</h2>
         <div className="flex flex-col gap-2">
-          <label className="label">Lichess username</label>
+          <label className="label" htmlFor="profile-lichess-username">{t('profile.lichessUsername')}</label>
           <input
+            id="profile-lichess-username"
             className="input"
-            placeholder="e.g. drnykterstein"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={t('profile.examplePlaceholder', { name: 'drnykterstein' })}
             value={lichess}
             onChange={(e) => setLichess(e.target.value)}
           />
         </div>
         <div className="flex flex-col gap-2">
-          <label className="label">Chess.com username</label>
+          <label className="label" htmlFor="profile-chesscom-username">{t('profile.chesscomUsername')}</label>
           <input
+            id="profile-chesscom-username"
             className="input"
-            placeholder="e.g. hikaru"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={t('profile.examplePlaceholder', { name: 'hikaru' })}
             value={chesscom}
             onChange={(e) => setChesscom(e.target.value)}
           />
         </div>
 
-        <h2 className="heading-md mt-2">Sync preferences</h2>
-        <p className="text-text-secondary text-sm -mt-2">
-          New games are imported automatically every time you sign in, and when
-          you click Sync now. These settings decide which games count.
+        <h3 className="heading-md mt-2">{t('profile.syncPrefs')}</h3>
+        <p className="text-text-primary text-sm -mt-2">
+          {t('profile.syncPrefsHelp')}
         </p>
         <GameTypePreferences
           ratedOnly={ratedOnly}
@@ -270,150 +293,143 @@ export function ProfileRoute() {
 
         <div className="flex items-center gap-3 mt-2">
           <button className="btn-primary" onClick={onSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('common.saving') : t('common.save')}
           </button>
           {savedAt && Date.now() - savedAt < 4000 && (
-            <span className="text-correct text-sm">Saved.</span>
+            <span className="text-correct text-sm">{t('profile.savedDot')}</span>
           )}
         </div>
       </section>
 
-      <section id="commitment" ref={commitmentRef} className="card flex flex-col gap-4 scroll-mt-6">
-        <h2 className="heading-md">Daily commitment</h2>
-        <p className="text-text-secondary text-sm -mt-2">
-          Sets today's plan on the dashboard: positions to train and games to play. Changes save instantly.
+      <section id="commitment" className="card flex flex-col gap-4 scroll-mt-6">
+        <h2 className="heading-md">{t('profile.dailyCommitment')}</h2>
+        <p className="text-text-primary text-sm -mt-2">
+          {t('profile.dailyCommitmentHelp')}
         </p>
         <CommitmentPicker />
       </section>
 
-      <section className="card flex flex-col gap-4">
-        <h2 className="heading-md">Training</h2>
-        <p className="text-text-secondary text-sm -mt-2">
-          How much each position tells you before you solve it. Changes save instantly.
+      <section id="training" className="card flex flex-col gap-4 scroll-mt-6">
+        <h2 className="heading-md">{t('profile.section.training')}</h2>
+        <p className="text-text-primary text-sm -mt-2">
+          {t('profile.trainingHelp')}
         </p>
-        <label className="flex items-start gap-2 select-none">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={!trainingPrefs.revealBeforeSolve}
-            onChange={(e) => onToggleTrainingPref('revealBeforeSolve', !e.target.checked)}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <SettingToggleCard
+            testId="pref-hide-info"
+            title={t('profile.pref.hideInfo.title')}
+            checked={hideExtraInfo}
+            onChange={(checked) => onToggleTrainingPref('revealBeforeSolve', !checked)}
+            preview={<HideInfoPreview hidden={hideExtraInfo} />}
+            description={t('profile.pref.hideInfo.desc')}
           />
-          <span>
-            Hide extra info when solving
-            <span className="block text-text-secondary text-xs">
-              Hides the review step (the move you played and its refutation), the win-chance
-              numbers, and the &ldquo;See what you played&rdquo; button until you&rsquo;ve made your
-              attempt — so each position feels like a real game. Everything is shown after your
-              attempt either way.
-            </span>
-          </span>
-        </label>
-        <label className="flex items-start gap-2 select-none">
-          <input
-            type="checkbox"
-            className="mt-1"
+          <SettingToggleCard
+            testId="pref-raw-evals"
+            title={t('profile.pref.rawEvals.title')}
             checked={trainingPrefs.showEngineEvals}
-            onChange={(e) => onToggleTrainingPref('showEngineEvals', e.target.checked)}
+            onChange={(checked) => onToggleTrainingPref('showEngineEvals', checked)}
+            preview={<RawEvalPreview on={trainingPrefs.showEngineEvals} />}
+            description={t('profile.pref.rawEvals.desc')}
           />
-          <span>
-            Show raw engine evals
-            <span className="block text-text-secondary text-xs">
-              Adds the engine's evaluation (e.g. +1.2) next to the win-chance percentages.
-            </span>
-          </span>
-        </label>
-        <label className="flex items-start gap-2 select-none">
-          <input
-            type="checkbox"
-            className="mt-1"
+          <SettingToggleCard
+            testId="pref-show-answer"
+            title={t('profile.pref.showAnswer.title')}
             checked={drillPrefs.showAnswer}
-            onChange={(e) => drillPrefs.setShowAnswer(e.target.checked)}
+            onChange={(checked) => drillPrefs.setShowAnswer(checked)}
+            preview={<ShowAnswerPreview on={drillPrefs.showAnswer} />}
+            description={t('profile.pref.showAnswer.desc')}
           />
-          <span>
-            Show the answer after a miss
-            <span className="block text-text-secondary text-xs">
-              After a wrong move, draws the best move on the board and adds the solution line
-              next to the refutation. Applies to tactics and endgames; also in the gear on the
-              board.
-            </span>
-          </span>
-        </label>
-        <label className="flex items-start gap-2 select-none">
-          <input
-            type="checkbox"
-            className="mt-1"
+          <SettingToggleCard
+            testId="pref-autoplay"
+            title={t('profile.pref.autoplay.title')}
             checked={drillPrefs.autoplay}
-            onChange={(e) => drillPrefs.setAutoplay(e.target.checked)}
+            onChange={(checked) => drillPrefs.setAutoplay(checked)}
+            preview={<AutoplayPreview on={drillPrefs.autoplay} />}
+            description={t('profile.pref.autoplay.desc')}
           />
-          <span>
-            Autoplay the lines after a miss
-            <span className="block text-text-secondary text-xs">
-              After every wrong move, plays out why it fails on the board, then the solution
-              when &ldquo;Show the answer&rdquo; is on. Tap the board or step a line to stop it.
-            </span>
-          </span>
-        </label>
-        <label className="flex items-start gap-2 select-none">
-          <input
-            type="checkbox"
-            className="mt-1"
+          <SettingToggleCard
+            testId="pref-sounds"
+            title={t('profile.pref.sounds.title')}
             checked={trainingPrefs.soundsEnabled}
-            onChange={(e) => onToggleTrainingPref('soundsEnabled', e.target.checked)}
+            onChange={(checked) => onToggleTrainingPref('soundsEnabled', checked)}
+            preview={<SoundsPreview on={trainingPrefs.soundsEnabled} />}
+            description={t('profile.pref.sounds.desc')}
           />
-          <span>
-            Play sounds
-            <span className="block text-text-secondary text-xs">
-              Move, capture and check sounds on the board, plus a short cue when you solve a
-              position, miss one, or unlock an achievement.
-            </span>
-          </span>
-        </label>
+        </div>
         {(trainingPrefsError ?? drillPrefs.error) && (
           <p className="text-incorrect text-sm">{trainingPrefsError ?? drillPrefs.error}</p>
         )}
       </section>
 
+      <section id="look" className="card flex flex-col gap-5 scroll-mt-6" data-testid="look-section">
+        <div className="flex flex-col gap-1">
+          <h2 className="heading-md">{t('profile.section.look')}</h2>
+          <p className="text-text-primary text-sm">
+            {t('profile.look.help')}
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <h3 className="label">{t('profile.look.avatar')}</h3>
+          {profile && (
+            <AvatarBuilder
+              value={cosmetics.avatar}
+              custom={profile.avatar != null}
+              seed={profile.id}
+              lockHint={cosmetics.lockHint}
+              onSave={cosmetics.saveAvatar}
+            />
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <h3 className="label">{t('profile.look.theme')}</h3>
+          <ThemePicker
+            value={cosmetics.theme}
+            onChange={cosmetics.pickTheme}
+            locked={(theme) => (theme === cosmetics.theme ? null : cosmetics.lockHint({ kind: 'theme', id: theme }))}
+          />
+          <p className="text-text-primary text-xs">{t('profile.look.themeNote')}</p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <h3 className="label">{t('profile.look.pieces')}</h3>
+          <PieceSetPicker
+            value={cosmetics.pieceSet}
+            onChange={cosmetics.pickPieceSet}
+            locked={(set) => (set === cosmetics.pieceSet ? null : cosmetics.lockHint({ kind: 'pieceSet', id: set }))}
+          />
+        </div>
+        {cosmetics.error && <p className="text-incorrect text-sm">{cosmetics.error}</p>}
+      </section>
+
+      <LanguageSetting />
+
       <EmailRemindersSetting />
+
 
       <SupporterSetting />
 
-      <section className="card flex flex-col gap-4">
-        <h2 className="heading-md">Community</h2>
-        <p className="text-text-secondary text-sm -mt-2">
-          Leaderboards show your Lichess or Chess.com username (or your display name) next to
-          positions solved, mastered, Elo gained and streak. Never your email. The weekly top 5
-          also appears on the public homepage, by chess username only.
+      <section id="community" className="card flex flex-col gap-4 scroll-mt-6">
+        <h2 className="heading-md">{t('profile.section.community')}</h2>
+        <p className="text-text-primary text-sm -mt-2">
+          {t('profile.community.help')}
         </p>
-        <label className="flex items-start gap-2 select-none">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={!trainingPrefs.leaderboardOptOut}
-            onChange={(e) => onToggleTrainingPref('leaderboardOptOut', !e.target.checked)}
-          />
-          <span>
-            Show me on leaderboards
-            <span className="block text-text-secondary text-xs">
-              Untick to drop off every board (the homepage one within an hour). Your own stats
-              and achievements are unaffected.
-            </span>
-          </span>
-        </label>
-      </section>
-
-      <section className="card flex flex-col gap-4">
-        <h2 className="heading-md">Theme</h2>
-        <p className="text-text-secondary text-sm -mt-2">
-          Changes apply and save instantly across every screen except the landing and sign-in pages.
-        </p>
-        <ThemePicker value={activeTheme} onChange={onPickTheme} />
+        <SettingToggleCard
+          testId="pref-leaderboards"
+          title={t('profile.pref.leaderboards.title')}
+          checked={!trainingPrefs.leaderboardOptOut}
+          onChange={(checked) => onToggleTrainingPref('leaderboardOptOut', !checked)}
+          description={t('profile.pref.leaderboards.desc')}
+        />
+        <EventsStateSetting />
       </section>
 
       {(unparsedCount > 0 || backfillProgress) && (
         <section className="card flex flex-col gap-3">
-          <h2 className="heading-md">Game data backfill</h2>
-          <p className="text-text-secondary text-sm">
-            Re-parse stored PGNs to extract opening codes, ratings, and clock data so insight cards can use them.
+          <h2 className="heading-md">{t('profile.backfill.title')}</h2>
+          <p className="text-text-primary text-sm">
+            {t('profile.backfill.help')}
           </p>
           {backfillProgress && (
             <div className="flex flex-col gap-2">
@@ -436,9 +452,14 @@ export function ProfileRoute() {
                   }}
                 />
               </div>
-              <p className="text-text-secondary text-xs tabular-nums">
-                {backfillProgress.processed}/{backfillProgress.total} processed
-                {backfillProgress.failed > 0 ? ` · ${backfillProgress.failed} failed` : ''}
+              <p className="text-text-primary text-xs tabular-nums">
+                {t('profile.backfill.processed', {
+                  processed: backfillProgress.processed,
+                  total: backfillProgress.total,
+                })}
+                {backfillProgress.failed > 0
+                  ? ` · ${t('profile.backfill.failed', { count: backfillProgress.failed })}`
+                  : ''}
               </p>
             </div>
           )}
@@ -449,10 +470,10 @@ export function ProfileRoute() {
               onClick={() => void onBackfill()}
             >
               {backfillRunning
-                ? 'Backfilling…'
+                ? t('profile.backfill.running')
                 : unparsedCount === 0
-                  ? 'Up to date'
-                  : `Backfill ${unparsedCount} game${unparsedCount === 1 ? '' : 's'}`}
+                  ? t('profile.backfill.upToDate')
+                  : t('profile.backfill.action', { count: unparsedCount })}
             </button>
           </div>
         </section>
@@ -460,7 +481,7 @@ export function ProfileRoute() {
 
       {recentSessions.data && recentSessions.data.length > 0 && (
         <section className="card flex flex-col gap-3">
-          <h2 className="heading-md">Recent sessions</h2>
+          <h2 className="heading-md">{t('profile.recentSessions')}</h2>
           <ul className="flex flex-col divide-y divide-text-primary/15">
             {recentSessions.data.map((s) => {
               const ended = s.endedAt ?? s.startedAt;
@@ -476,7 +497,7 @@ export function ProfileRoute() {
                   <span className="text-text-primary tabular-nums">
                     {s.startedAt.toLocaleDateString()}
                   </span>
-                  <span className="text-text-secondary tabular-nums">
+                  <span className="text-text-primary tabular-nums">
                     {s.blundersCorrect}/{s.blundersAttempted} · {recall}% · {Math.round(duration / 60)}m
                   </span>
                 </li>
@@ -488,11 +509,11 @@ export function ProfileRoute() {
 
       <section className="card flex items-center justify-between">
         <div>
-          <h2 className="heading-md">Sign out</h2>
-          <p className="text-text-secondary text-sm">End your session on this device.</p>
+          <h2 className="heading-md">{t('profile.signOut')}</h2>
+          <p className="text-text-primary text-sm">{t('profile.signOutHelp')}</p>
         </div>
         <button className="btn-outline" onClick={onSignOut}>
-          Sign out
+          {t('profile.signOut')}
         </button>
       </section>
     </div>

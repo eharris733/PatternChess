@@ -6,8 +6,8 @@ import { isAdminEmail } from '../auth/admin';
  * links, chimes, achievements) through `featureVisible` / `useFeature`.
  */
 export const RELEASED = {
-  /** /path progression ladder + supporter articles. */
-  path: false,
+  /** /path progression ladder: cosmetic rewards per rung + supporter articles. Shipped 2026-11-22. */
+  path: true,
   /** /learn study library (+ "Suggested studies" on /openings, Learn achievements). */
   learn: false,
 } as const;

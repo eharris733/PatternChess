@@ -5,13 +5,22 @@ interface SupporterRow {
   current_period_end: string | null;
   cancel_at_period_end: boolean;
   first_supported_at: string | null;
+  /** End of a running supporter grant (the referral reward), if any. */
+  grant_ends_at?: string | null;
 }
 
 /** The player's own `supporters` row (server-scoped to the session), mirrored from Stripe by the webhook. */
 export interface SupporterStatus {
   status: string;
-  /** Perks on now: active, trialing or past_due (same rule as `is_supporter`). */
+  /**
+   * Perks on now: a subscription in active/trialing/past_due, or a running
+   * supporter grant (functions/_shared/supporterGrants.ts hasSupporterPerks).
+   */
   active: boolean;
+  /** Perks from the subscription itself (what "Manage subscription" is about). */
+  subscribed: boolean;
+  /** End of the perks earned by inviting friends; null without a running grant. */
+  grantEndsAt: Date | null;
   /** Ever subscribed; keeps the Early Supporter flair after lapsing. */
   early: boolean;
   currentPeriodEnd: Date | null;
@@ -24,9 +33,14 @@ const PERK_STATUSES = new Set(['active', 'trialing', 'past_due']);
 export async function getMySupporterStatus(): Promise<SupporterStatus | null> {
   const data = await rpc<SupporterRow | null>('supporters.mine');
   if (!data) return null;
+  const subscribed = PERK_STATUSES.has(data.status);
+  const grantEndsAt = data.grant_ends_at ? new Date(data.grant_ends_at) : null;
+  const granted = grantEndsAt != null && grantEndsAt.getTime() > Date.now();
   return {
     status: data.status,
-    active: PERK_STATUSES.has(data.status),
+    active: subscribed || granted,
+    subscribed,
+    grantEndsAt: granted ? grantEndsAt : null,
     early: data.first_supported_at != null,
     currentPeriodEnd: data.current_period_end ? new Date(data.current_period_end) : null,
     cancelAtPeriodEnd: data.cancel_at_period_end,
@@ -88,6 +102,27 @@ export async function getAdminSupporters(): Promise<AdminSupporter[]> {
     cancelAtPeriodEnd: r.cancel_at_period_end,
     betaInvitedAt: r.beta_invited_at,
   }));
+}
+
+export interface ReferralSummary {
+  /** Friends whose first positions earned you the reward (each is up to 3 months). */
+  rewardsEarned: number;
+  /** End of the perks those rewards give; null when none is running. */
+  perksUntil: Date | null;
+  /** Positions a friend trains to earn it (20). */
+  positionsNeeded: number;
+}
+
+/** `referral.summary`: what the InviteCard shows about the referral reward. */
+export async function getReferralSummary(): Promise<ReferralSummary> {
+  const d = (await rpc<{ rewardsEarned?: number; perksUntil?: string | null; positionsNeeded?: number } | null>(
+    'referral.summary',
+  )) ?? {};
+  return {
+    rewardsEarned: Number(d.rewardsEarned ?? 0),
+    perksUntil: d.perksUntil ? new Date(d.perksUntil) : null,
+    positionsNeeded: Number(d.positionsNeeded ?? 20),
+  };
 }
 
 /** A /path article body (functions/api/articles/[slug].ts): supporters only, null otherwise. */

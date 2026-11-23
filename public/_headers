@@ -10,6 +10,9 @@
   Cache-Control: public, max-age=31536000, immutable
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
+# Piece sets: a week, not immutable (file names aren't versioned).
+/pieces/*
+  Cache-Control: public, max-age=604800
 # Versioned file names (-v1, -v2…): bump the suffix to change a video.
 /video/*
   Cache-Control: public, max-age=31536000, immutable
@@ -19,3 +22,9 @@
   Cache-Control: public, max-age=0, must-revalidate
 /
   Cache-Control: public, max-age=0, must-revalidate
+# Unlisted creator-course demos (/c/<slug>) stay out of search.
+/c/*
+  X-Robots-Tag: noindex, nofollow
+  # The course embeds the creator's YouTube video, which COEP require-corp
+  # blocks outside Chrome's credentialless iframes. No engine runs here.
+  ! Cross-Origin-Embedder-Policy

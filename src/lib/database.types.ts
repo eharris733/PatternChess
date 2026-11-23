@@ -626,8 +626,12 @@ export type Database = {
           anon_id: string | null
           app_opens: number
           autoplay_refutation: boolean
+          avatar: Json | null
           avatar_url: string | null
           board_theme: string
+          path_rewards_claimed: Json
+          piece_set: string | null
+          theme: string | null
           chesscom_username: string | null
           commitment_level: string
           contact_email: string | null
@@ -647,6 +651,7 @@ export type Database = {
           email_reports: string
           email_unsub_token: string
           email_unsubscribed_at: string | null
+          events_state: string | null
           flair: string | null
           followed_instagram: boolean
           id: string
@@ -680,8 +685,12 @@ export type Database = {
           anon_id?: string | null
           app_opens?: number
           autoplay_refutation?: boolean
+          avatar?: Json | null
           avatar_url?: string | null
           board_theme?: string
+          path_rewards_claimed?: Json
+          piece_set?: string | null
+          theme?: string | null
           chesscom_username?: string | null
           commitment_level?: string
           contact_email?: string | null
@@ -701,6 +710,7 @@ export type Database = {
           email_reports?: string
           email_unsub_token?: string
           email_unsubscribed_at?: string | null
+          events_state?: string | null
           flair?: string | null
           followed_instagram?: boolean
           id: string
@@ -734,8 +744,12 @@ export type Database = {
           anon_id?: string | null
           app_opens?: number
           autoplay_refutation?: boolean
+          avatar?: Json | null
           avatar_url?: string | null
           board_theme?: string
+          path_rewards_claimed?: Json
+          piece_set?: string | null
+          theme?: string | null
           chesscom_username?: string | null
           commitment_level?: string
           contact_email?: string | null
@@ -755,6 +769,7 @@ export type Database = {
           email_reports?: string
           email_unsub_token?: string
           email_unsubscribed_at?: string | null
+          events_state?: string | null
           flair?: string | null
           followed_instagram?: boolean
           id?: string

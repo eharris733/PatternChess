@@ -10,6 +10,7 @@
  */
 @import 'chessground/assets/chessground.base.css';
 @import 'chessground/assets/chessground.cburnett.css';
+@import './pieceSets.css';
 
 /*
  * Chessground board theme — colors driven by --board-* CSS variables.

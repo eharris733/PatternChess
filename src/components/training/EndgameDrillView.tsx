@@ -27,22 +27,22 @@ import {
   externalAnalysisUrl,
   resolvePlatform,
 } from '../../services/externalAnalysisUrlService';
+import { currentT, useT } from '../../i18n/useT';
 
 function resultFeedback(r: PlayoutResult, target: 'win' | 'draw') {
+  const t = currentT();
   if (r.success) {
     if (r.ending === 'adjudicated') {
-      return target === 'win'
-        ? 'Win secured — you held the winning position move after move.'
-        : 'Draw held — solid, move after move.';
+      return target === 'win' ? t('egDrill.winSecured') : t('egDrill.drawHeldSolid');
     }
-    if (r.terminal === 'checkmate-by-user') return 'Checkmate — converted.';
-    return 'Draw achieved.';
+    if (r.terminal === 'checkmate-by-user') return t('egDrill.checkmateConverted');
+    return t('egDrill.drawAchieved');
   }
   if (r.ending === 'terminal') {
-    if (r.terminal === 'checkmate-by-opponent') return 'Checkmated — the point slipped away.';
-    return target === 'win' ? 'Stalemate — the win slipped away.' : 'The draw slipped away.';
+    if (r.terminal === 'checkmate-by-opponent') return t('egDrill.checkmated');
+    return target === 'win' ? t('egDrill.stalemate') : t('egDrill.drawSlipped');
   }
-  return target === 'win' ? 'That move gives up the win.' : 'That move gives up the draw.';
+  return target === 'win' ? t('egDrill.givesUpWin') : t('egDrill.givesUpDraw');
 }
 
 /**
@@ -62,6 +62,7 @@ export function EndgameDrillView({
   drillData: EndgameDrillData;
   showFilterBanner?: React.ReactNode;
 }) {
+  const t = useT();
   const training = useTrainingStore();
   const playout = useEndgamePlayoutStore();
   const [paused, setPaused] = useState(false);
@@ -91,10 +92,10 @@ export function EndgameDrillView({
 
   const passedMessage =
     playout.phase === 'passed' && playout.terminal === 'checkmate-by-user'
-      ? 'Checkmate — converted.'
+      ? t('egDrill.checkmateConverted')
       : target === 'win'
-        ? 'Win secured — position held.'
-        : 'Draw held.';
+        ? t('egDrill.winHeld')
+        : t('egDrill.drawHeld');
 
   // Play-outs are always blind — skip the optional review step.
   useEffect(() => {
@@ -156,7 +157,7 @@ export function EndgameDrillView({
                 // Let the lines play out visibly first; a tap jumps to the end.
                 <button
                   type="button"
-                  aria-label="Skip autoplay"
+                  aria-label={t('egDrill.skipAutoplay')}
                   onClick={slipViewer.skipAutoplay}
                   className="absolute inset-0 z-10 bg-transparent"
                 />
@@ -165,16 +166,16 @@ export function EndgameDrillView({
                 message={
                   training.phase === 'correct'
                     ? passedMessage
-                    : training.incorrectFeedback?.message ?? 'Play-out failed'
+                    : training.incorrectFeedback?.message ?? t('egDrill.failed')
                 }
-                actionLabel={training.phase === 'correct' ? 'Next' : 'Continue'}
+                actionLabel={training.phase === 'correct' ? t('common.next') : t('train.continue')}
                 onAction={() =>
                   training.phase === 'correct'
                     ? training.advance()
                     : training.requeueAndAdvance()
                 }
                 dismissLabel={
-                  training.phase === 'correct' ? 'View board' : 'Review the lines'
+                  training.phase === 'correct' ? t('egDrill.viewBoard') : t('train.reviewLines')
                 }
                 onDismiss={overlay.dismiss}
               />
@@ -212,10 +213,10 @@ export function EndgameDrillView({
         <header className="flex items-center justify-between">
           <span className="label">
             {training.game
-              ? orderedPlayers(training.game.username, training.game.opponent, userColor).join(
-                  ' vs ',
+              ? orderedPlayers(training.game.username, training.game.opponent, userColor).reduce((a, b) =>
+                  t('train.panel.vs', { a, b }),
                 )
-              : 'Training'}
+              : t('train.panel.training')}
           </span>
           <span className="font-mono text-xs tabular-nums text-gold-dark">
             {`${training.currentIndex + 1}/${training.blunders.length}`}
@@ -225,9 +226,9 @@ export function EndgameDrillView({
         {training.pendingTryAgain && (
           <div className="flex items-center gap-2 rounded-none border-2 border-mistake/50 bg-mistake/15 px-3 py-2">
             <span className="px-2 py-0.5 rounded-none font-mono text-[10px] uppercase tracking-tight bg-mistake/30 text-mistake border-2 border-mistake/60">
-              Retry
+              {t('train.panel.retry')}
             </span>
-            <span className="text-xs text-text-primary">You missed this last time</span>
+            <span className="text-xs text-text-primary">{t('train.panel.missedLastTime')}</span>
           </div>
         )}
 
@@ -243,8 +244,8 @@ export function EndgameDrillView({
           <>
             <FeedbackBadge tone="info">
               {target === 'win'
-                ? 'Endgame play-out — convert this win'
-                : 'Endgame play-out — hold this draw'}
+                ? t('egDrill.convertWin')
+                : t('egDrill.holdDraw')}
             </FeedbackBadge>
             <HeldMeter
               heldStreak={playout.heldStreak}
@@ -256,32 +257,31 @@ export function EndgameDrillView({
 
         {playout.phase === 'judging' && (
           <FeedbackBadge tone="info">
-              {playout.confirming ? 'Double-checking with a longer search…' : 'Judging your move…'}
+              {playout.confirming ? t('egDrill.doubleChecking') : t('egDrill.judging')}
             </FeedbackBadge>
         )}
         {playout.phase === 'thinking' && (
-          <FeedbackBadge tone="info">Opponent thinking…</FeedbackBadge>
+          <FeedbackBadge tone="info">{t('egDrill.opponentThinking')}</FeedbackBadge>
         )}
-        {settingUp && <FeedbackBadge tone="info">Loading position…</FeedbackBadge>}
+        {settingUp && <FeedbackBadge tone="info">{t('egDrill.loadingPosition')}</FeedbackBadge>}
         {playout.engineError && (
-          <FeedbackBadge tone="warning">Engine hiccup — keep playing</FeedbackBadge>
+          <FeedbackBadge tone="warning">{t('egDrill.hiccup')}</FeedbackBadge>
         )}
         {hint.level === 1 && playing && (
-          <p className="text-text-secondary text-xs">Piece highlighted — find the move for full credit.</p>
+          <p className="text-text-primary text-xs">{t('train.panel.hint1')}</p>
         )}
         {hint.level === 2 && playing && (
-          <p className="text-text-secondary text-xs">Move shown — no credit for this attempt.</p>
+          <p className="text-text-primary text-xs">{t('train.panel.hint2')}</p>
         )}
 
         {training.phase === 'correct' && (
           <>
             <FeedbackBadge tone="success">{passedMessage}</FeedbackBadge>
-            <p className="text-text-secondary text-sm">
-              In the game this ended in a {drillData.deservedResult === 'win' ? 'draw or loss' : 'loss'}.
-              This time you kept the {target === 'win' ? 'full point' : 'half point'}.
+            <p className="text-text-primary text-sm">
+              {drillData.deservedResult === 'win' ? t('egDrill.keptWin') : t('egDrill.keptDraw')}
             </p>
             <button className="btn-primary mt-auto" onClick={() => training.advance()}>
-              Next<span className="hidden lg:inline ml-1.5"> (Space)</span>
+              {t('common.next')}<span className="hidden lg:inline ml-1.5"> {t('train.panel.space')}</span>
             </button>
           </>
         )}
@@ -304,10 +304,10 @@ export function EndgameDrillView({
               />
             )}
             <button className="btn-primary mt-auto" onClick={() => training.requeueAndAdvance()}>
-              Continue<span className="hidden lg:inline ml-1.5"> (Space)</span>
+              {t('train.continue')}<span className="hidden lg:inline ml-1.5"> {t('train.panel.space')}</span>
             </button>
-            <p className="text-text-secondary text-xs text-center -mt-1">
-              Comes back later this session
+            <p className="text-text-primary text-xs text-center -mt-1">
+              {t('train.panel.comesBack')}
             </p>
           </>
         )}
@@ -320,7 +320,7 @@ export function EndgameDrillView({
                 : 0,
             )}
             total={100}
-            label="Recall rate"
+            label={t('train.panel.recallRate')}
           />
         </div>
       </aside>

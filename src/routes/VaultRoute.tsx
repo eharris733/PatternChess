@@ -4,26 +4,31 @@ import { usePgnUploadStore } from '../state/pgnUploadStore';
 import { VaultGamesTab } from '../components/vault/VaultGamesTab';
 import { VaultPositionsTab } from '../components/vault/VaultPositionsTab';
 import { VaultRepertoireTab } from '../components/vault/VaultRepertoireTab';
+import { clearFilterParams } from '../components/vault/vaultFilters';
+import { useT } from '../i18n/useT';
+import type { MessageKey } from '../i18n/i18n';
 
 type VaultTab = 'blunders' | 'mastered' | 'repertoire' | 'games';
 
-const TABS: Array<[VaultTab, string]> = [
-  ['blunders', 'Blunders'],
-  ['mastered', 'Mastered'],
-  ['repertoire', 'Repertoire'],
-  ['games', 'Games'],
+const TABS: Array<[VaultTab, MessageKey]> = [
+  ['blunders', 'vault.tab.blunders'],
+  ['mastered', 'vault.tab.mastered'],
+  ['repertoire', 'vault.tab.repertoire'],
+  ['games', 'vault.tab.games'],
 ];
 
 const isTab = (v: string | null): v is VaultTab => TABS.some(([id]) => id === v);
 
 /** Everything you've collected: blunders, mastered positions, your repertoire, your games. */
 export function VaultRoute() {
+  const t = useT();
   const [params, setParams] = useSearchParams();
   const openUpload = usePgnUploadStore((s) => s.openModal);
   const raw = params.get('tab');
   const tab: VaultTab = isTab(raw) ? raw : 'blunders';
   const setTab = (next: VaultTab) => {
-    const p = new URLSearchParams(params);
+    // Position filters carry between Blunders and Mastered; the other tabs don't use them.
+    const p = next === 'blunders' || next === 'mastered' ? new URLSearchParams(params) : clearFilterParams(params);
     if (next === 'blunders') p.delete('tab');
     else p.set('tab', next);
     setParams(p, { replace: true });
@@ -33,17 +38,17 @@ export function VaultRoute() {
     <div className="max-w-5xl mx-auto flex flex-col gap-4">
       <header className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="heading-xl">Vault</h1>
+          <h1 className="heading-xl">{t('vault.title')}</h1>
           <p className="text-text-primary text-sm mt-1">
-            Your blunders, the positions you've mastered, your opening repertoire and your games. Share any of them.
+            {t('vault.lede')}
           </p>
         </div>
         <button className="btn-outline shrink-0" onClick={openUpload}>
-          Upload PGNs
+          {t('vault.upload')}
         </button>
       </header>
 
-      <div role="tablist" aria-label="Vault sections" className="flex flex-wrap gap-1.5">
+      <div role="tablist" aria-label={t('vault.sections')} className="flex flex-wrap gap-1.5">
         {TABS.map(([id, label]) => (
           <button
             key={id}
@@ -61,7 +66,7 @@ export function VaultRoute() {
                 : 'bg-surface text-text-primary border-text-primary hover:bg-accent/15',
             )}
           >
-            {label}
+            {t(label)}
           </button>
         ))}
       </div>

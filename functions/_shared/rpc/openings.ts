@@ -125,13 +125,53 @@ const OPENING_DRILL_COLS = new Set([
   'motifs',
 ]);
 
-const UNCHECKED_GAMES_WHERE =
-  'user_id = ? AND (opening_deviation_version IS NULL OR opening_deviation_version < ?)';
+/**
+ * A game the walk can take: never walked under this rule version, and its
+ * side known. Synced games store `user_color` at insert; one without it waits
+ * for analysis to write it (walked earlier, it would be stamped 'skipped' for
+ * good). After analysis a still-unknown side really is unknown.
+ *
+ * Heal: before 2026-11-23 the walk ran on freshly synced games before their
+ * side was known and stamped them 'skipped' (a skipped row with no
+ * `user_color`). Once the game has its side, it is walked again. A row
+ * skipped for a real reason (unreadable moves) carries its colour, so it is
+ * never re-walked, and neither is a game whose side stays unknown.
+ */
+const UNCHECKED_GAMES_WHERE = `user_id = ? AND (
+    ((opening_deviation_version IS NULL OR opening_deviation_version < ?)
+      AND (user_color IS NOT NULL OR analyzed_at IS NOT NULL))
+    OR (user_color IS NOT NULL AND EXISTS (
+      SELECT 1 FROM opening_deviations d
+      WHERE d.user_id = games.user_id AND d.game_id = games.id
+        AND d.status = 'skipped' AND d.user_color IS NULL)))`;
 
 const PAST_BOOK_FROM = `FROM opening_deviations d
   JOIN games g ON g.id = d.game_id AND g.user_id = d.user_id
   WHERE d.user_id = ? AND d.book_end_ply IS NOT NULL AND d.past_book_checked_at IS NULL
     AND g.analyzed_at IS NOT NULL`;
+
+/** One opening group on the Openings tab: a family played as one colour. */
+type OpeningGroup = { family: string; color: 'white' | 'black' };
+
+function argGroup(args: Row): OpeningGroup | null {
+  const v = args.group;
+  if (v === undefined || v === null) return null;
+  if (typeof v !== 'object' || Array.isArray(v)) throw badRequest('group must be an object');
+  const family = argStr(v as Row, 'family');
+  const color = (v as Row).color;
+  if (color !== 'white' && color !== 'black') throw badRequest('group.color must be white or black');
+  return { family, color };
+}
+
+const groupParams = (g: OpeningGroup | null): string[] => (g ? [g.family, g.color] : []);
+
+/** Games walked per opening group (one deviation row per game), for "most-played first". */
+const FAMILY_RANK_CTE = `WITH family_rank AS (
+  SELECT opening_family, user_color, count(*) AS n FROM opening_deviations
+  WHERE user_id = ? AND status <> 'skipped' GROUP BY opening_family, user_color)`;
+const FAMILY_RANK_JOIN = `LEFT JOIN family_rank r
+  ON r.opening_family IS d.opening_family AND r.user_color IS d.user_color`;
+const GROUP_WHERE = ' AND d.opening_family = ? AND d.user_color = ?';
 
 const REPERTOIRE_COLS = 'id, user_id, color, epd, uci, san, created_at';
 
@@ -185,15 +225,22 @@ export const handlers: RpcRegistry = {
     return null;
   }),
 
-  /** User exits still waiting for the engine (oldest first). */
-  'openings.pendingEvals': userRpc<{ limit: number }>(async (ctx, args) => {
+  /**
+   * User exits still waiting for the engine: the most-played opening (family
+   * and colour, by games walked) first, oldest first within it, so the first
+   * opening's report fills in before the long tail. `group` narrows the queue
+   * to one opening (the scan's priority group while sync analysis runs).
+   */
+  'openings.pendingEvals': userRpc<{ limit: number; group?: OpeningGroup }>(async (ctx, args) => {
     const limit = argInt(args, 'limit', { min: 1, max: 1000 });
+    const group = argGroup(args);
     return all(
       ctx.db,
-      `SELECT * FROM opening_deviations
-       WHERE user_id = ? AND status = 'user_left' AND evaluated_at IS NULL
-       ORDER BY created_at ASC LIMIT ?`,
-      [ctx.user.id, limit],
+      `${FAMILY_RANK_CTE}
+       SELECT d.* FROM opening_deviations d ${FAMILY_RANK_JOIN}
+       WHERE d.user_id = ? AND d.status = 'user_left' AND d.evaluated_at IS NULL${group ? GROUP_WHERE : ''}
+       ORDER BY coalesce(r.n, 0) DESC, d.created_at ASC, d.id ASC LIMIT ?`,
+      [ctx.user.id, ctx.user.id, ...groupParams(group), limit],
       'opening_deviations',
     );
   }),
@@ -220,14 +267,21 @@ export const handlers: RpcRegistry = {
 
   /**
    * Rows whose opening continues past the book and hasn't been engine-scanned,
-   * on analyzed games only (oldest first). Each row carries its game's `pgn`.
+   * on analyzed games only — most-played opening first (as `pendingEvals`),
+   * oldest first within it. Each row carries its game's `pgn`. `group`
+   * narrows it to one opening.
    */
-  'openings.pastBookQueue': userRpc<{ limit: number }>(async (ctx, args) => {
+  'openings.pastBookQueue': userRpc<{ limit: number; group?: OpeningGroup }>(async (ctx, args) => {
     const limit = argInt(args, 'limit', { min: 1, max: 1000 });
+    const group = argGroup(args);
     return all(
       ctx.db,
-      `SELECT d.*, g.pgn AS pgn ${PAST_BOOK_FROM} ORDER BY d.created_at ASC LIMIT ?`,
-      [ctx.user.id, limit],
+      `${FAMILY_RANK_CTE}
+       SELECT d.*, g.pgn AS pgn ${PAST_BOOK_FROM}${group ? GROUP_WHERE : ''}
+       ORDER BY (SELECT coalesce(max(r.n), 0) FROM family_rank r
+                 WHERE r.opening_family IS d.opening_family AND r.user_color IS d.user_color) DESC,
+                d.created_at ASC, d.id ASC LIMIT ?`,
+      [ctx.user.id, ctx.user.id, ...groupParams(group), limit],
       'opening_deviations',
     );
   }),
