@@ -120,6 +120,16 @@ export const authService = {
       flair: null,
       dailyGoals: { ...DEFAULT_DAILY_GOALS },
       emailOptIn: true,
+      emailHour: 18,
+      contactEmail: null,
+      contactEmailVerifiedAt: null,
+      emailUnsubscribedAt: null,
+      appOpens: 0,
+      asks: {
+        email: { promptedAt: null, count: 0 },
+        course: { promptedAt: null, count: 0 },
+        supporter: { promptedAt: null, count: 0 },
+      },
     };
     // Stamp the landing-page visitor id (if this browser ever hit the landing
     // page) so the funnel can link anonymous view/demo events to this account.

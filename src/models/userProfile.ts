@@ -65,6 +65,17 @@ export interface UserProfile {
   dailyGoals: DailyGoals;
   /** Training reminder emails. Opt-out: on by default for new accounts (migration 20261121120000). Write via `updateEmailOptIn`. */
   emailOptIn: boolean;
+  /** Local hour (0–23, in `timezone`) reminders go out. Write via `updateEmailHour`. */
+  emailHour: number;
+  /** Typed-in address for accounts without one (Lichess sign-ins); confirmed by link. Write via `updateContactEmail`. */
+  contactEmail: string | null;
+  contactEmailVerifiedAt: Date | null;
+  /** Set by the one-click unsubscribe; the dashboard never asks again after it. */
+  emailUnsubscribedAt: Date | null;
+  /** Tab sessions counted by `bump_app_open` (migration 20261123120000). */
+  appOpens: number;
+  /** Staged dashboard asks (src/lib/asks.ts): last answer/dismissal and how many times. */
+  asks: Record<'email' | 'course' | 'supporter', { promptedAt: Date | null; count: number }>;
 }
 
 function parseBoardTheme(v: unknown): BoardTheme {
@@ -130,6 +141,19 @@ export function userProfileFromJson(json: any): UserProfile {
     flair: typeof json.flair === 'string' && json.flair ? json.flair : null,
     dailyGoals: dailyGoalsFromJson(json),
     emailOptIn: json.email_opt_in === true,
+    emailHour: typeof json.email_hour === 'number' ? json.email_hour : 18,
+    contactEmail: typeof json.contact_email === 'string' && json.contact_email ? json.contact_email : null,
+    contactEmailVerifiedAt: parseDate(json.contact_email_verified_at),
+    emailUnsubscribedAt: parseDate(json.email_unsubscribed_at),
+    appOpens: (json.app_opens as number | null) ?? 0,
+    asks: {
+      email: { promptedAt: parseDate(json.email_prompted_at), count: (json.email_prompt_count as number | null) ?? 0 },
+      course: { promptedAt: parseDate(json.course_prompted_at), count: (json.course_prompt_count as number | null) ?? 0 },
+      supporter: {
+        promptedAt: parseDate(json.supporter_prompted_at),
+        count: (json.supporter_prompt_count as number | null) ?? 0,
+      },
+    },
   };
 }
 

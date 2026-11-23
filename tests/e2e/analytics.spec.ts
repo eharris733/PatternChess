@@ -176,6 +176,23 @@ async function stub(
               }),
             );
           }
+          if (url.includes('/rest/v1/rpc/admin_email_stats')) {
+            return Promise.resolve(
+              new Response(
+                JSON.stringify({
+                  optedIn: 12,
+                  reachable: 10,
+                  noAddress: 70,
+                  prompted: 40,
+                  confirmPending: 2,
+                  unsubscribed30d: 1,
+                  returnRate: { reachable: { accounts: 10, trained: 4 }, other: { accounts: 160, trained: 8 } },
+                  kinds: [{ kind: 'daily_plan', sent: 20, returned: 5 }],
+                }),
+                { status: 200, headers: { 'content-type': 'application/json' } },
+              ),
+            );
+          }
           if (url.includes('/rest/v1/rpc/admin_outreach_leads')) {
             return Promise.resolve(
               new Response(JSON.stringify(outreach), {
@@ -378,6 +395,17 @@ test('clicking a KPI tile opens a drill-down with hyperlinked handles', async ({
   ).toHaveAttribute('href', 'https://lichess.org/@/magnus');
 
   expect(errors, errors.join('\n')).toHaveLength(0);
+});
+
+test('admin sees email reach and return rates at /analytics', async ({ page }) => {
+  await stub(page, ADMIN_EMAIL, { kpis: KPIS, retention: RETENTION });
+  await page.goto('/analytics');
+  const card = page.getByTestId('email-stats-card');
+  await expect(card).toBeVisible({ timeout: 20_000 });
+  await expect(card).toContainText('10 reachable');
+  await expect(card).toContainText('70 with no address');
+  await expect(card).toContainText('reachable 40% (4/10) vs everyone else 5% (8/160)');
+  await expect(card.getByRole('cell', { name: 'Daily plan' })).toBeVisible();
 });
 
 test('non-admin is redirected away from /analytics', async ({ page }) => {

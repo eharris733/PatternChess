@@ -7,6 +7,7 @@ import { BrandLockup } from './BrandLogo';
 import { MenuIcon } from './icons/MenuIcon';
 import { useAuth } from '../auth/useAuth';
 import { installSoundUnlock, setSoundsEnabled } from '../lib/sounds';
+import { useAppOpens } from '../hooks/useNextAsk';
 import clsx from 'clsx';
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -14,6 +15,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { pathname } = useLocation();
   const { profile } = useAuth();
+  // Counts this tab session as one app open (the dashboard asks key on it).
+  useAppOpens();
 
   useEffect(() => {
     installSoundUnlock();

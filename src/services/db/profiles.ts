@@ -82,3 +82,48 @@ export async function updateEmailOptIn(optIn: boolean): Promise<void> {
     .eq('id', userId);
   if (error) throw error;
 }
+
+/** Local hour (0–23) reminder emails go out; stamps the timezone if it was never set. */
+export async function updateEmailHour(hour: number, timezone: string | null): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) return;
+  const { error } = await supabase
+    .from('profiles')
+    .update({ email_hour: hour, ...(timezone ? { timezone } : {}) })
+    .eq('id', userId);
+  if (error) throw error;
+}
+
+/**
+ * A typed-in address for accounts without one (Lichess sign-ins). Turns
+ * reminders on; the notifier Worker's next hourly run mails a confirmation
+ * link, and nothing else is sent until it is clicked. The guard trigger
+ * clears `contact_email_verified_at` whenever the address changes.
+ */
+export async function updateContactEmail(email: string, timezone: string | null): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) return;
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      contact_email: email.trim(),
+      email_opt_in: true,
+      email_prompted_at: new Date().toISOString(),
+      ...(timezone ? { timezone } : {}),
+    })
+    .eq('id', userId);
+  if (error) throw error;
+}
+
+/** Counts one app open (AppShell, once per tab session) and returns the new total. */
+export async function bumpAppOpen(): Promise<number | null> {
+  const { data, error } = await supabase.rpc('bump_app_open');
+  if (error) throw error;
+  return typeof data === 'number' ? data : null;
+}
+
+/** Records that a dashboard ask was answered or dismissed (src/lib/asks.ts). */
+export async function markAskPrompted(ask: 'email' | 'course' | 'supporter'): Promise<void> {
+  const { error } = await supabase.rpc('mark_ask_prompted', { p_ask: ask });
+  if (error) throw error;
+}

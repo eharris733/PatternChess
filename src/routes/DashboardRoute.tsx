@@ -23,6 +23,7 @@ import { StatStrip } from '../components/insights/StatStrip';
 import { useBlunderStats } from '../hooks/useBlunderStats';
 import { Skeleton } from '../components/Skeleton';
 import { FreshBlundersCard } from '../components/insights/FreshBlundersCard';
+import { NextAskSlot } from '../components/email/NextAskSlot';
 import { streakStatus } from '../services/streakService';
 import type { UserProfile } from '../models/userProfile';
 
@@ -100,6 +101,8 @@ export function DashboardRoute() {
       {showExplainer && <HowTrainingWorksCard />}
 
       {!isFirstRun && <FreshBlundersCard />}
+
+      {!isFirstRun && <NextAskSlot />}
 
       {isFirstRun ? <GetStartedHero /> : <DailyHabitCard />}
 

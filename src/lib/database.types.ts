@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.4"
   }
   public: {
     Tables: {
@@ -133,25 +133,73 @@ export type Database = {
           },
         ]
       }
+      email_confirmations: {
+        Row: {
+          created_at: string
+          email: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          token?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      email_sends: {
+        Row: {
+          id: number
+          kind: string
+          provider_id: string | null
+          sent_at: string
+          to_email: string
+          user_id: string
+        }
+        Insert: {
+          id?: never
+          kind: string
+          provider_id?: string | null
+          sent_at?: string
+          to_email: string
+          user_id: string
+        }
+        Update: {
+          id?: never
+          kind?: string
+          provider_id?: string | null
+          sent_at?: string
+          to_email?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       endgame_scenarios: {
         Row: {
           actual_result: string
           attempts: number
-          cycle_number: number
-          last_drill_failed: boolean
-          last_drilled_at: string | null
-          next_drill_at: string | null
-          times_attempted: number
-          times_correct: number
           blunder_id: string | null
           created_at: string
+          cycle_number: number
           deserved_result: string
           game_id: string
           id: string
+          last_drill_failed: boolean
+          last_drilled_at: string | null
           last_played_at: string | null
+          next_drill_at: string | null
           retired_at: string | null
           start_fen: string
           status: string
+          times_attempted: number
+          times_correct: number
           user_color: string
           user_id: string
           verified_at: string | null
@@ -160,21 +208,21 @@ export type Database = {
         Insert: {
           actual_result: string
           attempts?: number
-          cycle_number?: number
-          last_drill_failed?: boolean
-          last_drilled_at?: string | null
-          next_drill_at?: string | null
-          times_attempted?: number
-          times_correct?: number
           blunder_id?: string | null
           created_at?: string
+          cycle_number?: number
           deserved_result: string
           game_id: string
           id?: string
+          last_drill_failed?: boolean
+          last_drilled_at?: string | null
           last_played_at?: string | null
+          next_drill_at?: string | null
           retired_at?: string | null
           start_fen: string
           status?: string
+          times_attempted?: number
+          times_correct?: number
           user_color: string
           user_id: string
           verified_at?: string | null
@@ -183,21 +231,21 @@ export type Database = {
         Update: {
           actual_result?: string
           attempts?: number
-          cycle_number?: number
-          last_drill_failed?: boolean
-          last_drilled_at?: string | null
-          next_drill_at?: string | null
-          times_attempted?: number
-          times_correct?: number
           blunder_id?: string | null
           created_at?: string
+          cycle_number?: number
           deserved_result?: string
           game_id?: string
           id?: string
+          last_drill_failed?: boolean
+          last_drilled_at?: string | null
           last_played_at?: string | null
+          next_drill_at?: string | null
           retired_at?: string | null
           start_fen?: string
           status?: string
+          times_attempted?: number
+          times_correct?: number
           user_color?: string
           user_id?: string
           verified_at?: string | null
@@ -219,6 +267,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      event_digest_subscribers: {
+        Row: {
+          confirm_token: string
+          confirmed_at: string | null
+          country: string
+          created_at: string
+          email: string
+          id: string
+          last_sent_at: string | null
+          region: string | null
+          source_path: string | null
+          status: string
+          unsub_token: string
+          unsubscribed_at: string | null
+        }
+        Insert: {
+          confirm_token?: string
+          confirmed_at?: string | null
+          country?: string
+          created_at?: string
+          email: string
+          id?: string
+          last_sent_at?: string | null
+          region?: string | null
+          source_path?: string | null
+          status?: string
+          unsub_token?: string
+          unsubscribed_at?: string | null
+        }
+        Update: {
+          confirm_token?: string
+          confirmed_at?: string | null
+          country?: string
+          created_at?: string
+          email?: string
+          id?: string
+          last_sent_at?: string | null
+          region?: string | null
+          source_path?: string | null
+          status?: string
+          unsub_token?: string
+          unsubscribed_at?: string | null
+        }
+        Relationships: []
       }
       funnel_events: {
         Row: {
@@ -390,6 +483,27 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_outreach: {
+        Row: {
+          contacted_at: string
+          lead_key: string
+          note: string | null
+          segment: string
+        }
+        Insert: {
+          contacted_at?: string
+          lead_key: string
+          note?: string | null
+          segment: string
+        }
+        Update: {
+          contacted_at?: string
+          lead_key?: string
+          note?: string | null
+          segment?: string
+        }
+        Relationships: []
+      }
       opening_deviations: {
         Row: {
           blunder_id: string | null
@@ -510,144 +624,191 @@ export type Database = {
       profiles: {
         Row: {
           anon_id: string | null
+          app_opens: number
           autoplay_refutation: boolean
           avatar_url: string | null
           board_theme: string
-          commitment_level: string
-          daily_games_goal: number
-          daily_positions_goal: number
           chesscom_username: string | null
-          created_at: string | null
-          current_streak_days: number
-          display_name: string | null
+          commitment_level: string
           contact_email: string | null
           contact_email_verified_at: string | null
+          course_prompt_count: number
+          course_prompted_at: string | null
+          created_at: string | null
+          current_streak_days: number
+          daily_games_goal: number
+          daily_positions_goal: number
+          display_name: string | null
           email_hour: number
           email_opt_in: boolean
+          email_prompt_count: number
           email_prompted_at: string | null
           email_reminders: string
           email_reports: string
           email_unsub_token: string
+          email_unsubscribed_at: string | null
           flair: string | null
           followed_instagram: boolean
           id: string
           last_drill_local_date: string | null
           last_synced_chesscom_at: string | null
           last_synced_lichess_at: string | null
-          learn_chapters_done: string[]
           leaderboard_opt_out: boolean
+          learn_chapters_done: string[]
           lichess_username: string | null
           longest_streak_days: number
           opening_reviews_opened: number
           preferred_rated_only: boolean
+          preferred_time_controls: string[]
           referral_code: string
           referrals_count: number
           referred_by: string | null
-          preferred_time_controls: string[]
           reveal_before_solve: boolean
           shares_count: number
-          signup_source: string | null
           show_answer_on_miss: boolean
           show_engine_evals: boolean
+          signup_source: string | null
           sounds_enabled: boolean
           streak_freezes: number
           streak_freezes_used: number
+          supporter_prompt_count: number
+          supporter_prompted_at: string | null
           timezone: string | null
           used_training_filter: boolean
         }
         Insert: {
           anon_id?: string | null
+          app_opens?: number
           autoplay_refutation?: boolean
           avatar_url?: string | null
           board_theme?: string
-          commitment_level?: string
-          daily_games_goal?: number
-          daily_positions_goal?: number
           chesscom_username?: string | null
-          created_at?: string | null
-          current_streak_days?: number
-          display_name?: string | null
+          commitment_level?: string
           contact_email?: string | null
           contact_email_verified_at?: string | null
+          course_prompt_count?: number
+          course_prompted_at?: string | null
+          created_at?: string | null
+          current_streak_days?: number
+          daily_games_goal?: number
+          daily_positions_goal?: number
+          display_name?: string | null
           email_hour?: number
           email_opt_in?: boolean
+          email_prompt_count?: number
           email_prompted_at?: string | null
           email_reminders?: string
           email_reports?: string
           email_unsub_token?: string
+          email_unsubscribed_at?: string | null
           flair?: string | null
           followed_instagram?: boolean
           id: string
           last_drill_local_date?: string | null
           last_synced_chesscom_at?: string | null
           last_synced_lichess_at?: string | null
-          learn_chapters_done?: string[]
           leaderboard_opt_out?: boolean
+          learn_chapters_done?: string[]
           lichess_username?: string | null
           longest_streak_days?: number
           opening_reviews_opened?: number
           preferred_rated_only?: boolean
+          preferred_time_controls?: string[]
           referral_code?: string
           referrals_count?: number
           referred_by?: string | null
-          preferred_time_controls?: string[]
           reveal_before_solve?: boolean
           shares_count?: number
-          signup_source?: string | null
           show_answer_on_miss?: boolean
           show_engine_evals?: boolean
+          signup_source?: string | null
           sounds_enabled?: boolean
           streak_freezes?: number
           streak_freezes_used?: number
+          supporter_prompt_count?: number
+          supporter_prompted_at?: string | null
           timezone?: string | null
           used_training_filter?: boolean
         }
         Update: {
           anon_id?: string | null
+          app_opens?: number
           autoplay_refutation?: boolean
           avatar_url?: string | null
           board_theme?: string
-          commitment_level?: string
-          daily_games_goal?: number
-          daily_positions_goal?: number
           chesscom_username?: string | null
-          created_at?: string | null
-          current_streak_days?: number
-          display_name?: string | null
+          commitment_level?: string
           contact_email?: string | null
           contact_email_verified_at?: string | null
+          course_prompt_count?: number
+          course_prompted_at?: string | null
+          created_at?: string | null
+          current_streak_days?: number
+          daily_games_goal?: number
+          daily_positions_goal?: number
+          display_name?: string | null
           email_hour?: number
           email_opt_in?: boolean
+          email_prompt_count?: number
           email_prompted_at?: string | null
           email_reminders?: string
           email_reports?: string
           email_unsub_token?: string
+          email_unsubscribed_at?: string | null
           flair?: string | null
           followed_instagram?: boolean
           id?: string
           last_drill_local_date?: string | null
           last_synced_chesscom_at?: string | null
           last_synced_lichess_at?: string | null
-          learn_chapters_done?: string[]
           leaderboard_opt_out?: boolean
+          learn_chapters_done?: string[]
           lichess_username?: string | null
           longest_streak_days?: number
           opening_reviews_opened?: number
           preferred_rated_only?: boolean
+          preferred_time_controls?: string[]
           referral_code?: string
           referrals_count?: number
           referred_by?: string | null
-          preferred_time_controls?: string[]
           reveal_before_solve?: boolean
           shares_count?: number
-          signup_source?: string | null
           show_answer_on_miss?: boolean
           show_engine_evals?: boolean
+          signup_source?: string | null
           sounds_enabled?: boolean
           streak_freezes?: number
           streak_freezes_used?: number
+          supporter_prompt_count?: number
+          supporter_prompted_at?: string | null
           timezone?: string | null
           used_training_filter?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_referred_by_fkey"
+            columns: ["referred_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_leaderboard_cache: {
+        Row: {
+          computed_at: string
+          id: number
+          payload: Json
+        }
+        Insert: {
+          computed_at?: string
+          id?: number
+          payload: Json
+        }
+        Update: {
+          computed_at?: string
+          id?: number
+          payload?: Json
         }
         Relationships: []
       }
@@ -721,23 +882,54 @@ export type Database = {
     Functions: {
       admin_email_stats: { Args: never; Returns: Json }
       admin_kpis: { Args: never; Returns: Json }
-      admin_user_list: { Args: { category: string }; Returns: Json }
       admin_landing_ctas: { Args: { days?: number }; Returns: Json }
-      admin_outreach_leads: { Args: { segment: string }; Returns: Json }
-      admin_retention: { Args: never; Returns: Json }
       admin_mark_contacted: {
-        Args: { lead_key: string; segment: string; note?: string }
+        Args: { lead_key: string; note?: string; segment: string }
         Returns: undefined
       }
+      admin_outreach_leads: { Args: { segment: string }; Returns: Json }
+      admin_retention: { Args: never; Returns: Json }
       admin_unmark_contacted: { Args: { lead_key: string }; Returns: undefined }
+      admin_user_list: { Args: { category: string }; Returns: Json }
       apply_game_openings: { Args: { p_rows: Json }; Returns: number }
-      get_blunder_motif_counts: { Args: never; Returns: Json }
       blunder_counts_by_game: { Args: never; Returns: Json }
-      increment_opening_reviews: { Args: never; Returns: number }
+      bump_app_open: { Args: never; Returns: number }
       claim_referral: { Args: { code: string }; Returns: boolean }
       claim_signup_source: { Args: { source: string }; Returns: boolean }
+      confirm_event_digest: {
+        Args: { p_token: string }
+        Returns: {
+          country: string
+          region: string
+        }[]
+      }
+      email_candidates: {
+        Args: { p_now?: string; p_user?: string }
+        Returns: {
+          data: Json
+          kind: string
+          to_email: string
+          unsub_token: string
+          user_id: string
+        }[]
+      }
       email_confirm: { Args: { p_token: string }; Returns: Json }
+      email_outbox: {
+        Args: { p_now?: string }
+        Returns: {
+          data: Json
+          kind: string
+          to_email: string
+          unsub_token: string
+          user_id: string
+        }[]
+      }
       email_prefs_by_token: { Args: { p_token: string }; Returns: Json }
+      email_prefs_json: { Args: { p_user: string }; Returns: Json }
+      email_report_data: {
+        Args: { p_now: string; p_since: string; p_user: string }
+        Returns: Json
+      }
       email_unsubscribe: { Args: { p_token: string }; Returns: Json }
       email_update_prefs_by_token: {
         Args: {
@@ -749,15 +941,35 @@ export type Database = {
         }
         Returns: Json
       }
+      gen_referral_code: { Args: never; Returns: string }
+      get_blunder_motif_counts: { Args: never; Returns: Json }
+      increment_opening_reviews: { Args: never; Returns: number }
       increment_shares_count: { Args: never; Returns: number }
+      is_admin: { Args: never; Returns: boolean }
       landing_stats: { Args: never; Returns: Json }
       leaderboard: {
         Args: { limit_n?: number; metric: string; win: string }
         Returns: Json
       }
+      mark_ask_prompted: { Args: { p_ask: string }; Returns: undefined }
       mark_learn_chapter_done: { Args: { key: string }; Returns: number }
       public_leaderboard: { Args: never; Returns: Json }
+      subscribe_event_digest: {
+        Args: {
+          p_country: string
+          p_email: string
+          p_region: string
+          p_source_path: string
+        }
+        Returns: {
+          confirm_token: string
+          send_confirm: boolean
+          status: string
+          unsub_token: string
+        }[]
+      }
       training_totals: { Args: never; Returns: Json }
+      unsubscribe_event_digest: { Args: { p_token: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
