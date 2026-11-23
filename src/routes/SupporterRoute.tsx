@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { LandingTopBar } from '../components/landing/LandingTopBar';
@@ -10,6 +10,7 @@ import { useSupporter } from '../hooks/useSupporter';
 import { useSupporterCheckout } from '../hooks/useSupporterCheckout';
 import { useHead } from '../seo/useHead';
 import { breadcrumbJsonLd } from '../seo/jsonLd';
+import { SUPPORTER_CHECKOUT_RESUME, loginUrlWithNext } from '../lib/nextPath';
 
 const PERKS: { title: string; body: string }[] = [
   { title: 'Flair', body: 'A badge next to your name on your profile and on the leaderboards.' },
@@ -27,10 +28,12 @@ const CTA =
  */
 export function SupporterRoute() {
   const { session } = useAuth();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const thanks = params.get('thanks') === '1';
-  const { status, isSupporter } = useSupporter();
+  const resumeCheckout = params.get('checkout') === '1';
+  const { status, isSupporter, isPending: supporterPending } = useSupporter();
   const { checkout, manage, pending, error } = useSupporterCheckout();
+  const resumed = useRef(false);
   const { data: stats } = useLandingStats();
   const elo = (stats ?? LANDING_STATS_SNAPSHOT).eloGained;
   const queryClient = useQueryClient();
@@ -47,6 +50,23 @@ export function SupporterRoute() {
       ]),
     ],
   });
+
+  // Back from sign-in (`/login?next=/supporter?checkout=1`): start checkout
+  // once, as soon as we know this player isn't a supporter already. The param
+  // is dropped first so a Back from Stripe doesn't bounce straight there again.
+  useEffect(() => {
+    if (!resumeCheckout || !session || supporterPending || resumed.current) return;
+    resumed.current = true;
+    setParams(
+      (p) => {
+        const nextParams = new URLSearchParams(p);
+        nextParams.delete('checkout');
+        return nextParams;
+      },
+      { replace: true },
+    );
+    if (!isSupporter) checkout();
+  }, [resumeCheckout, session, supporterPending, isSupporter, checkout, setParams]);
 
   // Back from Checkout: the webhook usually lands within seconds.
   useEffect(() => {
@@ -113,10 +133,10 @@ export function SupporterRoute() {
               </>
             ) : (
               <>
-                <p className="text-text-primary">Sign in first, then come back here to become a supporter.</p>
+                <p className="text-text-primary">Sign in and we'll take you straight to checkout.</p>
                 <div>
-                  <Link to="/login" className={CTA}>
-                    Sign up free
+                  <Link to={loginUrlWithNext(SUPPORTER_CHECKOUT_RESUME)} className={CTA} data-testid="supporter-sign-in">
+                    Sign in to support
                   </Link>
                 </div>
               </>
