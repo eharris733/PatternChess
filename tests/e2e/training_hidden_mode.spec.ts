@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { stubApp } from './helpers/api';
 
 // The training screen's pre-solve information policy:
 //  - reveal_before_solve = false (the default, "Hide extra info when solving"):
@@ -8,25 +9,6 @@ import { expect, test, type Page } from '@playwright/test';
 //  - reveal_before_solve = true: the classic review step ("I'm ready") shows
 //    the played move and refutation up front, and the "See what you played"
 //    button is available while solving.
-
-const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
-
-const FAKE_SESSION = {
-  access_token: 'fake',
-  token_type: 'bearer',
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  refresh_token: 'fake-refresh',
-  user: {
-    id: 'e2e-user',
-    aud: 'authenticated',
-    role: 'authenticated',
-    email: 'e2e@example.com',
-    user_metadata: { full_name: 'E2E User', avatar_url: null },
-    app_metadata: {},
-    created_at: new Date().toISOString(),
-  },
-};
 
 function makeProfile(revealBeforeSolve: boolean) {
   return {
@@ -112,58 +94,23 @@ async function stubTrainingAuth(
   page: Page,
   opts: { revealBeforeSolve: boolean; blunders?: Record<string, unknown>[] },
 ) {
-  await page.addInitScript(
-    ({ session, project, profile, blunders, game }) => {
-      // Capture share-link copies without needing real clipboard permissions.
-      Object.defineProperty(navigator, 'clipboard', {
-        value: {
-          writeText: (text: string) => {
-            (window as any).__copiedText = text;
-            return Promise.resolve();
-          },
+  // Capture share-link copies without needing real clipboard permissions.
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: (text: string) => {
+          (window as any).__copiedText = text;
+          return Promise.resolve();
         },
-        configurable: true,
-      });
-
-      const origFetch = window.fetch.bind(window);
-      window.fetch = (input: any, init?: any) => {
-        const url = typeof input === 'string' ? input : input?.url ?? '';
-        if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
-          const method = (
-            init?.method ??
-            (typeof input === 'object' ? input?.method : undefined) ??
-            'GET'
-          ).toUpperCase();
-          const json = (body: unknown) =>
-            Promise.resolve(
-              new Response(JSON.stringify(body), {
-                status: 200,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          if (url.includes('/auth/v1/user')) return json(session.user);
-          if (method === 'HEAD') {
-            return Promise.resolve(
-              new Response(null, { status: 200, headers: { 'content-range': '*/3' } }),
-            );
-          }
-          if (url.includes('/rest/v1/profiles')) return json(profile);
-          if (url.includes('/rest/v1/blunders')) return json(blunders);
-          if (url.includes('/rest/v1/games')) return json(game);
-          return json([]);
-        }
-        return origFetch(input, init);
-      };
-      localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
-    },
-    {
-      session: FAKE_SESSION,
-      project: SUPABASE_PROJECT,
-      profile: makeProfile(opts.revealBeforeSolve),
-      blunders: opts.blunders ?? BLUNDERS,
-      game: GAME,
-    },
-  );
+      },
+      configurable: true,
+    });
+  });
+  await stubApp(page, {
+    profile: makeProfile(opts.revealBeforeSolve),
+    blunders: opts.blunders ?? BLUNDERS,
+    games: [GAME],
+  });
 }
 
 async function dragMove(page: Page, from: { file: number; rank: number }, to: { file: number; rank: number }) {

@@ -1,10 +1,10 @@
-import { supabase } from '../lib/supabase';
+import { rpc } from '../lib/api';
 import { getAnonId } from '../lib/anonId';
 
 // Anonymous landing-funnel events. Inserts are fire-and-forget and never throw
-// — analytics must never break the page. The funnel_events table allows anon
-// inserts (see the landing_funnel migration); only the admin_kpis() RPC reads
-// it back. Bot filtering happens at read time (user-agent) plus the human-signal
+// — analytics must never break the page. `funnel.track` is a public RPC
+// (functions/_shared/rpc/admin.ts) that validates and inserts one row; only the
+// admin.* RPCs read it back. Bot filtering happens at read time (user-agent) plus the human-signal
 // gating in useLandingView.
 type FunnelType = 'landing_view' | 'demo_submit' | 'cta_click' | 'lead_return';
 
@@ -12,7 +12,7 @@ async function track(type: FunnelType, fields: Record<string, unknown>): Promise
   const anonId = getAnonId();
   if (!anonId) return;
   try {
-    await supabase.from('funnel_events').insert({
+    await rpc('funnel.track', {
       anon_id: anonId,
       type,
       user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,

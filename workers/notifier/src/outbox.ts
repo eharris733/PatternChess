@@ -1,6 +1,6 @@
-// Pure pieces of the notifier: turning an `email_outbox` / `email_candidates`
-// row (migration 20261122120000) into template data and links, and the
-// test-mode recipient gate. No I/O here, so it is unit-tested directly.
+// Pure pieces of the notifier: turning an outbox / candidate row (store.ts,
+// decided by rules.ts) into template data and links, and the test-mode
+// recipient gate. No I/O here, so it is unit-tested directly.
 
 import { MOTIF_LABEL } from './motifLabels';
 import type { EmailData, EmailKind, EmailLinks } from './templates';

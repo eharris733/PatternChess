@@ -1,6 +1,5 @@
-import { createContext, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import type { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { createContext, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { authClient, isPlaceholderEmail } from '../lib/authClient';
 import { queryClient } from '../lib/queryClient';
 import { clearPersistedQueries, shouldPersistQuery } from '../lib/queryPersist';
 import { authService } from '../services/authService';
@@ -12,12 +11,48 @@ import { useOnboardingStore } from '../state/onboardingStore';
 import { hasStoredTheme, useThemeStore } from '../state/themeStore';
 import { setCachedUserId } from '../services/db/currentUser';
 
+export type AuthProviderId = 'google' | 'lichess' | 'email';
+
+/**
+ * The signed-in user. `email` is null for Lichess accounts (better-auth stores
+ * a `<id>@lichess.invalid` placeholder, which never leaves this mapping).
+ * `user_metadata` / `app_metadata` mirror the Supabase fields the app used to
+ * read, so older readers keep working.
+ */
+export interface AuthUser {
+  id: string;
+  email: string | null;
+  name: string | null;
+  image: string | null;
+  emailVerified: boolean;
+  provider: AuthProviderId;
+  createdAt: string | null;
+  user_metadata: {
+    full_name?: string;
+    name?: string;
+    avatar_url?: string;
+    picture?: string;
+    preferred_username?: string;
+  };
+  app_metadata: { provider: AuthProviderId };
+}
+
+export interface AuthSession {
+  /** better-auth session id. */
+  id: string;
+  user: AuthUser;
+  expiresAt: string | null;
+}
+
 export interface AuthContextValue {
-  session: Session | null;
-  user: User | null;
+  session: AuthSession | null;
+  user: AuthUser | null;
   profile: UserProfile | null;
   loading: boolean;
   refreshProfile: () => Promise<void>;
+  /** Re-read the session from the server (e.g. after a profile/email change). */
+  refreshSession: () => Promise<void>;
+  signOut: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue>({
@@ -26,7 +61,47 @@ export const AuthContext = createContext<AuthContextValue>({
   profile: null,
   loading: true,
   refreshProfile: async () => {},
+  refreshSession: async () => {},
+  signOut: async () => {},
 });
+
+interface RawUser {
+  id: string;
+  email?: string | null;
+  name?: string | null;
+  image?: string | null;
+  emailVerified?: boolean | null;
+  createdAt?: Date | string | null;
+}
+
+function iso(v: Date | string | null | undefined): string | null {
+  if (!v) return null;
+  return v instanceof Date ? v.toISOString() : String(v);
+}
+
+export function toAuthUser(raw: RawUser): AuthUser {
+  const lichess = isPlaceholderEmail(raw.email);
+  const provider: AuthProviderId = lichess ? 'lichess' : raw.emailVerified ? 'google' : 'email';
+  const name = raw.name || undefined;
+  const image = raw.image || undefined;
+  return {
+    id: raw.id,
+    email: lichess ? null : (raw.email ?? null),
+    name: raw.name ?? null,
+    image: raw.image ?? null,
+    emailVerified: !!raw.emailVerified,
+    provider,
+    createdAt: iso(raw.createdAt),
+    user_metadata: {
+      full_name: lichess ? undefined : name,
+      name,
+      avatar_url: image,
+      picture: image,
+      preferred_username: lichess ? name : undefined,
+    },
+    app_metadata: { provider },
+  };
+}
 
 function scrubAuthFromUrl() {
   const url = new URL(window.location.href);
@@ -40,13 +115,45 @@ function scrubAuthFromUrl() {
   url.searchParams.delete('error');
   url.searchParams.delete('error_description');
   url.hash = '';
-  window.history.replaceState({}, '', url.pathname + url.search);
+  window.history.replaceState(window.history.state, '', url.pathname + url.search);
+}
+
+/** Never leave one account's cached games/stats for the next sign-in. */
+function clearUserState() {
+  queryClient.removeQueries({ predicate: shouldPersistQuery });
+  void clearPersistedQueries();
+  useSyncStore.getState().reset();
+  useOnboardingStore.getState().reset();
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const { data, isPending, refetch } = authClient.useSession();
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  // The user whose profile is loaded (or loading). The session atom re-emits
+  // on every refetch (window focus etc.), so profile/referral work is keyed on
+  // the user id changing, not on the emission.
+  const loadedUserId = useRef<string | null>(null);
+  const prevUserId = useRef<string | null | undefined>(undefined);
+
+  const rawUser = (data?.user ?? null) as RawUser | null;
+  const rawSession = (data?.session ?? null) as { id: string; expiresAt?: Date | string | null } | null;
+  const userKey = rawUser
+    ? [rawUser.id, rawUser.email, rawUser.name, rawUser.image, rawUser.emailVerified].join('|')
+    : '';
+  const sessionKey = rawSession ? `${rawSession.id}|${iso(rawSession.expiresAt)}` : '';
+
+  // Keep the same object while nothing meaningful changed, so the context (and
+  // its ~80 consumers) don't re-render on every refetch.
+  const session = useMemo<AuthSession | null>(
+    () =>
+      rawUser && rawSession
+        ? { id: rawSession.id, user: toAuthUser(rawUser), expiresAt: iso(rawSession.expiresAt) }
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [userKey, sessionKey],
+  );
+  const userId = session?.user.id ?? null;
+  const loading = isPending && !data;
 
   const refreshProfile = useCallback(async () => {
     try {
@@ -57,92 +164,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const refreshSession = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
+
+  const signOut = useCallback(async () => {
+    await authService.signOut();
+  }, []);
+
+  // Session changes: cache the id, clear state on sign-out / account switch,
+  // and load (or create) the profile for a newly signed-in user.
   useEffect(() => {
+    if (loading) return;
+    setCachedUserId(userId);
+    scrubAuthFromUrl();
+    const prev = prevUserId.current;
+    prevUserId.current = userId;
+    if (prev && prev !== userId) clearUserState();
+
+    const user = session?.user ?? null;
+    if (!user) {
+      loadedUserId.current = null;
+      setProfile(null);
+      return;
+    }
+    if (user.id === loadedUserId.current) return;
+    loadedUserId.current = user.id;
     let cancelled = false;
-    // The user whose profile is loaded (or loading). supabase-js emits
-    // SIGNED_IN on every boot and every tab refocus (_recoverAndRefresh), not
-    // just on a real sign-in, so profile/referral work is keyed on the user id
-    // changing rather than on the event.
-    let loadedUserId: string | null = null;
-
-    const adoptSession = (next: Session | null) => {
-      setCachedUserId(next?.user?.id ?? null);
-      // Keep the old object when nothing meaningful changed, so the context
-      // (and its ~60 consumers) don't re-render on every auth event.
-      setSession((prev) =>
-        prev?.user?.id === next?.user?.id && prev?.access_token === next?.access_token
-          ? prev
-          : next,
-      );
-      const nextUser = next?.user ?? null;
-      if (!nextUser) {
-        loadedUserId = null;
-        setProfile(null);
-        return;
-      }
-      if (nextUser.id === loadedUserId) return;
-      loadedUserId = nextUser.id;
-      // Deferred out of the auth callback: supabase calls started inside it
-      // queue behind the gotrue lock the callback runs under.
-      setTimeout(() => {
-        void authService
-          .getOrCreateProfile(nextUser)
-          .then((p) => {
-            if (cancelled || loadedUserId !== p.id) return;
-            setProfile(p);
-            const ref = takeStoredReferral();
-            if (ref && ref !== p.referralCode) {
-              void authService
-                .claimReferral(ref)
-                .catch((err) => console.warn('[auth] claim_referral failed', err));
-            }
-            const source = takeStoredSignupSource();
-            if (source) {
-              void authService
-                .claimSignupSource(source)
-                .catch((err) => console.warn('[auth] claim_signup_source failed', err));
-            }
-          })
-          .catch((err) => {
-            console.warn('[auth] getOrCreateProfile failed', err);
-            // Let the next auth event retry.
-            if (loadedUserId === nextUser.id) loadedUserId = null;
-          });
-      }, 0);
-    };
-
-    supabase.auth
-      .getSession()
-      .then(({ data }) => {
-        if (cancelled) return;
-        adoptSession(data.session ?? null);
-        scrubAuthFromUrl();
-        setLoading(false);
+    void authService
+      .getOrCreateProfile(user)
+      .then((p) => {
+        if (cancelled || loadedUserId.current !== p.id) return;
+        setProfile(p);
+        const ref = takeStoredReferral();
+        if (ref && ref !== p.referralCode) {
+          void authService
+            .claimReferral(ref)
+            .catch((err) => console.warn('[auth] claim_referral failed', err));
+        }
+        const source = takeStoredSignupSource();
+        if (source) {
+          void authService
+            .claimSignupSource(source)
+            .catch((err) => console.warn('[auth] claim_signup_source failed', err));
+        }
       })
-      .catch(() => {
-        if (!cancelled) setLoading(false);
+      .catch((err) => {
+        console.warn('[auth] getOrCreateProfile failed', err);
+        // Let the next session emission retry.
+        if (loadedUserId.current === user.id) loadedUserId.current = null;
       });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      if (cancelled) return;
-      adoptSession(nextSession ?? null);
-      scrubAuthFromUrl();
-      if (event === 'SIGNED_OUT') {
-        // Never leave one account's cached games/stats for the next sign-in.
-        queryClient.removeQueries({ predicate: shouldPersistQuery });
-        void clearPersistedQueries();
-        useSyncStore.getState().reset();
-        useOnboardingStore.getState().reset();
-      }
-    });
-
     return () => {
       cancelled = true;
-      subscription.unsubscribe();
+      // StrictMode/unmount: allow the re-run to load again.
+      if (loadedUserId.current === user.id) loadedUserId.current = null;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, userId]);
 
   const timeControlsKey = profile
     ? [...profile.preferredTimeControls].sort().join(',')
@@ -184,13 +262,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [profile?.id]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ session, user: session?.user ?? null, profile, loading, refreshProfile }),
-    [session, profile, loading, refreshProfile],
+    () => ({
+      session,
+      user: session?.user ?? null,
+      profile,
+      loading,
+      refreshProfile,
+      refreshSession,
+      signOut,
+    }),
+    [session, profile, loading, refreshProfile, refreshSession, signOut],
   );
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

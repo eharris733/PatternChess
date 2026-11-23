@@ -1,22 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-
-const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
-const FAKE_SESSION = {
-  access_token: 'fake',
-  token_type: 'bearer',
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  refresh_token: 'fake-refresh',
-  user: {
-    id: 'e2e-user',
-    aud: 'authenticated',
-    role: 'authenticated',
-    email: 'e2e@example.com',
-    user_metadata: { full_name: 'E2E User', avatar_url: null },
-    app_metadata: {},
-    created_at: new Date().toISOString(),
-  },
-};
+import { stubApp } from './helpers/api';
 
 // After 1.e4 e5: white plays 2.Qh5 instead of the book's 2.Nf3 / 2.Bc4.
 const FEN = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2';
@@ -93,65 +76,39 @@ const ROWS = [
   }),
 ];
 
+// The King's Pawn exit has an opening drill (b1), one rung up and due.
+const DRILL = {
+  id: 'b1', game_id: 'g1', kind: 'opening', fen: FEN,
+  move_number: 2, played_move: 'd1h5', correct_moves: [{ move: 'g1f3', eval: 30 }],
+  eval_before: 30, eval_after: 60, eval_swing: 30, side_to_move: 'white',
+  cycle_number: 1, times_correct: 1, times_attempted: 1, last_drill_failed: false,
+  last_drilled_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+  next_drill_at: new Date(Date.now() - 86_400_000).toISOString(),
+  created_at: new Date().toISOString(), phase: 'opening', drill_data: null,
+};
+
+/** `state.unanalyzed` is read live, so a test can let sync analysis "finish". */
 async function stubAuth(
   page: Page,
   deviations: unknown[],
   opts: { unanalyzed?: number; reportReady?: boolean } = {},
 ) {
-  await page.addInitScript(
-    ({ session, project, deviations, unanalyzed, reportReady }) => {
-      if (reportReady) localStorage.setItem(`pc:openings-ready:${session.user.id}`, '1');
-      const origFetch = window.fetch.bind(window);
-      window.fetch = (input: any, init?: any) => {
-        const url = typeof input === 'string' ? input : input?.url ?? '';
-        if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
-          const method = (init?.method ?? (typeof input === 'object' ? input?.method : undefined) ?? 'GET').toUpperCase();
-          if (url.includes('/auth/v1/user')) {
-            return Promise.resolve(new Response(JSON.stringify(session.user), { status: 200 }));
-          }
-          if (method === 'HEAD') {
-            // Nothing left to walk or score: the scan exits without touching the engine.
-            // `analyzed_at=is.null` is the unanalyzed-games count the report waits on.
-            const n = !url.includes('/games') || url.includes('opening_deviation_version')
-              ? 0
-              : url.includes('analyzed_at=is.null')
-                ? ((window as any).__unanalyzed ?? unanalyzed)
-                : 3;
-            return Promise.resolve(new Response(null, { status: 200, headers: { 'content-range': `*/${n}` } }));
-          }
-          // The King's Pawn exit has an opening drill (b1), one rung up and due.
-          const drill = {
-            id: 'b1', game_id: 'g1', kind: 'opening', fen: 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2',
-            move_number: 2, played_move: 'd1h5', correct_moves: [{ move: 'g1f3', eval: 30 }],
-            eval_before: 30, eval_after: 60, eval_swing: 30, side_to_move: 'white',
-            cycle_number: 1, times_correct: 1, times_attempted: 1, last_drill_failed: false,
-            last_drilled_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
-            next_drill_at: new Date(Date.now() - 86_400_000).toISOString(),
-            created_at: new Date().toISOString(), phase: 'opening', drill_data: null,
-          };
-          const body = url.includes('/rest/v1/opening_deviations')
-            ? deviations
-            : url.includes('/rest/v1/blunders') &&
-                (url.includes('kind=eq.opening') || url.includes('id=in.')) &&
-                deviations.length > 0
-              ? [drill]
-              : [];
-          return Promise.resolve(
-            new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } }),
-          );
-        }
-        return origFetch(input, init);
-      };
-      localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
+  const state = { unanalyzed: opts.unanalyzed ?? 0 };
+  if (opts.reportReady) {
+    await page.addInitScript(() => localStorage.setItem('pc:openings-ready:e2e-user', '1'));
+  }
+  const drills = () => (deviations.length > 0 ? [DRILL] : []);
+  await stubApp(page, {
+    rpc: {
+      'openings.list': () => deviations,
+      // Nothing left to walk or score: the scan exits without touching the engine.
+      // games.countUnanalyzed is the unanalyzed-games count the report waits on.
+      'games.countUnanalyzed': () => state.unanalyzed,
+      'blunders.drillsOfKind': (args) => (args.kind === 'opening' ? drills() : []),
+      'blunders.byIds': (args) => drills().filter((d) => (args.ids as string[]).includes(d.id)),
     },
-    {
-      session: FAKE_SESSION,
-      project: SUPABASE_PROJECT,
-      deviations,
-      unanalyzed: opts.unanalyzed ?? 0,
-      reportReady: opts.reportReady ?? false,
-    },
-  );
+  });
+  return state;
 }
 
 test('groups recurring theory exits per opening with theory arrows', async ({ page }) => {
@@ -220,7 +177,7 @@ test('empty state points at the dashboard', async ({ page }) => {
 });
 
 test('holds the report behind a progress checklist until every game is analyzed', async ({ page }) => {
-  await stubAuth(page, ROWS, { unanalyzed: 3 });
+  const state = await stubAuth(page, ROWS, { unanalyzed: 3 });
   await page.goto('/openings');
   const panel = page.getByTestId('openings-building');
   await expect(panel).toContainText('Building your openings report');
@@ -232,7 +189,7 @@ test('holds the report behind a progress checklist until every game is analyzed'
   await expect(page.locator('body')).not.toContainText('Paused');
 
   // Sync analysis finishes: the scan resumes by itself and the report appears, no reload.
-  await page.evaluate(() => ((window as any).__unanalyzed = 0));
+  state.unanalyzed = 0;
   await expect(page.getByTestId('opening-section')).toHaveCount(3, { timeout: 20_000 });
   await expect(panel).toHaveCount(0);
 });

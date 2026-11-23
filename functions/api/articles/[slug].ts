@@ -1,6 +1,8 @@
-import { PERK_STATUSES, authedUser, json, supporterBy, type SupabaseEnv } from '../../_shared/supporters';
+import { getSessionUser } from '../../_shared/auth';
+import type { AppEnv } from '../../_shared/db';
+import { PERK_STATUSES, json, supporterBy } from '../../_shared/supporters';
 
-interface Env extends SupabaseEnv {
+interface Env extends AppEnv {
   /** KV `patternchess-content`: `article:<slug>` → rendered HTML (npm run articles:sync). */
   CONTENT: KVNamespace;
 }
@@ -11,7 +13,7 @@ interface Env extends SupabaseEnv {
  * are public in src/generated/articles.json.
  */
 export const onRequestGet: PagesFunction<Env> = async ({ request, env, params }) => {
-  const user = await authedUser(request, env);
+  const user = await getSessionUser(request, env);
   if (!user) return json({ error: 'sign_in_required' }, 401);
 
   const row = await supporterBy(env, 'user_id', user.id);

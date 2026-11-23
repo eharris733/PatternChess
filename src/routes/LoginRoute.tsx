@@ -8,11 +8,20 @@ import { useHead } from '../seo/useHead';
 import { trackLeadReturn } from '../services/funnelService';
 import { readSourceParam, stripWinBackParams } from '../lib/winBack';
 
+/** A readable line for better-auth's `?error=` callback codes. */
+function oauthErrorMessage(search: string): string | null {
+  const code = new URLSearchParams(search).get('error');
+  if (!code) return null;
+  if (/access_denied|cancel/i.test(code)) return 'Sign-in was cancelled.';
+  return 'Sign-in did not finish. Please try again.';
+}
+
 export function LoginRoute() {
   const { session, loading } = useAuth();
   const location = useLocation() as { state?: { from?: { pathname: string } } };
   const [signingIn, setSigningIn] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // better-auth sends a failed OAuth callback back here as `?error=<code>`.
+  const [error, setError] = useState<string | null>(() => oauthErrorMessage(window.location.search));
   useForceDefaultTheme();
   // Not prerendered with its own content before this hook existed, so /login
   // used to inherit the landing page's canonical + JSON-LD from the SPA

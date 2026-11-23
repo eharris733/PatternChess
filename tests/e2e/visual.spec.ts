@@ -1,72 +1,15 @@
 import { expect, test } from '@playwright/test';
+import { stubApp } from './helpers/api';
 
-const FAKE_SESSION = {
-  access_token: 'fake',
-  token_type: 'bearer',
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  refresh_token: 'fake-refresh',
-  user: {
-    id: 'e2e-user',
-    aud: 'authenticated',
-    role: 'authenticated',
-    email: 'e2e@example.com',
-    user_metadata: { full_name: 'E2E User', avatar_url: null },
-    app_metadata: {},
-    created_at: new Date().toISOString(),
-  },
-};
-const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
-
-// `gameCount` controls the total-game-count HEAD query that drives the
-// onboarding gate: a positive count means an "established" user (gate stays
-// hidden, normal routes render); 0 means a brand-new user (the onboarding flow
-// preempts non-bypass routes).
+// `gameCount` drives the onboarding gate (games.totalCount): a positive count
+// means an "established" user (gate stays hidden, normal routes render); 0
+// means a brand-new user (the onboarding flow preempts non-bypass routes).
+// The same count is reported as unanalyzed, so /openings is still building.
 async function stubAuth(page: import('@playwright/test').Page, gameCount = 3) {
-  await page.addInitScript(
-    ({ session, project, gameCount }) => {
-      const origFetch = window.fetch.bind(window);
-      window.fetch = (input: any, init?: any) => {
-        const url = typeof input === 'string' ? input : input?.url ?? '';
-        if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
-          const method = (
-            init?.method ??
-            (typeof input === 'object' ? input?.method : undefined) ??
-            'GET'
-          ).toUpperCase();
-          // GoTrue user lookup — return the stubbed user so currentUserId()
-          // (used by the onboarding gate's game-count query) resolves.
-          if (url.includes('/auth/v1/user')) {
-            return Promise.resolve(
-              new Response(JSON.stringify(session.user), {
-                status: 200,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          }
-          // supabase-js issues a HEAD request for exact-count queries; PostgREST
-          // returns the total in the content-range header.
-          if (method === 'HEAD') {
-            return Promise.resolve(
-              new Response(null, {
-                status: 200,
-                headers: { 'content-range': `*/${gameCount}` },
-              }),
-            );
-          }
-          return Promise.resolve(
-            new Response(JSON.stringify([]), {
-              status: 200,
-              headers: { 'content-type': 'application/json' },
-            }),
-          );
-        }
-        return origFetch(input, init);
-      };
-      localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
-    },
-    { session: FAKE_SESSION, project: SUPABASE_PROJECT, gameCount },
-  );
+  await stubApp(page, {
+    gameCount,
+    rpc: { 'games.countUnanalyzed': () => gameCount },
+  });
 }
 
 const ROUTES: Array<{ path: string; name: string; expect: (p: import('@playwright/test').Page) => Promise<void> }> = [
@@ -121,14 +64,6 @@ const ROUTES: Array<{ path: string; name: string; expect: (p: import('@playwrigh
       await expect(p.getByRole('heading', { name: /Where you leave theory/i })).toBeVisible();
       // The stub reports 3 unanalyzed games: the report is still being built.
       await expect(p.getByTestId('openings-building')).toBeVisible();
-    },
-  },
-  {
-    path: '/learn',
-    name: 'learn',
-    expect: async (p) => {
-      await expect(p.getByRole('heading', { name: /Study library/i })).toBeVisible();
-      await expect(p.getByTestId('tab-openings')).toBeVisible();
     },
   },
   {

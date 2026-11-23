@@ -23,6 +23,7 @@ import { useRepertoire } from '../hooks/useRepertoire';
 import { useAuth } from '../auth/useAuth';
 import { recordOpeningReview } from '../lib/openingReviews';
 import { studiesForOpening } from '../learn/catalog';
+import { useFeature } from '../hooks/useFeature';
 import { srBucket, type Blunder } from '../models/blunder';
 import { repertoireMoveFor, type RepertoireMap } from '../models/repertoire';
 import { startOpeningDeviationScan } from '../services/openingDeviationService';
@@ -187,7 +188,8 @@ function OpeningPatternCard({
   const due = drills.filter((d) => isDue(d)).length;
   const costlyGames = costlyExitGames(summary);
   const exitMove = typicalExitMove(summary);
-  const studies = studiesForOpening(summary.family, summary.color);
+  const learnOn = useFeature('learn');
+  const studies = learnOn ? studiesForOpening(summary.family, summary.color) : [];
   const name = familyName(summary);
   const hiddenSound = summary.leaks.length - trainable.length;
 

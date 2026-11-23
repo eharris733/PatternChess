@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { RequireAuth } from './auth/RequireAuth';
@@ -17,6 +17,8 @@ import { SupporterRoute } from './routes/SupporterRoute';
 import { BlogIndex } from './routes/BlogIndex';
 import { BlogPost } from './routes/BlogPost';
 import { NotFoundRoute } from './routes/NotFoundRoute';
+import { useFeature } from './hooks/useFeature';
+import type { Feature } from './lib/features';
 
 // /p (shared puzzles) is public but not prerendered, and it is the only eager
 // route that pulls in chessground; lazy-loading it keeps the board library
@@ -65,6 +67,11 @@ const EngineTestRoute = lazy(() =>
 );
 
 /** Old /achievements?tab=leaderboards links: leaderboards have their own route now. */
+/** Unreleased features (src/lib/features.ts): admins only, everyone else lands on the dashboard. */
+function Gated({ feature, children }: { feature: Feature; children: ReactNode }) {
+  return useFeature(feature) ? <>{children}</> : <Navigate to="/dashboard" replace />;
+}
+
 function AchievementsOrLeaderboards() {
   const { search } = useLocation();
   if (new URLSearchParams(search).get('tab') === 'leaderboards') return <Navigate to="/leaderboards" replace />;
@@ -118,12 +125,12 @@ export default function App() {
         <Route path="/openings" element={<OpeningsRoute />} />
         {/* The game-replay review was removed (2026-10-03); old links land on /openings. */}
         <Route path="/openings/review/*" element={<Navigate to="/openings" replace />} />
-        <Route path="/learn" element={<LearnRoute />} />
-        <Route path="/learn/:slug/:chapter?" element={<LearnStudyRoute />} />
+        <Route path="/learn" element={<Gated feature="learn"><LearnRoute /></Gated>} />
+        <Route path="/learn/:slug/:chapter?" element={<Gated feature="learn"><LearnStudyRoute /></Gated>} />
         <Route path="/profile" element={<ProfileRoute />} />
         <Route path="/leaderboards" element={<LeaderboardsRoute />} />
-        <Route path="/path" element={<PathRoute />} />
-        <Route path="/path/:slug" element={<ArticleRoute />} />
+        <Route path="/path" element={<Gated feature="path"><PathRoute /></Gated>} />
+        <Route path="/path/:slug" element={<Gated feature="path"><ArticleRoute /></Gated>} />
         <Route path="/achievements" element={<AchievementsOrLeaderboards />} />
         <Route path="/analytics" element={<AnalyticsRoute />} />
         <Route path="/__sandbox" element={<SandboxRoute />} />

@@ -1,26 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
+import { stubApp, type RpcHandlers } from './helpers/api';
 
 // New "Discovery" achievements: endgame rescues (/endgames) and using a
 // training-picker focus (opening/motif/phase/situation) at least once.
-
-const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
-
-const FAKE_SESSION = {
-  access_token: 'fake',
-  token_type: 'bearer',
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  refresh_token: 'fake-refresh',
-  user: {
-    id: 'e2e-user',
-    aud: 'authenticated',
-    role: 'authenticated',
-    email: 'e2e@example.com',
-    user_metadata: { full_name: 'E2E User', avatar_url: null },
-    app_metadata: {},
-    created_at: new Date().toISOString(),
-  },
-};
 
 function makeProfile(usedTrainingFilter: boolean, extra: Record<string, unknown> = {}) {
   return {
@@ -129,82 +111,19 @@ async function stubAuth(
     blunders: Record<string, unknown>[];
     scenarios: Record<string, unknown>[];
     profile?: Record<string, unknown>;
-    rpc?: Record<string, unknown>;
+    rpc?: RpcHandlers;
   },
 ) {
-  await page.addInitScript(
-    ({ session, project, profile, blunders, scenarios, game, rpc }) => {
-      // addInitScript re-runs on every navigation (page.goto does a real
-      // reload), so a PATCH's effect has to survive in localStorage — an
-      // in-memory variable here would reset on the next goto().
-      const profileKey = `e2e-profile-${project}`;
-      const loadProfile = (): Record<string, unknown> => {
-        try {
-          const raw = localStorage.getItem(profileKey);
-          if (raw) return JSON.parse(raw);
-        } catch {
-          /* fall through to the seed profile */
-        }
-        return { ...(profile as Record<string, unknown>) };
-      };
-      let currentProfile = loadProfile();
-      const saveProfile = () => localStorage.setItem(profileKey, JSON.stringify(currentProfile));
-
-      const origFetch = window.fetch.bind(window);
-      window.fetch = (input: any, init?: any) => {
-        const url = typeof input === 'string' ? input : (input?.url ?? '');
-        if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
-          const method = (
-            init?.method ??
-            (typeof input === 'object' ? input?.method : undefined) ??
-            'GET'
-          ).toUpperCase();
-          const json = (body: unknown) =>
-            Promise.resolve(
-              new Response(JSON.stringify(body), {
-                status: 200,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          if (url.includes('/auth/v1/user')) return json(session.user);
-          if (method === 'HEAD') {
-            return Promise.resolve(
-              new Response(null, { status: 200, headers: { 'content-range': '*/3' } }),
-            );
-          }
-          if (url.includes('/rest/v1/rpc/')) {
-            const name = url.split('/rpc/')[1].split('?')[0];
-            return json((rpc as Record<string, unknown>)[name] ?? null);
-          }
-          if (url.includes('/rest/v1/profiles')) {
-            if (method === 'PATCH' && init?.body) {
-              const patch = JSON.parse(init.body as string);
-              currentProfile = { ...currentProfile, ...patch };
-              saveProfile();
-            }
-            return json(currentProfile);
-          }
-          if (url.includes('/rest/v1/endgame_scenarios')) return json(scenarios);
-          if (url.includes('/rest/v1/blunders')) return json(blunders);
-          if (url.includes('/rest/v1/games')) {
-            return /[?&]id=eq\./.test(url) ? json(game) : json([game]);
-          }
-          return json([]);
-        }
-        return origFetch(input, init);
-      };
-      localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
-    },
-    {
-      session: FAKE_SESSION,
-      project: SUPABASE_PROJECT,
-      profile: makeProfile(opts.usedTrainingFilter, opts.profile),
-      rpc: opts.rpc ?? {},
-      blunders: opts.blunders,
-      scenarios: opts.scenarios,
-      game: GAME,
-    },
-  );
+  // The profile stub is stateful (profile.update patches it) and lives in the
+  // test process, so a pick survives page.goto() reloads.
+  await stubApp(page, {
+    profile: makeProfile(opts.usedTrainingFilter, opts.profile),
+    blunders: opts.blunders,
+    endgameScenarios: opts.scenarios,
+    games: [GAME],
+    gameCount: 3,
+    rpc: opts.rpc,
+  });
 }
 
 test('the Discovery category lists endgame and focused-training milestones', async ({ page }) => {
@@ -256,16 +175,17 @@ test('the Openings category tracks reviews, opening drills and Learn chapters', 
     blunders: [makeTacticBlunder({ kind: 'opening', times_correct: 1, times_attempted: 1 })],
     scenarios: [],
     profile: { opening_reviews_opened: 1, learn_chapters_done: ['italian/ch1'] },
-    rpc: { training_totals: { minutes: 125, activeDays: 4 } },
+    rpc: { 'profile.trainingTotals': () => ({ minutes: 125, activeDays: 4 }) },
   });
   await page.goto('/achievements');
 
   await expect(page.getByTestId('achievements-section').getByRole('heading', { name: 'Openings' })).toBeVisible();
   await expect(page.getByTestId('achievement-opening-review-1').getByText('Unlocked')).toBeVisible();
   await expect(page.getByTestId('achievement-opening-drill-1').getByText('Unlocked')).toBeVisible();
-  await expect(page.getByTestId('achievement-learn-chapter-1').getByText('Unlocked')).toBeVisible();
+  // Learn is unreleased (src/lib/features.ts), so its achievements are hidden from regular players.
+  await expect(page.getByTestId('achievement-learn-chapter-1')).toHaveCount(0);
   await expect(page.getByTestId('achievement-opening-review-10').getByText('1/10')).toBeVisible();
-  // Time put in comes from training_totals().
+  // Time put in comes from profile.trainingTotals.
   await expect(page.getByTestId('achievement-time-10h').getByText('125/600')).toBeVisible();
   await expect(page.getByTestId('achievement-active-days-30').getByText('4/30')).toBeVisible();
 });
@@ -277,14 +197,14 @@ test('an unlocked flair can be picked on the profile and shows on leaderboards',
     scenarios: [],
     profile: { longest_streak_days: 7 },
     rpc: {
-      training_totals: { minutes: 0, activeDays: 0 },
-      leaderboard: {
+      'profile.trainingTotals': () => ({ minutes: 0, activeDays: 0 }),
+      'leaderboard.get': () => ({
         metric: 'solved',
         window: 'all',
         since: null,
         rows: [{ rank: 1, label: 'rival', value: 40, isMe: false, flair: 'grinder' }],
         me: null,
-      },
+      }),
     },
   });
   await page.goto('/profile');
@@ -311,8 +231,8 @@ test('clicking your own leaderboard row opens the flair picker', async ({ page }
     scenarios: [],
     profile: { longest_streak_days: 7 },
     rpc: {
-      training_totals: { minutes: 0, activeDays: 0 },
-      leaderboard: {
+      'profile.trainingTotals': () => ({ minutes: 0, activeDays: 0 }),
+      'leaderboard.get': () => ({
         metric: 'solved',
         window: 'all',
         since: null,
@@ -321,7 +241,7 @@ test('clicking your own leaderboard row opens the flair picker', async ({ page }
           { rank: 2, label: 'me', value: 12, isMe: true, flair: null },
         ],
         me: null,
-      },
+      }),
     },
   });
   await page.goto('/leaderboards');
@@ -370,7 +290,13 @@ test('the invite card copies a referral link', async ({ page, context }) => {
     scenarios: [],
     profile: { referral_code: 'abcd2345', referrals_count: 2 },
     rpc: {
-      leaderboard: { metric: 'solved', window: 'all', since: null, rows: [], me: { rank: 7, label: 'me', value: 3, isMe: true, flair: null } },
+      'leaderboard.get': () => ({
+        metric: 'solved',
+        window: 'all',
+        since: null,
+        rows: [],
+        me: { rank: 7, label: 'me', value: 3, isMe: true, flair: null },
+      }),
     },
   });
   await page.goto('/leaderboards');

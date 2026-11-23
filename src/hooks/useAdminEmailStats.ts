@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
 import { isAdminEmail } from '../auth/admin';
-import { supabase } from '../lib/supabase';
+import { rpc } from '../lib/api';
 
 export interface AdminEmailKind {
   /** A notifier Worker email kind (welcome, ready, streak_at_risk, daily_plan, weekly_report). */
@@ -32,7 +32,7 @@ export interface AdminEmailStats {
   kinds: AdminEmailKind[];
 }
 
-/** Email reach, unsubscribes and send → return rates (`admin_email_stats`, migration 20261123120000). */
+/** Email reach, unsubscribes and send → return rates (`admin.emailStats` RPC, functions/_shared/rpc/admin.ts). */
 export function useAdminEmailStats() {
   const { user } = useAuth();
   const admin = !!user && isAdminEmail(user.email);
@@ -42,9 +42,7 @@ export function useAdminEmailStats() {
     staleTime: 60_000,
     retry: false,
     queryFn: async (): Promise<AdminEmailStats> => {
-      const { data, error } = await supabase.rpc('admin_email_stats');
-      if (error) throw error;
-      return data as unknown as AdminEmailStats;
+      return rpc<AdminEmailStats>('admin.emailStats');
     },
   });
 }

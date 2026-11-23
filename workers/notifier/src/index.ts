@@ -1,9 +1,14 @@
 // PatternChess notifier: training reminders and progress reports sent through
 // Cloudflare Email Service (retention roadmap Phase 2).
 //
-// scheduled (hourly): email_outbox(now) decides who gets what this hour
-//   (migration 20261122120000); each row is rendered with templates.ts, sent
-//   with the EMAIL binding and logged to email_sends.
+// scheduled (hourly): emailOutbox(now) decides who gets what this hour
+//   (rules.ts over facts read from the app D1, store.ts); each row is rendered
+//   with templates.ts, sent with the EMAIL binding and logged to email_sends.
+//
+// Data: the app D1 `patternchess-app` (binding DB), the same database the
+// Pages Functions use. Before the Supabase -> Cloudflare cutover this version
+// must not be deployed: the live Worker still reads Supabase, and this one
+// would read a D1 copy that stops being current (see README.md).
 // fetch, public (email.patternchess.com, token links from emails):
 //   GET/POST /unsubscribe?t=  one-click unsubscribe (POST = RFC 8058)
 //   GET/POST /settings?t=     no-login email settings
@@ -15,7 +20,6 @@
 //
 // SEND_MODE gates real mail: anything but "live" sends only to TEST_RECIPIENTS.
 
-import { insert, remove, rpc } from './db';
 import {
   buildLinks,
   EMAIL_KINDS,
@@ -28,19 +32,28 @@ import {
   type OutboxRow,
 } from './outbox';
 import {
+  confirmEmail,
+  emailCandidates,
+  emailOutbox,
+  logSend,
+  newConfirmToken,
+  prefsByToken,
+  unsubscribeByToken,
+  updatePrefsByToken,
+} from './store';
+import {
   confirmedPage,
   notFoundPage,
   settingsPage,
   unsubscribeConfirmPage,
   unsubscribedPage,
-  type Prefs,
 } from './pages';
 import { FROM_ADDRESS, FROM_NAME, renderEmail, type EmailKind } from './templates';
 
 export interface Env {
   EMAIL: SendEmail;
-  SUPABASE_URL: string;
-  SUPABASE_SERVICE_ROLE_KEY: string;
+  /** D1 `patternchess-app` (profiles, blunders, email_sends, better-auth `user`, …). */
+  DB: D1Database;
   ADMIN_SECRET: string;
   APP_URL: string;
   EMAIL_URL: string;
@@ -69,13 +82,6 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-async function newConfirmToken(env: Env, userId: string, email: string): Promise<string> {
-  // One live confirmation link per user: the newest replaces the rest.
-  await remove(env, 'email_confirmations', `user_id=eq.${userId}`);
-  const rows = await insert<Array<{ token: string }>>(env, 'email_confirmations', { user_id: userId, email }, true);
-  return rows[0].token;
-}
-
 async function deliver(env: Env, row: OutboxRow & { kind: EmailKind; to_email: string }, to: string, confirmToken?: string) {
   const links = buildLinks(bases(env), row.kind, row.unsub_token, confirmToken);
   const email = renderEmail(row.kind, toEmailData(row.data), links);
@@ -102,7 +108,7 @@ interface RunSummary {
 }
 
 async function runOutbox(env: Env, now: Date, dryRun: boolean): Promise<RunSummary> {
-  const rows = await rpc<OutboxRow[]>(env, 'email_outbox', { p_now: now.toISOString() });
+  const rows = await emailOutbox(env.DB, now);
   const allow = parseRecipients(env.TEST_RECIPIENTS);
   const summary: RunSummary = {
     now: now.toISOString(),
@@ -129,14 +135,9 @@ async function runOutbox(env: Env, now: Date, dryRun: boolean): Promise<RunSumma
       continue;
     }
     try {
-      const confirmToken = r.kind === 'confirm' ? await newConfirmToken(env, r.user_id, r.to_email) : undefined;
+      const confirmToken = r.kind === 'confirm' ? await newConfirmToken(env.DB, r.user_id, r.to_email) : undefined;
       const { messageId } = await deliver(env, r, r.to_email, confirmToken);
-      await insert(env, 'email_sends', {
-        user_id: r.user_id,
-        kind: r.kind,
-        to_email: r.to_email,
-        provider_id: messageId ?? null,
-      });
+      await logSend(env.DB, { user_id: r.user_id, kind: r.kind, to_email: r.to_email, provider_id: messageId ?? null });
       summary.sent.push({ kind: r.kind, to: r.to_email, messageId });
     } catch (err) {
       const e = err as { code?: string; message?: string };
@@ -148,7 +149,7 @@ async function runOutbox(env: Env, now: Date, dryRun: boolean): Promise<RunSumma
 }
 
 async function candidate(env: Env, userId: string, now: Date): Promise<OutboxRow | null> {
-  const rows = await rpc<OutboxRow[]>(env, 'email_candidates', { p_now: now.toISOString(), p_user: userId });
+  const rows = await emailCandidates(env.DB, now, userId.toLowerCase());
   return rows[0] ?? null;
 }
 
@@ -209,7 +210,7 @@ async function handlePublic(req: Request, env: Env, url: URL): Promise<Response>
     if (!isUuid(t)) return notFoundPage(app);
     if (req.method === 'GET') return unsubscribeConfirmPage(app, `${self}/unsubscribe?t=${t}`);
     if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
-    const prefs = await rpc<Prefs | null>(env, 'email_unsubscribe', { p_token: t });
+    const prefs = await unsubscribeByToken(env.DB, t);
     if (!prefs) return notFoundPage(app);
     // RFC 8058 clients (Gmail's Unsubscribe button) post the form body
     // "List-Unsubscribe=One-Click" and only need a 2xx.
@@ -229,17 +230,16 @@ async function handlePublic(req: Request, env: Env, url: URL): Promise<Response>
         || !Number.isInteger(hour) || hour < 0 || hour > 23) {
         return new Response('Bad request', { status: 400 });
       }
-      const prefs = await rpc<Prefs | null>(env, 'email_update_prefs_by_token', {
-        p_token: t,
-        p_opt_in: form.get('optIn') === '1',
-        p_reminders: reminders,
-        p_reports: reports,
-        p_hour: hour,
+      const prefs = await updatePrefsByToken(env.DB, t, {
+        optIn: form.get('optIn') === '1',
+        reminders,
+        reports,
+        hour,
       });
       if (!prefs) return notFoundPage(app);
       return settingsPage(app, action, prefs, true);
     }
-    const prefs = await rpc<Prefs | null>(env, 'email_prefs_by_token', { p_token: t });
+    const prefs = await prefsByToken(env.DB, t);
     if (!prefs) return notFoundPage(app);
     return settingsPage(app, action, prefs, false);
   }
@@ -247,7 +247,7 @@ async function handlePublic(req: Request, env: Env, url: URL): Promise<Response>
   if (url.pathname === '/confirm' && req.method === 'GET') {
     const c = url.searchParams.get('c');
     if (!isUuid(c)) return notFoundPage(app);
-    const prefs = await rpc<Prefs | null>(env, 'email_confirm', { p_token: c });
+    const prefs = await confirmEmail(env.DB, c);
     return prefs ? confirmedPage(app) : notFoundPage(app);
   }
 

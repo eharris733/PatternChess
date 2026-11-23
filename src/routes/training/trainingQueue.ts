@@ -1,5 +1,5 @@
-import { supabase } from '../../lib/supabase';
-import { fetchInChunks } from '../../services/db/paginate';
+import { rpc } from '../../lib/api';
+import type { Tables } from '../../lib/database.types';
 import { GameRecord, gameRecordFromJson } from '../../models/gameRecord';
 import { Blunder } from '../../models/blunder';
 import { ContextFilter, GAME_STATE_LABEL, computeBlunderContext } from '../../chess/blunderContext';
@@ -7,12 +7,8 @@ import { ContextFilter, GAME_STATE_LABEL, computeBlunderContext } from '../../ch
 /** Fetch the given games by id into a lookup map (used for batch context/opening filtering). */
 export async function fetchGamesByIds(ids: string[]): Promise<Map<string, GameRecord>> {
   if (ids.length === 0) return new Map();
-  // Chunked: the due queue can span far more games than fit in one URL.
-  const rows = await fetchInChunks([...new Set(ids)], async (chunk) => {
-    const { data, error } = await supabase.from('games').select().in('id', chunk);
-    if (error) throw error;
-    return data ?? [];
-  });
+  // One request; the server splits the id list for D1's parameter limit.
+  const rows = await rpc<Tables<'games'>[]>('games.byIds', { ids: [...new Set(ids)] });
   const map = new Map<string, GameRecord>();
   for (const row of rows) {
     const g = gameRecordFromJson(row);

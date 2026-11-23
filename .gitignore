@@ -39,6 +39,8 @@ playwright/.cache/
 supabase/.temp
 # Opening-book build inputs/outputs (scripts/book, tools/book-builder)
 /data/
+# Supabase -> D1 data export + generated SQL (scripts/migrate; holds user data)
+/data/migrate/
 /tools/book-builder/target/
 
 # Ad recordings (marketing/ad)
@@ -53,3 +55,6 @@ marketing/forum/seen.json
 
 # Supporter-only article sources (bodies live in Cloudflare KV, never in this public repo)
 content/supporter/
+
+# Daily puzzle video renders (npm run social:render)
+marketing/social/out/

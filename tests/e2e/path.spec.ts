@@ -1,26 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
+import { E2E_USER, stubApp } from './helpers/api';
+import { ADMIN_EMAILS } from '../../src/auth/admin';
+
+// /path is unreleased (src/lib/features.ts): admins only, so these specs sign in as one.
+const ADMIN_USER = { ...E2E_USER, email: ADMIN_EMAILS[0] };
 
 // The progression ladder: /path counts lifetime positions trained, the daily
 // plan shows the next unlock, and supporters can open every rung.
-
-const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
-
-const FAKE_SESSION = {
-  access_token: 'fake',
-  token_type: 'bearer',
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  refresh_token: 'fake-refresh',
-  user: {
-    id: 'e2e-user',
-    aud: 'authenticated',
-    role: 'authenticated',
-    email: 'e2e@example.com',
-    user_metadata: { full_name: 'E2E User', avatar_url: null },
-    app_metadata: {},
-    created_at: new Date().toISOString(),
-  },
-};
 
 function daysAgo(n: number): string {
   return new Date(Date.now() - n * 86_400_000).toLocaleDateString('en-CA');
@@ -54,52 +40,29 @@ async function stub(
   page: Page,
   opts: { signedIn?: boolean; supporter?: Record<string, unknown> | null; opens?: number; profile?: Record<string, unknown>; solved?: number } = {},
 ) {
+  const solved = opts.solved ?? 0;
   // One row carrying all the first-attempt solves: BlunderStats.reviewed = sum(times_correct).
-  await page.addInitScript((solved) => {
-    (window as any).__blunders = solved
-      ? [{ id: 'b1', fen: '8/8/8/8/8/8/8/8 w - - 0 1', kind: 'tactic', times_correct: solved, times_attempted: solved, cycle_number: 1, last_drilled_at: new Date().toISOString(), next_drill_at: new Date(Date.now() + 86_400_000).toISOString() }]
-      : [];
-  }, opts.solved ?? 0);
-  await page.addInitScript(
-    ({ session, project, profile, supporter, opens, signedIn }) => {
-      (window as any).__rpcs = [];
-      const origFetch = window.fetch.bind(window);
-      window.fetch = (input: any, init?: any) => {
-        const url = typeof input === 'string' ? input : input?.url ?? '';
-        if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
-          const method = (init?.method ?? (typeof input === 'object' ? input?.method : undefined) ?? 'GET').toUpperCase();
-          const json = (body: unknown) =>
-            Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } }));
-          if (url.includes('/auth/v1/user')) return json(session.user);
-          if (url.includes('/rest/v1/rpc/')) {
-            const name = url.split('/rest/v1/rpc/')[1].split('?')[0];
-            (window as any).__rpcs.push({ name, body: init?.body ? JSON.parse(init.body) : null });
-            if (name === 'bump_app_open') return json(opens);
-            return json(null);
-          }
-          if (method === 'HEAD') {
-            return Promise.resolve(new Response(null, { status: 200, headers: { 'content-range': '*/1' } }));
-          }
-          if (method === 'PATCH') return json([]);
-          if (url.includes('/rest/v1/supporters')) return json(supporter ? [supporter] : []);
-          if (url.includes('/rest/v1/profiles')) return json(profile);
-          if (url.includes('/rest/v1/blunders')) return json((window as any).__blunders ?? []);
-          return json([]);
-        }
-        return origFetch(input, init);
-      };
-      if (signedIn) localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
-      sessionStorage.setItem('pc:last-auto-sync', JSON.stringify({ fp: 'e2e-user|tester||0|', at: Date.now() }));
+  const blunders = solved
+    ? [{ id: 'b1', fen: '8/8/8/8/8/8/8/8 w - - 0 1', kind: 'tactic', times_correct: solved, times_attempted: solved, cycle_number: 1, last_drilled_at: new Date().toISOString(), next_drill_at: new Date(Date.now() + 86_400_000).toISOString() }]
+    : [];
+  const rec = await stubApp(page, {
+    user: (opts.signedIn ?? true) ? ADMIN_USER : null,
+    profile: { ...BASE_PROFILE, email_opt_in: true, app_opens: (opts.opens ?? 1) - 1, ...opts.profile },
+    blunders,
+    gameCount: 1,
+    rpc: {
+      'profile.bumpAppOpen': () => opts.opens ?? 1,
+      'supporters.mine': () => opts.supporter ?? null,
     },
-    {
-      session: FAKE_SESSION,
-      project: SUPABASE_PROJECT,
-      profile: { ...BASE_PROFILE, email_opt_in: true, app_opens: (opts.opens ?? 1) - 1, ...opts.profile },
-      supporter: opts.supporter ?? null,
-      opens: opts.opens ?? 1,
-      signedIn: opts.signedIn ?? true,
-    },
+  });
+  // Article bodies (functions/api/articles): this user is not a supporter.
+  await page.route('**/api/articles/**', (route) =>
+    route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'Not found' }) }),
   );
+  await page.addInitScript(() => {
+    sessionStorage.setItem('pc:last-auto-sync', JSON.stringify({ fp: 'e2e-user|tester||0|', at: Date.now() }));
+  });
+  return rec;
 }
 
 const ACTIVE = { status: 'active', current_period_end: null, cancel_at_period_end: false, first_supported_at: new Date().toISOString() };
@@ -132,6 +95,14 @@ test('supporters are not pitched on /path', async ({ page }) => {
   await page.goto('/path');
   await expect(page.getByRole('heading', { name: '30 positions trained' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Become a supporter' })).toHaveCount(0);
+});
+
+test('regular players see no Path while it is unreleased', async ({ page }) => {
+  await stubApp(page, { user: E2E_USER });
+  await page.goto('/path');
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByRole('link', { name: 'Path' })).toHaveCount(0);
+  await expect(page.getByTestId('next-unlock')).toHaveCount(0);
 });
 
 test('an unknown article slug says so', async ({ page }) => {

@@ -1,8 +1,14 @@
 // PatternChess notifier Worker. Deploy from the repo root:
 //   npx wrangler deploy --config workers/notifier/wrangler.jsonc
 // Secrets (npx wrangler secret put <NAME> --config workers/notifier/wrangler.jsonc):
-//   SUPABASE_SERVICE_ROLE_KEY  service-role key (email_outbox + token RPCs)
 //   ADMIN_SECRET               bearer token for /admin/*
+//
+// Data lives in the app D1 `patternchess-app` (binding DB), shared with the
+// Pages Functions. DO NOT deploy this version before the Supabase -> Cloudflare
+// cutover: until then production reads and writes Supabase and the D1 copy is
+// stale (see workers/notifier/README.md). After deploying it, the old
+// SUPABASE_SERVICE_ROLE_KEY secret can be deleted:
+//   npx wrangler secret delete SUPABASE_SERVICE_ROLE_KEY --config workers/notifier/wrangler.jsonc
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "patternchess-notifier",
@@ -13,10 +19,16 @@
   "routes": [{ "pattern": "email.patternchess.com", "custom_domain": true }],
   "triggers": { "crons": ["0 * * * *"] },
   "send_email": [{ "name": "EMAIL" }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "patternchess-app",
+      "database_id": "7d359ac5-7829-4a4d-8fa9-5af6379cdf15"
+    }
+  ],
   "vars": {
     "APP_URL": "https://patternchess.com",
     "EMAIL_URL": "https://email.patternchess.com",
-    "SUPABASE_URL": "https://ydfwppthwnlgxnntzrvg.supabase.co",
     // Anything but "live" sends only to TEST_RECIPIENTS (comma-separated).
     "SEND_MODE": "live",
     "TEST_RECIPIENTS": "elliotmharris@gmail.com"

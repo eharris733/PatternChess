@@ -1,23 +1,8 @@
 import { expect, test } from '@playwright/test';
+import { getRpcCalls, stubApp } from './helpers/api';
 
 const FAKE_USER_ID = 'sync-indicator-user';
-const FAKE_SESSION = {
-  access_token: 'fake',
-  token_type: 'bearer',
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  refresh_token: 'fake-refresh',
-  user: {
-    id: FAKE_USER_ID,
-    aud: 'authenticated',
-    role: 'authenticated',
-    email: 'sync@example.com',
-    user_metadata: { full_name: 'Sync User', avatar_url: null },
-    app_metadata: {},
-    created_at: new Date().toISOString(),
-  },
-};
-const SUPABASE_PROJECT = 'ydfwppthwnlgxnntzrvg';
+const USER = { id: FAKE_USER_ID, email: 'sync@example.com', name: 'Sync User' };
 
 type FakeProfile = {
   id: string;
@@ -50,113 +35,41 @@ async function stubProfileAndApis(
   profileOverride?: Partial<FakeProfile>,
 ) {
   const profile: FakeProfile = { ...DEFAULT_PROFILE, ...profileOverride };
-  await page.addInitScript(
-    ({ session, project, profile, userId }) => {
-      // Captured outbound calls so tests can assert on them.
-      const captured: { lichessUrls: string[]; profilePatchBodies: any[] } = {
-        lichessUrls: [],
-        profilePatchBodies: [],
-      };
-      (window as any).__captured__ = captured;
+  // A non-zero game count so the onboarding gate treats this as a returning
+  // user; profile.update calls (the Save flow) are recorded by the stub.
+  await stubApp(page, { user: USER, profile, gameCount: 200 });
+  await page.addInitScript(() => {
+    // Captured chess-site calls so tests can assert on them.
+    const captured: { lichessUrls: string[] } = { lichessUrls: [] };
+    (window as any).__captured__ = captured;
 
-      const origFetch = window.fetch.bind(window);
-      window.fetch = (input: any, init?: any) => {
-        const url = typeof input === 'string' ? input : input?.url ?? '';
-        const method = (init?.method ?? 'GET').toUpperCase();
-        if (typeof url === 'string') {
-          // Supabase auth: getUser
-          if (url.includes(`${project}.supabase.co/auth/v1/user`)) {
-            return Promise.resolve(
-              new Response(JSON.stringify(session.user), {
-                status: 200,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          }
-          // Capture profiles PATCH bodies (the Save flow).
-          if (
-            url.includes(`${project}.supabase.co/rest/v1/profiles`) &&
-            method === 'PATCH'
-          ) {
-            try {
-              captured.profilePatchBodies.push(JSON.parse(init?.body ?? '{}'));
-            } catch {
-              /* noop */
-            }
-            return Promise.resolve(
-              new Response(JSON.stringify([profile]), {
-                status: 200,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          }
-          // Supabase REST: profiles select for our user → return one row
-          if (
-            url.includes(`${project}.supabase.co/rest/v1/profiles`) &&
-            url.includes(`id=eq.${userId}`) &&
-            method === 'GET'
-          ) {
-            return Promise.resolve(
-              new Response(JSON.stringify([profile]), {
-                status: 200,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          }
-          // Supabase REST: existing game keys / inserts → empty. Report a
-          // non-zero Content-Range so the onboarding gate (which uses
-          // getTotalGameCount) treats this as a returning user.
-          if (url.includes(`${project}.supabase.co/rest/v1/games`)) {
-            return Promise.resolve(
-              new Response(JSON.stringify([]), {
-                status: 200,
-                headers: {
-                  'content-type': 'application/json',
-                  'content-range': '*/200',
-                },
-              }),
-            );
-          }
-          // Any other supabase call → empty array
-          if (url.includes(`${project}.supabase.co`)) {
-            return Promise.resolve(
-              new Response(JSON.stringify([]), {
-                status: 200,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          }
-          // Lichess game stream: capture URL, return empty body
-          if (url.includes('lichess.org/api/games/user/')) {
-            captured.lichessUrls.push(url);
-            return Promise.resolve(
-              new Response('', {
-                status: 200,
-                headers: { 'content-type': 'application/x-ndjson' },
-              }),
-            );
-          }
-          // Chess.com archives → no archives, so fetch loop exits immediately
-          if (url.includes('api.chess.com/pub/player/')) {
-            return Promise.resolve(
-              new Response(JSON.stringify({ archives: [] }), {
-                status: 200,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          }
+    const origFetch = window.fetch.bind(window);
+    window.fetch = (input: any, init?: any) => {
+      const url = typeof input === 'string' ? input : input?.url ?? '';
+      if (typeof url === 'string') {
+        // Lichess game stream: capture URL, return empty body
+        if (url.includes('lichess.org/api/games/user/')) {
+          captured.lichessUrls.push(url);
+          return Promise.resolve(
+            new Response('', {
+              status: 200,
+              headers: { 'content-type': 'application/x-ndjson' },
+            }),
+          );
         }
-        return origFetch(input, init);
-      };
-      localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
-    },
-    {
-      session: FAKE_SESSION,
-      project: SUPABASE_PROJECT,
-      profile,
-      userId: FAKE_USER_ID,
-    },
-  );
+        // Chess.com archives → no archives, so fetch loop exits immediately
+        if (url.includes('api.chess.com/pub/player/')) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ archives: [] }), {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            }),
+          );
+        }
+      }
+      return origFetch(input, init);
+    };
+  });
 }
 
 async function getCaptured(page: import('@playwright/test').Page) {
@@ -164,23 +77,29 @@ async function getCaptured(page: import('@playwright/test').Page) {
     () =>
       (window as any).__captured__ as {
         lichessUrls: string[];
-        profilePatchBodies: any[];
       },
   );
 }
 
-test('SyncIndicator stays visible after sync and exposes Sync now', async ({ page }) => {
+test('SyncIndicator stays visible after sync and syncs again on tap', async ({ page }) => {
   await stubProfileAndApis(page);
   await page.goto('/dashboard');
 
-  const pill = page.getByRole('button', { name: /Sync/ });
+  // The pill is the sidebar's sync control (aria-label "Sync: <headline>");
+  // once the auto-sync settles it offers "Tap to sync now".
+  const pill = page.getByRole('button', { name: /^Sync:/ });
   await expect(pill).toBeVisible();
-  await expect(pill).toContainText(/Sync/, { timeout: 10_000 });
+  await expect(pill).toContainText('Tap to sync now', { timeout: 10_000 });
+  await expect(pill).toBeEnabled();
+  const before = (await getCaptured(page)).lichessUrls.length;
+  expect(before).toBeGreaterThan(0);
 
+  // Tapping it runs a fresh sync (the pill itself is the "Sync now" button).
   await pill.click();
-  const syncNow = page.getByRole('button', { name: 'Sync now' });
-  await expect(syncNow).toBeVisible();
-  await expect(syncNow).toBeEnabled();
+  await expect
+    .poll(async () => (await getCaptured(page)).lichessUrls.length, { timeout: 10_000 })
+    .toBeGreaterThan(before);
+  await expect(pill).toContainText('Tap to sync now', { timeout: 10_000 });
 });
 
 test('Profile sync preferences inputs render', async ({ page }) => {
@@ -227,7 +146,7 @@ test('Time-control checkboxes are independently toggleable (multi-select)', asyn
   await expect(rapid).toBeChecked();
 });
 
-test('Saving sends the selected time controls as an array in the PATCH body', async ({ page }) => {
+test('Saving sends the selected time controls as an array in the profile.update patch', async ({ page }) => {
   await stubProfileAndApis(page, { preferred_time_controls: [] });
   await page.goto('/profile');
 
@@ -235,12 +154,12 @@ test('Saving sends the selected time controls as an array in the PATCH body', as
   await page.getByRole('checkbox', { name: 'Rapid' }).check();
   await page.getByRole('button', { name: /^Save/ }).click();
 
-  // Wait for the "Saved." confirmation so we know the PATCH has resolved.
+  // Wait for the "Saved." confirmation so we know the update has resolved.
   await expect(page.getByText('Saved.')).toBeVisible({ timeout: 5_000 });
 
-  const captured = await getCaptured(page);
-  expect(captured.profilePatchBodies.length).toBeGreaterThan(0);
-  const last = captured.profilePatchBodies[captured.profilePatchBodies.length - 1];
+  const updates = getRpcCalls(page, 'profile.update');
+  expect(updates.length).toBeGreaterThan(0);
+  const last = updates[updates.length - 1].args.patch;
   expect(Array.isArray(last.preferred_time_controls)).toBe(true);
   expect([...last.preferred_time_controls].sort()).toEqual(['blitz', 'rapid']);
 });

@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabase';
+import { rpc } from '../../lib/api';
 import type { Tables } from '../../lib/database.types';
 import { bookEpd } from '../../chess/bookFormat';
 import type { RepertoireColor, RepertoireMove } from '../../models/repertoire';
@@ -17,11 +17,7 @@ function repertoireMoveFromJson(r: Tables<'repertoire_moves'>): RepertoireMove {
 
 /** Every repertoire move the user saved (both colours). */
 export async function getRepertoire(): Promise<RepertoireMove[]> {
-  const { data, error } = await supabase
-    .from('repertoire_moves')
-    .select('id, user_id, color, epd, uci, san, created_at')
-    .order('created_at', { ascending: true });
-  if (error) throw error;
+  const data = await rpc<Tables<'repertoire_moves'>[]>('repertoire.list');
   return (data ?? []).map(repertoireMoveFromJson);
 }
 
@@ -34,19 +30,15 @@ export async function upsertRepertoireMove(input: {
 }): Promise<RepertoireMove> {
   const userId = await currentUserId();
   if (!userId) throw new Error('Not signed in');
-  const { data, error } = await supabase
-    .from('repertoire_moves')
-    .upsert(
-      { user_id: userId, color: input.color, epd: bookEpd(input.fen), uci: input.uci, san: input.san },
-      { onConflict: 'user_id,color,epd' },
-    )
-    .select('id, user_id, color, epd, uci, san, created_at')
-    .single();
-  if (error) throw error;
+  const data = await rpc<Tables<'repertoire_moves'>>('repertoire.upsert', {
+    color: input.color,
+    epd: bookEpd(input.fen),
+    uci: input.uci,
+    san: input.san,
+  });
   return repertoireMoveFromJson(data);
 }
 
 export async function deleteRepertoireMove(id: string): Promise<void> {
-  const { error } = await supabase.from('repertoire_moves').delete().eq('id', id);
-  if (error) throw error;
+  await rpc('repertoire.delete', { id });
 }

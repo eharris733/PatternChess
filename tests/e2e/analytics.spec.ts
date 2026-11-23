@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { stubApp } from './helpers/api';
 
-const PROJECT = 'ydfwppthwnlgxnntzrvg';
 const ADMIN_EMAIL = 'elliotmharris@gmail.com';
 
 const KPIS = {
@@ -73,7 +73,7 @@ const KPIS = {
   },
 };
 
-// admin_outreach_leads payload for the win-back panel's default `demo_only` tab.
+// admin.outreachLeads payload for the win-back panel's default `demo_only` tab.
 const OUTREACH = {
   segment: 'demo_only',
   counts: { demo_only: 1 },
@@ -95,39 +95,20 @@ const OUTREACH = {
   ],
 };
 
-function b64url(obj: unknown): string {
-  return Buffer.from(JSON.stringify(obj)).toString('base64url');
-}
+const EMAIL_STATS = {
+  optedIn: 12,
+  reachable: 10,
+  noAddress: 70,
+  prompted: 40,
+  confirmPending: 2,
+  unsubscribed30d: 1,
+  returnRate: { reachable: { accounts: 10, trained: 4 }, other: { accounts: 160, trained: 8 } },
+  kinds: [{ kind: 'daily_plan', sent: 20, returned: 5 }],
+};
 
-// supabase-js decodes the access_token JWT to populate session.user, so the
-// stub needs a real (unsigned) JWT carrying the email claim — an opaque token
-// leaves session.user.email undefined and the admin gate can't see it.
-function makeSession(email: string) {
-  const now = Math.floor(Date.now() / 1000);
-  const uid = '00000000-0000-0000-0000-000000000001';
-  const meta = { user_metadata: { full_name: 'Tester' }, app_metadata: { provider: 'google' } };
-  const access_token = `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url({
-    sub: uid,
-    email,
-    role: 'authenticated',
-    aud: 'authenticated',
-    exp: now + 3600,
-    iat: now,
-    ...meta,
-  })}.sig`;
-  return {
-    access_token,
-    token_type: 'bearer',
-    expires_in: 3600,
-    expires_at: now + 3600,
-    refresh_token: 'fake-refresh',
-    user: { id: uid, aud: 'authenticated', role: 'authenticated', email, ...meta },
-  };
-}
-
-// Inline auth stub (the repo has no shared helper). Signs the session into
-// localStorage and shorts out outbound supabase calls — including a positive
-// HEAD game count so the onboarding gate stays hidden, and the admin_kpis RPC.
+// Signs in as `email` (the admin gate is ADMIN_EMAILS vs the session email)
+// and answers the admin.* RPCs; a positive game count keeps the onboarding
+// gate hidden.
 async function stub(
   page: Page,
   email: string,
@@ -137,97 +118,77 @@ async function stub(
     userList?: unknown;
     retention?: unknown;
     outreach?: unknown;
+    socialQueue?: unknown;
   } = {},
-): Promise<void> {
-  const session = makeSession(email);
-  const { gameCount = 3, kpis = null, userList = null, retention = null, outreach = null } = opts;
-  await page.addInitScript(
-    ({ session, project, gameCount, kpis, userList, retention, outreach }) => {
-      const origFetch = window.fetch.bind(window);
-      window.fetch = (input: any, init?: any) => {
-        const url = typeof input === 'string' ? input : input?.url ?? '';
-        if (typeof url === 'string' && url.includes(`${project}.supabase.co`)) {
-          const method = (
-            init?.method ??
-            (typeof input === 'object' ? input?.method : undefined) ??
-            'GET'
-          ).toUpperCase();
-          if (url.includes('/auth/v1/user')) {
-            return Promise.resolve(
-              new Response(JSON.stringify(session.user), {
-                status: 200,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          }
-          if (url.includes('/rest/v1/rpc/admin_kpis')) {
-            return Promise.resolve(
-              new Response(JSON.stringify(kpis), {
-                status: 200,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          }
-          if (url.includes('/rest/v1/rpc/admin_retention')) {
-            return Promise.resolve(
-              new Response(JSON.stringify(retention), {
-                status: 200,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          }
-          if (url.includes('/rest/v1/rpc/admin_email_stats')) {
-            return Promise.resolve(
-              new Response(
-                JSON.stringify({
-                  optedIn: 12,
-                  reachable: 10,
-                  noAddress: 70,
-                  prompted: 40,
-                  confirmPending: 2,
-                  unsubscribed30d: 1,
-                  returnRate: { reachable: { accounts: 10, trained: 4 }, other: { accounts: 160, trained: 8 } },
-                  kinds: [{ kind: 'daily_plan', sent: 20, returned: 5 }],
-                }),
-                { status: 200, headers: { 'content-type': 'application/json' } },
-              ),
-            );
-          }
-          if (url.includes('/rest/v1/rpc/admin_outreach_leads')) {
-            return Promise.resolve(
-              new Response(JSON.stringify(outreach), {
-                status: 200,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          }
-          if (url.includes('/rest/v1/rpc/admin_user_list')) {
-            return Promise.resolve(
-              new Response(JSON.stringify(userList ?? []), {
-                status: 200,
-                headers: { 'content-type': 'application/json' },
-              }),
-            );
-          }
-          if (method === 'HEAD') {
-            return Promise.resolve(
-              new Response(null, { status: 200, headers: { 'content-range': `*/${gameCount}` } }),
-            );
-          }
-          return Promise.resolve(
-            new Response(JSON.stringify([]), {
-              status: 200,
-              headers: { 'content-type': 'application/json' },
-            }),
-          );
-        }
-        return origFetch(input, init);
-      };
-      localStorage.setItem(`sb-${project}-auth-token`, JSON.stringify(session));
+) {
+  const { gameCount = 3, kpis = null, userList = null, retention = null, outreach = null, socialQueue = null } = opts;
+  return stubApp(page, {
+    user: { id: '00000000-0000-0000-0000-000000000001', email, name: 'Tester', emailVerified: true },
+    gameCount,
+    rpc: {
+      'admin.kpis': () => kpis,
+      'admin.retention': () => retention,
+      'admin.emailStats': () => EMAIL_STATS,
+      'admin.outreachLeads': () => outreach,
+      'admin.userList': () => userList ?? [],
+      'admin.socialQueue': () => socialQueue,
+      'admin.socialSetStatus': () => null,
     },
-    { session, project: PROJECT, gameCount, kpis, userList, retention, outreach },
-  );
+  });
 }
+
+const SOCIAL_POST = {
+  blunder_id: 'b1',
+  hook_template: 'blundered-at',
+  motif: 'missedMate',
+  caption: 'I blundered this at 2056 blitz. Can you find what I missed?',
+  tiktok_caption: 'I blundered this at 2056 blitz. patternchess.com #chesstok',
+  puzzle: {
+    fen: '5rrk/pp3p1p/4bPpQ/n2p4/3P2P1/4BR2/P1r2RKP/3q4 w - - 0 30',
+    side: 'white',
+    rating: 2056,
+    timeControl: 'blitz',
+    played: 'Rxc2',
+    solution: ['Qxh7+', 'Kxh7', 'Rh3#'],
+    motifLabel: 'Missed mate',
+    hook: 'blundered-at',
+  },
+  // Same-origin so the test never reaches the network (production media is on social.patternchess.com).
+  media_url: '/video/none.mp4',
+  poster_url: null,
+  permalink: null,
+  ig_error: null,
+  tiktok_status: null,
+  tiktok_error: null,
+  plays: null,
+  reach: null,
+  likes: null,
+  comments: null,
+  saves: null,
+  shares: null,
+  insights_at: null,
+  posted_at: null,
+};
+
+const SOCIAL_QUEUE = {
+  today: '2026-11-22',
+  upcoming: [
+    { ...SOCIAL_POST, id: 'q1', scheduled_for: '2026-11-23', status: 'queued' },
+    { ...SOCIAL_POST, id: 'v1', scheduled_for: '2026-11-24', status: 'vetoed' },
+  ],
+  recent: [
+    {
+      ...SOCIAL_POST,
+      id: 'p1',
+      scheduled_for: '2026-11-21',
+      status: 'posted',
+      permalink: 'https://www.instagram.com/reel/abc/',
+      tiktok_status: 'SEND_TO_USER_INBOX',
+      plays: 1234,
+      saves: 12,
+    },
+  ],
+};
 
 const RETENTION = {
   cohorts: [
@@ -406,6 +367,29 @@ test('admin sees email reach and return rates at /analytics', async ({ page }) =
   await expect(card).toContainText('70 with no address');
   await expect(card).toContainText('reachable 40% (4/10) vs everyone else 5% (8/160)');
   await expect(card.getByRole('cell', { name: 'Daily plan' })).toBeVisible();
+});
+
+test('admin reviews the daily puzzle-video queue: veto and restore', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const rpc = await stub(page, ADMIN_EMAIL, { kpis: KPIS, retention: RETENTION, socialQueue: SOCIAL_QUEUE });
+  await page.goto('/analytics');
+  const card = page.getByTestId('social-queue-card');
+  await expect(card).toBeVisible({ timeout: 20_000 });
+  const posts = card.getByTestId('social-post');
+  await expect(posts).toHaveCount(3);
+  await expect(posts.nth(0)).toContainText('Queued');
+  await expect(posts.nth(0)).toContainText('answer Qxh7+ Kxh7 Rh3#');
+  await expect(posts.nth(1)).toContainText('Vetoed: will not post');
+  await expect(posts.nth(2)).toContainText('1,234 views');
+  await expect(posts.nth(2)).toContainText('TikTok draft is in your inbox');
+  await expect(posts.nth(2).getByRole('link', { name: 'Instagram' })).toHaveAttribute('href', 'https://www.instagram.com/reel/abc/');
+
+  await posts.nth(0).getByRole('button', { name: 'Veto' }).click();
+  await rpc.waitFor('admin.socialSetStatus', (a) => a.id === 'q1' && a.status === 'vetoed');
+  await posts.nth(1).getByRole('button', { name: 'Restore' }).click();
+  await rpc.waitFor('admin.socialSetStatus', (a) => a.id === 'v1' && a.status === 'queued');
+  expect(errors, errors.join('\n')).toHaveLength(0);
 });
 
 test('non-admin is redirected away from /analytics', async ({ page }) => {

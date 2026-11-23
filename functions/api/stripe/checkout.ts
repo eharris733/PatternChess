@@ -1,6 +1,8 @@
+import { getSessionUser } from '../../_shared/auth';
+import type { AppEnv } from '../../_shared/db';
 import {
   PERK_STATUSES,
-  authedUser,
+  crossSite,
   json,
   linkCustomer,
   stripeClient,
@@ -19,8 +21,9 @@ function randomLetters(n: number): string {
  * in `supporters` first, so every later webhook maps back through the customer.
  * Perks start from the webhook, never from the success page.
  */
-export const onRequestPost: PagesFunction<StripeEnv> = async ({ request, env }) => {
-  const user = await authedUser(request, env);
+export const onRequestPost: PagesFunction<StripeEnv & AppEnv> = async ({ request, env }) => {
+  if (crossSite(request)) return json({ error: 'cross_site' }, 403);
+  const user = await getSessionUser(request, env);
   if (!user) return json({ error: 'sign_in_required' }, 401);
 
   const stripe = stripeClient(env);

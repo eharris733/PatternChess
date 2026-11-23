@@ -18,6 +18,7 @@ import { WinBackPanel } from '../components/admin/WinBackPanel';
 import { LandingCtasCard } from '../components/admin/LandingCtasCard';
 import { RetentionCard } from '../components/admin/RetentionCard';
 import { EmailStatsCard } from '../components/admin/EmailStatsCard';
+import { SocialQueueCard } from '../components/admin/SocialQueueCard';
 import { SupportersCard } from '../components/admin/SupportersCard';
 import {
   chesscomProfileUrl,
@@ -93,6 +94,7 @@ function AnalyticsContent() {
             />
           )}
           <PlatformsCard data={data} />
+          <SocialQueueCard />
           <WinBackPanel />
           <RecentSignupsCard rows={data.recentSignups} />
         </>

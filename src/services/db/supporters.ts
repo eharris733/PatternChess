@@ -1,6 +1,13 @@
-import { supabase } from '../../lib/supabase';
+import { rpc } from '../../lib/api';
 
-/** The player's own `supporters` row (RLS: read own), mirrored from Stripe by the webhook. */
+interface SupporterRow {
+  status: string;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  first_supported_at: string | null;
+}
+
+/** The player's own `supporters` row (server-scoped to the session), mirrored from Stripe by the webhook. */
 export interface SupporterStatus {
   status: string;
   /** Perks on now: active, trialing or past_due (same rule as `is_supporter`). */
@@ -15,11 +22,7 @@ export interface SupporterStatus {
 const PERK_STATUSES = new Set(['active', 'trialing', 'past_due']);
 
 export async function getMySupporterStatus(): Promise<SupporterStatus | null> {
-  const { data, error } = await supabase
-    .from('supporters')
-    .select('status, current_period_end, cancel_at_period_end, first_supported_at')
-    .maybeSingle();
-  if (error) throw error;
+  const data = await rpc<SupporterRow | null>('supporters.mine');
   if (!data) return null;
   return {
     status: data.status,
@@ -31,15 +34,11 @@ export async function getMySupporterStatus(): Promise<SupporterStatus | null> {
   };
 }
 
+// Same-origin Pages Functions: the better-auth session cookie authenticates.
 async function postStripe(path: 'checkout' | 'portal'): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) throw new Error('Sign in first.');
-  const res = await fetch(`/api/stripe/${path}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await fetch(`/api/stripe/${path}`, { method: 'POST', credentials: 'same-origin' });
   const body = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+  if (res.status === 401) throw new Error('Sign in first.');
   if (!res.ok || !body.url) throw new Error(body.error ?? `HTTP ${res.status}`);
   return body.url;
 }
@@ -67,8 +66,18 @@ export interface AdminSupporter {
 
 /** Everyone who has ever subscribed (admin only), for thanks and the mobile-app beta. */
 export async function getAdminSupporters(): Promise<AdminSupporter[]> {
-  const { data, error } = await supabase.rpc('admin_supporters');
-  if (error) throw error;
+  const data = await rpc<
+    {
+      user_id: string;
+      label: string;
+      email: string | null;
+      status: string;
+      first_supported_at: string;
+      current_period_end: string | null;
+      cancel_at_period_end: boolean;
+      beta_invited_at: string | null;
+    }[]
+  >('admin.supporters');
   return (Array.isArray(data) ? data : []).map((r) => ({
     userId: r.user_id,
     label: r.label,
@@ -83,11 +92,9 @@ export async function getAdminSupporters(): Promise<AdminSupporter[]> {
 
 /** A /path article body (functions/api/articles/[slug].ts): supporters only, null otherwise. */
 export async function getSupporterContent(slug: string): Promise<string | null> {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) return null;
-  const res = await fetch(`/api/articles/${encodeURIComponent(slug)}`, { headers: { Authorization: `Bearer ${token}` } });
-  if (res.status === 403 || res.status === 404) return null;
+  const res = await fetch(`/api/articles/${encodeURIComponent(slug)}`, { credentials: 'same-origin' });
+  // 401 = signed out, 403 = not a supporter, 404 = no such article.
+  if (res.status === 401 || res.status === 403 || res.status === 404) return null;
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const body = (await res.json()) as { html?: string };
   return body.html ?? null;

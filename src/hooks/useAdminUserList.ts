@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
 import { isAdminEmail } from '../auth/admin';
-import { supabase } from '../lib/supabase';
+import { rpc } from '../lib/api';
 
 export type AdminUserCategory =
   | 'signups'
@@ -39,9 +39,7 @@ export function useAdminUserList(category: AdminUserCategory | null) {
     enabled: !!user && admin && !!category,
     staleTime: 60_000,
     queryFn: async (): Promise<AdminUserRow[]> => {
-      const { data, error } = await supabase.rpc('admin_user_list', { category: category ?? '' });
-      if (error) throw error;
-      return (data ?? []) as unknown as AdminUserRow[];
+      return (await rpc<AdminUserRow[] | null>('admin.userList', { category: category ?? '' })) ?? [];
     },
   });
 }

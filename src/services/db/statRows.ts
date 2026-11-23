@@ -1,6 +1,5 @@
-import { supabase } from '../../lib/supabase';
+import { rpc } from '../../lib/api';
 import { queryClient } from '../../lib/queryClient';
-import { fetchAllRows } from './paginate';
 
 // The dashboard's stats functions (stats.ts) each used to page through the
 // whole blunders/games table for a different handful of columns — ~9 blunder
@@ -42,21 +41,27 @@ export interface GameStatRow {
 // load; invalidation marks it stale regardless.
 const STAT_ROWS_STALE_MS = 2 * 60_000;
 
-const BLUNDER_STAT_COLUMNS =
-  'id, kind, phase, game_id, eval_before, move_number, side_to_move, cycle_number, times_correct, times_attempted, last_drilled_at, last_drill_failed';
+// Server page size cap (functions/_shared/rpc/profile.ts STAT_ROWS_PAGE_MAX).
+const STAT_ROWS_PAGE = 5000;
 
-const GAME_STAT_COLUMNS =
-  'id, opening_family, opening_name, eco, user_color, result, platform, time_control, clock_per_ply, rated, user_rating';
+/** Keyset-paged read (by id) until a short page: the server scopes to the session user. */
+async function fetchAllStatRows<T extends { id: string }>(name: 'stats.blunderRows' | 'stats.gameRows'): Promise<T[]> {
+  const out: T[] = [];
+  let afterId = '';
+  for (;;) {
+    const page = (await rpc<T[]>(name, { afterId, limit: STAT_ROWS_PAGE })) ?? [];
+    out.push(...page);
+    if (page.length < STAT_ROWS_PAGE) return out;
+    afterId = page[page.length - 1].id;
+  }
+}
 
 /** Every blunder row (all kinds, retired included — stats count them) for the user. */
 export function getBlunderStatRows(userId: string): Promise<BlunderStatRow[]> {
   return queryClient.fetchQuery({
     queryKey: ['blunders', 'statRows', userId],
     staleTime: STAT_ROWS_STALE_MS,
-    queryFn: () =>
-      fetchAllRows(() =>
-        supabase.from('blunders').select(BLUNDER_STAT_COLUMNS).eq('user_id', userId).order('id'),
-      ) as Promise<BlunderStatRow[]>,
+    queryFn: () => fetchAllStatRows<BlunderStatRow>('stats.blunderRows'),
   });
 }
 
@@ -65,9 +70,6 @@ export function getGameStatRows(userId: string): Promise<GameStatRow[]> {
   return queryClient.fetchQuery({
     queryKey: ['games', 'statRows', userId],
     staleTime: STAT_ROWS_STALE_MS,
-    queryFn: () =>
-      fetchAllRows(() =>
-        supabase.from('games').select(GAME_STAT_COLUMNS).eq('user_id', userId).order('id'),
-      ) as Promise<GameStatRow[]>,
+    queryFn: () => fetchAllStatRows<GameStatRow>('stats.gameRows'),
   });
 }

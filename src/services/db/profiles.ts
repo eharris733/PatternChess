@@ -1,7 +1,18 @@
-import { supabase } from '../../lib/supabase';
+import { rpc } from '../../lib/api';
 import type { TablesUpdate } from '../../lib/database.types';
 import { currentUserId } from './currentUser';
 import type { DailyGoals } from '../../lib/dailyGoal';
+
+/**
+ * Allowlisted column write on the caller's own profile (server:
+ * functions/_shared/rpc/profile.ts, PROFILE_WRITABLE). The server scopes it to
+ * the session user and keeps the old guard trigger's rule: a new
+ * `contact_email` clears `contact_email_verified_at`.
+ */
+export async function updateOwnProfile(patch: TablesUpdate<'profiles'>): Promise<void> {
+  if (Object.keys(patch).length === 0) return;
+  await rpc('profile.update', { patch });
+}
 
 export async function updateProfileLastSynced(
   platform: 'lichess' | 'chess.com',
@@ -9,12 +20,11 @@ export async function updateProfileLastSynced(
 ): Promise<void> {
   const userId = await currentUserId();
   if (!userId) return;
-  const update: TablesUpdate<'profiles'> =
+  await updateOwnProfile(
     platform === 'lichess'
       ? { last_synced_lichess_at: ts.toISOString() }
-      : { last_synced_chesscom_at: ts.toISOString() };
-  const { error } = await supabase.from('profiles').update(update).eq('id', userId);
-  if (error) throw error;
+      : { last_synced_chesscom_at: ts.toISOString() },
+  );
 }
 
 export async function updateProfileStreak(args: {
@@ -29,101 +39,59 @@ export async function updateProfileStreak(args: {
 }): Promise<void> {
   const userId = await currentUserId();
   if (!userId) return;
-  const base = {
-    current_streak_days: args.currentStreakDays,
-    longest_streak_days: args.longestStreakDays,
-    last_drill_local_date: args.lastDrillLocalDate,
-    timezone: args.timezone,
-  };
-  const { error } = await supabase
-    .from('profiles')
-    .update(args.streakFreezes != null ? { ...base, streak_freezes: args.streakFreezes } : base)
-    .eq('id', userId);
-  if (error && args.streakFreezes != null) {
-    // Freeze columns missing (migration 20261120130000 not applied yet): keep
-    // the streak itself working.
-    const retry = await supabase.from('profiles').update(base).eq('id', userId);
-    if (retry.error) throw retry.error;
-    return;
-  }
-  if (error) throw error;
-  if (args.freezesUsed && args.freezesUsed > 0) {
-    // Lifetime stat only; read-modify-write is fine (one writer: this user).
-    const { data } = await supabase.from('profiles').select('streak_freezes_used').eq('id', userId).single();
-    await supabase
-      .from('profiles')
-      .update({ streak_freezes_used: (data?.streak_freezes_used ?? 0) + args.freezesUsed })
-      .eq('id', userId);
-  }
+  // One UPDATE server-side; the lifetime freezes-used counter is an atomic add.
+  await rpc('profile.updateStreak', args);
 }
 
 /** Commitment level + daily plan goals (presets in src/lib/dailyGoal.ts). */
 export async function updateDailyGoals(goals: DailyGoals): Promise<void> {
   const userId = await currentUserId();
   if (!userId) return;
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      commitment_level: goals.level,
-      daily_positions_goal: goals.positionsPerDay,
-      daily_games_goal: goals.gamesPerDay,
-    })
-    .eq('id', userId);
-  if (error) throw error;
+  await updateOwnProfile({
+    commitment_level: goals.level,
+    daily_positions_goal: goals.positionsPerDay,
+    daily_games_goal: goals.gamesPerDay,
+  });
 }
 
 /** Training reminder emails on/off (opt-out; the one switch in /profile). */
 export async function updateEmailOptIn(optIn: boolean): Promise<void> {
   const userId = await currentUserId();
   if (!userId) return;
-  const { error } = await supabase
-    .from('profiles')
-    .update({ email_opt_in: optIn, email_prompted_at: new Date().toISOString() })
-    .eq('id', userId);
-  if (error) throw error;
+  await updateOwnProfile({ email_opt_in: optIn, email_prompted_at: new Date().toISOString() });
 }
 
 /** Local hour (0–23) reminder emails go out; stamps the timezone if it was never set. */
 export async function updateEmailHour(hour: number, timezone: string | null): Promise<void> {
   const userId = await currentUserId();
   if (!userId) return;
-  const { error } = await supabase
-    .from('profiles')
-    .update({ email_hour: hour, ...(timezone ? { timezone } : {}) })
-    .eq('id', userId);
-  if (error) throw error;
+  await updateOwnProfile({ email_hour: hour, ...(timezone ? { timezone } : {}) });
 }
 
 /**
  * A typed-in address for accounts without one (Lichess sign-ins). Turns
  * reminders on; the notifier Worker's next hourly run mails a confirmation
- * link, and nothing else is sent until it is clicked. The guard trigger
- * clears `contact_email_verified_at` whenever the address changes.
+ * link, and nothing else is sent until it is clicked. The server clears
+ * `contact_email_verified_at` whenever the address changes.
  */
 export async function updateContactEmail(email: string, timezone: string | null): Promise<void> {
   const userId = await currentUserId();
   if (!userId) return;
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      contact_email: email.trim(),
-      email_opt_in: true,
-      email_prompted_at: new Date().toISOString(),
-      ...(timezone ? { timezone } : {}),
-    })
-    .eq('id', userId);
-  if (error) throw error;
+  await updateOwnProfile({
+    contact_email: email.trim(),
+    email_opt_in: true,
+    email_prompted_at: new Date().toISOString(),
+    ...(timezone ? { timezone } : {}),
+  });
 }
 
 /** Counts one app open (AppShell, once per tab session) and returns the new total. */
 export async function bumpAppOpen(): Promise<number | null> {
-  const { data, error } = await supabase.rpc('bump_app_open');
-  if (error) throw error;
+  const data = await rpc<number | null>('profile.bumpAppOpen');
   return typeof data === 'number' ? data : null;
 }
 
 /** Records that a dashboard ask was answered or dismissed (src/lib/asks.ts). */
 export async function markAskPrompted(ask: 'email' | 'course' | 'supporter'): Promise<void> {
-  const { error } = await supabase.rpc('mark_ask_prompted', { p_ask: ask });
-  if (error) throw error;
+  await rpc('profile.markAskPrompted', { ask });
 }
