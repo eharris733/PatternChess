@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { useQuotaGuard } from '../../hooks/useDailyQuota';
+import { quotaKindsFor } from '../../lib/dailyLimit';
 import { useNavigate } from 'react-router-dom';
 import { usePhaseBlunderInsight } from '../../hooks/useInsights';
 import { InsightCardSkeleton } from '../Skeleton';
@@ -82,7 +83,7 @@ export function PhaseBlunderCard() {
     }
   }
 
-  const drill = (phase: BlunderPhase) => guard('positions') && navigate('/training', { state: { phaseFilter: phase } });
+  const drill = (phase: BlunderPhase) => guard(quotaKindsFor({ phaseFilter: phase })) && navigate('/training', { state: { phaseFilter: phase } });
 
   return (
     <section className={clsx('card flex flex-col gap-4')}>

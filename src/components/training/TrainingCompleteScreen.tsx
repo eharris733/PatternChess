@@ -85,8 +85,8 @@ export function TrainingCompleteScreen({
    * day's positions are done, more training is a Supporter perk.
    */
   cappedOut?: boolean;
-  /** Which daily limit capped the session (trainingStore.cappedKind). */
-  cappedKind?: 'positions' | 'openings' | null;
+  /** Which daily limit capped the session (trainingStore.cappedKind; endgames for an endgame focus). */
+  cappedKind?: 'positions' | 'openings' | 'endgames' | null;
   /** When the limits reset (useDailyQuota().resetsAt), for the countdown. */
   limitResetsAt?: number | null;
 }) {
@@ -128,7 +128,7 @@ export function TrainingCompleteScreen({
   const streakToday = streak > 0 && profile?.lastDrillLocalDate === today;
 
   const limitKind = cappedKind ?? 'positions';
-  const limitCount = limitKind === 'positions' ? plan.goals.positionsPerDay : FIXED_DAILY_LIMIT.openings;
+  const limitCount = limitKind === 'positions' ? plan.goals.positionsPerDay : FIXED_DAILY_LIMIT[limitKind];
 
   const pct = totalAttempted > 0 ? Math.round((totalCorrect / totalAttempted) * 100) : 0;
   return (
@@ -138,7 +138,7 @@ export function TrainingCompleteScreen({
         {planDone
           ? t('train.complete.planDone')
           : cappedOut
-            ? t(limitKind === 'positions' ? 'limit.title.positions' : 'limit.title.openings')
+            ? t(`limit.title.${limitKind}`)
             : t('train.complete.sessionDone')}
       </h1>
       {totalAttempted > 0 && (
@@ -149,7 +149,7 @@ export function TrainingCompleteScreen({
       {cappedOut && (
         <div className="flex flex-col items-center gap-2" data-testid="training-capped">
           <p className="text-text-primary">
-            {t(limitKind === 'positions' ? 'limit.body.positions' : 'limit.body.openings', { count: limitCount })}
+            {t(`limit.body.${limitKind}`, { count: limitCount })}
           </p>
           {limitResetsAt != null && <DailyLimitCountdown resetsAt={limitResetsAt} className="text-sm" />}
         </div>

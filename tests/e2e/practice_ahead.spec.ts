@@ -136,12 +136,18 @@ const GAME = {
 async function stub(
   page: Page,
   blunders: Record<string, unknown>[],
-  opts: { profile?: Record<string, unknown>; sessions?: Record<string, unknown>[]; supporter?: boolean } = {},
+  opts: {
+    profile?: Record<string, unknown>;
+    sessions?: Record<string, unknown>[];
+    supporter?: boolean;
+    scenarios?: Record<string, unknown>[];
+  } = {},
 ) {
   const rec = await stubApp(page, {
     profile: { ...PROFILE, ...opts.profile },
     blunders,
     games: [GAME],
+    ...(opts.scenarios ? { endgameScenarios: opts.scenarios } : {}),
     ...(opts.sessions ? { sessions: opts.sessions } : {}),
     rpc: {
       // Supporters train past their daily goal; free players stop at it.
@@ -452,6 +458,28 @@ test('supporters get no meter, just the heart by their name', async ({ page }) =
   await page.goto('/dashboard');
   await expect(page.locator('aside').getByTestId('nav-supporter-mark')).toBeVisible();
   await expect(page.getByTestId('usage-meter')).toHaveCount(0);
+});
+
+test('with today\'s 2 endgames played, the Endgame positions focus locks even with positions left', async ({ page }) => {
+  const playedToday = (id: string) => ({
+    id, user_id: 'e2e-user', game_id: 'g1', blunder_id: null, start_fen: '8/8/8/8/8/5k2/8/4K2Q w - - 0 1',
+    user_color: 'white', deserved_result: 'win', actual_result: 'loss', status: 'pending', attempts: 1,
+    last_played_at: new Date().toISOString(), created_at: PAST,
+  });
+  const endgamePosition = tactic({ id: 'e1', phase: 'endgame' });
+  await stub(page, [tactic(), endgamePosition], {
+    sessions: goalMetToday(), // 1 of 10 positions: plenty left
+    scenarios: [playedToday('sc1'), playedToday('sc2')],
+  });
+  await page.goto('/training');
+  const tile = page.getByTestId('focus-endgames');
+  await expect(tile.getByTestId('focus-endgames-unlocks')).toContainText('Unlocks in');
+  await expect(page.getByTestId('limit-banner-positions')).toHaveCount(0);
+  await tile.click();
+  const sheet = page.getByTestId('daily-limit');
+  await expect(sheet).toContainText("Today's endgames: done");
+  await expect(sheet).toContainText('You played your 2 endgames for today.');
+  await expect(page.locator('cg-board')).toHaveCount(0);
 });
 
 const NOW = new Date().toISOString();

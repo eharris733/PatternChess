@@ -68,16 +68,22 @@ export function useDailyQuota() {
 
 export type DailyQuota = ReturnType<typeof useDailyQuota>;
 
+/** The first of `kinds` whose limit is used up today, or null. */
+export function lockedKind(quota: DailyQuota, kinds: QuotaKind | QuotaKind[]): QuotaKind | null {
+  return (Array.isArray(kinds) ? kinds : [kinds]).find((k) => quota[k].locked) ?? null;
+}
+
 /**
- * `guard(kind)` → true when the player may start that kind of training; when
- * it's locked it opens the daily-limit sheet instead and returns false.
+ * `guard(kind | kinds)` → true when the player may start that training; when
+ * any of those limits is used up it opens the daily-limit sheet for it
+ * instead and returns false.
  */
 export function useQuotaGuard() {
   const quota = useDailyQuota();
-  const guard = (kind: QuotaKind): boolean => {
-    const q = quota[kind];
-    if (!q.locked) return true;
-    openDailyLimit({ kind, limit: q.limit, resetsAt: quota.resetsAt });
+  const guard = (kinds: QuotaKind | QuotaKind[]): boolean => {
+    const kind = lockedKind(quota, kinds);
+    if (!kind) return true;
+    openDailyLimit({ kind, limit: quota[kind].limit, resetsAt: quota.resetsAt });
     return false;
   };
   return { quota, guard };

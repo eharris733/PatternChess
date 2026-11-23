@@ -47,16 +47,11 @@ import {
 import { playSound } from '../lib/sounds';
 import { useT } from '../i18n/useT';
 import { useQuotaGuard } from '../hooks/useDailyQuota';
-import type { QuotaKind } from '../lib/dailyLimit';
+import { quotaKindsFor } from '../lib/dailyLimit';
 
 /** Opening intro pace, and the pause on the final position before the prompt. */
 const INTRO_STEP_MS = 400;
 const INTRO_HOLD_MS = 500;
-
-/** Which daily limit a /training focus draws on: opening sessions use the openings one. */
-function quotaKindFor(focus: TrainingFocus): QuotaKind {
-  return focus.kindFilter === 'opening' ? 'openings' : 'positions';
-}
 
 /**
  * /training. A session is one mount of TrainingSession: "Keep training" and
@@ -148,11 +143,11 @@ function TrainingSession({
   // "Keep training": the same focus (an openings session stays in openings).
   const keepTraining = () => {
     const next = continueFocus(effectiveState, state.blunders);
-    if (!guard(quotaKindFor(next ?? {}))) return;
+    if (!guard(quotaKindsFor(next ?? {}))) return;
     if (next) restartWith(next);
     else backToPicker();
   };
-  const startPracticeAhead = () => guard(quotaKindFor(effectiveState)) && restartWith(practiceAheadFocus(effectiveState));
+  const startPracticeAhead = () => guard(quotaKindsFor(effectiveState)) && restartWith(practiceAheadFocus(effectiveState));
   const resetToUnfiltered = () => restartWith({});
 
   // Context and opening filters both need the blunders' games (the per-blunder
@@ -356,8 +351,9 @@ function TrainingSession({
   // Free players stop at their plan's limits for the day (dailyLimit.ts): the
   // store skips new goal positions past the Train goal and new opening drills
   // past the openings limit, and ends the session once only those are left.
-  const capReady = !!profile && !quota.positions.pending && !quota.openings.pending;
-  const dailyCap = quota.positions.remaining;
+  const capReady = !!profile && !quota.positions.pending && !quota.openings.pending && !quota.endgames.pending;
+  // An endgame focus also stops once the day's endgames are done (quotaKindsFor).
+  const dailyCap = phaseFilter === 'endgame' && quota.endgames.locked ? 0 : quota.positions.remaining;
   const openingsCap = quota.openings.remaining;
 
   useEffect(() => {
@@ -474,7 +470,7 @@ function TrainingSession({
       <TrainLandingScreen
         due={dueData ?? null}
         onPick={(filter: TrainingFocus) => {
-          if (!guard(quotaKindFor(filter))) return;
+          if (!guard(quotaKindsFor(filter))) return;
           setPickedFilter(filter);
           setPickerOpen(false);
         }}
@@ -611,7 +607,11 @@ function TrainingSession({
         onStartFocus={(focus) => restartWith(focus)}
         sessionFocused={hasFilter(effectiveState)}
         cappedOut={state.cappedOut}
-        cappedKind={state.cappedKind}
+        cappedKind={
+          phaseFilter === 'endgame' && quota.endgames.locked && state.cappedKind === 'positions'
+            ? 'endgames'
+            : state.cappedKind
+        }
         limitResetsAt={quota.resetsAt}
       />
     );
