@@ -137,7 +137,9 @@ export function defaultProfileRow(user: NewAuthUser): Record<string, unknown> {
     created_at: nowIso(),
     last_synced_lichess_at: null,
     last_synced_chesscom_at: null,
-    preferred_rated_only: false,
+    // Casual games are noise for training (2026-11-22 feedback): new accounts
+    // train on rated games only. Existing accounts keep their choice.
+    preferred_rated_only: true,
     preferred_time_controls: ['bullet', 'blitz', 'rapid', 'classical'],
     current_streak_days: 0,
     longest_streak_days: 0,

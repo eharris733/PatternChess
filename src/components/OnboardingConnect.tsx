@@ -22,7 +22,7 @@ export function OnboardingConnect() {
   const [chesscom, setChesscom] = useState(
     profile?.chesscomUsername ?? (demoUser?.platform === 'chesscom' ? demoUser.username : ''),
   );
-  const [ratedOnly, setRatedOnly] = useState(profile?.preferredRatedOnly ?? false);
+  const [ratedOnly, setRatedOnly] = useState(profile?.preferredRatedOnly ?? true);
   const [timeControls, setTimeControls] = useState<TimeControlCategory[]>(
     profile?.preferredTimeControls?.length
       ? profile.preferredTimeControls
