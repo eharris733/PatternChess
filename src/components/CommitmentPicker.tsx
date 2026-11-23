@@ -10,12 +10,17 @@ import {
   DEFAULT_DAILY_GOALS,
   GAMES_PER_DAY_RANGE,
   POSITIONS_PER_DAY_RANGE,
+  FREE_MAX_POSITIONS,
   goalsFor,
+  needsSupporter,
   planSummaryParts,
   type CommitmentLevel,
   type DailyGoals,
 } from '../lib/dailyGoal';
 import { useLabel, useT, type Translator } from '../i18n/useT';
+import { useSupporter } from '../hooks/useSupporter';
+import { openSupporterUnlock } from '../state/supporterUnlockStore';
+import { LockIcon } from './icons/LockIcon';
 
 function summary(goals: Pick<DailyGoals, 'positionsPerDay' | 'gamesPerDay'>, t: Translator): string {
   return planSummaryParts(goals)
@@ -32,6 +37,15 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
   const { profile, refreshProfile } = useAuth();
   const t = useT();
   const label = useLabel();
+  const { isSupporter, isPending: supporterPending } = useSupporter();
+  // Obsessed and custom goals past 20 are Supporter plans (dailyGoal.ts).
+  const locked = (g: Pick<DailyGoals, 'level' | 'positionsPerDay'>) => !supporterPending && !isSupporter && needsSupporter(g);
+  const maxPositions = isSupporter ? POSITIONS_PER_DAY_RANGE.max : FREE_MAX_POSITIONS;
+  const askToUnlock = (level: CommitmentLevel) =>
+    openSupporterUnlock({
+      item: t('commitment.supporterPlan', { name: label('commitment', level, COMMITMENT_LABEL[level]) }),
+      earnHint: t('commitment.freeMax', { count: FREE_MAX_POSITIONS }),
+    });
   const stored = profile?.dailyGoals ?? DEFAULT_DAILY_GOALS;
   const [goals, setGoals] = useState<DailyGoals>(stored);
   const [error, setError] = useState<string | null>(null);
@@ -62,10 +76,12 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
     setDraft({ positions: String(goals.positionsPerDay), games: String(goals.gamesPerDay) });
   }, [goals.positionsPerDay, goals.gamesPerDay]);
   const commitDraft = () => {
-    const next = goalsFor('custom', {
+    const wanted = goalsFor('custom', {
       positionsPerDay: Number(draft.positions) || POSITIONS_PER_DAY_RANGE.min,
       gamesPerDay: Number(draft.games) || 0,
     });
+    if (locked(wanted)) askToUnlock('custom');
+    const next = { ...wanted, positionsPerDay: Math.min(wanted.positionsPerDay, maxPositions) };
     if (next.positionsPerDay !== goals.positionsPerDay || next.gamesPerDay !== goals.gamesPerDay) save(next);
     else setDraft({ positions: String(goals.positionsPerDay), games: String(goals.gamesPerDay) });
   };
@@ -74,8 +90,13 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
   };
 
   const pick = (level: CommitmentLevel) => {
-    if (level === 'custom') save(goalsFor('custom', goals));
-    else save(goalsFor(level));
+    if (level === 'custom') {
+      save(goalsFor('custom', { ...goals, positionsPerDay: Math.min(goals.positionsPerDay, maxPositions) }));
+      return;
+    }
+    const next = goalsFor(level);
+    if (locked(next)) askToUnlock(level);
+    else save(next);
   };
 
   return (
@@ -84,11 +105,14 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
         {COMMITMENT_PRESET_ORDER.map((level) => {
           const p = COMMITMENT_PRESETS[level];
           const active = goals.level === level;
+          const isLocked = !active && locked({ level, positionsPerDay: p.positionsPerDay });
           return (
             <button
               key={level}
               type="button"
               aria-pressed={active}
+              data-testid={`commitment-${level}`}
+              data-locked={isLocked || undefined}
               onClick={() => pick(level)}
               className={clsx(
                 'flex flex-col items-start gap-0.5 border-2 px-3 py-2 text-left transition-colors',
@@ -97,7 +121,10 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
                   : 'border-text-primary/20 hover:border-text-primary/50',
               )}
             >
-              <span className="text-sm font-semibold text-text-primary">{label('commitment', level, COMMITMENT_LABEL[level])}</span>
+              <span className="flex items-center gap-1 text-sm font-semibold text-text-primary">
+                {isLocked && <LockIcon className="h-3.5 w-3.5" />}
+                {label('commitment', level, COMMITMENT_LABEL[level])}
+              </span>
               <span className="text-xs text-text-primary">{summary(p, t)}</span>
               <span className="text-xs text-text-primary">{label('commitmentTagline', level, COMMITMENT_TAGLINE[level])}</span>
             </button>
@@ -126,7 +153,7 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
                 type="number"
                 className="input w-20"
                 min={POSITIONS_PER_DAY_RANGE.min}
-                max={POSITIONS_PER_DAY_RANGE.max}
+                max={maxPositions}
                 value={draft.positions}
                 onChange={(e) => setDraft((d) => ({ ...d, positions: e.target.value }))}
                 onBlur={commitDraft}

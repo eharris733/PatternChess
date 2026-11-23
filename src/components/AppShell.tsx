@@ -4,6 +4,8 @@ import { SidebarNav } from './SidebarNav';
 import { ErrorBoundary } from './ErrorBoundary';
 import { PgnUploadModal } from './PgnUploadModal';
 import { RewardRevealHost } from './rewards/RewardRevealHost';
+import { SupporterUnlockHost } from './supporter/SupporterUnlockHost';
+import { SupporterThanksNotice } from './supporter/SupporterThanksNotice';
 import { BrandLockup } from './BrandLogo';
 import { MenuIcon } from './icons/MenuIcon';
 import { useAuth } from '../auth/useAuth';
@@ -103,6 +105,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <PgnUploadModal />
       {/* Path-rung and achievement rewards, shown once each (src/lib/rewards.ts). */}
       <RewardRevealHost />
+      {/* Every supporter lock opens this sheet (openSupporterUnlock). */}
+      <SupporterUnlockHost />
+      <SupporterThanksNotice />
     </div>
   );
 }

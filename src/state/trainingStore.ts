@@ -129,6 +129,14 @@ export interface TrainingStateShape {
    */
   goalCorrect: number;
   goalAttempted: number;
+  /**
+   * Free players' daily cap (feedback round 2): how many more goal positions
+   * (first attempts, openings excluded) this session may hand out before the
+   * day's plan is done. null = no cap (supporters). Set by TrainingRoute.
+   */
+  dailyCap: number | null;
+  /** The session ended because the daily cap was reached (not because the queue ran out). */
+  cappedOut: boolean;
   attemptedBlunderIds: Set<string>;
   fen: string;
   orientation: 'white' | 'black';
@@ -247,6 +255,8 @@ export interface TrainingStateShape {
   /** End the intro (or skip it) and prompt for the move. */
   finishIntro: () => void;
   setRevealBeforeSolve: (value: boolean) => void;
+  /** Free players' remaining goal positions for today (null = no cap). Call before setBlunders. */
+  setDailyCap: (cap: number | null) => void;
   ensureBlunderRefutation: () => Promise<void>;
   setBlunders: (blunders: Blunder[]) => void;
   setContextFilter: (filter: ContextFilter | null) => void;
@@ -302,6 +312,7 @@ type InitialShape = Omit<TrainingStateShape,
   | 'selectPostCorrectIndex'
   | 'clearPersistError'
   | 'setRepertoire'
+  | 'setDailyCap'
   | 'setIntroIndex'
   | 'finishIntro'
   | 'reset'>;
@@ -315,6 +326,8 @@ function makeInitial(): InitialShape {
     totalAttempted: 0,
     goalCorrect: 0,
     goalAttempted: 0,
+    dailyCap: null,
+    cappedOut: false,
     attemptedBlunderIds: new Set<string>(),
     fen: new Chess().fen(),
     orientation: 'white',
@@ -456,6 +469,11 @@ function notePersistFailure(label: string, err: unknown): void {
 /** Opening drills have their own daily step; they never fill "Train N positions". */
 function countsTowardGoal(blunder: Blunder): boolean {
   return blunder.kind !== 'opening';
+}
+
+/** Whether a free player's daily cap is used up for this session. */
+function capReached(s: Pick<TrainingStateShape, 'dailyCap' | 'goalAttempted'>): boolean {
+  return s.dailyCap != null && s.goalAttempted >= s.dailyCap;
 }
 
 function goalCounts(
@@ -691,6 +709,10 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
     set({ contextFilter: filter });
   },
 
+  setDailyCap: (cap) => {
+    set({ dailyCap: cap, cappedOut: false });
+  },
+
   setRevealBeforeSolve: (value) => {
     set({ revealBeforeSolve: value });
   },
@@ -731,6 +753,18 @@ export const useTrainingStore = create<TrainingStateShape>((set, get) => ({
   },
 
   loadCurrentBlunder: async () => {
+    // Daily cap reached: skip new goal positions (openings and already-tried
+    // retries still play), and end the session once only those are left.
+    if (capReached(get())) {
+      const s = get();
+      let i = s.currentIndex;
+      while (i < s.blunders.length && countsTowardGoal(s.blunders[i]) && !s.attemptedBlunderIds.has(s.blunders[i].id)) i++;
+      if (i >= s.blunders.length) {
+        set({ phase: 'complete', cappedOut: true });
+        return;
+      }
+      if (i !== s.currentIndex) set({ currentIndex: i });
+    }
     const { blunders, currentIndex } = get();
     const blunder = blunders[currentIndex];
     if (!blunder) {

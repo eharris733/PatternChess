@@ -5,6 +5,7 @@ import { US_STATE_CODES } from '../../../src/lib/usStates';
 import {
   REFERRAL_REWARD_POSITIONS,
   grantPerksUntil,
+  hasSupporterPerks,
   maybeGrantReferralReward,
   referralRewardSummary,
 } from '../supporterGrants';
@@ -12,10 +13,12 @@ import { sanitizeAvatar } from '../../../src/lib/avatar';
 import { PIECE_SETS } from '../../../src/lib/pieceSets';
 import { BOARD_THEMES as ALL_THEMES, LEGACY_BOARD_THEMES } from '../../../src/lib/themeIds';
 import { FREEZE_RUNGS } from '../../../src/lib/rewards';
+import { FREE_MAX_POSITIONS } from '../../../src/lib/dailyGoal';
 import {
   argOptString,
   argString,
   badRequest,
+  forbidden,
   userRpc,
   type RpcRegistry,
   type UserRpcContext,
@@ -302,6 +305,13 @@ export const handlers: RpcRegistry = {
   /** Allowlisted column update of the caller's profile; returns the new row (null: no profile). */
   'profile.update': userRpc<{ patch: Record<string, unknown> }>(async (ctx, args) => {
     const patch = sanitizeProfilePatch(args.patch);
+    // Obsessed and custom goals past 20 positions are Supporter plans (src/lib/dailyGoal.ts).
+    const wantsSupporterPlan =
+      patch.commitment_level === 'obsessed' ||
+      (typeof patch.daily_positions_goal === 'number' && patch.daily_positions_goal > FREE_MAX_POSITIONS);
+    if (wantsSupporterPlan && !(await hasSupporterPerks(ctx.db, ctx.user.id))) {
+      throw forbidden('That plan is for supporters', 'supporter_plan');
+    }
     const { sql, params } = profileUpdateSql(ctx.user.id, patch);
     return first(ctx.db, sql, params, 'profiles');
   }),

@@ -81,6 +81,28 @@ export function planSummary(goals: Pick<DailyGoals, 'positionsPerDay' | 'gamesPe
   return parts.join(', ');
 }
 
+/**
+ * Free players' plans (feedback round 2): Casual, Regular, Serious, or a
+ * custom goal up to Serious's 20 positions. Obsessed and anything bigger are
+ * Supporter plans, and free players stop drilling for the day at their goal
+ * (TrainingRoute's daily cap). The server enforces the same rule on writes
+ * (profile.update), and `effectiveGoals` clamps a lapsed supporter's stored
+ * plan on read.
+ */
+export const FREE_MAX_POSITIONS = 20;
+
+/** Whether a plan needs Supporter perks. */
+export function needsSupporter(goals: Pick<DailyGoals, 'level' | 'positionsPerDay'>): boolean {
+  return goals.level === 'obsessed' || goals.positionsPerDay > FREE_MAX_POSITIONS;
+}
+
+/** The plan that applies: the stored one, or the free cap of it for a player without perks. */
+export function effectiveGoals(goals: DailyGoals, isSupporter: boolean): DailyGoals {
+  if (isSupporter || !needsSupporter(goals)) return goals;
+  if (goals.level === 'obsessed') return { level: 'serious', ...COMMITMENT_PRESETS.serious };
+  return { ...goals, positionsPerDay: Math.min(goals.positionsPerDay, FREE_MAX_POSITIONS) };
+}
+
 /** Bounds match the profiles check constraints. */
 export const POSITIONS_PER_DAY_RANGE = { min: 1, max: 100 } as const;
 export const GAMES_PER_DAY_RANGE = { min: 0, max: 10 } as const;

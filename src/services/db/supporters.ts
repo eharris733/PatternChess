@@ -49,17 +49,23 @@ export async function getMySupporterStatus(): Promise<SupporterStatus | null> {
 }
 
 // Same-origin Pages Functions: the better-auth session cookie authenticates.
-async function postStripe(path: 'checkout' | 'portal'): Promise<string> {
-  const res = await fetch(`/api/stripe/${path}`, { method: 'POST', credentials: 'same-origin' });
+async function postStripe(path: 'checkout' | 'portal', payload?: Record<string, unknown>): Promise<string> {
+  const res = await fetch(`/api/stripe/${path}`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    ...(payload ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) } : {}),
+  });
   const body = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
   if (res.status === 401) throw new Error('Sign in first.');
   if (!res.ok || !body.url) throw new Error(body.error ?? `HTTP ${res.status}`);
   return body.url;
 }
 
-/** URL of a Stripe Checkout page for the $5/month supporter subscription. */
+/** URL of a Stripe Checkout page for the $5/month supporter subscription (returns to the current page). */
 export function createSupporterCheckout(): Promise<string> {
-  return postStripe('checkout');
+  // Back/cancel on Stripe returns to this page; success adds ?supporter=thanks
+  // (SupporterThanksNotice). The server only keeps same-origin paths.
+  return postStripe('checkout', { returnTo: window.location.pathname + window.location.search });
 }
 
 /** URL of the Stripe Customer Portal (update card, cancel, invoices). */

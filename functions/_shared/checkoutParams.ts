@@ -36,8 +36,37 @@ function publicIconUrl(origin: string): string | null {
   return `${url.origin}/app-icon-512.png`;
 }
 
+/**
+ * Where Checkout returns to: a same-origin app path the client passed (the page
+ * the player upgraded from), else the dashboard. Never another origin and
+ * never a fragment (Stripe keeps the URL as given).
+ */
+export function checkoutReturnPath(raw: unknown): string {
+  if (typeof raw !== 'string') return '/dashboard';
+  const value = raw.trim();
+  if (!value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) return '/dashboard';
+  const base = 'https://return.invalid';
+  let url: URL;
+  try {
+    url = new URL(value, base);
+  } catch {
+    return '/dashboard';
+  }
+  if (url.origin !== base || url.pathname === '/login' || url.pathname === '/') return '/dashboard';
+  url.searchParams.delete('supporter');
+  url.searchParams.delete('checkout');
+  return url.pathname + url.search;
+}
+
+/** `path` with `supporter=thanks` added (the app shell shows the thank-you notice). */
+export function withThanks(path: string): string {
+  return path + (path.includes('?') ? '&' : '?') + 'supporter=thanks';
+}
+
 export interface CheckoutInput {
   origin: string;
+  /** Same-origin path to come back to (checkoutReturnPath). */
+  returnPath: string;
   customerId: string;
   userId: string;
   priceId: string;
@@ -54,8 +83,8 @@ export function supporterCheckoutParams(input: CheckoutInput): Stripe.Checkout.S
     client_reference_id: input.userId,
     line_items: [{ price: input.priceId, quantity: 1 }],
     subscription_data: { metadata: { user_id: input.userId, app: 'patternchess' } },
-    success_url: `${input.origin}/supporter?thanks=1`,
-    cancel_url: `${input.origin}/supporter`,
+    success_url: `${input.origin}${withThanks(input.returnPath)}`,
+    cancel_url: `${input.origin}${input.returnPath}`,
     integration_identifier: `patternchess_supporter_${input.integrationSuffix}`,
     branding_settings: {
       ...CHECKOUT_BRANDING,

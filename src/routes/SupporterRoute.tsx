@@ -13,6 +13,9 @@ import { breadcrumbJsonLd } from '../seo/jsonLd';
 import { SUPPORTER_CHECKOUT_RESUME, loginUrlWithNext } from '../lib/nextPath';
 
 const PERKS: { title: string; body: string }[] = [
+  { title: 'Train more', body: 'Keep drilling after your daily plan, and pick the Obsessed plan or a custom goal past 20.' },
+  { title: 'Every look', body: 'All board themes, piece sets and avatar items, without waiting for path milestones.' },
+  { title: 'Courses + articles', body: 'Every course lesson and the article at each path milestone.' },
   { title: 'Flair', body: 'A badge next to your name on your profile and on the leaderboards.' },
   { title: 'Mobile app', body: 'First in line for the beta when it opens.' },
   { title: 'Thanks', body: "You're the reason this exists." },
@@ -27,9 +30,10 @@ const CTA =
  * so the thank-you state polls until the `supporters` row turns active.
  */
 export function SupporterRoute() {
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   const [params, setParams] = useSearchParams();
-  const thanks = params.get('thanks') === '1';
+  // `supporter=thanks` from Checkout (checkoutParams.withThanks); `thanks=1` from older sessions.
+  const thanks = params.get('supporter') === 'thanks' || params.get('thanks') === '1';
   const resumeCheckout = params.get('checkout') === '1';
   const { status, isSupporter, isPending: supporterPending } = useSupporter();
   const { checkout, manage, pending, error } = useSupporterCheckout();
@@ -41,7 +45,7 @@ export function SupporterRoute() {
   useHead({
     title: 'Support PatternChess',
     description:
-      'PatternChess is a free daily chess-training plan. Supporters chip in $5 a month to keep it running and get flair and early access to the mobile app.',
+      'PatternChess is a free daily chess-training plan. Supporters chip in $5 a month to keep it running, train without a daily cap, unlock every look and course, and get flair and early access to the mobile app.',
     canonical: '/supporter',
     jsonLd: [
       breadcrumbJsonLd([
@@ -88,8 +92,8 @@ export function SupporterRoute() {
             <span className="font-mono uppercase text-xs tracking-tight text-gold-dark">Support PatternChess</span>
             <h1 className="text-3xl font-bold tracking-tight">Back the thing that's backing your chess.</h1>
             <p className="text-lg text-text-primary leading-relaxed">
-              Daily training on PatternChess is free for everyone. Supporters chip in $5 a month because
-              they want it to keep existing, and we're grateful.
+              Your daily plan on PatternChess is free for everyone. Supporters chip in $5 a month to keep it
+              running, train as much as they like, and unlock everything.
             </p>
             {elo > 0 && (
               <p className="text-text-primary">
@@ -99,7 +103,9 @@ export function SupporterRoute() {
           </header>
 
           <section className="border-2 border-text-primary bg-surface p-6 flex flex-col gap-4" data-testid="supporter-cta">
-            {thanks && !isSupporter && session ? (
+            {authLoading || (session && supporterPending) ? (
+              <div className="h-12" aria-busy="true" data-testid="supporter-cta-loading" />
+            ) : thanks && !isSupporter && session ? (
               <p className="text-text-primary" role="status">
                 Thank you! Your supporter perks switch on in a few seconds.
               </p>
@@ -146,7 +152,7 @@ export function SupporterRoute() {
 
           <section className="flex flex-col gap-4">
             <h2 className="font-mono uppercase tracking-tight text-xl">What supporters get</h2>
-            <ul className="grid gap-3 sm:grid-cols-3">
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {PERKS.map((p) => (
                 <li key={p.title} className="border-2 border-text-primary bg-surface p-4 flex flex-col gap-1">
                   <span className="font-mono uppercase text-xs tracking-tight text-gold-dark">{p.title}</span>

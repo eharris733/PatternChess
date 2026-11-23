@@ -1,4 +1,6 @@
 import clsx from 'clsx';
+import { useT } from '../i18n/useT';
+import { openSupporterUnlock } from '../state/supporterUnlockStore';
 import { PIECE_SETS, PIECE_SET_INFO, type PieceSet } from '../lib/pieceSets';
 import { usePieceImages } from '../hooks/usePieceImages';
 import { LockIcon } from './icons/LockIcon';
@@ -31,6 +33,7 @@ interface PieceSetPickerProps {
 
 /** /profile "Pieces": every bundled set with a live preview and its credit (public/pieces/LICENSES.md). */
 export function PieceSetPicker({ value, onChange, locked }: PieceSetPickerProps) {
+  const t = useT();
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="piece-set-picker">
       {PIECE_SETS.map((set) => {
@@ -42,14 +45,21 @@ export function PieceSetPicker({ value, onChange, locked }: PieceSetPickerProps)
             key={set}
             type="button"
             aria-pressed={active}
-            disabled={lockHint != null}
-            title={lockHint ?? undefined}
+            aria-label={lockHint ? `${info.label} (locked: ${lockHint})` : undefined}
             data-testid={`piece-set-option-${set}`}
-            onClick={() => onChange(set)}
+            data-locked={lockHint != null || undefined}
+            onClick={() =>
+              lockHint
+                ? openSupporterUnlock({
+                    item: t('supporterUnlock.pieceSet', { name: info.label }),
+                    earnHint: t('supporterUnlock.orEarn', { hint: lockHint }),
+                  })
+                : onChange(set)
+            }
             className={clsx(
               'flex flex-col gap-2 border-2 bg-surface p-3 text-left transition-all',
               active ? 'border-text-primary shadow-card' : 'border-text-primary/30 hover:border-text-primary',
-              lockHint && 'cursor-not-allowed hover:border-text-primary/30',
+              lockHint && 'hover:border-text-primary/60',
             )}
           >
             <PieceSetStrip set={set} className={clsx(lockHint && 'opacity-50')} />

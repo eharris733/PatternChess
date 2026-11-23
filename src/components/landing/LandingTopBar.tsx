@@ -2,9 +2,18 @@ import { Link } from 'react-router-dom';
 import { LandingBrand } from './LandingBrand';
 import { trackCtaClick } from '../../services/funnelService';
 import { useT } from '../../i18n/useT';
+import { useAuth } from '../../auth/useAuth';
+import { MyAvatar } from '../avatar/PixelAvatar';
 
+/**
+ * Top bar of the public pages. Signed in (e.g. back from Stripe on
+ * /supporter), it shows your avatar and the way back into the app instead of
+ * Log in / Sign up (the prerendered HTML and a still-loading session show the
+ * signed-out buttons).
+ */
 export function LandingTopBar() {
   const t = useT();
+  const { session } = useAuth();
   return (
     <header className="sticky top-0 z-10 bg-bg/95 backdrop-blur border-b-2 border-text-primary">
       <a
@@ -15,22 +24,35 @@ export function LandingTopBar() {
       </a>
       <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
         <LandingBrand small />
-        <nav className="flex items-center gap-3">
-          <Link
-            to="/login"
-            onClick={() => trackCtaClick('topbar_login')}
-            className="font-mono uppercase text-xs tracking-tight border-2 border-text-primary bg-transparent text-text-primary px-4 py-2 rounded-none hover:bg-text-primary hover:text-bg transition-colors"
-          >
-            {t('landing.login')}
-          </Link>
-          <Link
-            to="/login"
-            onClick={() => trackCtaClick('topbar_signup')}
-            className="font-mono uppercase text-xs tracking-tight border-2 border-text-primary bg-text-primary text-bg px-4 py-2 rounded-none shadow-[3px_3px_0_#8B6914] hover:shadow-[1px_1px_0_#8B6914] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
-          >
-            {t('landing.signup')}
-          </Link>
-        </nav>
+        {session ? (
+          <nav className="flex items-center gap-3">
+            <Link
+              to="/dashboard"
+              data-testid="topbar-back-to-app"
+              className="inline-flex items-center gap-2 font-mono uppercase text-xs tracking-tight border-2 border-text-primary bg-text-primary text-bg px-3 py-1.5 rounded-none shadow-[3px_3px_0_#8B6914] hover:shadow-[1px_1px_0_#8B6914] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+            >
+              <MyAvatar className="h-6 w-6" />
+              {t('landing.backToApp')}
+            </Link>
+          </nav>
+        ) : (
+          <nav className="flex items-center gap-3">
+            <Link
+              to="/login"
+              onClick={() => trackCtaClick('topbar_login')}
+              className="font-mono uppercase text-xs tracking-tight border-2 border-text-primary bg-transparent text-text-primary px-4 py-2 rounded-none hover:bg-text-primary hover:text-bg transition-colors"
+            >
+              {t('landing.login')}
+            </Link>
+            <Link
+              to="/login"
+              onClick={() => trackCtaClick('topbar_signup')}
+              className="font-mono uppercase text-xs tracking-tight border-2 border-text-primary bg-text-primary text-bg px-4 py-2 rounded-none shadow-[3px_3px_0_#8B6914] hover:shadow-[1px_1px_0_#8B6914] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+            >
+              {t('landing.signup')}
+            </Link>
+          </nav>
+        )}
       </div>
     </header>
   );

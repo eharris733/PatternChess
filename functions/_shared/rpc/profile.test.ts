@@ -54,6 +54,25 @@ beforeEach(async () => {
 
 afterEach(() => db.close());
 
+describe('profile.update supporter plans', () => {
+  it('Obsessed and goals past 20 positions need Supporter perks', async () => {
+    await expect(call('profile.update', alice, { patch: { commitment_level: 'obsessed', daily_positions_goal: 30 } })).rejects.toMatchObject({
+      status: 403,
+    });
+    await expect(call('profile.update', alice, { patch: { commitment_level: 'custom', daily_positions_goal: 21 } })).rejects.toMatchObject({
+      status: 403,
+    });
+    await call('profile.update', alice, { patch: { commitment_level: 'custom', daily_positions_goal: 20 } });
+    db.sqlite
+      .prepare('INSERT INTO supporters (user_id, stripe_customer_id, status) VALUES (?, ?, ?)')
+      .run('u-alice', 'cus_a', 'active');
+    const row = await call<Record<string, unknown>>('profile.update', alice, {
+      patch: { commitment_level: 'obsessed', daily_positions_goal: 30, daily_games_goal: 3 },
+    });
+    expect(row).toMatchObject({ commitment_level: 'obsessed', daily_positions_goal: 30 });
+  });
+});
+
 describe('profile.update allowlist + email guard', () => {
   it('rejects columns outside the allowlist', () => {
     for (const col of ['contact_email_verified_at', 'email_unsub_token', 'shares_count', 'anon_id', 'referred_by', 'id']) {

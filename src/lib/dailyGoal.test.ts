@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { COMMITMENT_PRESETS, DEFAULT_DAILY_GOALS, dailyGoalsFromJson, goalsFor, planSummary } from './dailyGoal';
+import {
+  COMMITMENT_PRESETS,
+  DEFAULT_DAILY_GOALS,
+  dailyGoalsFromJson,
+  goalsFor,
+  planSummary,
+  FREE_MAX_POSITIONS,
+  effectiveGoals,
+  needsSupporter,
+} from './dailyGoal';
 
 describe('goalsFor', () => {
   it('returns the preset numbers', () => {
@@ -41,5 +50,25 @@ describe('planSummary', () => {
 
   it('leaves out the game when the plan has none, and pluralizes one position', () => {
     expect(planSummary({ positionsPerDay: 1, gamesPerDay: 0 })).toBe('1 position, 3 opening reviews, 2 endgames');
+  });
+});
+
+describe('supporter plans', () => {
+  it('Obsessed and custom goals past 20 need Supporter', () => {
+    expect(needsSupporter(goalsFor('obsessed'))).toBe(true);
+    expect(needsSupporter(goalsFor('serious'))).toBe(false);
+    expect(needsSupporter(goalsFor('custom', { positionsPerDay: FREE_MAX_POSITIONS, gamesPerDay: 1 }))).toBe(false);
+    expect(needsSupporter(goalsFor('custom', { positionsPerDay: FREE_MAX_POSITIONS + 1, gamesPerDay: 1 }))).toBe(true);
+  });
+
+  it("a free player's stored supporter plan reads as its free cap", () => {
+    expect(effectiveGoals(goalsFor('obsessed'), false)).toEqual(goalsFor('serious'));
+    expect(effectiveGoals(goalsFor('custom', { positionsPerDay: 50, gamesPerDay: 4 }), false)).toEqual({
+      level: 'custom',
+      positionsPerDay: FREE_MAX_POSITIONS,
+      gamesPerDay: 4,
+    });
+    expect(effectiveGoals(goalsFor('obsessed'), true)).toEqual(goalsFor('obsessed'));
+    expect(effectiveGoals(goalsFor('regular'), false)).toEqual(goalsFor('regular'));
   });
 });
