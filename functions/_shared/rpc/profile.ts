@@ -1,6 +1,7 @@
 import { createProfileForUser } from '../auth';
 import { all, first, nowIso, run, scalar, stmt, type SqlParam } from '../db';
 import { encodeRow } from '../schema';
+import { US_STATE_CODES } from '../../../src/lib/usStates';
 import {
   argOptString,
   argString,
@@ -143,6 +144,8 @@ export const PROFILE_WRITABLE: Readonly<Record<string, Validator>> = {
   email_reminders: oneOf(['daily', 'few_days', 'off']),
   email_reports: oneOf(['weekly', 'monthly', 'off']),
   contact_email: contactEmail,
+  // OTB events (dashboard card + weekly email); src/lib/usStates.ts
+  events_state: oneOf(US_STATE_CODES, true),
 };
 
 /** Validate + normalize a client patch against the allowlist (throws 400 on anything else). */

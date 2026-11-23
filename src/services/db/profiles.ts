@@ -95,3 +95,16 @@ export async function bumpAppOpen(): Promise<number | null> {
 export async function markAskPrompted(ask: 'email' | 'course' | 'supporter'): Promise<void> {
   await rpc('profile.markAskPrompted', { ask });
 }
+
+/** US state for OTB events (`profiles.events_state`); null clears it. Read/write via `useEventsState`. */
+export async function updateEventsState(state: string | null): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) return;
+  await updateOwnProfile({ events_state: state });
+}
+
+/** The caller's coarse location from Cloudflare (events.locate): a first guess for the events card. */
+export async function locateForEvents(): Promise<{ country: string | null; region: string | null }> {
+  const data = await rpc<{ country: string | null; region: string | null } | null>('events.locate');
+  return { country: data?.country ?? null, region: data?.region ?? null };
+}

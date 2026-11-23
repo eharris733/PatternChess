@@ -43,11 +43,25 @@ npx --prefix ~/PatternChess wrangler secret delete SUPABASE_SERVICE_ROLE_KEY --c
 `"live"` sends only to `TEST_RECIPIENTS`. A dry run right after deploying:
 `curl -X POST -H "Authorization: Bearer $ADMIN_SECRET" "https://email.patternchess.com/admin/run?dryRun=1"`.
 
+## Events near you (weekly_report)
+
+Players who saved a US state (`profiles.events_state`, picked on the
+dashboard's Upcoming OTB events card) get an "Events near you" section at the
+end of the weekly report: up to 5 OTB tournaments in that state over the next
+14 days, one line each (title, date, club, link), plus a link to the state's
+page. Listings only, no pitch. `events.ts` reads the public
+`events.patternchess.com/api/events?state=XX&to=…` at send time, once per
+state per run (4 s timeout); any failure leaves the section out and the report
+still goes. The rule (`eventsStateFor`) lives in `rules.ts`; the state names
+are a copy of `src/lib/usStates.ts` (`usStates.ts`, parity-tested in
+`events.test.ts`). `EVENTS_URL` (optional var) overrides the API origin.
+
 ## Local
 
 ```sh
 npm run typecheck:notifier
-npx vitest run workers/notifier     # rules.test.ts (every rule), store.test.ts (SQL on the real schema), outbox.test.ts
+npx vitest run workers/notifier     # rules.test.ts (every rule), store.test.ts (SQL on the real schema), outbox.test.ts, events.test.ts
+node --experimental-strip-types workers/notifier/scripts/preview.ts out    # every template; EVENTS_STATE=MA for live events
 npx wrangler dev --config workers/notifier/wrangler.jsonc --local --port 8791 \
   --persist-to .wrangler/state --var SEND_MODE:test     # uses the local D1 copy (scripts/dev-api.sh's)
 ```
