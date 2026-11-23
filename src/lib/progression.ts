@@ -1,8 +1,10 @@
 // The progression ladder (/path): milestones on lifetime positions trained,
-// the same number as "Positions solved" (BlunderStats.reviewed = sum of
-// times_correct). Each rung unlocks one motivational article (titles and
-// teasers in src/generated/articles.json, bodies supporter-only); courses join
-// the ladder later. Supporters skip the gates.
+// counted exactly like the daily plan's "Train N positions" step: every
+// first-attempt drill (openings excluded) summed over all training sessions
+// (`profile.trainingTotals` → positions). So a day's plan always moves the
+// path by the same amount it moves the daily goal. Each rung unlocks one
+// motivational article (titles and teasers in src/generated/articles.json,
+// bodies supporter-only). Supporters skip the gates.
 
 import articlesJson from '../generated/articles.json';
 

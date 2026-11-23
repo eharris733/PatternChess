@@ -155,16 +155,17 @@ describe('training totals + sessions', () => {
   it('caps each session at 120 minutes and counts distinct active days', async () => {
     const t0 = Date.parse('2026-11-01T10:00:00.000Z');
     const ins = db.sqlite.prepare(
-      'INSERT INTO training_sessions (id, user_id, started_at, ended_at, local_date, blunders_correct) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO training_sessions (id, user_id, started_at, ended_at, local_date, blunders_correct, blunders_attempted) VALUES (?, ?, ?, ?, ?, ?, ?)',
     );
     const at = (ms: number) => new Date(ms).toISOString();
-    ins.run('s1', 'u-alice', at(t0), at(t0 + 30.4 * 60_000), '2026-11-01', 3); // 30.4
-    ins.run('s2', 'u-alice', at(t0), at(t0 + 5 * 3600_000), '2026-11-01', 0); // capped 120
-    ins.run('s3', 'u-alice', at(t0), null, '2026-11-02', 1); // unfinished
-    ins.run('s4', 'u-alice', at(t0), at(t0 + 0.3 * 60_000), '2026-11-03', 2); // 0.3
-    ins.run('s5', 'u-bob', at(t0), at(t0 + 60 * 60_000), '2026-11-01', 9);
-    expect(await call('profile.trainingTotals', alice)).toEqual({ minutes: 151, activeDays: 3 });
-    expect(await call('profile.trainingTotals', lich)).toEqual({ minutes: 0, activeDays: 0 });
+    ins.run('s1', 'u-alice', at(t0), at(t0 + 30.4 * 60_000), '2026-11-01', 3, 4); // 30.4
+    ins.run('s2', 'u-alice', at(t0), at(t0 + 5 * 3600_000), '2026-11-01', 0, 2); // capped 120
+    ins.run('s3', 'u-alice', at(t0), null, '2026-11-02', 1, 1); // unfinished
+    ins.run('s4', 'u-alice', at(t0), at(t0 + 0.3 * 60_000), '2026-11-03', 2, 3); // 0.3
+    ins.run('s5', 'u-bob', at(t0), at(t0 + 60 * 60_000), '2026-11-01', 9, 9);
+    // positions = every session's first-attempt count, unfinished ones included (the daily goal's rule).
+    expect(await call('profile.trainingTotals', alice)).toEqual({ minutes: 151, activeDays: 3, positions: 10 });
+    expect(await call('profile.trainingTotals', lich)).toEqual({ minutes: 0, activeDays: 0, positions: 0 });
   });
 
   it('create/update/read sessions scoped to the caller', async () => {

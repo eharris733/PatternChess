@@ -166,6 +166,7 @@ const LIST_RPCS = new Set([
   'blunders.drillsOfKind',
   'blunders.allLive',
   'blunders.byIds',
+  'blunders.upcoming',
   'blunders.endgameCandidates',
   'blunders.forDeepening',
   'blunders.unenriched',
@@ -361,6 +362,19 @@ export function seededHandlers(seed: SeedData): RpcHandlers {
       'blunders.firstDueTactic': () => due().find((b) => kindOf(b) === 'tactic') ?? null,
       'blunders.allLive': () => blunders.filter(live),
       'blunders.byIds': (a: Row) => blunders.filter((b) => live(b) && inIds(a.ids, b.id)),
+      // Practice ahead: live, not yet due, soonest first.
+      'blunders.upcoming': (a: Row) =>
+        blunders
+          .filter(
+            (b) =>
+              live(b) &&
+              !isDue(b) &&
+              (!a.kind || kindOf(b) === a.kind) &&
+              (!a.excludeKind || kindOf(b) !== a.excludeKind) &&
+              (!a.phase || b.phase === a.phase),
+          )
+          .sort((x, y) => String(x.next_drill_at).localeCompare(String(y.next_drill_at)))
+          .slice(0, typeof a.limit === 'number' ? a.limit : 10),
       'blunders.forGames': (a: Row) => blunders.filter((b) => inIds(a.gameIds, b.game_id)),
       'blunders.liveIdsForGames': (a: Row) =>
         blunders
@@ -415,6 +429,12 @@ export function seededHandlers(seed: SeedData): RpcHandlers {
       'sessions.recent': () => sessions,
       'sessions.since': (a: Row) =>
         sessions.filter((s) => !s.local_date || String(s.local_date) >= String(a.sinceDate)),
+      // positions = lifetime first-attempt drills (the /path metric); minutes aren't modelled.
+      'profile.trainingTotals': () => ({
+        minutes: 0,
+        activeDays: new Set(sessions.filter((s) => Number(s.blunders_correct) > 0).map((s) => s.local_date)).size,
+        positions: sessions.reduce((n, s) => n + (Number(s.blunders_attempted) || 0), 0),
+      }),
     } satisfies RpcHandlers);
   }
   if (seed.deviations) {

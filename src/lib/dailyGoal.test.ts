@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COMMITMENT_PRESETS, DEFAULT_DAILY_GOALS, dailyGoalsFromJson, goalsFor } from './dailyGoal';
+import { COMMITMENT_PRESETS, DEFAULT_DAILY_GOALS, dailyGoalsFromJson, goalsFor, planSummary } from './dailyGoal';
 
 describe('goalsFor', () => {
   it('returns the preset numbers', () => {
@@ -30,5 +30,16 @@ describe('dailyGoalsFromJson', () => {
     expect(
       dailyGoalsFromJson({ commitment_level: 'hardcore', daily_positions_goal: 12, daily_games_goal: 1 }).level,
     ).toBe('regular');
+  });
+});
+
+describe('planSummary', () => {
+  it('describes the whole day in plan order', () => {
+    expect(planSummary(COMMITMENT_PRESETS.regular)).toBe('10 positions, 3 opening reviews, 2 endgames, 1 game');
+    expect(planSummary(COMMITMENT_PRESETS.obsessed)).toBe('30 positions, 3 opening reviews, 2 endgames, 3 games');
+  });
+
+  it('leaves out the game when the plan has none, and pluralizes one position', () => {
+    expect(planSummary({ positionsPerDay: 1, gamesPerDay: 0 })).toBe('1 position, 3 opening reviews, 2 endgames');
   });
 });

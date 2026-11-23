@@ -1,6 +1,6 @@
 /**
  * Daily commitment — how many positions to train and games to play for the
- * day to count as "done". Drives the dashboard daily-plan card and the
+ * day to count as "done" (plus the fixed opening and endgame steps below). Drives the dashboard daily-plan card and the
  * come-back-tomorrow streak loop. Stored per user on `profiles`
  * (commitment_level + daily_positions_goal + daily_games_goal, migration
  * 20261120130000); the presets below are the only label source.
@@ -42,6 +42,30 @@ export const COMMITMENT_TAGLINE: Record<CommitmentPreset, string> = {
   serious: 'For players with a rating target in mind.',
   obsessed: 'Your opponents should be worried. So should your family.',
 };
+
+/** Opening reviews the plan asks for per day (capped by the drills you have). */
+export const OPENINGS_PER_DAY = 3;
+/** Endgame play-outs the plan asks for per day (capped by the endgames you have). */
+export const PLAYOUTS_PER_DAY = 2;
+
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/**
+ * The whole day in one line, in plan order (Train → Openings → Endgames →
+ * Play): "10 positions, 3 opening reviews, 2 endgames, 1 game". The picker
+ * and the plan card use it so a level always says what it asks for.
+ */
+export function planSummary(goals: Pick<DailyGoals, 'positionsPerDay' | 'gamesPerDay'>): string {
+  const parts = [
+    plural(goals.positionsPerDay, 'position', 'positions'),
+    plural(OPENINGS_PER_DAY, 'opening review', 'opening reviews'),
+    plural(PLAYOUTS_PER_DAY, 'endgame', 'endgames'),
+  ];
+  if (goals.gamesPerDay > 0) parts.push(plural(goals.gamesPerDay, 'game', 'games'));
+  return parts.join(', ');
+}
 
 /** Bounds match the profiles check constraints. */
 export const POSITIONS_PER_DAY_RANGE = { min: 1, max: 100 } as const;

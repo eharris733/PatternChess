@@ -1,18 +1,42 @@
 import { useState } from 'react';
 import { useOpeningInsight, type OpeningInsightRow } from '../../hooks/useInsights';
 import { OpeningRow, openingDisplayName } from '../insights/OpeningRow';
-import { InsightCardSkeleton } from '../Skeleton';
-import { MOTIF_LABEL, ALL_MOTIFS, type Motif } from '../../chess/motifs';
-import { GAME_STATE_LABEL, GAME_STATE_ORDER, type ContextFilter } from '../../chess/blunderContext';
-import { PHASE_LABEL, PHASE_ORDER, type BlunderPhase } from '../../models/blunder';
+import { InsightCardSkeleton, Skeleton } from '../Skeleton';
+import { MOTIF_LABEL, ALL_MOTIFS } from '../../chess/motifs';
+import { GAME_STATE_LABEL, GAME_STATE_ORDER } from '../../chess/blunderContext';
+import { PHASE_LABEL, PHASE_ORDER, type Blunder } from '../../models/blunder';
+import type { TrainingFocus } from '../../routes/training/trainingFocus';
+import { OpeningIcon } from '../icons/OpeningIcon';
+import { EndgameIcon } from '../icons/EndgameIcon';
 
-export interface TrainFilterPick {
-  contextFilter?: ContextFilter;
-  phaseFilter?: BlunderPhase;
-  motifFilter?: Motif;
-  openingFilter?: string;
-  openingColor?: 'white' | 'black' | null;
-  openingLabel?: string;
+/** One of the two big focus tiles: what's due, or practice ahead when nothing is. */
+function FocusTile({
+  icon,
+  title,
+  due,
+  onPick,
+  testId,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  due: number;
+  onPick: () => void;
+  testId: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      data-testid={testId}
+      className="flex items-center gap-3 border-2 border-text-primary/20 px-4 py-3 text-left transition-colors hover:border-gold-dark hover:bg-gold-dark/10"
+    >
+      <span className="shrink-0 text-gold-dark">{icon}</span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-sm font-semibold text-text-primary">{title}</span>
+        <span className="text-xs text-text-primary">{due > 0 ? `${due} due` : 'Practice ahead'}</span>
+      </span>
+    </button>
+  );
 }
 
 const CONTEXT_LABEL: Record<'timeTrouble' | 'longThink', string> = {
@@ -90,24 +114,63 @@ function OpeningPicker({ onPick }: { onPick: (row: OpeningInsightRow) => void })
 }
 
 export function TrainLandingScreen({
-  dueCount,
+  due,
   onPick,
 }: {
-  dueCount: number;
-  onPick: (filter: TrainFilterPick) => void;
+  /** The due queue (null while loading). */
+  due: readonly Blunder[] | null;
+  onPick: (filter: TrainingFocus) => void;
 }) {
+  const dueCount = due?.length ?? 0;
+  const openingsDue = due?.filter((b) => b.kind === 'opening').length ?? 0;
+  const endgamesDue = due?.filter((b) => b.phase === 'endgame').length ?? 0;
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-6">
       <div className="text-center flex flex-col gap-2">
         <h1 className="heading-lg">What do you want to train?</h1>
-        <p className="text-text-secondary text-sm">
-          Review what's due, or pick a focus instead.
+        <p className="text-text-primary text-sm">
+          {due && dueCount === 0
+            ? 'Nothing is due. Practice the positions coming up next, or pick a focus.'
+            : "Review what's due, or pick a focus instead."}
         </p>
       </div>
 
-      <button type="button" onClick={() => onPick({})} className="btn-primary w-full py-4 text-base">
-        Review {dueCount} position{dueCount === 1 ? '' : 's'}
-      </button>
+      {due == null ? (
+        <Skeleton className="h-14 w-full" />
+      ) : dueCount > 0 ? (
+        <button type="button" onClick={() => onPick({})} className="btn-primary w-full py-4 text-base">
+          Review {dueCount} position{dueCount === 1 ? '' : 's'}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => onPick({ practiceAhead: true })}
+          className="btn-primary w-full py-4 text-base"
+        >
+          Practice ahead
+        </button>
+      )}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <FocusTile
+          icon={<OpeningIcon className="h-5 w-5" />}
+          title="Openings"
+          due={openingsDue}
+          testId="focus-openings"
+          onPick={() =>
+            onPick({ kindFilter: 'opening', returnTo: '/openings', ...(openingsDue === 0 ? { practiceAhead: true } : {}) })
+          }
+        />
+        <FocusTile
+          icon={<EndgameIcon className="h-5 w-5" />}
+          title="Endgames"
+          due={endgamesDue}
+          testId="focus-endgames"
+          onPick={() =>
+            onPick({ phaseFilter: 'endgame', returnTo: '/endgames', ...(endgamesDue === 0 ? { practiceAhead: true } : {}) })
+          }
+        />
+      </div>
 
       <section className="card flex flex-col gap-3">
         <span className="label">By opening</span>

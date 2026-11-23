@@ -40,6 +40,8 @@ const EXCLUDED: ReadonlyArray<readonly string[]> = [
   // first visit would re-show onboarding on every reload after the import.
   ['games', 'totalCount'],
   ['blunders', 'due'],
+  // Practice ahead drives drills too.
+  ['blunders', 'upcoming'],
   ['blunders', 'forGames'],
   ['training', 'filterGames'],
 ];

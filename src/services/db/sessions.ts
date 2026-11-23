@@ -49,3 +49,24 @@ export async function hasTrainingSessionToday(localDate: string): Promise<boolea
   if (!userId) return false;
   return (await rpc<boolean>('sessions.hasToday', { localDate })) === true;
 }
+
+export interface TrainingTotals {
+  /** Finished sessions' minutes, each capped at 120. */
+  minutes: number;
+  /** Distinct local dates with at least one correct drill. */
+  activeDays: number;
+  /**
+   * Lifetime first-attempt positions trained: the daily goal's count
+   * (training_sessions.blunders_attempted, openings excluded) summed over
+   * every session. The /path metric.
+   */
+  positions: number;
+}
+
+/** Lifetime training totals (`profile.trainingTotals`). */
+export async function getTrainingTotals(): Promise<TrainingTotals> {
+  const data = await rpc<unknown>('profile.trainingTotals');
+  const o = (data ?? {}) as Record<string, unknown>;
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  return { minutes: num(o.minutes), activeDays: num(o.activeDays), positions: num(o.positions) };
+}

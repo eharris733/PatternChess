@@ -19,15 +19,27 @@ function claimPlanDone(today: string): boolean {
   }
 }
 
-/** The summary shown when a training session finishes. */
+/**
+ * The summary shown when a training session finishes. "Keep training"
+ * continues in the same focus (an openings session stays in openings); a
+ * focus that came from /openings or /endgames also offers the way back.
+ */
 export function TrainingCompleteScreen({
   totalCorrect,
   totalAttempted,
+  focusLabel = null,
+  returnLabel = null,
+  onReturn = null,
   onKeepTraining,
   onBackToDashboard,
 }: {
   totalCorrect: number;
   totalAttempted: number;
+  /** The session's focus ("Opening reviews", "Fork"); Keep training stays in it. */
+  focusLabel?: string | null;
+  /** "Back to Openings" / "Back to Endgames" when the focus has a home page. */
+  returnLabel?: string | null;
+  onReturn?: (() => void) | null;
   onKeepTraining: () => void;
   onBackToDashboard: () => void;
 }) {
@@ -37,9 +49,10 @@ export function TrainingCompleteScreen({
   const today = localDate(tz);
   const goal = (profile?.dailyGoals ?? DEFAULT_DAILY_GOALS).positionsPerDay;
 
-  // The session row is written after every drill; refetch so the count includes it.
+  // The session row is written after every drill; refetch so the counts include it.
   useEffect(() => {
     void queryClient.invalidateQueries({ queryKey: ['training', 'drillsToday'] });
+    void queryClient.invalidateQueries({ queryKey: ['training', 'totals'] });
   }, [queryClient]);
   const drills = useDrillsToday();
   const [planDone, setPlanDone] = useState(false);
@@ -52,16 +65,26 @@ export function TrainingCompleteScreen({
 
   const pct = totalAttempted > 0 ? Math.round((totalCorrect / totalAttempted) * 100) : 0;
   return (
-    <div className="max-w-md mx-auto card text-center flex flex-col gap-4">
+    <div className="max-w-md mx-auto card text-center flex flex-col gap-4" data-testid="training-complete">
       <TrophyIcon className="h-14 w-14 self-center text-gold-dark" />
       <h1 className="heading-lg">{planDone ? "Today's plan: done" : 'Session done'}</h1>
-      <p className="text-text-secondary">
+      <p className="text-text-primary">
         {pct}% recall · {totalCorrect}/{totalAttempted} correct
       </p>
       {streakToday && <p className="text-text-primary">Day {streak} in the books.</p>}
+      {focusLabel && (
+        <p className="text-sm text-text-primary" data-testid="complete-focus">
+          Focus: {focusLabel}
+        </p>
+      )}
       <button className="btn-primary" onClick={onKeepTraining}>
         Keep training
       </button>
+      {onReturn && returnLabel && (
+        <button className="btn-outline" onClick={onReturn}>
+          {returnLabel}
+        </button>
+      )}
       <button className="btn-outline" onClick={onBackToDashboard}>
         Back to dashboard
       </button>

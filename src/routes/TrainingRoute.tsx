@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
 import { authService } from '../services/authService';
 import { recordShare } from '../share/recordShare';
-import { useTrainingStore } from '../state/trainingStore';
+import { flushTrainingWrites, useTrainingStore } from '../state/trainingStore';
 import { useDueBlunders } from '../hooks/useDueBlunders';
+import { PRACTICE_AHEAD_BATCH, useUpcomingBlunders } from '../hooks/useUpcomingBlunders';
 import { BoardStage } from '../components/BoardStage';
 import { BoardActionOverlay, useActionOverlay } from '../components/BoardActionOverlay';
 import { useSyncStore } from '../state/syncStore';
@@ -16,22 +17,23 @@ import { useDrillFeedbackPrefs } from '../hooks/useDrillFeedbackPrefs';
 import { useLineAutoplay, type AutoplaySegment } from '../hooks/useLineAutoplay';
 import { useRepertoire } from '../hooks/useRepertoire';
 import { fetchGamesByIds, applyContextFilter, filterLabel } from './training/trainingQueue';
+import {
+  RETURN_LABEL,
+  continueFocus,
+  practiceAheadFocus,
+  practiceAheadParams,
+  returnPathFor,
+  type TrainingFocus,
+} from './training/trainingFocus';
 import { Skeleton } from '../components/Skeleton';
 import { EndgameDrillView } from '../components/training/EndgameDrillView';
-import { TrainLandingScreen, type TrainFilterPick } from '../components/training/TrainLandingScreen';
+import { TrainLandingScreen } from '../components/training/TrainLandingScreen';
 import { TrainingAnalysisPanel } from '../components/training/TrainingAnalysisPanel';
 import { TrainingCompleteScreen } from '../components/training/TrainingCompleteScreen';
 import { TrainingDeleteModal } from '../components/training/TrainingDeleteModal';
 import { TrainingShareModal } from '../components/training/TrainingShareModal';
-import { ContextFilter } from '../chess/blunderContext';
-import {
-  BlunderPhase,
-  DRILL_KIND_LABEL,
-  PHASE_LABEL,
-  SPACED_REPETITION_DAYS,
-  type DrillKind,
-} from '../models/blunder';
-import { MOTIF_LABEL, type Motif } from '../chess/motifs';
+import { DRILL_KIND_LABEL, PHASE_LABEL, SPACED_REPETITION_DAYS } from '../models/blunder';
+import { MOTIF_LABEL } from '../chess/motifs';
 import {
   externalAnalysisUrl,
   resolvePlatform,
@@ -47,28 +49,30 @@ import { playSound } from '../lib/sounds';
 const INTRO_STEP_MS = 400;
 const INTRO_HOLD_MS = 500;
 
-interface LocationState {
-  gameIds?: string[];
-  contextFilter?: ContextFilter;
-  phaseFilter?: BlunderPhase;
-  motifFilter?: Motif;
-  openingFilter?: string;
-  openingColor?: 'white' | 'black' | null;
-  openingLabel?: string;
-  /** Only drills of this kind ("Review N due" on /openings and /endgames). */
-  kindFilter?: DrillKind;
-  /** Exactly these drills, due or not ("Drill these" / "Train" on /openings). */
-  blunderIds?: string[];
-  /** Banner label for a `blunderIds` session. */
-  focusLabel?: string;
+/**
+ * /training. A session is one mount of TrainingSession: "Keep training" and
+ * "Change focus" flush the finished session's writes, then remount it with the
+ * next focus in `location.state`, so the next queue is always fetched fresh
+ * (never the pre-session list).
+ */
+export function TrainingRoute() {
+  const [run, setRun] = useState({ n: 0, picker: false });
+  const restart = useCallback((picker: boolean) => setRun((r) => ({ n: r.n + 1, picker })), []);
+  return <TrainingSession key={run.n} forcePicker={run.picker} onRestart={restart} />;
 }
 
-export function TrainingRoute() {
+function TrainingSession({
+  forcePicker,
+  onRestart,
+}: {
+  /** Open on the focus picker even when nothing is due ("Change focus"). */
+  forcePicker: boolean;
+  onRestart: (picker: boolean) => void;
+}) {
   const navigate = useNavigate();
-  const location = useLocation() as { state?: LocationState };
+  const location = useLocation() as { state?: TrainingFocus | null };
   const { profile, refreshProfile } = useAuth();
 
-  const state = useTrainingStore();
   const setBlunders = useTrainingStore((s) => s.setBlunders);
   const setContextFilter = useTrainingStore((s) => s.setContextFilter);
   const beginSession = useTrainingStore((s) => s.beginSession);
@@ -86,9 +90,10 @@ export function TrainingRoute() {
   // behaves exactly as before this screen existed. Otherwise nothing is
   // filtered (and the queue isn't started) until the user picks a focus on
   // the landing screen, which fills `pickedFilter` with the same shape.
-  const [pickedFilter, setPickedFilter] = useState<LocationState | null>(null);
+  const [pickedFilter, setPickedFilter] = useState<TrainingFocus | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(forcePicker);
   const filterChosen = !!location.state || pickedFilter !== null;
-  const effectiveState: LocationState = location.state ?? pickedFilter ?? {};
+  const effectiveState: TrainingFocus = pickedFilter ?? location.state ?? {};
 
   const contextFilter = effectiveState.contextFilter ?? null;
   const phaseFilter = effectiveState.phaseFilter ?? null;
@@ -99,38 +104,54 @@ export function TrainingRoute() {
   const kindFilter = effectiveState.kindFilter ?? null;
   const focusIds = effectiveState.blunderIds ?? null;
   const focusLabel = effectiveState.focusLabel ?? null;
+  const practiceAhead = !!effectiveState.practiceAhead;
   const dueBlunders = useDueBlunders(effectiveState.gameIds, focusIds ?? undefined);
   const dueData = dueBlunders.data;
-  // Skip the landing picker when there's nothing due at all — offering a
-  // training focus is pointless with an empty queue, and it lets the plain
-  // "nothing due" empty state render directly instead of a flash of the picker.
+  // Practice ahead: the drills due next. Also fetched (same key) for the empty
+  // state's "Practice ahead" offer, so taking it starts instantly.
+  const state = useTrainingStore();
+  const queueEmpty = state.phase === 'empty' || state.phase === 'complete';
+  const upcoming = useUpcomingBlunders(practiceAheadParams(effectiveState), {
+    enabled: practiceAhead || queueEmpty,
+  });
+  const sourceQuery = practiceAhead ? upcoming : dueBlunders;
+  const sourceData = sourceQuery.data;
+  // With nothing due at all, skip the landing picker: the empty state (with
+  // its "Practice ahead") renders directly instead of a flash of the picker.
+  // "Change focus" and "Pick a focus" open the picker regardless.
   const dueConfirmedEmpty = dueBlunders.isFetched && (dueData?.length ?? 0) === 0;
-  const sessionReady = filterChosen || dueConfirmedEmpty;
+  const sessionReady = !pickerOpen && (filterChosen || dueConfirmedEmpty);
 
-  // Clears any deep-link filter state and local pick, then re-fetches the due
-  // count so the picker (or the "nothing due" empty state, if it comes back
-  // empty) reflects what's actually left after a session.
-  const backToPicker = () => {
-    setPickedFilter(null);
+  // Restart in place: end and flush this session's writes first, so the next
+  // queue is fetched after them, then remount with the next focus.
+  const [restarting, setRestarting] = useState(false);
+  const restartWith = (next: TrainingFocus | null, picker = false) => {
+    setRestarting(true);
     useTrainingStore.getState().reset();
-    navigate('/training', { replace: true });
-    void dueBlunders.refetch();
+    void flushTrainingWrites().finally(() => {
+      navigate('/training', { replace: true, state: next ?? null });
+      onRestart(picker);
+    });
   };
-  const resetToUnfiltered = () => {
-    setPickedFilter({});
-    useTrainingStore.getState().reset();
-    navigate('/training', { replace: true });
+  const backToPicker = () => restartWith(null, true);
+  // "Keep training": the same focus (an openings session stays in openings).
+  const keepTraining = () => {
+    const next = continueFocus(effectiveState, state.blunders);
+    if (next) restartWith(next);
+    else backToPicker();
   };
+  const startPracticeAhead = () => restartWith(practiceAheadFocus(effectiveState));
+  const resetToUnfiltered = () => restartWith({});
 
   // Context and opening filters both need the blunders' games (the per-blunder
   // game fetch in the store isn't enough for batch filtering); phase doesn't.
   const needsGames = !!contextFilter || !!openingFilter;
   const gameIdsForFilter = useMemo(() => {
-    if (!needsGames || !dueData) return null;
+    if (!needsGames || !sourceData) return null;
     const ids = new Set<string>();
-    for (const b of dueData) if (b.gameId) ids.add(b.gameId);
+    for (const b of sourceData) if (b.gameId) ids.add(b.gameId);
     return Array.from(ids);
-  }, [needsGames, dueData]);
+  }, [needsGames, sourceData]);
 
   const filterGamesQuery = useQuery({
     queryKey: ['training', 'filterGames', gameIdsForFilter],
@@ -139,8 +160,8 @@ export function TrainingRoute() {
   });
 
   const filteredBlunders = useMemo(() => {
-    if (!dueData) return null;
-    let list = phaseFilter ? dueData.filter((b) => b.phase === phaseFilter) : dueData;
+    if (!sourceData) return null;
+    let list = phaseFilter ? sourceData.filter((b) => b.phase === phaseFilter) : sourceData;
     if (kindFilter) list = list.filter((b) => b.kind === kindFilter);
     if (motifFilter) list = list.filter((b) => b.motifs.includes(motifFilter));
     if (needsGames) {
@@ -155,9 +176,11 @@ export function TrainingRoute() {
       }
       if (contextFilter) list = applyContextFilter(list, games, contextFilter);
     }
-    return list;
+    // A practice-ahead pool may be larger than one batch (client-side filters).
+    return practiceAhead ? list.slice(0, PRACTICE_AHEAD_BATCH) : list;
   }, [
-    dueData,
+    sourceData,
+    practiceAhead,
     needsGames,
     contextFilter,
     openingFilter,
@@ -170,7 +193,7 @@ export function TrainingRoute() {
 
   // Whichever drill filter is active (only one is set at a time in practice) —
   // drives the filter chip and empty-state copy.
-  const activeFilterLabel = focusIds
+  const focusFilterLabel = focusIds
     ? (focusLabel ?? 'Selected positions')
     : kindFilter
       ? `${DRILL_KIND_LABEL[kindFilter]} reviews`
@@ -183,6 +206,10 @@ export function TrainingRoute() {
         : motifFilter
           ? MOTIF_LABEL[motifFilter]
           : null;
+  const activeFilterLabel =
+    practiceAhead && focusFilterLabel ? `${focusFilterLabel} · practice ahead` : practiceAhead ? 'Practice ahead' : focusFilterLabel;
+  // Where "Back to …" goes for this focus (/openings, /endgames), if anywhere.
+  const returnPath = returnPathFor(effectiveState, state.blunders.length > 0 ? state.blunders : (sourceData ?? null));
 
   useEffect(() => {
     setContextFilter(contextFilter);
@@ -311,7 +338,7 @@ export function TrainingRoute() {
   }, [isRealMiss, state.sequenceToken, autoplayEnabled, hasSolution]);
 
   useEffect(() => {
-    if (!sessionReady || !filteredBlunders) return;
+    if (restarting || !sessionReady || !filteredBlunders) return;
     // Only initialize the store from the query when we haven't started training yet
     // (loading) or when the queue was empty (waiting for a sync to populate).
     // Don't interrupt an active session (reviewing/solving/correct/incorrect/complete).
@@ -337,6 +364,7 @@ export function TrainingRoute() {
     // callback here, not something this effect needs to re-run on.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    restarting,
     sessionReady,
     filteredBlunders,
     profile,
@@ -414,17 +442,21 @@ export function TrainingRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, activeTab]);
 
-  if (!sessionReady) {
+  if (!sessionReady && !restarting) {
     return (
       <TrainLandingScreen
-        dueCount={dueData?.length ?? 0}
-        onPick={(filter: TrainFilterPick) => setPickedFilter(filter)}
+        due={dueData ?? null}
+        onPick={(filter: TrainingFocus) => {
+          setPickedFilter(filter);
+          setPickerOpen(false);
+        }}
       />
     );
   }
 
   if (
-    dueBlunders.isLoading ||
+    restarting ||
+    sourceQuery.isLoading ||
     (needsGames && filterGamesQuery.isLoading) ||
     state.phase === 'loading'
   ) {
@@ -456,38 +488,70 @@ export function TrainingRoute() {
   }
 
   if (state.phase === 'empty' || (state.phase === 'complete' && state.totalAttempted === 0)) {
+    // What "Practice ahead" would drill for this focus (motif narrows here;
+    // opening/situation focuses narrow once the batch is loaded).
+    const offer = upcoming.data
+      ? motifFilter
+        ? upcoming.data.filter((b) => b.motifs.includes(motifFilter))
+        : upcoming.data
+      : [];
+    const canPractice = !practiceAhead && offer.length > 0;
+    const returnBack = returnPath ? (
+      <button className={canPractice ? 'btn-outline' : 'btn-primary'} onClick={() => navigate(returnPath)}>
+        {RETURN_LABEL[returnPath]}
+      </button>
+    ) : null;
+    const syncButton = hasAccount ? (
+      <button
+        className={canPractice || returnBack ? 'btn-outline' : 'btn-primary'}
+        disabled={isSyncing || !profile}
+        onClick={() => profile && void triggerNow(profile)}
+      >
+        {isSyncing ? 'Checking for new games…' : 'Check for new games'}
+      </button>
+    ) : (
+      <button className="btn-outline" onClick={() => navigate('/profile')}>
+        Link an account
+      </button>
+    );
     return (
-      <div className="max-w-md mx-auto card text-center flex flex-col gap-4">
+      <div className="max-w-md mx-auto card text-center flex flex-col gap-4" data-testid="training-empty">
         <h1 className="heading-lg">
-          {activeFilterLabel
-            ? `Nothing due in ${activeFilterLabel}`
-            : "You're caught up"}
+          {practiceAhead
+            ? focusFilterLabel
+              ? `Nothing coming up in ${focusFilterLabel}`
+              : 'Nothing left to practice'
+            : focusFilterLabel
+              ? `Nothing due in ${focusFilterLabel}`
+              : "You're caught up"}
         </h1>
-        <p className="text-text-secondary text-sm">
-          {activeFilterLabel
-            ? 'Try the full queue, or play a game and check back.'
-            : hasAccount
-              ? "Nothing due right now. Play a game and we'll find fresh material."
-              : 'Link a Lichess or Chess.com account to start.'}
+        <p className="text-text-primary text-sm">
+          {canPractice
+            ? 'Keep going with the positions due next. Results count like any review.'
+            : practiceAhead
+              ? "You've drilled every position here. Play a game and we'll find fresh material."
+              : hasAccount
+                ? "Nothing to drill yet. Play a game and we'll find fresh material."
+                : 'Link a Lichess or Chess.com account to start.'}
         </p>
-        {activeFilterLabel && (
+        {upcoming.isPending && !practiceAhead && <Skeleton className="h-10 w-full" />}
+        {canPractice && (
+          <button className="btn-primary" onClick={startPracticeAhead} data-testid="practice-ahead">
+            Practice ahead
+          </button>
+        )}
+        {returnBack}
+        {focusFilterLabel && !returnPath && !kindFilter && (
           <button className="btn-outline" onClick={resetToUnfiltered}>
-            Drill full queue
+            Train everything due
           </button>
         )}
-        {hasAccount ? (
-          <button
-            className="btn-primary"
-            disabled={isSyncing || !profile}
-            onClick={() => profile && void triggerNow(profile)}
-          >
-            {isSyncing ? 'Syncing…' : 'Sync now'}
-          </button>
-        ) : (
-          <button className="btn-primary" onClick={() => navigate('/profile')}>
-            Go to Profile
+        {!focusFilterLabel && (
+          <button className="btn-outline" onClick={backToPicker}>
+            Pick a focus
           </button>
         )}
+        {syncButton}
       </div>
     );
   }
@@ -497,7 +561,10 @@ export function TrainingRoute() {
       <TrainingCompleteScreen
         totalCorrect={state.totalCorrect}
         totalAttempted={state.totalAttempted}
-        onKeepTraining={backToPicker}
+        focusLabel={focusFilterLabel}
+        returnLabel={returnPath ? RETURN_LABEL[returnPath] : null}
+        onReturn={returnPath ? () => navigate(returnPath) : null}
+        onKeepTraining={keepTraining}
         onBackToDashboard={() => navigate('/dashboard')}
       />
     );
@@ -506,17 +573,30 @@ export function TrainingRoute() {
   const blunder = state.blunders[state.currentIndex];
 
   const filterBanner = activeFilterLabel ? (
-    <div className="flex items-baseline justify-between rounded-none border-2 border-text-primary bg-surface-3 px-3 py-2">
+    <div
+      className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-none border-2 border-text-primary bg-surface-3 px-3 py-2"
+      data-testid="training-focus-banner"
+    >
       <span className="font-mono text-xs uppercase tracking-tight text-gold-dark">
         {activeFilterLabel} · {state.blunders.length} position
         {state.blunders.length === 1 ? '' : 's'}
       </span>
-      <button
-        className="font-mono text-xs uppercase tracking-tight text-text-secondary hover:text-text-primary"
-        onClick={backToPicker}
-      >
-        Change focus
-      </button>
+      <span className="flex items-baseline gap-3">
+        {returnPath && (
+          <button
+            className="font-mono text-xs uppercase tracking-tight text-text-primary hover:text-gold-dark"
+            onClick={() => navigate(returnPath)}
+          >
+            {RETURN_LABEL[returnPath]}
+          </button>
+        )}
+        <button
+          className="font-mono text-xs uppercase tracking-tight text-text-primary hover:text-gold-dark"
+          onClick={backToPicker}
+        >
+          Change focus
+        </button>
+      </span>
     </div>
   ) : null;
 
