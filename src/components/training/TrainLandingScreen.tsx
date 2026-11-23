@@ -74,8 +74,8 @@ function OpeningPicker({ onPick }: { onPick: (row: OpeningInsightRow) => void })
   const eligible = rows.filter((r) => r.games >= MIN_GAMES_FOR_RANKING);
   if (eligible.length === 0) {
     return (
-      <p className="text-text-secondary text-sm">
-        Not enough played games yet to rank openings — sync more games or train everything for now.
+      <p className="text-text-primary text-sm">
+        Not enough games yet to rank your openings.
       </p>
     );
   }
@@ -93,7 +93,7 @@ function OpeningPicker({ onPick }: { onPick: (row: OpeningInsightRow) => void })
             className={`font-mono uppercase text-[10px] tracking-tight px-2 py-1 rounded-none border-2 transition-colors ${
               tab === t.key
                 ? 'bg-accent/15 border-accent text-text-primary'
-                : 'border-text-primary text-text-secondary hover:bg-accent/10'
+                : 'border-text-primary text-text-primary hover:bg-accent/10'
             }`}
           >
             {t.label}
@@ -193,7 +193,7 @@ export function TrainLandingScreen({
               key={phase}
               type="button"
               onClick={() => onPick({ phaseFilter: phase })}
-              className="font-mono uppercase text-[10px] tracking-tight px-2.5 py-1.5 rounded-none border-2 border-text-primary text-text-secondary hover:bg-accent/10 transition-colors"
+              className="font-mono uppercase text-[10px] tracking-tight px-2.5 py-1.5 rounded-none border-2 border-text-primary text-text-primary hover:bg-accent/10 transition-colors"
             >
               {PHASE_LABEL[phase]}
             </button>
@@ -209,7 +209,7 @@ export function TrainLandingScreen({
               key={motif}
               type="button"
               onClick={() => onPick({ motifFilter: motif })}
-              className="font-mono uppercase text-[10px] tracking-tight px-2.5 py-1.5 rounded-none border-2 border-text-primary text-text-secondary hover:bg-accent/10 transition-colors"
+              className="font-mono uppercase text-[10px] tracking-tight px-2.5 py-1.5 rounded-none border-2 border-text-primary text-text-primary hover:bg-accent/10 transition-colors"
             >
               {MOTIF_LABEL[motif]}
             </button>
@@ -225,7 +225,7 @@ export function TrainLandingScreen({
               key={ctx}
               type="button"
               onClick={() => onPick({ contextFilter: ctx })}
-              className="font-mono uppercase text-[10px] tracking-tight px-2.5 py-1.5 rounded-none border-2 border-text-primary text-text-secondary hover:bg-accent/10 transition-colors"
+              className="font-mono uppercase text-[10px] tracking-tight px-2.5 py-1.5 rounded-none border-2 border-text-primary text-text-primary hover:bg-accent/10 transition-colors"
             >
               {CONTEXT_LABEL[ctx]}
             </button>
@@ -235,7 +235,7 @@ export function TrainLandingScreen({
               key={bucket}
               type="button"
               onClick={() => onPick({ contextFilter: bucket })}
-              className="font-mono uppercase text-[10px] tracking-tight px-2.5 py-1.5 rounded-none border-2 border-text-primary text-text-secondary hover:bg-accent/10 transition-colors"
+              className="font-mono uppercase text-[10px] tracking-tight px-2.5 py-1.5 rounded-none border-2 border-text-primary text-text-primary hover:bg-accent/10 transition-colors"
             >
               {GAME_STATE_LABEL[bucket]}
             </button>

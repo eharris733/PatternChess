@@ -335,8 +335,7 @@ export function DailyHabitCard() {
           <button
             type="button"
             onClick={() => navigate('/profile#commitment')}
-            className="ml-2 normal-case tracking-normal text-text-secondary underline-offset-2 hover:underline"
-            title="Change your daily commitment"
+            className="ml-2 font-normal text-text-primary underline underline-offset-2 decoration-text-primary/30 hover:decoration-text-primary"
             data-testid="commitment-level"
           >
             {COMMITMENT_LABEL[goals.level]}
@@ -348,11 +347,11 @@ export function DailyHabitCard() {
           <span
             className={clsx(
               'font-mono text-xs uppercase tracking-tight inline-flex items-center gap-1.5',
-              allDone ? 'text-correct' : 'text-text-secondary',
+              allDone ? 'text-correct' : 'text-text-primary',
             )}
             data-testid="plan-progress"
           >
-            {allDone && <CheckIcon className="h-3.5 w-3.5" title="Plan complete" />}
+            {allDone && <CheckIcon className="h-3.5 w-3.5" />}
             {allDone ? 'Plan done' : `${stepsDone}/${steps.length} done`}
           </span>
         )}
@@ -362,7 +361,7 @@ export function DailyHabitCard() {
         <div className="flex items-start gap-2 border-2 border-accent/40 bg-accent/10 px-3 py-2 text-sm" role="status">
           <SnowflakeIcon className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
           <span className="flex-1 text-text-primary">{streakNoticeText(notice)}</span>
-          <button type="button" onClick={clearNotice} aria-label="Dismiss" className="shrink-0 text-text-secondary">
+          <button type="button" onClick={clearNotice} aria-label="Dismiss" className="shrink-0 text-text-primary">
             <CloseIcon className="h-4 w-4" />
           </button>
         </div>
@@ -377,7 +376,7 @@ export function DailyHabitCard() {
           lessonTarget && (
             <PlanStep
               testId="plan-step-lesson"
-              icon={<CourseIcon className="h-4 w-4" />}
+              icon={<CourseIcon className="h-5 w-5" />}
               title="Today's lesson"
               detail={lessonDetail}
               done={lessonDoneToday ? 1 : 0}
@@ -390,7 +389,7 @@ export function DailyHabitCard() {
         )}
         <PlanStep
           testId="plan-step-train"
-          icon={<TrainIcon className="h-4 w-4" />}
+          icon={<TrainIcon className="h-5 w-5" />}
           title={`Train ${goals.positionsPerDay} positions`}
           detail={
             trainPending
@@ -415,7 +414,7 @@ export function DailyHabitCard() {
         ) : openingsIdle ? (
           <PlanStep
             testId="plan-step-openings"
-            icon={<OpeningIcon className="h-4 w-4" />}
+            icon={<OpeningIcon className="h-5 w-5" />}
             title="Review openings"
             detail="Your opening exits show up here once your games are checked."
             done={0}
@@ -427,7 +426,7 @@ export function DailyHabitCard() {
         ) : (
           <PlanStep
             testId="plan-step-openings"
-            icon={<OpeningIcon className="h-4 w-4" />}
+            icon={<OpeningIcon className="h-5 w-5" />}
             title={`Review ${openingsGoal} ${openingsGoal === 1 ? 'opening' : 'openings'}`}
             detail={openingsDue > 0 ? `${openingsDue} due` : 'Nothing due. Practice ahead, it still counts.'}
             done={openingsToday}
@@ -447,7 +446,7 @@ export function DailyHabitCard() {
         ) : endgamesIdle ? (
           <PlanStep
             testId="plan-step-endgames"
-            icon={<EndgameIcon className="h-4 w-4" />}
+            icon={<EndgameIcon className="h-5 w-5" />}
             title="Play endgames"
             detail="Endgames you let slip in your games show up here."
             done={0}
@@ -459,7 +458,7 @@ export function DailyHabitCard() {
         ) : (
           <PlanStep
             testId="plan-step-endgames"
-            icon={<EndgameIcon className="h-4 w-4" />}
+            icon={<EndgameIcon className="h-5 w-5" />}
             title={`Play ${endgamesGoal} ${endgamesGoal === 1 ? 'endgame' : 'endgames'}`}
             detail={playoutsDue > 0 ? `${playoutsDue} due for review` : 'Nothing due. Replay a saved endgame.'}
             done={playoutsToday}
@@ -471,7 +470,7 @@ export function DailyHabitCard() {
         {showPlay && playHref && profile && (
           <PlanStep
             testId="plan-step-play"
-            icon={play ? <PlatformLogo platform={play.platform} className="h-4 w-4" /> : <KingIcon color="white" className="h-4 w-4" />}
+            icon={play ? <PlatformLogo platform={play.platform} className="h-5 w-5" /> : <KingIcon color="white" className="h-5 w-5" />}
             title={`Play ${goals.gamesPerDay} ${goals.gamesPerDay === 1 ? 'game' : 'games'}`}
             detail={
               playLocked ? (
@@ -538,14 +537,14 @@ export function DailyHabitCard() {
         >
           <div className="flex items-baseline justify-between">
             <span className="label">Next achievement</span>
-            <span className="text-text-secondary text-xs tabular-nums">
+            <span className="font-mono text-text-primary text-xs tabular-nums">
               {Math.min(next.value, next.threshold).toLocaleString()}/{next.threshold.toLocaleString()}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <TrophyIcon className="h-4 w-4 shrink-0 text-gold-dark" />
             <span className="text-sm text-text-primary">{next.title}</span>
-            <span className="truncate text-text-secondary text-xs">— {next.description}</span>
+            <span className="truncate text-text-primary text-xs">{next.description}</span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-none border border-text-primary/20 bg-text-primary/10">
             <div

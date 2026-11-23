@@ -114,7 +114,7 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
     ) : display === 'error' ? (
       <CloseIcon className="w-3.5 h-3.5 text-incorrect" />
     ) : display === 'none' ? (
-      <span className="text-text-secondary">+</span>
+      <span className="text-text-primary">+</span>
     ) : (
       <CheckIcon className="w-3.5 h-3.5 text-correct" />
     );
@@ -162,8 +162,8 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
       className={clsx(
         'mx-2 mb-1 flex items-center gap-3 py-2 rounded-none font-mono uppercase text-xs tracking-tight transition-colors text-left',
         collapsed ? 'justify-center px-0' : 'px-3',
-        'text-text-secondary hover:bg-text-primary/5 hover:text-text-primary',
-        'disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-text-secondary',
+        'text-text-primary hover:bg-text-primary/5 hover:text-text-primary',
+        'disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-text-primary',
       )}
     >
       <span className="shrink-0 w-4 flex items-center justify-center text-base">{glyph}</span>
@@ -171,7 +171,7 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
         <span className="flex flex-col min-w-0">
           <span className="truncate text-text-primary">{headline}</span>
           {(subTitle || shownPlatforms.length > 0) && (
-            <span className="flex items-center gap-1 min-w-0 text-[10px] tracking-tight text-text-secondary normal-case">
+            <span className="flex items-center gap-1 min-w-0 text-[10px] tracking-tight text-text-primary normal-case">
               {shownPlatforms.map((id) => (
                 <PlatformLogo key={id} platform={id} className="h-3 w-3 shrink-0" />
               ))}

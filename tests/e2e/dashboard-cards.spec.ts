@@ -144,6 +144,32 @@ test('how-it-works explainer collapses to a disclosure once dismissed', async ({
   await expect(page.getByRole('button', { name: /Got it/i })).toBeVisible();
 });
 
+test('a new player gets no zero stat row; insight cards pack into the grid without gaps', async ({ page }) => {
+  await stubRichAuth(page, { blunders: UNDRILLED_BLUNDERS });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/dashboard');
+  await expect(page.getByTestId('daily-plan')).toBeVisible();
+  await expect(page.getByText('Training timeline')).toBeVisible();
+  // Nothing solved, mastered or gained yet: the stat strip waits.
+  await expect(page.getByTestId('stat-strip')).toHaveCount(0);
+  // Every child of the insight grid is a rendered card (cards with no data
+  // render nothing, so there is no empty slot), and the grid uses two
+  // columns on a wide screen.
+  const grid = page.getByTestId('dashboard-insights');
+  await expect(grid).toBeVisible();
+  const { columns, emptyChildren } = await grid.evaluate((el) => ({
+    columns: getComputedStyle(el).columnCount,
+    emptyChildren: Array.from(el.children).filter((c) => (c as HTMLElement).offsetHeight === 0).length,
+  }));
+  expect(columns).toBe('2');
+  expect(emptyChildren).toBe(0);
+  // Headings and card labels use Inter, not uppercase JetBrains Mono.
+  const heading = page.getByRole('heading', { level: 1 });
+  const font = await heading.evaluate((el) => getComputedStyle(el));
+  expect(font.fontFamily).toContain('Inter');
+  expect(font.textTransform).toBe('none');
+});
+
 test('the train step checks off after the daily goal is met, button stays', async ({ page }) => {
   await stubRichAuth(page, { drillsToday: 12 });
   await page.goto('/dashboard');

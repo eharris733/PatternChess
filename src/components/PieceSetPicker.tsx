@@ -53,7 +53,7 @@ export function PieceSetPicker({ value, onChange, locked }: PieceSetPickerProps)
             )}
           >
             <PieceSetStrip set={set} className={clsx(lockHint && 'opacity-50')} />
-            <span className="flex items-center gap-1 font-mono text-xs uppercase tracking-tight text-text-primary">
+            <span className="flex items-center gap-1 text-xs font-semibold text-text-primary">
               {lockHint && <LockIcon className="h-3.5 w-3.5" />}
               {info.label}
             </span>

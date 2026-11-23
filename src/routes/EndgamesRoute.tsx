@@ -413,7 +413,7 @@ export function EndgamesRoute() {
           <header className="flex items-center justify-between">
             <span className="label">{game ? `vs ${game.opponent}` : 'Endgame play-out'}</span>
             <button
-              className="font-mono text-xs uppercase tracking-tight text-text-secondary hover:text-text-primary"
+              className="font-mono text-xs uppercase tracking-tight text-text-primary hover:text-text-primary"
               onClick={backToList}
             >
               Back
@@ -424,9 +424,9 @@ export function EndgamesRoute() {
             <p className="font-semibold text-text-primary">
               {selected.deservedResult === 'win' ? 'Convert this win.' : 'Hold this draw.'}
             </p>
-            <p className="text-text-secondary mt-1">
+            <p className="text-text-primary mt-1">
               In the game you {selected.actualResult === 'draw' ? 'only drew' : 'lost'}. Play it
-              out against the engine —{' '}
+              out against the engine:{' '}
               {selected.deservedResult === 'win'
                 ? 'deliver checkmate to rescue the point.'
                 : 'hold until the engine gives up on winning to rescue the half point.'}
@@ -471,7 +471,7 @@ export function EndgamesRoute() {
             <FeedbackBadge tone="warning">Engine hiccup — keep playing</FeedbackBadge>
           )}
           {hint.level > 0 && playing && (
-            <p className="text-text-secondary text-xs">Hint shown.</p>
+            <p className="text-text-primary text-xs">Hint shown.</p>
           )}
 
           {playout.phase === 'passed' && (
@@ -538,9 +538,9 @@ export function EndgamesRoute() {
     return (
       <div className="card flex flex-col items-start gap-3 max-w-xl">
         <h1 className="text-xl font-bold">Endgames</h1>
-        <p className="text-text-secondary">
-          No games yet. Sync your chess.com or Lichess games and analyze them — then this tab
-          finds the endgames where you dropped points and lets you replay them.
+        <p className="text-text-primary">
+          No games yet. Once your chess.com or Lichess games are synced and analyzed, this tab
+          finds the endgames where you dropped points so you can replay them.
         </p>
         <Link to="/profile" className="btn-primary">
           Connect an account
@@ -623,9 +623,9 @@ export function EndgamesRoute() {
 
       {(scenarios?.length ?? 0) === 0 ? (
         <div className="card max-w-xl">
-          <p className="text-text-secondary">
-            No dropped endgames found — every endgame mistake we detected happened in games you
-            weren't winning, or you converted your winning endgames. Nice.
+          <p className="text-text-primary">
+            No dropped endgames found. You converted your winning endgames, and the endgame
+            slips we found came in games you weren't winning. Nice.
           </p>
         </div>
       ) : sections.length === 0 ? (
@@ -637,9 +637,9 @@ export function EndgamesRoute() {
           const shown = sectionShown[section.key] ?? SECTION_PAGE;
           return (
           <section key={section.key} className="flex flex-col gap-3">
-            <h2 className="font-mono uppercase tracking-tight text-sm text-text-secondary">
+            <h2 className="text-base font-semibold text-text-primary">
               {section.title}
-              <span className="text-text-secondary/60"> · {section.items.length}</span>
+              <span className="font-mono font-normal"> · {section.items.length}</span>
             </h2>
             <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {section.items.slice(0, shown).map((s) => {
@@ -665,7 +665,7 @@ export function EndgamesRoute() {
                           {SR_BUCKET_LABEL[srBucket(s)]}
                         </span>
                         {isOppositeColoredBishops(s.startFen) && (
-                          <span className="px-2 py-0.5 rounded-none font-mono text-[10px] uppercase tracking-tight border-2 border-text-primary/30 text-text-secondary">
+                          <span className="px-2 py-0.5 rounded-none font-mono text-[10px] uppercase tracking-tight border-2 border-text-primary/30 text-text-primary">
                             Opposite-coloured bishops
                           </span>
                         )}

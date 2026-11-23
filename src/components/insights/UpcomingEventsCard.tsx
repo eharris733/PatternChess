@@ -157,7 +157,7 @@ export function UpcomingEventsCard() {
                 >
                   <div className="min-w-0">
                     <p className="text-text-primary text-sm font-semibold truncate">{event.title}</p>
-                    <p className="text-text-secondary text-xs truncate">
+                    <p className="text-text-primary text-xs truncate">
                       {next.round !== null ? `Rd ${next.round} of ${next.totalRounds} · ` : ''}
                       {event.clubName}
                       {event.clubCity ? ` · ${event.clubCity}` : ''}

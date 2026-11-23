@@ -156,7 +156,7 @@ export function TrainingAnalysisPanel({
       {state.phase === 'reviewing' && blunder && (
         <>
           <div className="bg-surface-3 rounded-none border-2 border-text-primary p-3 text-sm">
-            <span className="text-text-secondary">You played </span>
+            <span className="text-text-primary">You played </span>
             <span className="font-mono font-bold text-incorrect">{state.blunderSan}</span>
           </div>
           {state.refutationPairs.length > 0 && (
@@ -200,7 +200,7 @@ export function TrainingAnalysisPanel({
               {isOpening ? `Play the move for ${sideName}` : `${sideName} to play`}
             </span>
             {state.userMovesRequired > 1 && (
-              <span className="ml-auto font-mono uppercase text-[10px] tracking-tight text-text-secondary">
+              <span className="ml-auto font-mono text-xs tabular-nums text-text-primary">
                 Move {Math.floor(state.drillPly / 2) + 1} of {state.userMovesRequired}
               </span>
             )}
@@ -216,7 +216,7 @@ export function TrainingAnalysisPanel({
               onClick={() => state.toggleShowWhatYouPlayed()}
               type="button"
             >
-              <span className="font-mono uppercase text-[10px] tracking-tight text-text-secondary">
+              <span className="text-xs font-semibold text-text-primary">
                 {state.showWhatYouPlayed ? 'Hide' : 'See'} what you played
               </span>
               {state.showWhatYouPlayed && (
@@ -226,10 +226,10 @@ export function TrainingAnalysisPanel({
           )}
 
           {state.hintLevel === 1 && (
-            <p className="text-text-secondary text-xs">Piece highlighted — find the move for full credit.</p>
+            <p className="text-text-primary text-xs">Piece highlighted. Find the move for full credit.</p>
           )}
           {state.hintLevel === 2 && (
-            <p className="text-text-secondary text-xs">Move shown — no credit for this attempt.</p>
+            <p className="text-text-primary text-xs">Move shown. No credit for this attempt.</p>
           )}
 
           {state.evaluating && (
@@ -266,7 +266,7 @@ export function TrainingAnalysisPanel({
                     'w-full text-left font-mono text-[13px] rounded-none px-2 py-1.5 transition-colors hover:bg-accent/10',
                     state.activePostCorrectIndex === -1
                       ? 'bg-accent/15 ring-1 ring-inset ring-accent text-text-primary'
-                      : 'text-text-secondary',
+                      : 'text-text-primary',
                   )}
                 >
                   Puzzle start
@@ -287,7 +287,7 @@ export function TrainingAnalysisPanel({
                 />
               </div>
             ) : (
-              <p className="text-text-secondary text-sm">Calculating continuation…</p>
+              <p className="text-text-primary text-sm">Calculating continuation…</p>
             )
           ) : (
             <div>
@@ -308,7 +308,7 @@ export function TrainingAnalysisPanel({
                   }}
                 />
               ) : (
-                <p className="text-text-secondary text-sm">Calculating…</p>
+                <p className="text-text-primary text-sm">Calculating…</p>
               )}
             </div>
           )}
@@ -393,7 +393,7 @@ export function TrainingAnalysisPanel({
                     }}
                   />
                 ) : (
-                  <p className="text-text-secondary text-sm">No engine line for this move.</p>
+                  <p className="text-text-primary text-sm">No engine line for this move.</p>
                 )
               ) : (
                 <div>
@@ -414,7 +414,7 @@ export function TrainingAnalysisPanel({
                       }}
                     />
                   ) : (
-                    <p className="text-text-secondary text-sm">Calculating…</p>
+                    <p className="text-text-primary text-sm">Calculating…</p>
                   )}
                 </div>
               )}
@@ -430,7 +430,7 @@ export function TrainingAnalysisPanel({
             <span className="hidden lg:inline ml-1.5"> (Space)</span>
           </button>
           {state.incorrectRequeue && !isOpening && (
-            <p className="text-text-secondary text-xs text-center -mt-1">
+            <p className="text-text-primary text-xs text-center -mt-1">
               Comes back later this session
             </p>
           )}
@@ -449,19 +449,17 @@ export function TrainingAnalysisPanel({
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
-              className="btn-ghost text-xs inline-flex items-center justify-center gap-1.5 text-text-secondary hover:text-text-primary"
+              className="btn-ghost text-xs inline-flex items-center justify-center gap-1.5 text-text-primary hover:text-text-primary"
               onClick={onShareClick}
-              title="Share a public link to this puzzle"
             >
               <ShareIcon className="h-3.5 w-3.5" />
               Share puzzle
             </button>
             <button
               type="button"
-              className="btn-ghost text-xs inline-flex items-center justify-center gap-1.5 text-text-secondary hover:text-incorrect"
+              className="btn-ghost text-xs inline-flex items-center justify-center gap-1.5 text-text-primary hover:text-incorrect"
               onClick={onDeleteClick}
               disabled={state.evaluating || paused || deleting}
-              title="Delete this position from your training"
             >
               <TrashIcon className="h-3.5 w-3.5" />
               Delete position

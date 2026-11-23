@@ -38,7 +38,7 @@ export function FlairPickerModal({ onClose }: { onClose: () => void }) {
         <button
           type="button"
           aria-label="Close"
-          className="btn-ghost absolute top-3 right-3 p-1 text-text-secondary hover:text-text-primary"
+          className="btn-ghost absolute top-3 right-3 p-1 text-text-primary hover:text-text-primary"
           onClick={onClose}
         >
           <CloseIcon className="h-5 w-5" />
@@ -82,11 +82,11 @@ function FlairPickerGrid() {
     <section className="flex flex-col gap-4" data-testid="flair-picker">
       <header className="flex items-baseline gap-3 pr-10">
         <h2 className="heading-md">Flair</h2>
-        <span className="text-text-secondary text-xs">
+        <span className="text-text-primary text-xs">
           {unlockedCount}/{flairs.length} unlocked
         </span>
       </header>
-      <p className="text-text-secondary text-sm">
+      <p className="text-text-primary text-sm">
         Earned by training regularly and putting in the hours. Your pick shows next to your name on
         leaderboards.
       </p>
@@ -118,7 +118,7 @@ function FlairPickerGrid() {
                           )}
                         >
                           <FlairBadge flair={f.id} size="md" />
-                          <span className="text-text-secondary text-[11px] leading-snug">
+                          <span className="text-text-primary text-[11px] leading-snug">
                             {f.unlocked
                               ? active
                                 ? 'Showing'

@@ -32,7 +32,7 @@ export function GameStateCard() {
     <section className="card flex flex-col gap-3">
       <header className="flex items-baseline justify-between">
         <span className="label">Position when blundering</span>
-        <span className="text-text-secondary text-xs tabular-nums">
+        <span className="font-mono text-text-primary text-xs tabular-nums">
           {stats.total.toLocaleString()} total
         </span>
       </header>
@@ -51,8 +51,8 @@ export function GameStateCard() {
             >
               <div className="flex items-baseline justify-between text-sm">
                 <span className="text-text-primary">{GAME_STATE_LABEL[bucket]}</span>
-                <span className="tabular-nums text-text-secondary">
-                  <span className="text-text-primary">{slot.count}</span> ({Math.round(sharePct)}%)
+                <span className="tabular-nums text-text-primary">
+                  <span className="font-semibold">{slot.count}</span> ({Math.round(sharePct)}%)
                 </span>
               </div>
               <div className="relative h-2 rounded-none bg-text-primary/10 overflow-hidden border border-text-primary/20">
@@ -65,10 +65,6 @@ export function GameStateCard() {
           );
         })}
       </div>
-      <p className="text-text-secondary text-xs">
-        Missed wins are blundered from a winning position; already-losing blunders
-        happen when you were already behind.
-      </p>
     </section>
   );
 }

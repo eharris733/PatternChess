@@ -20,23 +20,18 @@ function hasSeenIntro(): boolean {
 const STEPS = [
   {
     n: 1,
-    title: 'Import your games',
-    body: 'Connect Lichess or Chess.com — or upload PGNs — and we analyze them for the moves that cost you the most.',
+    title: 'Drill your blunders',
+    body: 'Each blunder from your games becomes a puzzle: find the move you should have played.',
   },
   {
     n: 2,
-    title: 'Drill the positions',
-    body: 'Each blunder becomes a puzzle: see the mistake you made, then find the move you should have played.',
-  },
-  {
-    n: 3,
     title: 'Repeat on a schedule',
     body: `Solve a position and it comes back after ${SPACED_REPETITION_DAYS.slice(0, -1).join(
       ', ',
     )}, then ${SPACED_REPETITION_DAYS[SPACED_REPETITION_DAYS.length - 1]} days, then every ${MASTERED_REVIEW_DAYS} days to stay sharp.`,
   },
   {
-    n: 4,
+    n: 3,
     title: 'Show up daily',
     body: 'Your plan resets every day. Finish it to keep your streak.',
   },
@@ -65,7 +60,7 @@ export function HowTrainingWorksCard() {
     return (
       <button
         type="button"
-        className="flex items-center gap-2 font-mono text-xs uppercase tracking-tight text-text-secondary hover:text-text-primary self-start"
+        className="flex items-center gap-2 text-xs font-semibold text-text-primary hover:underline self-start"
         onClick={() => setReopened(true)}
         aria-expanded={false}
       >
@@ -77,16 +72,7 @@ export function HowTrainingWorksCard() {
 
   return (
     <section className="card flex flex-col gap-4 border-gold-dark/60">
-      <header className="flex items-baseline justify-between">
-        <span className="label">How training works</span>
-        <button
-          type="button"
-          className="font-mono text-xs uppercase tracking-tight text-text-secondary hover:text-text-primary"
-          onClick={dismiss}
-        >
-          Dismiss
-        </button>
-      </header>
+      <span className="label">How training works</span>
 
       <ol className="flex flex-col gap-3">
         {STEPS.map((s) => (
@@ -96,21 +82,19 @@ export function HowTrainingWorksCard() {
             </span>
             <div>
               <p className="text-sm font-semibold text-text-primary">{s.title}</p>
-              <p className="text-text-secondary text-sm">{s.body}</p>
+              <p className="text-text-primary text-sm">{s.body}</p>
             </div>
           </li>
         ))}
       </ol>
 
       <div className="flex flex-col gap-1.5 border-t-2 border-text-primary/15 pt-3">
-        <span className="font-mono text-xs uppercase tracking-tight text-text-secondary">
-          Position states
-        </span>
-        <p className="text-text-secondary text-sm">
-          <span className="text-text-primary">{SR_BUCKET_LABEL.new}</span> — never drilled ·{' '}
-          <span className="text-text-primary">{SR_BUCKET_LABEL.learning}</span> — climbing the ladder ·{' '}
-          <span className="text-text-primary">{SR_BUCKET_LABEL.tryAgain}</span> — missed last time ·{' '}
-          <span className="text-text-primary">{SR_BUCKET_LABEL.mastered}</span> — passed all {SPACED_REPETITION_DAYS.length} spaced reviews
+        <span className="label">Position states</span>
+        <p className="text-text-primary text-sm">
+          <span className="font-semibold">{SR_BUCKET_LABEL.new}</span>: never drilled ·{' '}
+          <span className="font-semibold">{SR_BUCKET_LABEL.learning}</span>: climbing the ladder ·{' '}
+          <span className="font-semibold">{SR_BUCKET_LABEL.tryAgain}</span>: missed last time ·{' '}
+          <span className="font-semibold">{SR_BUCKET_LABEL.mastered}</span>: passed all {SPACED_REPETITION_DAYS.length} spaced reviews
         </p>
       </div>
 

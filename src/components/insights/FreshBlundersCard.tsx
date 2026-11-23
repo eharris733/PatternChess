@@ -53,7 +53,7 @@ export function FreshBlundersCard() {
           </div>
         )}
       </div>
-      <button type="button" onClick={clear} aria-label="Dismiss" className="shrink-0 text-text-secondary">
+      <button type="button" onClick={clear} aria-label="Dismiss" className="shrink-0 text-text-primary">
         <CloseIcon className="h-4 w-4" />
       </button>
     </section>

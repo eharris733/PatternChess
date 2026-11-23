@@ -267,16 +267,16 @@ export function EndgameDrillView({
           <FeedbackBadge tone="warning">Engine hiccup — keep playing</FeedbackBadge>
         )}
         {hint.level === 1 && playing && (
-          <p className="text-text-secondary text-xs">Piece highlighted — find the move for full credit.</p>
+          <p className="text-text-primary text-xs">Piece highlighted. Find the move for full credit.</p>
         )}
         {hint.level === 2 && playing && (
-          <p className="text-text-secondary text-xs">Move shown — no credit for this attempt.</p>
+          <p className="text-text-primary text-xs">Move shown. No credit for this attempt.</p>
         )}
 
         {training.phase === 'correct' && (
           <>
             <FeedbackBadge tone="success">{passedMessage}</FeedbackBadge>
-            <p className="text-text-secondary text-sm">
+            <p className="text-text-primary text-sm">
               In the game this ended in a {drillData.deservedResult === 'win' ? 'draw or loss' : 'loss'}.
               This time you kept the {target === 'win' ? 'full point' : 'half point'}.
             </p>
@@ -306,7 +306,7 @@ export function EndgameDrillView({
             <button className="btn-primary mt-auto" onClick={() => training.requeueAndAdvance()}>
               Continue<span className="hidden lg:inline ml-1.5"> (Space)</span>
             </button>
-            <p className="text-text-secondary text-xs text-center -mt-1">
+            <p className="text-text-primary text-xs text-center -mt-1">
               Comes back later this session
             </p>
           </>

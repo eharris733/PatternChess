@@ -43,7 +43,7 @@ export function EndgameRescueCard() {
     <section className="card flex flex-col gap-3">
       <header className="flex items-baseline justify-between">
         <span className="label">Dropped endgames</span>
-        <span className="text-text-secondary text-xs tabular-nums">
+        <span className="font-mono text-text-primary text-xs tabular-nums">
           {scenarios.length} endgame{scenarios.length === 1 ? '' : 's'}
         </span>
       </header>
@@ -52,7 +52,7 @@ export function EndgameRescueCard() {
         <span className="font-mono text-4xl tabular-nums tracking-tight text-gold-dark">
           {formatHalfPoints(atStakeHalf)}
         </span>
-        <span className="text-text-secondary mb-1">
+        <span className="text-text-primary mb-1">
           {allRescued
             ? 'every dropped point rescued'
             : `point${atStakeHalf > 2 ? 's' : ''} waiting to be rescued`}
@@ -66,8 +66,8 @@ export function EndgameRescueCard() {
             <div key={g.key} className="flex flex-col gap-1.5 py-2.5 px-1">
               <div className="flex items-baseline justify-between text-sm">
                 <span className="text-text-primary">{g.title}</span>
-                <span className="tabular-nums text-text-secondary">
-                  <span className="text-text-primary">{rescued}</span>/{g.items.length} rescued
+                <span className="tabular-nums text-text-primary">
+                  <span className="font-semibold">{rescued}</span>/{g.items.length} rescued
                 </span>
               </div>
               <div className="relative h-2 rounded-none bg-text-primary/10 overflow-hidden border border-text-primary/20">
@@ -81,11 +81,10 @@ export function EndgameRescueCard() {
         })}
       </div>
 
-      <p className="text-text-secondary text-xs">
+      <p className="text-text-primary text-xs">
         {statusCounts
           .map((x) => `${x.n} ${SCENARIO_STATUS_LABEL[x.status].toLowerCase()}`)
           .join(' · ')}
-        {' — '}play these endgames out against the engine and keep the point this time.
       </p>
 
       <button className="btn-primary w-full" onClick={() => navigate('/endgames')}>

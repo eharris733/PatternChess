@@ -41,7 +41,7 @@ export function PositionPreviewModal({
         <header className="flex items-start justify-between gap-3">
           <div>
             <h2 className="heading-md">Move {blunder.moveNumber}</h2>
-            <p className="text-xs text-text-secondary mt-0.5">
+            <p className="text-xs text-text-primary mt-0.5">
               {sideToMove === 'white' ? 'White' : 'Black'} to move
               {game && ` · ${orderedPlayers(game.username, game.opponent, game.userColor).join(' vs ')}`}
             </p>
@@ -78,7 +78,7 @@ export function PositionPreviewModal({
                 {blunder.motifs.map((m) => (
                   <span
                     key={m}
-                    className="px-1.5 py-0.5 border-2 border-text-primary/30 font-mono text-[10px] uppercase tracking-tight text-text-secondary"
+                    className="px-1.5 py-0.5 border-2 border-text-primary/30 font-mono text-[10px] uppercase tracking-tight text-text-primary"
                   >
                     {MOTIF_LABEL[m]}
                   </span>

@@ -47,17 +47,19 @@
   .input:focus {
     box-shadow: 3px 3px 0 rgb(var(--accent));
   }
+  /* Headings and card labels are Inter semibold; JetBrains Mono is kept for
+     numbers, evals, buttons and pills. */
   .label {
-    @apply font-mono uppercase text-[10px] tracking-tight text-text-secondary;
+    @apply font-sans font-semibold text-xs text-text-primary;
   }
   .heading-xl {
-    @apply font-mono uppercase tracking-tight text-3xl lg:text-4xl text-text-primary;
+    @apply font-sans font-semibold tracking-tight text-3xl lg:text-4xl text-text-primary;
   }
   .heading-lg {
-    @apply font-mono uppercase tracking-tight text-2xl sm:text-3xl text-text-primary;
+    @apply font-sans font-semibold tracking-tight text-2xl sm:text-3xl text-text-primary;
   }
   .heading-md {
-    @apply font-mono uppercase tracking-tight text-lg sm:text-xl text-text-primary;
+    @apply font-sans font-semibold tracking-tight text-lg sm:text-xl text-text-primary;
   }
 }
 

@@ -36,7 +36,7 @@ export function MotifWeaknessCard() {
     <section className="card flex flex-col gap-4">
       <header className="flex items-baseline justify-between">
         <span className="label">Recurring weaknesses</span>
-        <span className="text-text-secondary text-xs tabular-nums">
+        <span className="font-mono text-text-primary text-xs tabular-nums">
           {tagged.toLocaleString()} tagged
         </span>
       </header>
@@ -49,7 +49,7 @@ export function MotifWeaknessCard() {
             className="flex flex-col gap-1.5 text-left w-full rounded-none transition-opacity hover:opacity-75"
           >
             <div className="flex items-baseline justify-between text-sm">
-              <span className="text-text-secondary">{MOTIF_LABEL[motif]}</span>
+              <span className="text-text-primary">{MOTIF_LABEL[motif]}</span>
               <span className="tabular-nums text-text-primary">{count}</span>
             </div>
             <div className="relative h-3 rounded-none bg-text-primary/10 border border-text-primary/20">
@@ -65,20 +65,12 @@ export function MotifWeaknessCard() {
         <button
           type="button"
           onClick={() => setShowAll((v) => !v)}
-          className="text-left font-mono uppercase text-[10px] tracking-tight text-text-secondary hover:text-text-primary transition-colors"
+          className="self-start text-xs font-semibold text-text-primary underline underline-offset-2"
         >
           {showAll ? 'Show fewer' : `Show all ${all.length}`}
         </button>
       )}
-      <p className="font-mono uppercase text-[10px] tracking-tight text-gold-dark">
-        Select a weakness to drill those blunders →
-      </p>
-      {untagged > 0 && (
-        <p className="text-text-secondary text-xs">
-          {untagged.toLocaleString()} older {untagged === 1 ? 'position' : 'positions'} not yet
-          tagged — analysis fills these in while you're on the dashboard.
-        </p>
-      )}
+      <p className="text-xs text-text-primary">Tap a weakness to drill it.</p>
     </section>
   );
 }

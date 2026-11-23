@@ -56,7 +56,7 @@ export function StreakBadge({ collapsed }: StreakBadgeProps) {
       ) : (
         <span className="text-sm tabular-nums">
           <span className="font-mono font-semibold text-gold-dark">{days}</span>
-          <span className="text-text-secondary"> day{days === 1 ? '' : 's'}</span>
+          <span className="text-text-primary"> day{days === 1 ? '' : 's'}</span>
         </span>
       )}
       {!collapsed && freezes > 0 && !stale && (

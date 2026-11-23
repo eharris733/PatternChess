@@ -191,7 +191,7 @@ export function PgnUploadModal() {
             type="button"
             onClick={onClose}
             disabled={stage === 'running'}
-            className="text-text-secondary hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed"
+            className="text-text-primary hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed"
             aria-label="Close"
           >
             <CloseIcon className="w-4 h-4" />
@@ -200,7 +200,7 @@ export function PgnUploadModal() {
 
         {stage === 'pick' && (
           <>
-            <p className="text-text-secondary text-sm">
+            <p className="text-text-primary text-sm">
               Paste PGN text or upload one or more <code>.pgn</code> files. Multi-game
               PGN exports from Chess.com and Lichess are supported.
             </p>
@@ -229,7 +229,7 @@ export function PgnUploadModal() {
               {studyError ? (
                 <p className="text-incorrect text-xs">{studyError}</p>
               ) : (
-                <p className="text-text-secondary text-xs">
+                <p className="text-text-primary text-xs">
                   Loads all chapters of a public study as games below.
                 </p>
               )}
@@ -243,7 +243,7 @@ export function PgnUploadModal() {
                 value={userPgnName}
                 onChange={(e) => setUserPgnName(e.target.value)}
               />
-              <p className="text-text-secondary text-xs">
+              <p className="text-text-primary text-xs">
                 Used to identify which side is yours in each PGN's [White] / [Black] header.
               </p>
             </div>
@@ -259,7 +259,7 @@ export function PgnUploadModal() {
                 onChange={(e) => void onFilePick(e.target.files)}
               />
               {fileLabel && (
-                <p className="text-text-secondary text-xs">Loaded: {fileLabel}</p>
+                <p className="text-text-primary text-xs">Loaded: {fileLabel}</p>
               )}
             </div>
 
@@ -271,7 +271,7 @@ export function PgnUploadModal() {
                 value={pgnText}
                 onChange={(e) => setPgnText(e.target.value)}
               />
-              <p className="text-text-secondary text-xs">
+              <p className="text-text-primary text-xs">
                 {parsedCount > 0
                   ? `${parsedCount} game${parsedCount === 1 ? '' : 's'} detected.`
                   : 'No games detected yet.'}
@@ -328,7 +328,7 @@ export function PgnUploadModal() {
 
         {stage === 'running' && (
           <div className="flex flex-col gap-4">
-            <p className="text-text-secondary text-sm">
+            <p className="text-text-primary text-sm">
               Importing and analyzing your games. This usually takes a few seconds
               per game.
             </p>
@@ -336,14 +336,14 @@ export function PgnUploadModal() {
               <div className="flex items-baseline justify-between text-sm">
                 <span className="text-text-primary">{phaseLabel}</span>
                 {progress && (
-                  <span className="text-text-secondary font-mono text-xs">
+                  <span className="text-text-primary font-mono text-xs">
                     {progress.current}/{progress.total}
                   </span>
                 )}
               </div>
               <ProgressBar current={progress?.current ?? 0} total={progress?.total ?? 1} />
               {progress && progress.blundersFound > 0 && (
-                <p className="text-text-secondary text-xs">
+                <p className="text-text-primary text-xs">
                   {progress.blundersFound} blunder
                   {progress.blundersFound === 1 ? '' : 's'} found so far
                 </p>
@@ -360,7 +360,7 @@ export function PgnUploadModal() {
                 <p className="heading-md">
                   {result.inserted} game{result.inserted === 1 ? '' : 's'} imported
                 </p>
-                <p className="text-text-secondary text-sm">
+                <p className="text-text-primary text-sm">
                   {result.blundersFound} blunder{result.blundersFound === 1 ? '' : 's'} found
                   {result.duplicates > 0
                     ? ` · ${result.duplicates} duplicate${result.duplicates === 1 ? '' : 's'} skipped`
@@ -387,8 +387,8 @@ export function PgnUploadModal() {
         {stage === 'error' && (
           <div className="flex flex-col gap-4">
             <div className="bg-incorrect/10 border-2 border-incorrect/50 text-incorrect rounded-none p-4 text-sm">
-              <div className="font-mono uppercase text-xs tracking-tight mb-1">Upload failed</div>
-              <div className="text-text-secondary">{errorMsg ?? 'Something went wrong.'}</div>
+              <div className="font-semibold mb-1">Upload failed</div>
+              <div className="text-text-primary">{errorMsg ?? 'Something went wrong.'}</div>
             </div>
             <div className="flex items-center justify-end gap-3">
               <button type="button" className="btn-outline" onClick={onClose}>

@@ -74,7 +74,7 @@ export function EmailRemindersSetting() {
             <input type="checkbox" className="mt-1" checked={on} onChange={(e) => toggle(e.target.checked)} />
             <span>
               Training reminders and progress updates
-              <span className="block text-text-secondary text-xs">
+              <span className="block text-text-primary text-xs">
                 Sent to {email}: a nudge on days you have training due and a weekly progress report.
                 Every email also has a one-click unsubscribe.
               </span>
@@ -95,7 +95,7 @@ export function EmailRemindersSetting() {
                   </option>
                 ))}
               </select>
-              <span className="text-text-secondary text-xs">your time</span>
+              <span className="text-text-primary text-xs">your time</span>
             </label>
           )}
           {contact && (

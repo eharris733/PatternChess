@@ -97,7 +97,7 @@ export function VaultExportMenu({ mode, items }: { mode: PositionsMode; items: r
               onClick={() => void run(f.id)}
               className="text-left px-2 py-2 hover:bg-accent/15 disabled:opacity-60"
             >
-              <span className="block font-mono uppercase text-xs tracking-tight text-text-primary">
+              <span className="block text-sm font-semibold text-text-primary">
                 {busy === f.id ? 'Preparing…' : f.label}
               </span>
               <span className="block text-sm text-text-primary">{f.detail}</span>

@@ -77,7 +77,7 @@ export function EventsRoute() {
           <div className="mt-10 flex flex-col gap-3">
             {FEATURES.map((f) => (
               <section key={f.title} className="border-2 border-text-primary bg-surface p-5">
-                <h2 className="font-mono uppercase tracking-tight text-sm sm:text-base text-text-primary">
+                <h2 className="font-semibold text-sm sm:text-base text-text-primary">
                   {f.title}
                 </h2>
                 <p className="mt-2 text-base text-text-primary/85 leading-relaxed">{f.body}</p>

@@ -82,7 +82,7 @@ export function LearnRoute() {
                   data-testid="study-card"
                 >
                   <div className="flex items-baseline justify-between gap-2">
-                    <h2 className="font-mono uppercase tracking-tight text-text-primary">{s.title}</h2>
+                    <h2 className="font-semibold text-text-primary">{s.title}</h2>
                     <span className="label shrink-0">{LEARN_LEVEL_LABEL[s.level]}</span>
                   </div>
                   {s.description && <p className="text-text-secondary text-sm">{s.description}</p>}

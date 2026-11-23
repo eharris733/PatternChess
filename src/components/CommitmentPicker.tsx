@@ -90,7 +90,7 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
             >
               <span className="text-sm font-semibold text-text-primary">{COMMITMENT_LABEL[level]}</span>
               <span className="text-xs text-text-primary">{planSummary(p)}</span>
-              <span className="text-xs text-text-secondary">{COMMITMENT_TAGLINE[level]}</span>
+              <span className="text-xs text-text-primary">{COMMITMENT_TAGLINE[level]}</span>
             </button>
           );
         })}
@@ -146,7 +146,7 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
       <p className="text-sm text-text-primary" data-testid="commitment-summary">
         Your day: {planSummary(goals)}.
       </p>
-      <p className="text-xs text-text-secondary">Smaller plans you actually finish beat big ones you skip.</p>
+      <p className="text-xs text-text-primary">Smaller plans you actually finish beat big ones you skip.</p>
       {error && <p className="text-incorrect text-sm">{error}</p>}
     </div>
   );

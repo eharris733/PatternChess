@@ -24,9 +24,7 @@ export function OpeningInsightsCard() {
     <section className="card flex flex-col gap-3">
       <header className="flex items-baseline justify-between">
         <span className="label">Top openings</span>
-        <span className="text-text-secondary text-xs uppercase tracking-tight">
-          win rate
-        </span>
+        <span className="text-text-primary text-xs">Win rate</span>
       </header>
       <ul className="flex flex-col divide-y divide-text-primary/15">
         {visible.map((row) => (
@@ -49,14 +47,12 @@ export function OpeningInsightsCard() {
         <button
           type="button"
           onClick={() => setShowAll((v) => !v)}
-          className="text-left font-mono uppercase text-[10px] tracking-tight text-text-secondary hover:text-text-primary transition-colors"
+          className="self-start text-xs font-semibold text-text-primary underline underline-offset-2"
         >
           {showAll ? 'Show fewer' : `Show all ${rows.length}`}
         </button>
       )}
-      <p className="font-mono uppercase text-[10px] tracking-tight text-gold-dark">
-        Select an opening to drill its blunders →
-      </p>
+      <p className="text-xs text-text-primary">Tap an opening to drill its blunders.</p>
     </section>
   );
 }

@@ -27,7 +27,7 @@ export function TrainingDeleteModal({
         <header>
           <h2 className="heading-lg">Delete this position?</h2>
         </header>
-        <p className="text-text-secondary text-sm">
+        <p className="text-text-primary text-sm">
           This permanently removes the position from your training. You won't be
           asked to drill it again. This can't be undone.
         </p>

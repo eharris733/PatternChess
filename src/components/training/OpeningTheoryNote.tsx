@@ -19,7 +19,7 @@ export function OpeningTheoryNote({ blunder }: { blunder: Blunder }) {
       </span>
       <TheoryMovesLine moves={data.theoryMoves} source={data.source} />
       {data.source === 'book' && data.positionGames > 0 && (
-        <p className="text-text-secondary text-xs">
+        <p className="text-text-primary text-xs">
           From {data.positionGames.toLocaleString()} games in this position.
         </p>
       )}

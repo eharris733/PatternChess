@@ -37,16 +37,13 @@ export function OpeningRow({ row, onClick }: { row: OpeningInsightRow; onClick: 
             )}
             <span className="truncate">{openingName}</span>
           </p>
-          <p className="text-text-secondary text-xs tabular-nums">
+          <p className="text-text-primary text-xs tabular-nums">
             {row.wins}W / {row.losses}L / {row.draws}D · {Math.round(row.blunderRate * 10) / 10}{' '}
             blunders/game
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span
-            className="text-text-primary text-sm tabular-nums"
-            title="Win rate (wins + ½ draws) in this opening"
-          >
+          <span className="text-text-primary text-sm tabular-nums">
             {formatPct(row.winRate)}
           </span>
         </div>

@@ -574,7 +574,7 @@ export function OpeningsRoute() {
         </div>
       )}
 
-      <p className="text-text-secondary text-xs" data-testid="book-attribution">
+      <p className="text-text-primary text-xs" data-testid="book-attribution">
         Opening statistics from the{' '}
         <a className="underline" href="https://database.lichess.org/#broadcasts" target="_blank" rel="noreferrer">
           Lichess broadcast database

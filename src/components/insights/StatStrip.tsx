@@ -45,7 +45,7 @@ function StatTile({
           <TrendChip>{chip}</TrendChip>
         </span>
       )}
-      {!loading && footer}
+      {!loading && footer && <span className="mt-auto w-full pt-2">{footer}</span>}
     </button>
   );
 }
@@ -59,12 +59,10 @@ function RankLadder({ mastered }: { mastered: number }) {
   const progress = rankFor(mastered);
   const pct = Math.min(100, Math.round(progress.fraction * 100));
   return (
-    <span className="mt-2 flex w-full flex-col gap-1" data-testid="rank-ladder">
+    <span className="flex w-full flex-col gap-1" data-testid="rank-ladder">
       <span className="flex items-baseline justify-between gap-2 flex-wrap">
-        <span className="font-mono uppercase text-xs tracking-tight text-text-primary">
-          {progress.current.name}
-        </span>
-        <span className="text-[11px] text-text-secondary tabular-nums">
+        <span className="text-xs font-semibold text-text-primary">{progress.current.name}</span>
+        <span className="text-xs text-text-primary tabular-nums">
           {progress.next ? `${progress.remainingToNext} to ${progress.next.name}` : 'Top tier'}
         </span>
       </span>
@@ -87,6 +85,10 @@ function RankLadder({ mastered }: { mastered: number }) {
       </span>
     </span>
   );
+}
+
+function FooterLine({ children }: { children: ReactNode }) {
+  return <span className="block text-xs text-text-primary tabular-nums">{children}</span>;
 }
 
 const formatSigned = (n: number) => (n > 0 ? `+${n.toLocaleString()}` : n.toLocaleString());
@@ -112,6 +114,11 @@ export function StatStrip() {
   const solved = stats.data?.reviewed ?? 0;
   const eloGained = totalEloGained(rating.progress);
 
+  // Nothing earned yet (a brand-new account): three zero tiles are a hole,
+  // so the strip waits for the first solve or rating gain.
+  const loaded = mounted && !stats.isPending && !rating.isPending;
+  if (loaded && solved === 0 && mastered === 0 && eloGained <= 0) return null;
+
   const showRatingProgress = () => {
     const card = document.getElementById('rating-progress');
     if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -119,7 +126,7 @@ export function StatStrip() {
   };
 
   return (
-    <div className="grid grid-cols-3 gap-3" aria-label="Your numbers">
+    <div className="grid grid-cols-3 gap-3" data-testid="stat-strip" aria-label="Your numbers">
       <StatTile
         label="Mastered"
         value={mastered}
@@ -131,6 +138,7 @@ export function StatStrip() {
       <StatTile
         label="Positions solved"
         value={solved}
+        footer={<FooterLine>{(stats.data?.totalBlunders ?? 0).toLocaleString()} in your vault</FooterLine>}
         onClick={() => navigate('/training')}
         loading={!mounted || stats.isPending}
       />
@@ -138,6 +146,7 @@ export function StatStrip() {
         label="Elo gained"
         value={eloGained}
         format={formatSigned}
+        footer={<FooterLine>Since you joined</FooterLine>}
         onClick={showRatingProgress}
         loading={!mounted || rating.isPending}
       />

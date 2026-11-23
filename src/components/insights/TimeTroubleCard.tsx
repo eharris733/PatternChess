@@ -22,9 +22,9 @@ export function TimeTroubleCard() {
 
   const phaseRow = (label: string, count: number) => (
     <div className="flex items-baseline justify-between text-sm">
-      <span className="text-text-secondary">{label}</span>
+      <span className="text-text-primary">{label}</span>
       <span className="tabular-nums text-text-primary">
-        {count} <span className="text-text-secondary">({Math.round(pct(count, totalTrouble))}%)</span>
+        <span className="font-semibold">{count}</span> ({Math.round(pct(count, totalTrouble))}%)
       </span>
     </div>
   );
@@ -37,7 +37,7 @@ export function TimeTroubleCard() {
     >
       <header className="flex items-baseline justify-between">
         <span className="label">Time-trouble blunders</span>
-        <span className="text-text-secondary text-xs tabular-nums">
+        <span className="font-mono text-text-primary text-xs tabular-nums">
           &lt;{stats.thresholdPercent}% time left
         </span>
       </header>
@@ -45,7 +45,7 @@ export function TimeTroubleCard() {
         <span className="font-mono text-5xl tabular-nums tracking-tight text-gold-dark">
           {totalTrouble}
         </span>
-        <span className="text-text-secondary mb-1 tabular-nums">
+        <span className="text-text-primary mb-1 tabular-nums">
           {Math.round(sharePct)}% of timed blunders
         </span>
       </div>
@@ -57,14 +57,12 @@ export function TimeTroubleCard() {
         </div>
       )}
       {stats.excludedBlunders > 0 && (
-        <p className="text-text-secondary text-xs">
+        <p className="text-text-primary text-xs">
           {stats.excludedBlunders.toLocaleString()} blunder
-          {stats.excludedBlunders === 1 ? '' : 's'} excluded — no clock data on those games.
+          {stats.excludedBlunders === 1 ? '' : 's'} left out: no clock data on those games.
         </p>
       )}
-      <span className="font-mono uppercase text-xs tracking-tight text-gold-dark">
-        Drill these →
-      </span>
+      <span className="text-sm font-semibold text-gold-dark underline underline-offset-2">Drill these</span>
     </button>
   );
 }

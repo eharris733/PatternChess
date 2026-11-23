@@ -25,7 +25,7 @@ import type { PositionsMode } from './VaultPositionsTab';
 const KIND_ORDER: readonly DrillKind[] = ['tactic', 'endgame', 'opening'];
 const COLORS: readonly PlayerColor[] = ['white', 'black'];
 
-const count = (n: number | undefined) => <span className="ml-1.5 text-text-secondary/70">{n ?? 0}</span>;
+const count = (n: number | undefined) => <span className="ml-1.5 text-text-primary">{n ?? 0}</span>;
 
 /**
  * Type and progress pills, then motif / phase / opening / color selects and a

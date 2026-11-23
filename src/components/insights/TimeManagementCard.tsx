@@ -12,12 +12,12 @@ interface TileProps {
 
 function Tile({ label, userSec, hasData }: TileProps) {
   return (
-    <div className="flex flex-col items-start gap-1 bg-surface-3 rounded-none border-2 border-text-primary px-3 py-2">
-      <span className="label text-[10px]">{label}</span>
+    <div className="flex min-w-0 flex-col items-start gap-1 bg-surface-3 rounded-none border-2 border-text-primary px-2 sm:px-3 py-2">
+      <span className="label">{label}</span>
       <span className="font-mono text-2xl tabular-nums text-gold-dark">
         {hasData ? `${Math.round(userSec)}s` : '—'}
       </span>
-      <span className="text-text-secondary text-xs">avg / move</span>
+      <span className="text-text-primary text-xs">per move</span>
     </div>
   );
 }
@@ -40,15 +40,12 @@ export function TimeManagementCard() {
     <section className="card flex flex-col gap-3">
       <header className="flex items-baseline justify-between">
         <span className="label">Time per move</span>
-        <span className="text-text-secondary text-xs tabular-nums">
-          {totalPlies.toLocaleString()} plies sampled
+        <span className="font-mono text-text-primary text-xs tabular-nums">
+          {totalPlies.toLocaleString()} moves
         </span>
       </header>
-      <p className="text-text-secondary text-xs -mt-2">
-        How long you think per move across all moves in your non-bullet games, by phase — every
-        move counts here, blunder or otherwise.
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <p className="text-text-primary text-xs -mt-1">Average think time in your non-bullet games, by phase.</p>
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <Tile
           label="Opening"
           userSec={open?.averageSeconds ?? 0}
@@ -68,9 +65,9 @@ export function TimeManagementCard() {
       <button
         type="button"
         onClick={() => navigate('/training', { state: { contextFilter: 'longThink' } })}
-        className="font-mono uppercase text-xs tracking-tight text-gold-dark text-left hover:text-text-primary transition-colors"
+        className="self-start text-sm font-semibold text-gold-dark underline underline-offset-2 hover:text-text-primary transition-colors"
       >
-        Drill long-think blunders →
+        Drill long-think blunders
       </button>
     </section>
   );

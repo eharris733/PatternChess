@@ -51,14 +51,10 @@ export function CycleTimelineCard() {
         <span className="font-mono text-4xl tabular-nums tracking-tight text-gold-dark">
           {data.total}
         </span>
-        <span className="text-text-secondary mb-1">
+        <span className="text-text-primary mb-1">
           blunder{data.total === 1 ? '' : 's'} in vault
         </span>
       </div>
-      <p className="text-text-secondary text-sm">
-        How they're spread across the spaced-repetition ladder — new to mastered.
-      </p>
-
       <div className="flex items-end gap-1.5">
         {rungs.map((r) => {
           const barHeight = r.count > 0 ? Math.round((r.count / maxCount) * 56) + 8 : 2;
@@ -74,7 +70,7 @@ export function CycleTimelineCard() {
                 style={{ height: `${barHeight}px` }}
                 aria-hidden
               />
-              <span className="text-center font-mono text-[9px] uppercase leading-tight tracking-tight text-text-secondary">
+              <span className="text-center text-[11px] font-semibold leading-tight text-text-primary">
                 {r.label}
               </span>
             </div>
@@ -83,9 +79,9 @@ export function CycleTimelineCard() {
       </div>
 
       {data.tryAgain > 0 && (
-        <p className="text-text-secondary text-xs">
+        <p className="text-text-primary text-xs">
           <span className="font-mono text-mistake">{data.tryAgain}</span>{' '}
-          {SR_BUCKET_LABEL.tryAgain.toLowerCase()} — missed last time, back in the queue.
+          {SR_BUCKET_LABEL.tryAgain.toLowerCase()}: missed last time, back in the queue.
         </p>
       )}
     </section>

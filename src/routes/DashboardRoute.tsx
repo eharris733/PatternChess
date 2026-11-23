@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
-import { useGames } from '../hooks/useGames';
+import { useGameCount } from '../hooks/useGameCount';
 import { startBlunderMaintenance } from '../services/blunderEnrichmentBackfill';
 import { startEndgameScenarioVerification } from '../services/endgameScenarioVerifier';
 import { startOpeningBackfill } from '../services/openingClassificationService';
@@ -21,7 +21,6 @@ import { RatingProgressCard } from '../components/insights/RatingProgressCard';
 import { UpcomingEventsCard } from '../components/insights/UpcomingEventsCard';
 import { StatStrip } from '../components/insights/StatStrip';
 import { useBlunderStats } from '../hooks/useBlunderStats';
-import { Skeleton } from '../components/Skeleton';
 import { FreshBlundersCard } from '../components/insights/FreshBlundersCard';
 import { NextAskSlot } from '../components/email/NextAskSlot';
 import { streakStatus } from '../services/streakService';
@@ -45,7 +44,7 @@ function deferJob(start: () => () => void): () => void {
 export function DashboardRoute() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
-  const gamesQuery = useGames();
+  const gameCountQuery = useGameCount();
   const statsQuery = useBlunderStats();
 
   // All four jobs start a few seconds after mount (deferJob) so their count
@@ -65,8 +64,9 @@ export function DashboardRoute() {
   // the exits on the engine — yielding to the two engine workers above.
   useEffect(() => deferJob(startOpeningDeviationScan), []);
 
-  const gamesLoading = gamesQuery.isPending;
-  const gamesCount = gamesQuery.data?.length ?? 0;
+  // One count call (never the full games list: dashboard cards must not gate on it).
+  const gamesLoading = gameCountQuery.isPending;
+  const gamesCount = gameCountQuery.data ?? 0;
   const hasAccount = !!(profile?.lichessUsername || profile?.chesscomUsername);
   // First-run: never linked an external account and no games (uploaded PGNs
   // count as games, so a PGN-only user falls out of this state once they
@@ -84,8 +84,8 @@ export function DashboardRoute() {
       .split(/\s+/)[0];
 
   return (
-    <div className="max-w-3xl mx-auto flex flex-col gap-6">
-      <header className="flex flex-col gap-2">
+    <div className="max-w-5xl mx-auto flex flex-col gap-5">
+      <header className="flex flex-col gap-1">
         {isFirstRun ? (
           <>
             <span className="label">Welcome to PatternChess</span>
@@ -106,35 +106,38 @@ export function DashboardRoute() {
 
       {isFirstRun ? <GetStartedHero /> : <DailyHabitCard />}
 
-      {!isFirstRun && <CycleTimelineCard />}
-
-      {!isFirstRun && <EndgameRescueCard />}
-
-      {!isFirstRun && <RatingProgressCard />}
-
-      {!isFirstRun && <UpcomingEventsCard />}
-
+      {/* Insight cards pack into two columns on wide screens. Each card
+          renders nothing until it has data, and the spacing sits on the
+          rendered children, so a missing card never leaves a gap. */}
       {!isFirstRun && (
-        <button
-          className="card text-left hover:border-accent transition"
-          onClick={() => navigate('/vault?tab=games')}
+        <div
+          className="columns-1 lg:columns-2 gap-5 [&>*]:mb-5 [&>*]:break-inside-avoid [&>*]:w-full"
+          data-testid="dashboard-insights"
         >
-          <span className="label">Vault</span>
-          {gamesLoading ? (
-            <Skeleton className="h-6 w-24 mt-2" />
-          ) : (
-            <p className="heading-md mt-2">{gamesCount} games</p>
+          <CycleTimelineCard />
+          <EndgameRescueCard />
+          <RatingProgressCard />
+          <UpcomingEventsCard />
+          <MotifWeaknessCard />
+          <OpeningInsightsCard />
+          <PhaseBlunderCard />
+          <TimeManagementCard />
+          <TimeTroubleCard />
+          <GameStateCard />
+          {!gamesLoading && gamesCount > 0 && (
+            <button
+              className="card block text-left hover:border-accent transition"
+              onClick={() => navigate('/vault?tab=games')}
+            >
+              <span className="label">Vault</span>
+              <p className="heading-md mt-1">
+                <span className="font-mono">{gamesCount.toLocaleString()}</span> games
+              </p>
+              <p className="text-text-primary text-sm mt-1">Every game you've imported, and the blunders in each.</p>
+            </button>
           )}
-          <p className="text-text-secondary text-sm mt-1">Every game you've imported, and the blunders in each.</p>
-        </button>
+        </div>
       )}
-
-      <MotifWeaknessCard />
-      <OpeningInsightsCard />
-      <PhaseBlunderCard />
-      <TimeManagementCard />
-      <TimeTroubleCard />
-      <GameStateCard />
     </div>
   );
 }

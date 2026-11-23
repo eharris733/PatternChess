@@ -23,7 +23,7 @@ export function LineTabs({
             'font-mono uppercase text-[10px] tracking-tight px-2 py-1 rounded-none border-2 transition-colors',
             active === t.key
               ? 'bg-accent/15 border-accent text-text-primary'
-              : 'border-text-primary text-text-secondary hover:bg-accent/10',
+              : 'border-text-primary text-text-primary hover:bg-accent/10',
           )}
         >
           {t.label}

@@ -58,7 +58,7 @@ export function DrillSettingsMenu() {
             />
             <span>
               Show the answer
-              <span className="block text-text-secondary text-xs">
+              <span className="block text-text-primary text-xs">
                 Draws the best move and adds the solution line.
               </span>
             </span>
@@ -72,7 +72,7 @@ export function DrillSettingsMenu() {
             />
             <span>
               Autoplay the lines
-              <span className="block text-text-secondary text-xs">
+              <span className="block text-text-primary text-xs">
                 Plays why your move fails on the board, then the solution when it&rsquo;s shown.
               </span>
             </span>

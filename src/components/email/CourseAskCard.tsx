@@ -85,7 +85,7 @@ export function CourseAskCard({ onClose }: { onClose: () => void }) {
         </div>
         {setFocus.isError && <p className="text-incorrect text-sm">Couldn't start the course. Try again in a moment.</p>}
       </div>
-      <button type="button" onClick={dismiss} aria-label="Not now" className="shrink-0 text-text-secondary">
+      <button type="button" onClick={dismiss} aria-label="Not now" className="shrink-0 text-text-primary">
         <CloseIcon className="h-4 w-4" />
       </button>
     </section>

@@ -82,17 +82,17 @@ export function PositionSrState({
       </div>
       <div className="flex items-center justify-between">
         <MasteryDots cycleNumber={blunder.cycleNumber} />
-        <span className="text-xs font-mono text-text-secondary">
+        <span className="text-xs font-mono text-text-primary">
           cycle {filled}/{total}
         </span>
       </div>
       {showNextReview && (
-        <p className="text-[11px] leading-tight text-text-secondary">
+        <p className="text-[11px] leading-tight text-text-primary">
           Solve it → next review in {nextIntervalDaysIfSolved(blunder)} days
         </p>
       )}
       {(blunder.timesAttempted > 0 || lastSeen) && (
-        <div className="flex items-center justify-between text-xs text-text-secondary">
+        <div className="flex items-center justify-between text-xs text-text-primary">
           <span>
             {blunder.timesAttempted > 0 && (
               <>

@@ -82,7 +82,7 @@ export function HeldMeter({
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
         <span className="label">Held</span>
-        <span className="font-mono text-xs tabular-nums text-text-secondary">
+        <span className="font-mono text-xs tabular-nums text-text-primary">
           {heldStreak}/{holdTarget} moves
         </span>
       </div>
@@ -90,7 +90,7 @@ export function HeldMeter({
         <div className="h-full bg-gold-dark" style={{ width: `${pct}%` }} />
       </div>
       {depth != null && (
-        <p className="font-mono text-[10px] uppercase tracking-tight text-text-secondary/70">
+        <p className="font-mono text-xs tabular-nums text-text-primary">
           Engine depth {depth}
         </p>
       )}
@@ -363,13 +363,13 @@ export function SlipReport({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm">
-        <span className="text-text-secondary">You played </span>
+        <span className="text-text-primary">You played </span>
         <span className="font-mono font-bold text-incorrect">
           {slip.playedSan ?? slip.playedUci}
         </span>
         {slip.bestSan && (
           <>
-            <span className="text-text-secondary"> — engine holds with </span>
+            <span className="text-text-primary">. The engine holds with </span>
             <span className="font-mono font-bold text-correct">{slip.bestSan}</span>
           </>
         )}
@@ -413,8 +413,8 @@ export function SlipReport({
       )}
 
       {logStatus === 'saved' ? (
-        <p className="text-text-secondary text-xs">
-          Added — this position joins your training queue.
+        <p className="text-text-primary text-xs">
+          Added to your training queue.
         </p>
       ) : logStatus !== 'unavailable' ? (
         <button
@@ -473,18 +473,18 @@ export function PlayoutProgress({
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
         <span className="label">Progress</span>
-        <span className="font-mono text-xs tabular-nums text-text-secondary">
+        <span className="font-mono text-xs tabular-nums text-text-primary">
           {userMovesPlayed} move{userMovesPlayed === 1 ? '' : 's'} played
         </span>
       </div>
       <p className="font-mono text-sm tabular-nums text-text-primary">{evalText}</p>
-      <p className="text-text-secondary text-xs">
+      <p className="text-text-primary text-xs">
         {target === 'win'
           ? 'Deliver checkmate to rescue the point.'
           : `${Math.min(quietMoves, quietTarget)}/${quietTarget} quiet moves toward an accepted draw.`}
       </p>
       {depth != null && (
-        <p className="font-mono text-[10px] uppercase tracking-tight text-text-secondary/70">
+        <p className="font-mono text-xs tabular-nums text-text-primary">
           Engine depth {depth}
         </p>
       )}

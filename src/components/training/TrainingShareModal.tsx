@@ -89,7 +89,7 @@ export function TrainingShareModal({
         <button
           type="button"
           aria-label="Close"
-          className="btn-ghost absolute top-3 right-3 p-1 text-text-secondary hover:text-text-primary"
+          className="btn-ghost absolute top-3 right-3 p-1 text-text-primary hover:text-text-primary"
           onClick={onClose}
         >
           <CloseIcon className="h-5 w-5" />

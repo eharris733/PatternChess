@@ -174,14 +174,14 @@ export function VaultGamesTab() {
   }, []);
 
   if (isLoading) {
-    return <div className="text-text-secondary text-sm">Loading…</div>;
+    return <div className="text-text-primary text-sm">Loading…</div>;
   }
 
   if (!games || games.length === 0) {
     return (
       <div className="card text-center flex flex-col gap-4">
         <h2 className="heading-lg">No games yet</h2>
-        <p className="text-text-secondary text-sm">
+        <p className="text-text-primary text-sm">
           {hasAccount
             ? 'Sync your latest games, or upload your own PGNs to populate the vault.'
             : 'Connect a Lichess or Chess.com account, or upload your own PGNs to start.'}
@@ -211,7 +211,7 @@ export function VaultGamesTab() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-text-secondary text-sm">
+        <p className="text-text-primary text-sm">
           {games.length} game{games.length === 1 ? '' : 's'} synced. New games
           are added automatically each time you visit.
         </p>
@@ -236,7 +236,7 @@ export function VaultGamesTab() {
               onClick={() => setBlunderFilter(f.key)}
             >
               {f.label}
-              <span className="ml-1.5 text-text-secondary/70">{filterCounts[f.key]}</span>
+              <span className="ml-1.5 text-text-primary">{filterCounts[f.key]}</span>
             </button>
           ))}
         </div>
@@ -271,7 +271,7 @@ export function VaultGamesTab() {
         </div>
         {filtersActive && (
           <div className="flex items-center justify-between gap-3">
-            <span className="text-xs text-text-secondary">
+            <span className="text-xs text-text-primary">
               Showing {filteredGames.length} of {games.length} game
               {games.length === 1 ? '' : 's'}
             </span>
@@ -289,7 +289,7 @@ export function VaultGamesTab() {
 
       {filteredGames.length === 0 ? (
         <div className="card text-center flex flex-col items-center gap-3">
-          <p className="text-text-secondary text-sm">No games match the current filters.</p>
+          <p className="text-text-primary text-sm">No games match the current filters.</p>
           <button className="btn-outline" onClick={clearFilters}>
             Clear filters
           </button>
@@ -355,7 +355,7 @@ export function VaultGamesTab() {
             <header>
               <h2 className="heading-lg">Delete this game?</h2>
             </header>
-            <p className="text-text-secondary text-sm">
+            <p className="text-text-primary text-sm">
               This permanently removes{' '}
               <span className="text-text-primary font-medium">
                 {orderedPlayers(
@@ -433,9 +433,9 @@ const GameRow = memo(function GameRow({
       <div className="px-5 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex flex-col min-w-0">
           <span className="text-sm font-medium truncate">
-            {first} <span className="text-text-secondary">vs</span> {second}
+            {first} <span className="text-text-primary">vs</span> {second}
           </span>
-          <span className="text-xs text-text-secondary mt-0.5">
+          <span className="text-xs text-text-primary mt-0.5">
             {g.platform} · {g.timeControl ?? '—'} ·{' '}
             {g.playedAt ? formatDate(g.playedAt) : 'unknown date'}
           </span>
@@ -446,7 +446,6 @@ const GameRow = memo(function GameRow({
               type="button"
               className="inline-flex items-center gap-1 text-xs text-mistake hover:underline"
               aria-expanded={expanded}
-              title={expanded ? 'Hide positions' : 'Show blunder positions'}
               onClick={() => onToggle(g.id)}
             >
               {blunderLabel}
@@ -455,7 +454,7 @@ const GameRow = memo(function GameRow({
               />
             </button>
           ) : (
-            <span className="text-xs text-text-secondary">{blunderLabel}</span>
+            <span className="text-xs text-text-primary">{blunderLabel}</span>
           )}
           <ResultBadge outcome={outcome} />
           {externalUrl ? (
@@ -463,7 +462,7 @@ const GameRow = memo(function GameRow({
               href={externalUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className={clsx('btn-ghost text-xs gap-1', analyzed && 'text-text-secondary/70')}
+              className={clsx('btn-ghost text-xs gap-1', analyzed && 'text-text-primary')}
               title={`Open analysis on ${g.platform}`}
               onClick={() => onAnalyze(g.id)}
               onAuxClick={(e) => {
@@ -473,18 +472,14 @@ const GameRow = memo(function GameRow({
               {analyzed ? 'Re-analyze' : 'Analyze'} <span aria-hidden>↗</span>
             </a>
           ) : (
-            <span
-              className="btn-ghost text-xs gap-1 opacity-40 cursor-not-allowed"
-              title="No external link available"
-            >
+            <span className="btn-ghost text-xs gap-1 opacity-40 cursor-not-allowed">
               Analyze <span aria-hidden>↗</span>
             </span>
           )}
           <button
             type="button"
-            className="btn-ghost text-xs text-text-secondary hover:text-incorrect inline-flex items-center"
+            className="btn-ghost text-xs text-text-primary hover:text-incorrect inline-flex items-center"
             onClick={() => onDelete(g)}
-            title="Delete game and its blunders"
             aria-label="Delete game"
           >
             <TrashIcon className="h-4 w-4" />

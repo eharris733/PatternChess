@@ -9,7 +9,7 @@ export function GetStartedHero() {
     <section className="card flex flex-col gap-5">
       <div className="flex flex-col gap-2">
         <h2 className="heading-lg">Connect your games. Get today's plan.</h2>
-        <p className="text-text-secondary">
+        <p className="text-text-primary">
           PatternChess finds the blunders in your games and serves them back a few
           a day. Connect Lichess or Chess.com, or upload your own PGNs.
         </p>

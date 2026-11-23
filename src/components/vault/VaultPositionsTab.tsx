@@ -236,7 +236,6 @@ function PositionCard({
               <button
                 type="button"
                 aria-pressed={activeMotif === m}
-                title={activeMotif === m ? 'Show every motif' : `Show only: ${MOTIF_LABEL[m]}`}
                 onClick={() => onMotif(m)}
                 className={clsx(
                   'px-1.5 py-0.5 border-2 font-mono text-[10px] uppercase tracking-tight text-text-primary transition-colors',

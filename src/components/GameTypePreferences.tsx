@@ -35,7 +35,7 @@ export function GameTypePreferences({
       </label>
       <div className="flex flex-col gap-2">
         <label className="label">Time controls</label>
-        <p className="text-text-secondary text-xs -mt-1">
+        <p className="text-text-primary text-xs -mt-1">
           Leave all unchecked to include every time control.
         </p>
         <div className="flex flex-wrap gap-3">

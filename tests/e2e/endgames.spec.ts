@@ -338,9 +338,9 @@ test('a slip in the endgames tab is logged only on request, then retried', async
   });
 
   // Logging is opt-in: nothing was inserted automatically.
-  await expect(page.getByText(/joins your training queue/)).toHaveCount(0);
+  await expect(page.getByText(/Added to your training queue/)).toHaveCount(0);
   await page.getByRole('button', { name: 'Add to training queue' }).click();
-  await expect(page.getByText(/joins your training queue/)).toBeVisible();
+  await expect(page.getByText(/Added to your training queue/)).toBeVisible();
 
   // Space retries from the mistake (even with the log button still focused),
   // and the mate still passes.

@@ -4,8 +4,8 @@ import { ClockIcon } from '../icons/ClockIcon';
 
 const GAME_STATE_TONE: Record<BlunderContext['gameState'], string> = {
   missedWin: 'bg-mistake/20 text-mistake border-mistake/50',
-  roughlyEqual: 'bg-surface-3 text-text-secondary border-text-primary',
-  alreadyLosing: 'bg-surface-3 text-text-secondary border-text-primary',
+  roughlyEqual: 'bg-surface-3 text-text-primary border-text-primary',
+  alreadyLosing: 'bg-surface-3 text-text-primary border-text-primary',
 };
 
 function formatClock(seconds: number): string {
@@ -53,7 +53,7 @@ export function BlunderContextBadges({ context }: { context: BlunderContext }) {
         </div>
       )}
       {showClock && (
-        <p className="flex items-center gap-1.5 text-text-secondary text-xs font-mono tabular-nums">
+        <p className="flex items-center gap-1.5 text-text-primary text-xs font-mono tabular-nums">
           <ClockIcon className="h-3.5 w-3.5 shrink-0" title="Clock at the moment of the move" />
           {formatClock(context.timeRemainingSeconds as number)} left
           {context.moveTimeSpentSeconds !== null &&

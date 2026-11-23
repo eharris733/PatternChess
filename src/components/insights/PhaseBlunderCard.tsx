@@ -18,7 +18,7 @@ function Bar({ label, userPct, benchmarkPct, benchmarkSampleSize, onClick }: Bar
   const inner = (
     <>
       <div className="flex items-baseline justify-between text-sm">
-        <span className="text-text-secondary">{label}</span>
+        <span className="text-text-primary">{label}</span>
         <span className="tabular-nums text-text-primary">{Math.round(userPct)}%</span>
       </div>
       <div className="relative h-3 rounded-none bg-text-primary/10 overflow-visible border border-text-primary/20">
@@ -86,7 +86,7 @@ export function PhaseBlunderCard() {
     <section className={clsx('card flex flex-col gap-4')}>
       <header className="flex items-baseline justify-between">
         <span className="label">Where you blunder</span>
-        <span className="text-text-secondary text-xs tabular-nums">
+        <span className="font-mono text-text-primary text-xs tabular-nums">
           {counts.total.toLocaleString()} total
         </span>
       </header>
@@ -113,12 +113,10 @@ export function PhaseBlunderCard() {
           onClick={counts.endgame > 0 ? () => drill('endgame') : undefined}
         />
       </div>
-      <p className="font-mono uppercase text-[10px] tracking-tight text-gold-dark">
-        Select a phase to drill those blunders →
-      </p>
+      <p className="text-xs text-text-primary">Tap a phase to drill it.</p>
       {benchmarkShare && benchmarkSource && (
-        <p className="text-text-secondary text-xs">
-          Tick = same-rating peer share ({band}). {benchmarkSource}
+        <p className="text-text-primary text-xs">
+          The tick marks players rated {band}.
         </p>
       )}
     </section>

@@ -77,13 +77,13 @@ export function PathRoute() {
                     ? 'border-gold-dark bg-gold-dark text-bg'
                     : isNext
                       ? 'border-gold-dark bg-surface text-gold-dark'
-                      : 'border-text-primary/25 bg-surface text-text-secondary',
+                      : 'border-text-primary/25 bg-surface text-text-primary',
                 )}
               >
                 {reached ? <CheckIcon className="h-4 w-4" /> : i + 1}
               </span>
               <div className={clsx('flex flex-1 flex-col gap-1 pt-1', !open && 'opacity-70')}>
-                <span className="font-mono uppercase text-xs tracking-tight text-text-secondary">
+                <span className="font-mono text-xs tabular-nums text-text-primary">
                   {rung.at.toLocaleString()} positions
                   {isNext && path.remaining != null && ` · ${path.remaining} to go`}
                 </span>

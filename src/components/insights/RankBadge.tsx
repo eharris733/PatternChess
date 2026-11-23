@@ -28,7 +28,7 @@ export function RankBadge({ variant = 'full' }: RankBadgeProps) {
         <span className="font-mono uppercase text-xs tracking-tight text-gold-dark">
           {progress.current.name}
         </span>
-        <span className="text-xs text-text-secondary tabular-nums">
+        <span className="text-xs text-text-primary tabular-nums">
           {mastered.toLocaleString()} mastered
         </span>
       </div>
@@ -55,7 +55,7 @@ export function RankBadge({ variant = 'full' }: RankBadgeProps) {
     <section className="card flex flex-col gap-3">
       <header className="flex items-baseline justify-between">
         <span className="label">Rank</span>
-        <span className="text-text-secondary text-xs">
+        <span className="text-text-primary text-xs">
           {progress.next
             ? `${progress.remainingToNext} mastered until ${progress.next.name}`
             : 'Top tier reached'}
@@ -63,7 +63,7 @@ export function RankBadge({ variant = 'full' }: RankBadgeProps) {
       </header>
       <div>
         <p className="heading-lg text-gold-dark">{progress.current.name}</p>
-        <p className="text-text-secondary text-sm mt-1">
+        <p className="text-text-primary text-sm mt-1">
           <span className="text-text-primary tabular-nums">{mastered.toLocaleString()}</span> position
           {mastered === 1 ? '' : 's'} mastered
         </p>
@@ -74,9 +74,9 @@ export function RankBadge({ variant = 'full' }: RankBadgeProps) {
           style={{ width: `${Math.min(100, Math.round(progress.fraction * 100))}%` }}
         />
       </div>
-      <p className="text-text-secondary text-xs">
-        Ranks advance as you master positions — {SPACED_REPETITION_DAYS.length} spaced cycles at ≥80% recall.
-        <span className="ml-1 opacity-70">{reviewed.toLocaleString()} reviews total.</span>
+      <p className="text-text-primary text-xs">
+        Ranks advance as you master positions: {SPACED_REPETITION_DAYS.length} spaced cycles at ≥80% recall.
+        <span className="ml-1">{reviewed.toLocaleString()} reviews total.</span>
       </p>
     </section>
   );

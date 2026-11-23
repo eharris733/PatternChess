@@ -394,7 +394,7 @@ export function CourseDayRoute() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="flex flex-col gap-4 min-w-0">
           <div className="flex flex-col gap-2">
-            <span className="font-mono text-xs uppercase tracking-tight text-text-primary">
+            <span className="text-xs font-semibold text-text-primary">
               Day {day} of {total}
             </span>
             <h2 className="heading-md" data-testid="course-day-title">

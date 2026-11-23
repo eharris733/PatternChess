@@ -78,7 +78,7 @@ export function OnboardingImport() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-xl mx-auto text-center">
       <BrandLockup size="lg" className="mb-4" />
-      <p className="text-text-secondary mb-8">
+      <p className="text-text-primary mb-8">
         We're importing your last 200 games and finding the blunders you'll
         train against. Your first position is usually ready in a minute or two,
         and the rest keep arriving while you train.
@@ -141,8 +141,8 @@ export function OnboardingImport() {
 
       {phase === 'error' && (
         <div className="mt-6 w-full bg-incorrect/10 border-2 border-incorrect/50 text-incorrect rounded-none p-4 text-sm text-left">
-          <div className="font-mono uppercase text-xs tracking-tight mb-1">Something went wrong</div>
-          <div className="text-text-secondary">{errorMsg ?? 'Sync failed.'}</div>
+          <div className="font-semibold mb-1">Something went wrong</div>
+          <div className="text-text-primary">{errorMsg ?? 'Sync failed.'}</div>
           <button
             type="button"
             onClick={onEditProfile}
@@ -173,13 +173,12 @@ export function OnboardingImport() {
         )}
       </div>
       {phase === 'analyzing' && blundersFound >= 1 && (
-        <p className="mt-3 text-xs text-text-secondary">
+        <p className="mt-3 text-xs text-text-primary">
           More fuel on the way: we're still analyzing.
         </p>
       )}
-      <p className="mt-3 text-xs text-text-secondary">
-        New games sync automatically each time you visit — your vault stays
-        current.
+      <p className="mt-3 text-xs text-text-primary">
+        New games sync automatically each time you visit.
       </p>
 
       <section className="mt-8 w-full text-left" aria-labelledby="commitment-heading">
@@ -194,7 +193,7 @@ export function OnboardingImport() {
 }
 
 export function StepMarker({ done, active }: { done: boolean; active: boolean }) {
-  const cls = done ? 'text-correct' : active ? 'text-gold-dark' : 'text-text-secondary opacity-50';
+  const cls = done ? 'text-correct' : active ? 'text-gold-dark' : 'text-text-primary opacity-50';
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -255,7 +254,7 @@ function Step({
             {s.username}
           </span>
         ))}
-        {hint && <span className="text-xs text-text-secondary">· {hint}</span>}
+        {hint && <span className="text-xs text-text-primary">· {hint}</span>}
       </div>
       <ProgressBar current={done ? total : current} total={total} />
     </div>
