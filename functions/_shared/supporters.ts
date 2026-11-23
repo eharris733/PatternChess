@@ -18,6 +18,9 @@ export interface StripeEnv {
   SUPABASE_SERVICE_ROLE_KEY: string;
 }
 
+/** What the auth + `supporters` helpers need (articles use these without the Stripe keys). */
+export type SupabaseEnv = Pick<StripeEnv, 'SUPABASE_URL' | 'SUPABASE_ANON_KEY' | 'SUPABASE_SERVICE_ROLE_KEY'>;
+
 /** Statuses that carry the perks; keep in sync with is_supporter() (migration 20261124120000). */
 export const PERK_STATUSES = new Set(['active', 'trialing', 'past_due']);
 
@@ -45,7 +48,7 @@ export interface AuthedUser {
 }
 
 /** The signed-in player behind `Authorization: Bearer <supabase access token>`, or null. */
-export async function authedUser(request: Request, env: StripeEnv): Promise<AuthedUser | null> {
+export async function authedUser(request: Request, env: SupabaseEnv): Promise<AuthedUser | null> {
   const auth = request.headers.get('Authorization') ?? '';
   if (!auth.startsWith('Bearer ')) return null;
   const res = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
@@ -67,7 +70,7 @@ export interface SupporterRow {
 }
 
 /** PostgREST with the service role (bypasses RLS; `supporters` has no client write policies). */
-async function rest(env: StripeEnv, path: string, init: RequestInit = {}): Promise<Response> {
+async function rest(env: SupabaseEnv, path: string, init: RequestInit = {}): Promise<Response> {
   const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
     ...init,
     headers: {
@@ -82,7 +85,7 @@ async function rest(env: StripeEnv, path: string, init: RequestInit = {}): Promi
 }
 
 export async function supporterBy(
-  env: StripeEnv,
+  env: SupabaseEnv,
   column: 'user_id' | 'stripe_customer_id',
   value: string,
 ): Promise<SupporterRow | null> {
