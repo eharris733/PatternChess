@@ -10,6 +10,7 @@ import {
 import { PixelAvatar } from './PixelAvatar';
 import { LockIcon } from '../icons/LockIcon';
 import type { RewardItem } from '../../lib/rewards';
+import { useLabel, useT } from '../../i18n/useT';
 
 interface AvatarBuilderProps {
   /** The avatar as saved (or the generated default). */
@@ -30,6 +31,8 @@ const COLOR_PARTS: ReadonlySet<AvatarPart> = new Set(['background', 'skin', 'hai
  * a lock and what unlocks them (src/lib/rewards.ts).
  */
 export function AvatarBuilder({ value, custom, lockHint, onSave, seed }: AvatarBuilderProps) {
+  const t = useT();
+  const label = useLabel();
   const [draft, setDraft] = useState<AvatarParts>(value);
   const [part, setPart] = useState<AvatarPart>('hair');
   const [saving, setSaving] = useState(false);
@@ -60,10 +63,10 @@ export function AvatarBuilder({ value, custom, lockHint, onSave, seed }: AvatarB
   return (
     <div className="flex flex-col gap-4 sm:flex-row" data-testid="avatar-builder">
       <div className="flex shrink-0 flex-col items-center gap-2 sm:w-40">
-        <PixelAvatar parts={draft} className="h-32 w-32 border-2 border-text-primary" title="Your avatar" />
+        <PixelAvatar parts={draft} className="h-32 w-32 border-2 border-text-primary" title={t('avatar.yours')} />
         <div className="flex flex-wrap justify-center gap-2">
           <button type="button" className="btn-outline px-2 py-1 text-xs" onClick={shuffle}>
-            Shuffle
+            {t('avatar.shuffle')}
           </button>
           {custom && (
             <button
@@ -72,7 +75,7 @@ export function AvatarBuilder({ value, custom, lockHint, onSave, seed }: AvatarB
               onClick={() => void save(null)}
               disabled={saving}
             >
-              Back to default
+              {t('avatar.backToDefault')}
             </button>
           )}
         </div>
@@ -83,12 +86,12 @@ export function AvatarBuilder({ value, custom, lockHint, onSave, seed }: AvatarB
           data-testid="avatar-save"
           onClick={() => void save(draft)}
         >
-          {saving ? 'Saving…' : dirty ? 'Use this avatar' : 'Avatar saved'}
+          {saving ? t('common.saving') : dirty ? t('avatar.use') : t('avatar.saved')}
         </button>
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-3">
-        <div role="tablist" aria-label="Avatar part" className="flex flex-wrap gap-1.5">
+        <div role="tablist" aria-label={t('avatar.part')} className="flex flex-wrap gap-1.5">
           {AVATAR_PARTS.map((p) => (
             <button
               key={p}
@@ -103,7 +106,7 @@ export function AvatarBuilder({ value, custom, lockHint, onSave, seed }: AvatarB
                   : 'border-text-primary/40 bg-surface text-text-primary hover:border-text-primary',
               )}
             >
-              {AVATAR_PART_LABEL[p]}
+              {label('avatarPart', p, AVATAR_PART_LABEL[p])}
             </button>
           ))}
         </div>

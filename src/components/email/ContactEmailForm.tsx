@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../../auth/useAuth';
 import { supabaseService } from '../../services/supabaseService';
 import { detectTimezone } from '../../services/streakService';
+import { useT } from '../../i18n/useT';
 
 // Same shape the profiles.contact_email check constraint accepts.
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -13,7 +14,7 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
  * and the Email section of /profile.
  */
 export function ContactEmailForm({
-  submitLabel = 'Send confirmation link',
+  submitLabel,
   onSaved,
   children,
 }: {
@@ -23,6 +24,7 @@ export function ContactEmailForm({
   children?: React.ReactNode;
 }) {
   const { profile, refreshProfile } = useAuth();
+  const t = useT();
   const [address, setAddress] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export function ContactEmailForm({
       onSaved?.(address.trim());
     } catch (err) {
       console.warn('[email] save failed', err);
-      setError("Couldn't save that address. Check it and try again.");
+      setError(t('email.addressError'));
     } finally {
       setSaving(false);
     }
@@ -48,12 +50,12 @@ export function ContactEmailForm({
   return (
     <form className="flex flex-col gap-2" onSubmit={(e) => void submit(e)} data-testid="contact-email-form">
       <label className="flex flex-col gap-1.5">
-        <span className="label">Email address</span>
+        <span className="label">{t('email.addressLabel')}</span>
         <input
           className="input"
           type="email"
           autoComplete="email"
-          placeholder="you@example.com"
+          placeholder={t('email.placeholder')}
           value={address}
           onChange={(e) => setAddress(e.target.value)}
         />
@@ -61,7 +63,7 @@ export function ContactEmailForm({
       {error && <p className="text-incorrect text-sm">{error}</p>}
       <div className="flex flex-wrap items-center gap-3">
         <button type="submit" className="btn-primary" disabled={!valid || saving}>
-          {saving ? 'Saving…' : submitLabel}
+          {saving ? t('common.saving') : (submitLabel ?? t('email.sendConfirm'))}
         </button>
         {children}
       </div>
@@ -71,14 +73,17 @@ export function ContactEmailForm({
 
 /** "Check your inbox" for a typed-in address that hasn't been confirmed yet. */
 export function ContactEmailPending({ email, onChange }: { email: string; onChange: () => void }) {
+  const t = useT();
   return (
     <p className="text-sm text-text-primary" data-testid="contact-email-pending">
-      We'll send a confirmation link to <span className="font-semibold">{email}</span> within the hour.
-      Reminders start once you click it. Nothing there? Check your spam folder, or{' '}
-      <button type="button" className="underline" onClick={onChange}>
-        use a different address
-      </button>
-      .
+      {t.rich('email.pending', {
+        email: <span className="font-semibold">{email}</span>,
+        change: (
+          <button type="button" className="underline" onClick={onChange}>
+            {t('email.pendingChange')}
+          </button>
+        ),
+      })}
     </p>
   );
 }

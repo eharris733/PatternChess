@@ -26,6 +26,8 @@ export default defineConfig({
         baseURL: baseURL,
         trace: 'retain-on-failure',
         headless: true,
+        // English unless a spec opts in: the app follows navigator.language.
+        locale: 'en-US',
     },
     projects: [
         {

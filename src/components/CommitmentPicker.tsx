@@ -11,10 +11,17 @@ import {
   GAMES_PER_DAY_RANGE,
   POSITIONS_PER_DAY_RANGE,
   goalsFor,
-  planSummary,
+  planSummaryParts,
   type CommitmentLevel,
   type DailyGoals,
 } from '../lib/dailyGoal';
+import { useLabel, useT, type Translator } from '../i18n/useT';
+
+function summary(goals: Pick<DailyGoals, 'positionsPerDay' | 'gamesPerDay'>, t: Translator): string {
+  return planSummaryParts(goals)
+    .map((p) => t(`commitment.unit.${p.unit}`, { count: p.count }))
+    .join(', ');
+}
 
 /**
  * Pick a commitment level (preset or custom). Saves on every change
@@ -23,6 +30,8 @@ import {
  */
 export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
   const { profile, refreshProfile } = useAuth();
+  const t = useT();
+  const label = useLabel();
   const stored = profile?.dailyGoals ?? DEFAULT_DAILY_GOALS;
   const [goals, setGoals] = useState<DailyGoals>(stored);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +51,7 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
       .catch((err) => {
         console.warn('[commitment] save failed', err);
         setGoals(prev);
-        setError('Could not save your commitment. Try again in a moment.');
+        setError(t('commitment.saveError'));
       });
   };
 
@@ -88,9 +97,9 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
                   : 'border-text-primary/20 hover:border-text-primary/50',
               )}
             >
-              <span className="text-sm font-semibold text-text-primary">{COMMITMENT_LABEL[level]}</span>
-              <span className="text-xs text-text-primary">{planSummary(p)}</span>
-              <span className="text-xs text-text-primary">{COMMITMENT_TAGLINE[level]}</span>
+              <span className="text-sm font-semibold text-text-primary">{label('commitment', level, COMMITMENT_LABEL[level])}</span>
+              <span className="text-xs text-text-primary">{summary(p, t)}</span>
+              <span className="text-xs text-text-primary">{label('commitmentTagline', level, COMMITMENT_TAGLINE[level])}</span>
             </button>
           );
         })}
@@ -108,7 +117,7 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
               : 'border-text-primary/20 hover:border-text-primary/50',
           )}
         >
-          {COMMITMENT_LABEL.custom}
+          {label('commitment', 'custom', COMMITMENT_LABEL.custom)}
         </button>
         {goals.level === 'custom' && (
           <>
@@ -122,9 +131,9 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
                 onChange={(e) => setDraft((d) => ({ ...d, positions: e.target.value }))}
                 onBlur={commitDraft}
                 onKeyDown={onDraftKey}
-                aria-label="Positions per day"
+                aria-label={t('commitment.positionsPerDay')}
               />
-              positions
+              {t('commitment.positions')}
             </label>
             <label className="flex items-center gap-2">
               <input
@@ -136,17 +145,17 @@ export function CommitmentPicker({ compact = false }: { compact?: boolean }) {
                 onChange={(e) => setDraft((d) => ({ ...d, games: e.target.value }))}
                 onBlur={commitDraft}
                 onKeyDown={onDraftKey}
-                aria-label="Games per day"
+                aria-label={t('commitment.gamesPerDay')}
               />
-              games a day
+              {t('commitment.gamesADay')}
             </label>
           </>
         )}
       </div>
       <p className="text-sm text-text-primary" data-testid="commitment-summary">
-        Your day: {planSummary(goals)}.
+        {t('commitment.yourDay', { summary: summary(goals, t) })}
       </p>
-      <p className="text-xs text-text-primary">Smaller plans you actually finish beat big ones you skip.</p>
+      <p className="text-xs text-text-primary">{t('commitment.smallerPlans')}</p>
       {error && <p className="text-incorrect text-sm">{error}</p>}
     </div>
   );

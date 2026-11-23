@@ -39,6 +39,7 @@ import { useSupporter } from '../../hooks/useSupporter';
 import { availableCourse } from '../../lib/courses';
 import { isSupporterDay } from '../../lib/courseCatalog';
 import { completedOn, nextDay } from '../../lib/coursePacing';
+import { useLabel, useT } from '../../i18n/useT';
 
 function PlanStep({
   icon,
@@ -73,6 +74,7 @@ function PlanStep({
   locked?: boolean;
   testId?: string;
 }) {
+  const t = useT();
   const complete = !idle && done >= goal;
   const label = actionShort ? (
     <>
@@ -125,7 +127,7 @@ function PlanStep({
           type="button"
           disabled
           className="btn-outline h-9 px-3 text-xs shrink-0 gap-1.5"
-          aria-label={`${action} (locked)`}
+          aria-label={t('plan.lockedSuffix', { action })}
         >
           <LockIcon className="h-3.5 w-3.5" />
           {action}
@@ -193,6 +195,8 @@ function playTarget(
  * sidebar badge and on the profile.)
  */
 export function DailyHabitCard() {
+  const t = useT();
+  const label = useLabel();
   const navigate = useNavigate();
   const { profile } = useAuth();
   const drillsQuery = useDrillsToday();
@@ -233,7 +237,7 @@ export function DailyHabitCard() {
     return (
       <section className="card flex flex-col gap-4" aria-busy="true">
         <header className="flex items-baseline justify-between">
-          <span className="label">Today's plan</span>
+          <span className="label">{t('plan.title')}</span>
           <Skeleton className="h-3 w-20" />
         </header>
         <Skeleton className="h-10 w-full" />
@@ -299,10 +303,14 @@ export function DailyHabitCard() {
     ? null
     : lessonDoneToday
       ? lessonNextOpen && lessonNext
-        ? `${lessonCourse.title}: done for today. Day ${lessonNext.day} is ready whenever you are.`
-        : `${lessonCourse.title}: done for today.`
+        ? t('plan.lesson.doneNext', { course: lessonCourse.title, day: lessonNext.day })
+        : t('plan.lesson.done', { course: lessonCourse.title })
       : lessonNext
-        ? `${lessonCourse.title}, day ${lessonNext.day}: ${lessonCourse.days[lessonNext.day - 1].title}. Then your own mistakes on it.`
+        ? t('plan.lesson.next', {
+            course: lessonCourse.title,
+            day: lessonNext.day,
+            lesson: lessonCourse.days[lessonNext.day - 1].title,
+          })
         : null;
 
   // --- Play (last; opens once the rest is done) ----------------------------
@@ -331,14 +339,14 @@ export function DailyHabitCard() {
     <section className="card flex flex-col gap-3" data-testid="daily-plan">
       <header className="flex items-baseline justify-between">
         <span className="label">
-          Today's plan
+          {t('plan.title')}
           <button
             type="button"
             onClick={() => navigate('/profile#commitment')}
             className="ml-2 font-normal text-text-primary underline underline-offset-2 decoration-text-primary/30 hover:decoration-text-primary"
             data-testid="commitment-level"
           >
-            {COMMITMENT_LABEL[goals.level]}
+            {label('commitment', goals.level, COMMITMENT_LABEL[goals.level])}
           </button>
         </span>
         {restPending ? (
@@ -352,7 +360,7 @@ export function DailyHabitCard() {
             data-testid="plan-progress"
           >
             {allDone && <CheckIcon className="h-3.5 w-3.5" />}
-            {allDone ? 'Plan done' : `${stepsDone}/${steps.length} done`}
+            {allDone ? t('plan.done') : t('plan.progress', { done: stepsDone, total: steps.length })}
           </span>
         )}
       </header>
@@ -360,8 +368,8 @@ export function DailyHabitCard() {
       {notice && (
         <div className="flex items-start gap-2 border-2 border-accent/40 bg-accent/10 px-3 py-2 text-sm" role="status">
           <SnowflakeIcon className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-          <span className="flex-1 text-text-primary">{streakNoticeText(notice)}</span>
-          <button type="button" onClick={clearNotice} aria-label="Dismiss" className="shrink-0 text-text-primary">
+          <span className="flex-1 text-text-primary">{streakNoticeText(notice, t)}</span>
+          <button type="button" onClick={clearNotice} aria-label={t('common.dismiss')} className="shrink-0 text-text-primary">
             <CloseIcon className="h-4 w-4" />
           </button>
         </div>
@@ -377,12 +385,12 @@ export function DailyHabitCard() {
             <PlanStep
               testId="plan-step-lesson"
               icon={<CourseIcon className="h-5 w-5" />}
-              title="Today's lesson"
+              title={t('plan.lesson.title')}
               detail={lessonDetail}
               done={lessonDoneToday ? 1 : 0}
               goal={1}
-              action={lessonDoneToday ? (lessonNextOpen ? 'Next lesson' : 'Review') : 'Start'}
-              actionShort={lessonDoneToday && lessonNextOpen ? 'Next' : undefined}
+              action={lessonDoneToday ? (lessonNextOpen ? t('plan.lesson.nextLesson') : t('common.review')) : t('plan.lesson.start')}
+              actionShort={lessonDoneToday && lessonNextOpen ? t('common.next') : undefined}
               onAction={() => navigate(lessonTarget)}
             />
           )
@@ -390,23 +398,23 @@ export function DailyHabitCard() {
         <PlanStep
           testId="plan-step-train"
           icon={<TrainIcon className="h-5 w-5" />}
-          title={`Train ${goals.positionsPerDay} positions`}
+          title={t('plan.train.title', { count: goals.positionsPerDay })}
           detail={
             trainPending
               ? null
               : dueCount > 0
-                ? `${dueCount} due in your queue`
+                ? t('plan.train.due', { count: dueCount })
                 : upcomingCount > 0
-                  ? "Queue's clear. Practice ahead, it still counts."
+                  ? t('plan.train.clearPractice')
                   : drillsToday > 0
-                    ? "Every position drilled. Play a game and we'll find fresh material."
-                    : "Nothing to train yet. Play a game and we'll find fresh material."
+                    ? t('plan.train.allDrilled')
+                    : t('plan.train.nothingYet')
           }
           done={drillsToday}
           goal={goals.positionsPerDay}
           idle={trainIdle && drillsToday === 0}
-          action={practiceNext ? 'Practice ahead' : 'Train'}
-          actionShort={practiceNext ? 'Practice' : undefined}
+          action={practiceNext ? t('plan.practiceAhead') : t('common.train')}
+          actionShort={practiceNext ? t('plan.practice') : undefined}
           onAction={() => train(practiceNext ? { practiceAhead: true } : undefined)}
         />
         {openingsPending ? (
@@ -415,23 +423,23 @@ export function DailyHabitCard() {
           <PlanStep
             testId="plan-step-openings"
             icon={<OpeningIcon className="h-5 w-5" />}
-            title="Review openings"
-            detail="Your opening exits show up here once your games are checked."
+            title={t('plan.openings.idleTitle')}
+            detail={t('plan.openings.idleDetail')}
             done={0}
             goal={0}
             idle
-            action="Openings"
+            action={t('nav.openings')}
             onAction={() => navigate('/openings')}
           />
         ) : (
           <PlanStep
             testId="plan-step-openings"
             icon={<OpeningIcon className="h-5 w-5" />}
-            title={`Review ${openingsGoal} ${openingsGoal === 1 ? 'opening' : 'openings'}`}
-            detail={openingsDue > 0 ? `${openingsDue} due` : 'Nothing due. Practice ahead, it still counts.'}
+            title={t('plan.openings.title', { count: openingsGoal })}
+            detail={openingsDue > 0 ? t('plan.openings.due', { count: openingsDue }) : t('plan.openings.nothingDue')}
             done={openingsToday}
             goal={openingsGoal}
-            action={openingsDue > 0 ? 'Review' : 'Practice'}
+            action={openingsDue > 0 ? t('common.review') : t('plan.practice')}
             onAction={() =>
               train({
                 kindFilter: 'opening',
@@ -447,23 +455,23 @@ export function DailyHabitCard() {
           <PlanStep
             testId="plan-step-endgames"
             icon={<EndgameIcon className="h-5 w-5" />}
-            title="Play endgames"
-            detail="Endgames you let slip in your games show up here."
+            title={t('plan.endgames.idleTitle')}
+            detail={t('plan.endgames.idleDetail')}
             done={0}
             goal={0}
             idle
-            action="Endgames"
+            action={t('nav.endgames')}
             onAction={() => navigate('/endgames')}
           />
         ) : (
           <PlanStep
             testId="plan-step-endgames"
             icon={<EndgameIcon className="h-5 w-5" />}
-            title={`Play ${endgamesGoal} ${endgamesGoal === 1 ? 'endgame' : 'endgames'}`}
-            detail={playoutsDue > 0 ? `${playoutsDue} due for review` : 'Nothing due. Replay a saved endgame.'}
+            title={t('plan.endgames.title', { count: endgamesGoal })}
+            detail={playoutsDue > 0 ? t('plan.endgames.due', { count: playoutsDue }) : t('plan.endgames.nothingDue')}
             done={playoutsToday}
             goal={endgamesGoal}
-            action="Play"
+            action={t('common.play')}
             onAction={() => navigate('/endgames')}
           />
         )}
@@ -471,13 +479,13 @@ export function DailyHabitCard() {
           <PlanStep
             testId="plan-step-play"
             icon={play ? <PlatformLogo platform={play.platform} className="h-5 w-5" /> : <KingIcon color="white" className="h-5 w-5" />}
-            title={`Play ${goals.gamesPerDay} ${goals.gamesPerDay === 1 ? 'game' : 'games'}`}
+            title={t('plan.play.title', { count: goals.gamesPerDay })}
             detail={
               playLocked ? (
-                'Unlocks when your plan is done.'
+                t('plan.play.locked')
               ) : (
                 <>
-                  {syncing ? 'Checking for new games…' : 'New blunders from your games land in your queue.'}{' '}
+                  {syncing ? t('plan.play.checking') : t('plan.play.detail')}{' '}
                   {!syncing && (
                     <button
                       type="button"
@@ -485,7 +493,7 @@ export function DailyHabitCard() {
                       onClick={() => void triggerSync(profile)}
                       data-testid="check-new-games"
                     >
-                      Check for new games
+                      {t('plan.play.check')}
                     </button>
                   )}
                 </>
@@ -495,7 +503,7 @@ export function DailyHabitCard() {
             goal={goals.gamesPerDay}
             loading={gamesTodayQuery.isPending}
             locked={playLocked}
-            action="Play"
+            action={t('common.play')}
             href={playHref}
           />
         )}
@@ -503,13 +511,13 @@ export function DailyHabitCard() {
 
       {allDone && (
         <div className="flex items-center justify-between gap-3" data-testid="plan-done">
-          <span className="text-sm text-text-primary">Plan done. Keep going?</span>
+          <span className="text-sm text-text-primary">{t('plan.allDone')}</span>
           <button
             type="button"
             className="btn-outline h-9 px-4 text-xs shrink-0"
             onClick={() => train(practiceNext ? { practiceAhead: true } : undefined)}
           >
-            {practiceNext ? 'Practice ahead' : 'Keep going'}
+            {practiceNext ? t('plan.practiceAhead') : t('plan.keepGoing')}
           </button>
         </div>
       )}
@@ -522,10 +530,11 @@ export function DailyHabitCard() {
           data-testid="next-unlock"
         >
           <span className="text-text-primary">
-            Next unlock in <span className="font-semibold tabular-nums">{path.remaining}</span> position
-            {path.remaining === 1 ? '' : 's'}
+            {t.rich('plan.nextUnlock', {
+              count: <span className="font-semibold tabular-nums">{path.remaining}</span>,
+            }, path.remaining)}
           </span>
-          <span className="label shrink-0">Your path</span>
+          <span className="label shrink-0">{t('plan.yourPath')}</span>
         </button>
       )}
 
@@ -536,7 +545,7 @@ export function DailyHabitCard() {
           className="flex flex-col gap-1.5 pt-1 text-left transition-opacity hover:opacity-90"
         >
           <div className="flex items-baseline justify-between">
-            <span className="label">Next achievement</span>
+            <span className="label">{t('plan.nextAchievement')}</span>
             <span className="font-mono text-text-primary text-xs tabular-nums">
               {Math.min(next.value, next.threshold).toLocaleString()}/{next.threshold.toLocaleString()}
             </span>

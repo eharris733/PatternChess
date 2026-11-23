@@ -50,7 +50,9 @@ const base = server.resolvedUrls.local[0].replace(/\/$/, '');
 let failures = 0;
 try {
   const browser = await chromium.launch();
-  const page = await browser.newPage();
+  // English on purpose: public pages prerender in English whatever the build
+  // machine's language (the app picks the visitor's language after boot).
+  const page = await browser.newPage({ locale: 'en-US' });
 
   for (const route of routes) {
     try {

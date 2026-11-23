@@ -18,23 +18,26 @@ import { CourseIcon } from './icons/CourseIcon';
 import { AVAILABLE_COURSES } from '../lib/courses';
 import { SettingsLink } from './SettingsLink';
 import { MyAvatar } from './avatar/PixelAvatar';
+import { useT } from '../i18n/useT';
+import type { MessageKey } from '../i18n/i18n';
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
-  { to: '/vault', label: 'Vault', Icon: VaultIcon },
-  { to: '/training', label: 'Train', Icon: TrainIcon },
-  { to: '/openings', label: 'Openings', Icon: OpeningIcon },
-  { to: '/endgames', label: 'Endgames', Icon: EndgameIcon },
-  { to: '/path', label: 'Path', Icon: PathIcon, feature: 'path' as Feature },
+  { to: '/dashboard', labelKey: 'nav.dashboard' as MessageKey, Icon: DashboardIcon },
+  { to: '/vault', labelKey: 'nav.vault' as MessageKey, Icon: VaultIcon },
+  { to: '/training', labelKey: 'nav.train' as MessageKey, Icon: TrainIcon },
+  { to: '/openings', labelKey: 'nav.openings' as MessageKey, Icon: OpeningIcon },
+  { to: '/endgames', labelKey: 'nav.endgames' as MessageKey, Icon: EndgameIcon },
+  { to: '/path', labelKey: 'nav.path' as MessageKey, Icon: PathIcon, feature: 'path' as Feature },
   // Only once a course is live in this build (production: creator permission granted).
-  ...(AVAILABLE_COURSES.length > 0 ? [{ to: '/courses', label: 'Courses', Icon: CourseIcon }] : []),
-  { to: '/leaderboards', label: 'Leaderboards', Icon: TrophyIcon },
+  ...(AVAILABLE_COURSES.length > 0 ? [{ to: '/courses', labelKey: 'nav.courses' as MessageKey, Icon: CourseIcon }] : []),
+  { to: '/leaderboards', labelKey: 'nav.leaderboards' as MessageKey, Icon: TrophyIcon },
 ];
 
-const ADMIN_NAV_ITEM = { to: '/analytics', label: 'Analytics', Icon: AnalyticsIcon };
+const ADMIN_NAV_ITEM = { to: '/analytics', labelKey: 'nav.analytics' as MessageKey, Icon: AnalyticsIcon };
 
 export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { profile, user } = useAuth();
+  const t = useT();
   const released = NAV_ITEMS.filter((item) => {
     const feature = (item as { feature?: Feature }).feature;
     return !feature || featureVisible(feature, user?.email);
@@ -56,7 +59,7 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
           'mx-2 mb-2 flex items-center rounded-none hover:bg-text-primary/5 transition text-left',
           collapsed ? 'justify-center p-2' : 'px-3 py-2',
         )}
-        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-label={collapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
       >
         {collapsed ? (
           <BrandMark className="h-8 w-8 shrink-0" />
@@ -86,7 +89,7 @@ export function SidebarNav({ collapsed, onToggle }: { collapsed: boolean; onTogg
                 <span className={clsx('shrink-0', isActive ? 'text-gold-light' : 'text-text-primary')}>
                   <item.Icon className="h-5 w-5" />
                 </span>
-                {!collapsed && <span>{item.label}</span>}
+                {!collapsed && <span>{t(item.labelKey)}</span>}
               </>
             )}
           </NavLink>

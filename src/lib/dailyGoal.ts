@@ -52,6 +52,20 @@ function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
+/** The day's units in plan order, for a translated summary (`planSummary` is the English one). */
+export type PlanUnit = 'positions' | 'openings' | 'endgames' | 'games';
+export function planSummaryParts(
+  goals: Pick<DailyGoals, 'positionsPerDay' | 'gamesPerDay'>,
+): { unit: PlanUnit; count: number }[] {
+  const parts: { unit: PlanUnit; count: number }[] = [
+    { unit: 'positions', count: goals.positionsPerDay },
+    { unit: 'openings', count: OPENINGS_PER_DAY },
+    { unit: 'endgames', count: PLAYOUTS_PER_DAY },
+  ];
+  if (goals.gamesPerDay > 0) parts.push({ unit: 'games', count: goals.gamesPerDay });
+  return parts;
+}
+
 /**
  * The whole day in one line, in plan order (Train → Openings → Endgames →
  * Play): "10 positions, 3 opening reviews, 2 endgames, 1 game". The picker
