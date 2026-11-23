@@ -108,6 +108,7 @@ async function probe(id: string, fn: () => Promise<string | void>): Promise<Chec
     const note = await fn();
     return { id, ok: true, ...(note ? { detail: note } : {}) };
   } catch (err) {
+    if (err instanceof RateLimited) return { id, ok: true, detail: err.message };
     return { id, ok: false, detail: err instanceof Error ? err.message : String(err) };
   }
 }
@@ -120,6 +121,23 @@ async function get(fetchImpl: Fetch, url: string, init: RequestInit = {}): Promi
   });
   if (!res.ok) throw new Error(`${url.replace(/\?.*$/, '')} answered ${res.status}`);
   return res;
+}
+
+/** A rate-limit answer from a third-party API: it is up, it just won't serve the Worker's shared IP right now. */
+class RateLimited extends Error {}
+
+/**
+ * Third-party reachability: up when it answers 2xx, or 429 (Lichess rate-limits
+ * Cloudflare's shared egress IPs; players fetch from their own IPs, so a 429
+ * here says nothing about them). Returns null on 429 (nothing to inspect).
+ */
+async function reachable(fetchImpl: Fetch, url: string): Promise<Response | null> {
+  try {
+    return await get(fetchImpl, url);
+  } catch (err) {
+    if (err instanceof Error && / answered 429$/.test(err.message)) throw new RateLimited('rate limited (up)');
+    throw err;
+  }
 }
 
 const STARTPOS = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -165,12 +183,14 @@ export async function probeAll(env: ProbeEnv, now: Date, fetchImpl: Fetch = fetc
       if (!Array.isArray(body.data)) throw new Error('events API returned no data array');
     }),
     probe('lichess-api', async () => {
-      const res = await get(fetchImpl, 'https://lichess.org/api/user/lichess');
+      const res = await reachable(fetchImpl, 'https://lichess.org/api/user/lichess');
+      if (!res) return;
       const body = (await res.json()) as { id?: string };
       if (body.id !== 'lichess') throw new Error('Lichess user lookup returned an unexpected body');
     }),
     probe('chesscom-api', async () => {
-      const res = await get(fetchImpl, 'https://api.chess.com/pub/player/hikaru');
+      const res = await reachable(fetchImpl, 'https://api.chess.com/pub/player/hikaru');
+      if (!res) return;
       const body = (await res.json()) as { username?: string };
       if (!body.username) throw new Error('Chess.com player lookup returned an unexpected body');
     }),

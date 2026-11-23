@@ -91,7 +91,7 @@ describe('with D1', () => {
       if (url.includes('/api/rpc/health')) return Response.json({ data: { ok: true, db: true } });
       if (url.includes('/api/book')) return Response.json({ positions: { x: {} } });
       if (url.includes('/api/events')) return new Response('down', { status: 502 });
-      if (url.includes('lichess.org')) return Response.json({ id: 'lichess' });
+      if (url.includes('lichess.org')) return new Response('slow down', { status: 429 });
       if (url.includes('chess.com')) return Response.json({ username: 'hikaru' });
       return new Response('?', { status: 404 });
     });
@@ -104,5 +104,7 @@ describe('with D1', () => {
     expect(Object.keys(failing).sort()).toEqual(['events-api', 'rpc-errors']);
     expect(failing['events-api']).toContain('502');
     expect(failing['rpc-errors']).toContain('games.list: 25 errors');
+    // A 429 from a third-party API means it is up (it rate-limits the Worker's shared IP).
+    expect(results.find((r) => r.id === 'lichess-api')).toEqual({ id: 'lichess-api', ok: true, detail: 'rate limited (up)' });
   });
 });
