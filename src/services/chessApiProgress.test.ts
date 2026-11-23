@@ -3,6 +3,7 @@ import {
   fetchChessComGames,
   fetchLichessGames,
   readStreamWithProgress,
+  sideOf,
   type FetchProgress,
 } from './chessApiService';
 
@@ -61,6 +62,14 @@ describe('readStreamWithProgress', () => {
   });
 });
 
+describe('sideOf', () => {
+  it('matches either player case-insensitively', () => {
+    expect(sideOf('Me', 'me', 'them')).toBe('white');
+    expect(sideOf('me', 'them', 'ME')).toBe('black');
+    expect(sideOf('me', 'a', 'b')).toBeNull();
+  });
+});
+
 describe('fetch progress', () => {
   it('Lichess reports a live count against the import cap', async () => {
     const pgn = ['AAAAAAAA', 'BBBBBBBB'].map(lichessGame).join('');
@@ -68,6 +77,8 @@ describe('fetch progress', () => {
     const seen: FetchProgress[] = [];
     const games = await fetchLichessGames('me', { maxGames: 200, onProgress: (p) => seen.push(p) });
     expect(games.map((g) => g.external_game_id)).toEqual(['AAAAAAAA', 'BBBBBBBB']);
+    // The side is known at insert, so the openings walk can run before analysis.
+    expect(games.map((g) => g.user_color)).toEqual(['white', 'white']);
     expect(seen[0]).toEqual({ fetched: 0, target: 200 });
     expect(seen.at(-1)).toEqual({ fetched: 2, target: 200 });
   });
@@ -100,7 +111,9 @@ describe('fetch progress', () => {
     const seen: FetchProgress[] = [];
     const run = fetchChessComGames('me', { maxGames: 200, onProgress: (p) => seen.push(p) });
     await vi.runAllTimersAsync();
-    expect((await run).length).toBe(9);
+    const all = await run;
+    expect(all.length).toBe(9);
+    expect(new Set(all.map((g) => g.user_color))).toEqual(new Set(['white']));
     expect(seen.map((p) => [p.fetched, p.monthsDone, p.monthsTotal, p.target])).toEqual([
       [0, 0, null, 200],
       [4, 1, null, 200],

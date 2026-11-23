@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { useAuth } from '../auth/useAuth';
 import { retryWithProfile, useSyncStore } from '../state/syncStore';
 import type { ProviderProgress } from '../services/syncService';
-import { fetchCount, summarizeFetch } from '../lib/syncProgress';
+import { fetchingHeadline, summarizeFetch } from '../lib/syncProgress';
 import { CheckIcon } from './icons/CheckIcon';
 import { CloseIcon } from './icons/CloseIcon';
 
@@ -74,7 +74,7 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
     if (display === 'none') return 'Connect account';
     if (display === 'syncing') {
       // A provider still downloading leads: its count is the one that moves.
-      if (fetch) return `Fetching ${fetchCount(fetch)}`;
+      if (fetch) return fetchingHeadline(fetch);
       if (saving.length > 0) {
         const n = saving.reduce((sum, p) => sum + (p.total ?? p.fetched), 0);
         return `Saving ${n} ${n === 1 ? 'game' : 'games'}`;

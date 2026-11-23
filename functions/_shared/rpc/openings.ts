@@ -125,8 +125,25 @@ const OPENING_DRILL_COLS = new Set([
   'motifs',
 ]);
 
-const UNCHECKED_GAMES_WHERE =
-  'user_id = ? AND (opening_deviation_version IS NULL OR opening_deviation_version < ?)';
+/**
+ * A game the walk can take: never walked under this rule version, and its
+ * side known. Synced games store `user_color` at insert; one without it waits
+ * for analysis to write it (walked earlier, it would be stamped 'skipped' for
+ * good). After analysis a still-unknown side really is unknown.
+ *
+ * Heal: before 2026-11-23 the walk ran on freshly synced games before their
+ * side was known and stamped them 'skipped' (a skipped row with no
+ * `user_color`). Once the game has its side, it is walked again. A row
+ * skipped for a real reason (unreadable moves) carries its colour, so it is
+ * never re-walked, and neither is a game whose side stays unknown.
+ */
+const UNCHECKED_GAMES_WHERE = `user_id = ? AND (
+    ((opening_deviation_version IS NULL OR opening_deviation_version < ?)
+      AND (user_color IS NOT NULL OR analyzed_at IS NOT NULL))
+    OR (user_color IS NOT NULL AND EXISTS (
+      SELECT 1 FROM opening_deviations d
+      WHERE d.user_id = games.user_id AND d.game_id = games.id
+        AND d.status = 'skipped' AND d.user_color IS NULL)))`;
 
 const PAST_BOOK_FROM = `FROM opening_deviations d
   JOIN games g ON g.id = d.game_id AND g.user_id = d.user_id

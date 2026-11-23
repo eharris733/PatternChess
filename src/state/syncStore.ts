@@ -176,9 +176,10 @@ async function runOneUnlocked(
   try {
     const result = await syncProvider(platform, username, since, filters, (p) => {
       setProvider(set, key, p);
-      // New games are in: their theory walk (network only) can run while
-      // analysis does, so /openings fills in without waiting for the end.
-      if (!scanKicked && p.phase === 'analyzing' && p.inserted > 0) {
+      // Games are in and analysis starts (new ones, or ones a reload left
+      // unanalyzed): their theory walk (network only) can run while analysis
+      // does, so /openings fills in without waiting for the end.
+      if (!scanKicked && p.phase === 'analyzing') {
         scanKicked = true;
         kickOpeningScan();
       }

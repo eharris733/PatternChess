@@ -39,7 +39,18 @@ export function fetchCount(s: Pick<FetchSummary, 'fetched' | 'target'>): string 
   return s.target != null ? `${Math.min(s.fetched, s.target)} of ${s.target}` : String(s.fetched);
 }
 
+/** Nothing counted yet (the archive list or the stream is still on its way). */
+function notStarted(s: FetchSummary): boolean {
+  return s.fetched === 0 && s.months == null;
+}
+
 /** The full line: "Fetching games… 57 of 200 (3 months back)". */
 export function fetchingLine(s: FetchSummary): string {
+  if (notStarted(s)) return 'Fetching games…';
   return `Fetching games… ${fetchCount(s)}${s.months ? ` (${s.months})` : ''}`;
+}
+
+/** The short form for the sidebar pill: "Fetching 57 of 200". */
+export function fetchingHeadline(s: FetchSummary): string {
+  return notStarted(s) ? 'Fetching…' : `Fetching ${fetchCount(s)}`;
 }

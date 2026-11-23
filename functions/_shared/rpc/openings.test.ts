@@ -141,8 +141,8 @@ beforeEach(() => {
   }
   env = { DB: d1(sqlite) } as AppEnv;
   seedGame('g1', alice.id, { played_at: '2026-11-01T00:00:00.000Z', analyzed_at: now });
-  seedGame('g2', alice.id, { played_at: '2026-11-02T00:00:00.000Z', opening_deviation_version: 3 });
-  seedGame('g3', alice.id, { played_at: null, opening_deviation_version: 2 });
+  seedGame('g2', alice.id, { played_at: '2026-11-02T00:00:00.000Z', opening_deviation_version: 3, user_color: 'black' });
+  seedGame('g3', alice.id, { played_at: null, opening_deviation_version: 2, user_color: 'white' });
   seedGame('gb', bob.id, { played_at: '2026-11-03T00:00:00.000Z' });
 });
 
@@ -152,6 +152,40 @@ describe('openings.* deviation scan', () => {
     expect(data.map((g) => g.id)).toEqual(['g3', 'g1']);
     expect((await call('openings.countUncheckedGames', { ruleVersion: 3 })).data).toBe(2);
     expect((await call('openings.countUncheckedGames', { ruleVersion: 4 })).data).toBe(3);
+  });
+
+  it('holds back an unanalyzed game whose side is unknown until analysis writes it', async () => {
+    seedGame('g4', alice.id, { played_at: '2026-11-05T00:00:00.000Z' }); // just synced, no user_color
+    const before = await call<{ id: string }[]>('openings.uncheckedGames', { ruleVersion: 3, limit: 10 });
+    expect(before.data.map((g) => g.id)).not.toContain('g4');
+    expect((await call('openings.countUncheckedGames', { ruleVersion: 3 })).data).toBe(2);
+
+    sqlite.prepare("UPDATE games SET user_color = 'black' WHERE id = 'g4'").run();
+    const after = await call<{ id: string }[]>('openings.uncheckedGames', { ruleVersion: 3, limit: 10 });
+    expect(after.data.map((g) => g.id)).toEqual(['g3', 'g4', 'g1']);
+    expect((await call('openings.countUncheckedGames', { ruleVersion: 3 })).data).toBe(3);
+  });
+
+  it('re-walks games skipped only because their side was unknown at walk time', async () => {
+    // g2 was walked (v3) before analysis knew the side: skipped, no colour on the row.
+    await call('openings.saveWalk', { ruleVersion: 3, row: { game_id: 'g2', status: 'skipped', user_color: null } });
+    // g5 was skipped for a real reason (unreadable moves) with its side known.
+    seedGame('g5', alice.id, { played_at: '2026-11-06T00:00:00.000Z', user_color: 'white', analyzed_at: '2026-11-22T00:00:00.000Z' });
+    await call('openings.saveWalk', { ruleVersion: 3, row: { game_id: 'g5', status: 'skipped', user_color: 'white' } });
+    // g6: analyzed, side still unknown, skipped — nothing to heal.
+    seedGame('g6', alice.id, { played_at: '2026-11-07T00:00:00.000Z', analyzed_at: '2026-11-22T00:00:00.000Z' });
+    await call('openings.saveWalk', { ruleVersion: 3, row: { game_id: 'g6', status: 'skipped', user_color: null } });
+
+    const ids = async () =>
+      (await call<{ id: string }[]>('openings.uncheckedGames', { ruleVersion: 3, limit: 10 })).data.map((g) => g.id);
+    expect(await ids()).toEqual(['g3', 'g2', 'g1']);
+    expect((await call('openings.countUncheckedGames', { ruleVersion: 3 })).data).toBe(3);
+
+    // Walked again with its side: healed, out of the queue.
+    await call('openings.saveWalk', { ruleVersion: 3, row: walkRow('g2', { user_color: 'black' }) });
+    expect(await ids()).toEqual(['g3', 'g1']);
+    // Bob never sees Alice's heal rows.
+    expect((await call<unknown[]>('openings.uncheckedGames', { ruleVersion: 3, limit: 10 }, bob)).data).toEqual([]);
   });
 
   it('refuses a bad limit and anonymous callers', async () => {

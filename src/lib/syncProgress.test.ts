@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProviderProgress } from '../services/syncService';
-import { fetchCount, fetchingLine, monthDetail, summarizeFetch } from './syncProgress';
+import { fetchCount, fetchingHeadline, fetchingLine, monthDetail, summarizeFetch } from './syncProgress';
 
 const base: ProviderProgress = {
   phase: 'fetching',
@@ -48,6 +48,10 @@ describe('syncProgress', () => {
       'Fetching games… 57 of 200 (3 months back)',
     );
     expect(fetchingLine({ fetched: 4, target: null, months: 'month 1/2' })).toBe('Fetching games… 4 (month 1/2)');
-    expect(fetchingLine({ fetched: 0, target: 200, months: null })).toBe('Fetching games… 0 of 200');
+    // Nothing counted yet: no "0".
+    expect(fetchingLine({ fetched: 0, target: 200, months: null })).toBe('Fetching games…');
+    expect(fetchingHeadline({ fetched: 0, target: null, months: null })).toBe('Fetching…');
+    expect(fetchingHeadline({ fetched: 57, target: 200, months: '3 months back' })).toBe('Fetching 57 of 200');
+    expect(fetchingHeadline({ fetched: 0, target: null, months: 'month 1/2' })).toBe('Fetching 0');
   });
 });

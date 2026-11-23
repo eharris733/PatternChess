@@ -15,6 +15,20 @@ export interface ImportedGame {
   result: string | null;
   played_at: string | null;
   external_game_id: string;
+  /**
+   * The side the synced account played, stored at insert so the openings
+   * walk (which runs during sync analysis) knows it before analysis writes
+   * the game's metadata. Null when neither player name matches.
+   */
+  user_color: 'white' | 'black' | null;
+}
+
+/** Which side `username` played, by the players' names (case-insensitive). */
+export function sideOf(username: string, white: string, black: string): 'white' | 'black' | null {
+  const u = username.toLowerCase();
+  if (white.toLowerCase() === u) return 'white';
+  if (black.toLowerCase() === u) return 'black';
+  return null;
 }
 
 export interface FetchOpts {
@@ -200,6 +214,7 @@ export async function fetchChessComGames(
             ? new Date(game.end_time * 1000).toISOString()
             : null,
         external_game_id: externalId,
+        user_color: sideOf(username, white.username, black.username),
       });
     }
     report();
@@ -261,6 +276,7 @@ export async function fetchLichessGames(
           ? parseLichessDateTime(headers.UTCDate, headers.UTCTime)
           : null,
       external_game_id: externalId,
+      user_color: sideOf(username, white, black),
     });
   }
   // Every game unreadable means the export format moved under us (it did on
