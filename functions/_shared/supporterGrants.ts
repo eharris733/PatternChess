@@ -1,8 +1,10 @@
 import { all, first, insertStmt, nowIso, scalar, uuid } from './db';
 
 /**
- * Supporter perks given without Stripe (D1 `supporter_grants`, migration
- * 0005). Today the only source is the referral reward: when a friend who
+ * Supporter perks given without Stripe (D1 `supporter_grants`, migrations
+ * 0005 + 0010). Two sources: `comp` rows are perks given by hand (the owner,
+ * friends, testers; inserted with `wrangler d1 execute`, referee_id NULL), and
+ * the referral reward: when a friend who
  * joined through your invite link trains their first
  * `REFERRAL_REWARD_POSITIONS` positions (first attempts, the same count as the
  * daily goal: sum of `training_sessions.blunders_attempted`), you get
@@ -38,17 +40,30 @@ export function addMonthsIso(iso: string, months: number): string {
   return d.toISOString();
 }
 
-/** End of the player's current run of grants (the latest `ends_at` still ahead), or null. */
-export async function grantPerksUntil(db: D1Database, userId: string, now = nowIso()): Promise<string | null> {
+export type GrantSource = 'referral' | 'comp';
+
+/**
+ * End of the player's current run of grants (the latest `ends_at` still
+ * ahead), or null when none is running now. `source` narrows it to one kind.
+ */
+export async function grantPerksUntil(
+  db: D1Database,
+  userId: string,
+  now = nowIso(),
+  source?: GrantSource,
+): Promise<string | null> {
+  const bySource = source ? ' AND source = ?' : '';
+  const extra = source ? [source] : [];
   const active = await scalar<number>(
     db,
-    'SELECT 1 FROM supporter_grants WHERE user_id = ? AND starts_at <= ? AND ends_at > ? LIMIT 1',
-    [userId, now, now],
+    `SELECT 1 FROM supporter_grants WHERE user_id = ? AND starts_at <= ? AND ends_at > ?${bySource} LIMIT 1`,
+    [userId, now, now, ...extra],
   );
   if (active !== 1) return null;
-  return scalar<string>(db, 'SELECT max(ends_at) FROM supporter_grants WHERE user_id = ? AND ends_at > ?', [
+  return scalar<string>(db, `SELECT max(ends_at) FROM supporter_grants WHERE user_id = ? AND ends_at > ?${bySource}`, [
     userId,
     now,
+    ...extra,
   ]);
 }
 
@@ -137,7 +152,7 @@ export async function maybeGrantReferralReward(db: D1Database, refereeId: string
   return grantReferralReward(db, row.referred_by, refereeId, now);
 }
 
-/** The caller's referral-reward progress for the InviteCard: grants earned and perks end. */
+/** The caller's referral-reward progress for the InviteCard: grants earned and the end of the perks they give (comps excluded). */
 export async function referralRewardSummary(
   db: D1Database,
   userId: string,
@@ -148,5 +163,5 @@ export async function referralRewardSummary(
     "SELECT count(*) FROM supporter_grants WHERE user_id = ? AND source = 'referral'",
     [userId],
   );
-  return { rewardsEarned: Number(earned ?? 0), perksUntil: await grantPerksUntil(db, userId, now) };
+  return { rewardsEarned: Number(earned ?? 0), perksUntil: await grantPerksUntil(db, userId, now, 'referral') };
 }

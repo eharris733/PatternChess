@@ -6,8 +6,10 @@ interface SupporterRow {
   current_period_end: string | null;
   cancel_at_period_end: boolean;
   first_supported_at: string | null;
-  /** End of a running supporter grant (the referral reward), if any. */
+  /** End of the running supporter grants (any source), if any. */
   grant_ends_at?: string | null;
+  /** End of the running hand-given (`comp`) grants, if any. */
+  comp_ends_at?: string | null;
 }
 
 /** The player's own `supporters` row (server-scoped to the session), mirrored from Stripe by the webhook. */
@@ -20,8 +22,12 @@ export interface SupporterStatus {
   active: boolean;
   /** Perks from the subscription itself (what "Manage subscription" is about). */
   subscribed: boolean;
-  /** End of the perks earned by inviting friends; null without a running grant. */
+  /** End of the perks from supporter grants (invite rewards or a comp); null without a running grant. */
   grantEndsAt: Date | null;
+  /** End of perks given by hand (a comp grant); null without one. */
+  compEndsAt: Date | null;
+  /** A comp with no end in sight (ends more than 50 years out): no date to show. */
+  compOpenEnded: boolean;
   /** Ever subscribed; keeps the Early Supporter flair after lapsing. */
   early: boolean;
   currentPeriodEnd: Date | null;
@@ -30,18 +36,26 @@ export interface SupporterStatus {
 }
 
 const PERK_STATUSES = new Set(['active', 'trialing', 'past_due']);
+const OPEN_ENDED_MS = 50 * 365 * 86_400_000;
+
+function runningEnd(iso: string | null | undefined): Date | null {
+  const d = iso ? new Date(iso) : null;
+  return d != null && d.getTime() > Date.now() ? d : null;
+}
 
 export async function getMySupporterStatus(): Promise<SupporterStatus | null> {
   const data = await rpc<SupporterRow | null>('supporters.mine');
   if (!data) return null;
   const subscribed = PERK_STATUSES.has(data.status);
-  const grantEndsAt = data.grant_ends_at ? new Date(data.grant_ends_at) : null;
-  const granted = grantEndsAt != null && grantEndsAt.getTime() > Date.now();
+  const grantEndsAt = runningEnd(data.grant_ends_at);
+  const compEndsAt = runningEnd(data.comp_ends_at);
   return {
     status: data.status,
-    active: subscribed || granted,
+    active: subscribed || grantEndsAt != null,
     subscribed,
-    grantEndsAt: granted ? grantEndsAt : null,
+    grantEndsAt,
+    compEndsAt,
+    compOpenEnded: compEndsAt != null && compEndsAt.getTime() - Date.now() > OPEN_ENDED_MS,
     early: data.first_supported_at != null,
     currentPeriodEnd: data.current_period_end ? new Date(data.current_period_end) : null,
     cancelAtPeriodEnd: data.cancel_at_period_end,

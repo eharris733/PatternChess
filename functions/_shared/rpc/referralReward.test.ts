@@ -207,6 +207,37 @@ describe('perks from grants', () => {
   });
 });
 
+describe('comp grants', () => {
+  const comp = (userId: string, endsAt = '2099-12-31T00:00:00.000Z') =>
+    db.sqlite
+      .prepare(
+        "INSERT INTO supporter_grants (id, user_id, source, referee_id, starts_at, ends_at) VALUES (?, ?, 'comp', NULL, ?, ?)",
+      )
+      .run(`comp-${userId}-${endsAt}`, userId, iso(DAY), endsAt);
+
+  it('give perks and show as a comp, never as an invite reward', async () => {
+    comp('u-bob');
+    expect(await hasSupporterPerks(db, 'u-bob')).toBe(true);
+    const mine = await call<Record<string, unknown>>('supporters.mine', bob);
+    expect(mine).toMatchObject({ grant_ends_at: '2099-12-31T00:00:00.000Z', comp_ends_at: '2099-12-31T00:00:00.000Z' });
+    expect(await call('referral.summary', bob)).toMatchObject({ rewardsEarned: 0, perksUntil: null });
+  });
+
+  it('keep the referral summary to referral grants when a player has both', async () => {
+    comp('u-alice');
+    await referBy(bob, alice);
+    await train(bob, 20);
+    const summary = await call<{ rewardsEarned: number; perksUntil: string | null }>('referral.summary', alice);
+    expect(summary.rewardsEarned).toBe(1);
+    expect(summary.perksUntil).not.toBe('2099-12-31T00:00:00.000Z');
+  });
+
+  it('report no comp end once the comp has run out', async () => {
+    comp('u-bob', iso(1000));
+    expect(await call('supporters.mine', bob)).toBeNull();
+  });
+});
+
 describe('cosmetics on the profile', () => {
   const avatar = { ...defaultAvatar('x'), accessory: 'crown' };
 

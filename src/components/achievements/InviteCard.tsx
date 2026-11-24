@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../auth/useAuth';
 import { getReferralSummary } from '../../services/supabaseService';
 import { useLeaderboard } from '../../hooks/useLeaderboard';
+import { useSupporter } from '../../hooks/useSupporter';
 import { inviteUrl } from '../../lib/referral';
 import { recordShare } from '../../share/recordShare';
 import { copyText, shareLink } from '../../share/shareFile';
@@ -11,7 +12,9 @@ import { ShareIcon } from '../icons/ShareIcon';
 /**
  * "Invite a friend to compete": a referral link with your rank as the hook,
  * and the referral reward (3 months of Supporter perks per friend who trains
- * their first 20 positions; functions/_shared/supporterGrants.ts).
+ * their first 20 positions; functions/_shared/supporterGrants.ts). Players
+ * whose perks already outlast any reward (a subscription or an open-ended comp
+ * grant) get the invite without the reward pitch.
  */
 export function InviteCard() {
   const { profile, refreshProfile, user } = useAuth();
@@ -24,6 +27,8 @@ export function InviteCard() {
   const needed = summary.data?.positionsNeeded ?? 20;
   const earned = summary.data?.rewardsEarned ?? 0;
   const perksUntil = summary.data?.perksUntil ?? null;
+  const { status: supporter } = useSupporter();
+  const pitchReward = !(supporter?.subscribed || supporter?.compOpenEnded);
   const board = useLeaderboard('solved', 'all');
   const [copied, setCopied] = useState(false);
   const rank = board.data?.me?.rank ?? null;
@@ -56,8 +61,9 @@ export function InviteCard() {
       <div className="flex flex-col gap-1">
         <h2 className="heading-md">Invite a friend to compete</h2>
         <p className="text-text-primary text-sm" data-testid="invite-reward">
-          Send your link. When a friend joins and trains their first {needed} positions, you get 3
-          months of Supporter perks, up to a year ahead.
+          {pitchReward
+            ? `Send your link. When a friend joins and trains their first ${needed} positions, you get 3 months of Supporter perks, up to a year ahead.`
+            : 'Send your link and see how your friends stack up against you.'}
           {joined > 0 && (
             <span className="font-semibold">
               {' '}
@@ -65,7 +71,7 @@ export function InviteCard() {
             </span>
           )}
         </p>
-        {earned > 0 && (
+        {pitchReward && earned > 0 && (
           <p className="text-text-primary text-sm font-semibold" data-testid="invite-earned">
             {perksUntil
               ? `Your invites have earned you Supporter perks until ${perksUntil.toLocaleDateString()}.`
