@@ -1,15 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DUCK_GAIN, renderWav, SAMPLE_RATE } from './audio.ts';
-import { createPostInput, createVideoPost } from './buffer.ts';
+import { createPostInput, createVideoPost, YOUTUBE_CATEGORY_ID } from './buffer.ts';
 import { isTransientCloudflareError } from './cloudflare.ts';
-import { endCardLines, instagramCaption, ratingLabel, TEMPLATE_HOOKS, templateScript, tiktokCaption } from './copy.ts';
+import { endCardLines, instagramCaption, proCredit, ratingLabel, TEMPLATE_HOOKS, templateScript, tiktokCaption, youtubeDescription, youtubeTitle } from './copy.ts';
 import { judge, judgeTrap, parseInfo } from './engine.ts';
 import { shortcodeOf } from './instagram.ts';
 import { eligibleAngles, HOOK_ANGLES, openingWords, pickAngle, type RecentHook } from './hooks.ts';
-import { addDays, emptySlots, formatForDay, toRecentHooks } from './plan.ts';
-import { publishDay } from './publish.ts';
+import { addDays, emptySlots, formatForDay, slotKey, toRecentHooks } from './plan.ts';
+import { channelPost, publishDay } from './publish.ts';
+import { findDecidingBlunder } from './proScan.ts';
+import { eventLabel, proGameScore, replayPgn, toProGame, type ChessComGame } from './pros.ts';
+import { dueAtFor, SLOTS } from './series.ts';
 import {
   buildFallPuzzle,
+  buildProPuzzle,
   buildPuzzle,
   candidateScore,
   epdOf,
@@ -169,7 +173,25 @@ const goodBlunderScript = (hookStyle: string): VideoScript => ({
     cta: 'PatternChess turns your own blunders into puzzles.',
   },
   captionLead: 'Missed at 2056 blitz. Did you find it?',
+  youtubeTitle: 'A 2056 player missed mate | Chess puzzle',
 });
+
+// Hikaru (White) vs Magnus (Black): after 1.e4 e5 2.Qh5, Magnus plays g6?? and Qxe5+ wins the rook.
+const PRO = buildProPuzzle({
+  blunderId: 'pro:chesscom:1',
+  fenBefore: QH5_FEN,
+  blunder: 'g7g6',
+  punishmentPv: ['h5e5', 'd8e7', 'e5h8'],
+  info: {
+    white: { name: 'Hikaru Nakamura', short: 'Hikaru', title: 'GM', rating: 3250 },
+    black: { name: 'Magnus Carlsen', short: 'Magnus', title: 'GM', rating: 3301 },
+    event: 'Titled Tuesday',
+    year: 2026,
+    timeControl: 'blitz',
+    url: 'https://www.chess.com/game/live/1',
+    foundInGame: true,
+  },
+})!;
 
 /** Template scripts for `q`, one per angle that fits it. */
 const templatesFor = (q: Puzzle) => {
@@ -259,7 +281,7 @@ describe('script guardrails', () => {
     for (const a of HOOK_ANGLES) expect(TEMPLATE_HOOKS[a.id], a.id).toBeDefined();
     const puzzles: Puzzle[] = [MATE_ROW, { ...MATE_ROW, id: 'b2' }, { ...MATE_ROW, id: 'b3', user_rating: null, time_category: null }]
       .map((r) => buildPuzzle(r)!)
-      .concat([FALL]);
+      .concat([FALL, PRO]);
     // A queen-winning fork (no mate), so wins-material is covered too.
     const p0 = puzzles[0];
     puzzles.push({ ...p0, blunderId: 'fork', mate: false, solution: p0.solution.map((s, i) => (i === 0 ? { ...s, captured: 'q' } : s)).slice(0, 1) });
@@ -510,6 +532,31 @@ describe('buffer', () => {
     expect(tt).not.toHaveProperty('metadata');
     expect(tt).toMatchObject({ saveToDraft: true });
   });
+  it('builds a public YouTube Short with a title, disclosing the synthetic voice', () => {
+    const yt = createPostInput({ ...base, channel: 'youtube', title: 'Hikaru vs Magnus: find the punishment' });
+    expect(yt).toMatchObject({
+      assets: [{ video: { url: base.videoUrl } }],
+      metadata: {
+        youtube: {
+          title: 'Hikaru vs Magnus: find the punishment',
+          categoryId: YOUTUBE_CATEGORY_ID,
+          privacy: 'public',
+          madeForKids: false,
+          notifySubscribers: true,
+          isAiGenerated: true,
+        },
+      },
+    });
+    expect((yt.assets as { video: Record<string, unknown> }[])[0].video).not.toHaveProperty('metadata'); // no thumbnailOffset
+    expect(() => createPostInput({ ...base, channel: 'youtube' })).toThrow(/title/);
+  });
+  it('picks each channel’s text and title', () => {
+    const row = { caption: 'IG', tiktok_caption: 'TT', youtube_title: 'YT title', youtube_caption: 'YT desc' };
+    expect(channelPost(row, 'instagram')).toEqual({ text: 'IG' });
+    expect(channelPost(row, 'tiktok')).toEqual({ text: 'TT' });
+    expect(channelPost(row, 'youtube')).toEqual({ text: 'YT desc', title: 'YT title' });
+    expect(channelPost({ ...row, youtube_caption: null, youtube_title: null }, 'youtube')).toEqual({ text: 'TT', title: undefined });
+  });
   it('returns the post or throws Buffer’s error', async () => {
     process.env.BUFFER_API_KEY = 'test-key';
     const ok = vi.fn(async () => new Response(JSON.stringify({ data: { createPost: { __typename: 'PostActionSuccess', post: { id: 'p1', status: 'scheduled' } } } })));
@@ -541,9 +588,109 @@ describe('publish day', () => {
 });
 
 describe('plan', () => {
-  it('fills tomorrow onward, skipping taken days and never today', () => {
-    expect(emptySlots('2026-11-22', 3, new Set(['2026-11-24']))).toEqual(['2026-11-23', '2026-11-25']);
-    expect(emptySlots('2026-11-22', 3, new Set())).not.toContain('2026-11-22');
+  it('fills both slots from tomorrow onward, skipping taken ones and never today', () => {
+    const empty = emptySlots('2026-11-22', 2, new Set([slotKey('2026-11-23', 1)]));
+    expect(empty).toEqual([
+      { day: '2026-11-23', slot: 0, series: 'puzzle' },
+      { day: '2026-11-24', slot: 0, series: 'puzzle' },
+      { day: '2026-11-24', slot: 1, series: 'pro' },
+    ]);
+    expect(emptySlots('2026-11-22', 3, new Set()).map((e) => e.day)).not.toContain('2026-11-22');
+  });
+  it('schedules each slot at its time, never sooner than ten minutes out', () => {
+    expect(SLOTS.map((s) => s.series)).toEqual(['puzzle', 'pro']);
+    const run = new Date('2026-11-24T17:00:00Z');
+    expect(dueAtFor('2026-11-24', 0, run)).toBe('2026-11-24T17:10:00.000Z');
+    expect(dueAtFor('2026-11-24', 1, run)).toBe('2026-11-24T23:30:00.000Z');
+    // A late rerun still gives Buffer ten minutes.
+    expect(dueAtFor('2026-11-24', 1, new Date('2026-11-24T23:50:00Z'))).toBe('2026-11-25T00:00:00.000Z');
+  });
+});
+
+describe('Blunders decide games (pro)', () => {
+  it('builds the puzzle from the winner’s side', () => {
+    expect(PRO.format).toBe('pro');
+    expect(PRO.side).toBe('white'); // Hikaru, who punishes
+    expect(PRO.pro!.blunderer).toBe('black');
+    expect(PRO.played.san).toBe('g6');
+    expect(PRO.fen).toBe(PRO.played.fen);
+    expect(PRO.solution.map((p) => p.san)).toEqual(['Qxe5+', 'Qe7', 'Qxh8']);
+    expect(buildProPuzzle({ blunderId: 'x', fenBefore: QH5_FEN, blunder: 'a1a8', punishmentPv: ['h5e5'], info: PRO.pro! })).toBeNull();
+  });
+
+  it('may name the two players, and only them', () => {
+    const f = buildFacts(PRO, COUNTDOWN_SECONDS);
+    expect(f.played.by).toBe('opponent');
+    expect(f.pro).toMatchObject({ blunderer: 'Magnus', winner: 'Hikaru', event: 'Titled Tuesday', foundInGame: true });
+    expect(f.allowedNumbers).toEqual(expect.arrayContaining([3250, 3301, 2026]));
+    const t = templateScript(PRO, COUNTDOWN_SECONDS, f);
+    expect(validateScript(t, f)).toMatchObject({ ok: true });
+    const named = { ...t, beats: { ...t.beats, hook: 'Magnus Carlsen against Hikaru Nakamura. One move.' } };
+    expect(validateScript(named, f)).toMatchObject({ ok: true });
+    expect(validateScript({ ...t, beats: { ...t.beats, hook: 'Even Gotham would see this.' } }, f)).toMatchObject({ ok: false });
+    expect(validateScript({ ...t, beats: { ...t.beats, cta: 'PatternChess finds your blunders.' } }, f)).toMatchObject({ ok: false }); // no "Fix yours"
+    // The blunder format still bans those names.
+    const bf = buildFacts(buildPuzzle(MATE_ROW)!, COUNTDOWN_SECONDS);
+    const g = goodBlunderScript(bf.angle.id);
+    expect(validateScript({ ...g, beats: { ...g.beats, hook: 'Hikaru would find this.' } }, bf)).toMatchObject({ ok: false });
+  });
+
+  it('plays the blunder before the countdown, from the position before it', () => {
+    const s = schedule(PRO);
+    const stages = s.segments.map((x) => x.frame.stage).filter((st, i, a) => st !== a[i - 1]);
+    expect(stages).toEqual(['hook', 'played', 'countdown', 'reveal', 'end']);
+    expect(frameAt(s, 0.1)).toMatchObject({ fen: QH5_FEN, status: { text: 'Magnus to move' } });
+    const played = s.segments.find((x) => x.frame.stage === 'played')!;
+    expect(played.frame.status.text).toBe('Magnus played g6');
+    const reveal = s.segments.find((x) => x.frame.stage === 'reveal')!;
+    expect(reveal.frame.status.text).toBe('Hikaru found it');
+  });
+
+  it('credits the game and closes on "Fix yours"', () => {
+    const f = buildFacts(PRO, COUNTDOWN_SECONDS);
+    const t = templateScript(PRO, COUNTDOWN_SECONDS, f);
+    expect(proCredit(PRO)).toBe('GM Hikaru Nakamura (3250) vs GM Magnus Carlsen (3301), Titled Tuesday 2026.');
+    expect(instagramCaption(PRO, t)).toContain(proCredit(PRO));
+    expect(instagramCaption(PRO, t)).toContain('#chessblunder');
+    expect(tiktokCaption(PRO, t)).toContain('Fix yours');
+    expect(endCardLines(PRO)).toEqual(['Blunders decide games', 'Fix yours: patternchess.com']);
+    expect(youtubeTitle(PRO, t)).toBe('Magnus vs Hikaru: find the punishment | Titled Tuesday');
+    expect(youtubeDescription(PRO, t)).toContain('#shorts');
+    expect(youtubeTitle(PRO, { ...t, youtubeTitle: undefined })).toBe(`${t.headline} | Blunders decide games`);
+  });
+
+  it('finds the first loser move that throws the game away', () => {
+    // Plies 0..5; black (the loser) moves on odd plies. Ply 3 drops black from +50 to −600.
+    const evals = [20, -20, 30, 50, 600, -600];
+    expect(findDecidingBlunder(evals, false, 0)).toMatchObject({ ply: 3 });
+    // Already lost before the move: not a deciding blunder.
+    expect(findDecidingBlunder([20, -900, 950, -950], false, 0)).toBeNull();
+    // Respects the first ply to look at.
+    expect(findDecidingBlunder(evals, false, 4)).toBeNull();
+  });
+
+  it('keeps only decisive roster games, labelled by event', () => {
+    const g: ChessComGame = {
+      url: 'https://www.chess.com/game/live/123456',
+      pgn: '[Event "Live Chess"]\n\n1. e4 e5 2. Qh5 g6 3. Qxe5+ 1-0',
+      rules: 'chess',
+      time_class: 'blitz',
+      end_time: Date.UTC(2026, 10, 18) / 1000,
+      tournament: 'https://www.chess.com/tournament/live/titled-tuesday-blitz-november-18-2026-123',
+      white: { username: 'Hikaru', rating: 3250, result: 'win' },
+      black: { username: 'MagnusCarlsen', rating: 3301, result: 'resigned' },
+    };
+    const pg = toProGame(g)!;
+    expect(pg).toMatchObject({ id: '123456', winner: 'white', event: 'Titled Tuesday', year: 2026, timeControl: 'blitz' });
+    expect(pg.white.player.name).toBe('Hikaru Nakamura');
+    expect(toProGame({ ...g, black: { ...g.black, username: 'randomfan' } })).toBeNull(); // not on the roster
+    expect(toProGame({ ...g, white: { ...g.white, result: 'agreed' }, black: { ...g.black, result: 'agreed' } })).toBeNull(); // draw
+    expect(toProGame({ ...g, rules: 'chess960' })).toBeNull();
+    expect(toProGame({ ...g, black: { ...g.black, result: 'timeout' } })).toBeNull(); // flagged: no deciding blunder
+    expect(toProGame({ ...g, time_class: 'daily' })).toBeNull();
+    expect(eventLabel({ time_class: 'bullet' })).toBe('Online bullet');
+    expect(proGameScore(pg, pg.endTime)).toBeGreaterThan(proGameScore({ ...pg, endTime: pg.endTime - 30 * 86400 }, pg.endTime));
+    expect(replayPgn(g.pgn!)).toMatchObject({ moves: ['e2e4', 'e7e5', 'd1h5', 'g7g6', 'h5e5'] });
   });
 });
 

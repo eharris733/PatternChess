@@ -1,6 +1,11 @@
-# Daily puzzle video (Instagram Reel + TikTok, through Buffer)
+# Social videos (Instagram Reels, TikTok and YouTube Shorts, through Buffer)
 
-Once a day a narrated, 20–35 second vertical video goes out. The formats alternate by day:
+Twice a day a narrated, 20–35 second vertical video goes out (slots in `series.ts`):
+
+- **Slot 0, ~12:10 ET (17:10 UTC): the puzzle.** Its two formats alternate by day (below).
+- **Slot 1, ~18:30 ET (23:30 UTC): "Blunders decide games".** A famous player's deciding blunder, rebuilt on our board from the public game record (never broadcast footage): the board before the blunder with broadcast-style name bars, the blunder, then the viewer (the winner) finds the punishment. CTA: "Blunders decide games. Fix yours."
+
+The puzzle formats:
 
 - **Blunder of the day:** one of the owner's own blunders, told in the third person. "A 2056 player missed mate in 2. Can you?"
 - **Would you fall for this?:** a move that at least 3 different PatternChess players, in at least 3 different games, got wrong in the same position. "11 PatternChess players fell for this. Would you?" Only the position, the move and the count are used: never who played it.
@@ -22,7 +27,7 @@ The look matches the site: paper background, ink text, mono uppercase headline, 
 
 ### 1. `plan.ts --remote` keeps the next 7 days queued
 
-- **Queue rules.** Rows live in `social_posts` (D1 migrations 0003 + 0008). Today is never filled, so a vetoed day stays empty.
+- **Queue rules.** Rows live in `social_posts` (D1 migrations 0003 + 0008 + 0009), one live row per `(scheduled_for, slot)`. Today is never filled, so a vetoed slot stays empty.
 - **Formats.** Even day numbers prefer blunder, odd ones prefer fall. If the preferred format has nothing that passes, the day gets the other.
 
 **Blunder candidates**
@@ -40,7 +45,14 @@ The look matches the site: paper background, ink text, mono uppercase headline, 
 - Fall candidates come from `fetchFallCandidates`, grouped by EPD and move across all users. Openings come first.
 - Stockfish checks that the tempting move throws away at least 30 points of winning chances. The engine's line after it is the punishment the video plays.
 
-**Rejects** are stored as `status='rejected'` and never retried. Fall rows use `blunder_id = 'trap:<epd>|<uci>'`.
+**Pro candidates** ("Blunders decide games", `pros.ts` + `proScan.ts`)
+
+- Games come from chess.com's public archives (this and last month) for the roster in `PRO_PLAYERS`. Both players must be on the roster (names come only from there, checked against their chess.com profiles), someone won on the board (resigned / checkmated, not on time), standard chess, bullet / blitz / rapid. Famous pairings and recent games first.
+- Each game is screened move by move (150 ms per position, one long-lived Stockfish): the first move by the loser that drops their winning chances by at least 30 points from at least 40%.
+- The punishment must pass the blunder format's one-answer check (4 s, two lines). The reveal says the winner found it only when they did.
+- Lichess broadcasts (OTB) are a follow-up: their round PGNs came back without moves on 2026-11-23.
+
+**Rejects** are stored as `status='rejected'` and never retried. Fall rows use `blunder_id = 'trap:<epd>|<uci>'`; pro rows `pro:chesscom:<game id>`.
 
 **Script** (`script.ts`)
 
@@ -61,18 +73,18 @@ The look matches the site: paper background, ink text, mono uppercase headline, 
 
 - **Voice** (`voice.ts`): Kokoro-82M (Apache-2.0) runs locally on the CPU, for free.
   - Each sentence is synthesized separately, so the timing is exact and the captions need no speech-to-text pass.
-  - The voice is `SOCIAL_VOICE`, default `am_michael`. Try `af_heart`, `am_fenrir`, `bm_george` or `am_puck`.
+  - The voice is `SOCIAL_VOICE` (`am_fenrir` since 2026-11-24, picked from the audition; the code default is `am_michael`). `node scripts/social/voice-audition.ts --out <dir>` renders one narration in several voices to compare.
 - **Render** (`render.ts`, timing in `timeline.ts`): each scene lasts as long as its animation or its narration, whichever is longer. The narration is mixed over the synthesized move and countdown sounds, which are ducked about 10 dB while the narrator speaks.
 - **Upload:** the MP4 and a JPEG poster go to R2 (`patternchess-social`, `https://social.patternchess.com/reels/...`).
 
-### 2. `publish.ts --remote` hands today's row to Buffer
+### 2. `publish.ts --remote` hands today's rows to Buffer
 
-- **Scheduling.** It calls Buffer's GraphQL `createPost` with `mode: customScheduled` and a due time 10 minutes out. Buffer fetches the MP4 from R2 and publishes it as an Instagram Reel and a public TikTok post. Buffer is an audited TikTok partner; our own app isn't, which is why TikTok used to be an inbox draft.
+- **Scheduling.** For each of today's slots it calls Buffer's GraphQL `createPost` with `mode: customScheduled`, due at the slot's time (never sooner than 10 minutes out), so the one 17:00 UTC run schedules both. Buffer fetches the MP4 from R2 and publishes it as an Instagram Reel, a public TikTok post and a public YouTube Short (title from the script's `youtubeTitle`, category Gaming, `isAiGenerated: true` for the synthetic voice). Buffer is an audited TikTok partner; our own app isn't, which is why TikTok used to be an inbox draft.
 - **Channels are independent.** A failure turns the run red, and a rerun retries only the channel that has no Buffer post yet.
 - **Status.** Every run reads back the last 14 days of Buffer posts: `sent` / `error`, plus the Instagram link (`externalLink`).
 - **Insights.** When an Instagram token is in KV (`set-token.ts`), it pulls Reel insights by matching that link. Without one, `/analytics` just shows no stats.
 
-**Review:** use the "Daily puzzle video" card on `/analytics` (admin). For each day it shows:
+**Review:** use the "Social videos" card on `/analytics` (admin). For each day and slot it shows:
 - the video (click the poster to play)
 - the format and the puzzle
 - the **voiceover script** (folded), who wrote it, and the voice
@@ -89,6 +101,7 @@ The look matches the site: paper background, ink text, mono uppercase headline, 
 ```sh
 npm run social:render -- --blunder <id> [--template] [--no-voice] [--out dir]
 npm run social:render -- --trap "<fen>|<uci>" --players 11
+npm run social:render -- --pro [skip]                  # the best pro game this month whose blunder makes a clean puzzle
 SOCIAL_OWNER_EMAIL=<you> npm run social:plan -- --days 2 --local-media /tmp/social   # local D1, no upload
 npm run social:plan -- --refresh-queued [--remote]   # re-script/re-voice/re-render queued rows from tomorrow on
 npm run social:publish            # local D1, dry unless SOCIAL_MODE=live|draft
@@ -117,7 +130,7 @@ npm run typecheck:social && npx vitest run scripts/social
    - **Why:** the app is cross-origin isolated (COEP), so the review card loads media with `crossOrigin="anonymous"`. Buffer's composer preview also loads the video cross-origin, so it stays blank without the Buffer origins (added 2026-11-23).
 2. Create the KV namespace `patternchess-social`. Its id becomes the repository variable `SOCIAL_KV_NAMESPACE_ID` (also put it in `.env.local` for the token scripts).
 3. Create an API token with **D1 Edit** (patternchess-app), **Workers R2 Storage Edit** and **Workers KV Storage Edit**. That is the secret `CLOUDFLARE_API_TOKEN`; `CLOUDFLARE_ACCOUNT_ID` is the other secret.
-4. Apply migrations 0003 and 0008 to the remote D1 (see CLAUDE.md, "Database migrations").
+4. Apply migrations 0003, 0008 and 0009 to the remote D1 (see CLAUDE.md, "Database migrations").
 
 ### Claude (scripts, on the subscription)
 
@@ -125,9 +138,9 @@ Run `claude setup-token` once, on a Pro/Max account, and store the token as the 
 
 ### Buffer
 
-1. Connect the Instagram (professional) and TikTok accounts in Buffer.
+1. Connect the Instagram (professional), TikTok and YouTube accounts in Buffer (the free plan's 3 channels).
 2. Create an API key at https://publish.buffer.com/settings/api. It becomes the secret `BUFFER_API_KEY` (and goes in `.env.local` for local runs).
-3. Run `node scripts/social/buffer-channels.ts` and copy the Instagram and TikTok channel ids into the repository variables `BUFFER_INSTAGRAM_CHANNEL_ID` / `BUFFER_TIKTOK_CHANNEL_ID`. An unset id skips that channel.
+3. Run `node scripts/social/buffer-channels.ts` and copy the channel ids into the repository variables `BUFFER_INSTAGRAM_CHANNEL_ID` / `BUFFER_TIKTOK_CHANNEL_ID` / `BUFFER_YOUTUBE_CHANNEL_ID`. An unset id skips that channel.
 
 ### Instagram insights (optional)
 
@@ -144,7 +157,7 @@ It goes in KV `ig`. Without it, no stats show on `/analytics`.
   - `SOCIAL_KV_NAMESPACE_ID`
   - `SOCIAL_MODE` (unset = dry)
   - `SOCIAL_VOICE` (optional)
-  - `BUFFER_INSTAGRAM_CHANNEL_ID`, `BUFFER_TIKTOK_CHANNEL_ID`
+  - `BUFFER_INSTAGRAM_CHANNEL_ID`, `BUFFER_TIKTOK_CHANNEL_ID`, `BUFFER_YOUTUBE_CHANNEL_ID`
   - `IG_API_VERSION` (optional, default `v24.0`)
 
 ### Going live

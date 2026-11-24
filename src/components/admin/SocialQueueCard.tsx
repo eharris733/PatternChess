@@ -70,6 +70,8 @@ function Stat({ label, value }: { label: string; value: number | null }) {
   );
 }
 
+const SLOT_LABEL: Record<number, string> = { 0: 'Puzzle · ~12:10 ET', 1: 'Blunders decide games · ~18:30 ET' };
+
 const BEAT_LABEL: Record<keyof SocialScript['beats'], string> = {
   hook: 'Hook',
   challenge: 'Challenge',
@@ -115,11 +117,20 @@ function PostRow({ post, today }: { post: SocialPost; today: string }) {
       <div className="flex flex-col gap-1.5 min-w-0 text-sm">
         <div className="flex flex-wrap items-baseline gap-x-2">
           <span className="font-semibold">{dayLabel(post.scheduled_for, today)}</span>
+          <span className="font-mono text-xs">{SLOT_LABEL[post.slot ?? 0]}</span>
           <span className="text-text-secondary text-xs">
             {vetoed ? 'Vetoed: will not post' : post.status === 'failed' ? 'Failed' : post.status === 'posted' ? 'Posted' : 'Queued'}
           </span>
         </div>
-        {p && post.format === 'fall' ? (
+        {p && post.format === 'pro' && p.pro ? (
+          <p className="text-xs" data-testid="social-post-puzzle">
+            Blunders decide games · {p.pro.white.title} {p.pro.white.name} vs {p.pro.black.title} {p.pro.black.name}, {p.pro.event} {p.pro.year} ·{' '}
+            blunder <span className="font-mono">{p.played}</span> · punishment <span className="font-mono">{p.solution.join(' ')}</span> ·{' '}
+            <a href={p.pro.url} target="_blank" rel="noreferrer" className="underline">
+              game
+            </a>
+          </p>
+        ) : p && post.format === 'fall' ? (
           <p className="text-xs" data-testid="social-post-puzzle">
             Would you fall for this · {post.fell_count ?? p.fellCount} players played <span className="font-mono">{p.played}</span> ·
             punished by <span className="font-mono">{(p.refutation ?? []).join(' ')}</span> · right move{' '}
@@ -147,10 +158,11 @@ function PostRow({ post, today }: { post: SocialPost; today: string }) {
             {post.hook_template && <span className="text-text-secondary">hook {post.hook_template}</span>}
           </p>
         )}
-        {(post.buffer_ig_post_id || post.buffer_tiktok_post_id) && (
+        {(post.buffer_ig_post_id || post.buffer_tiktok_post_id || post.buffer_yt_post_id) && (
           <p className="text-xs" data-testid="social-post-buffer">
             Buffer: {post.buffer_ig_post_id ? 'Instagram scheduled' : 'Instagram not sent'} ·{' '}
-            {post.buffer_tiktok_post_id ? `TikTok ${post.tiktok_status ?? 'scheduled'}` : 'TikTok not sent'}
+            {post.buffer_tiktok_post_id ? `TikTok ${post.tiktok_status ?? 'scheduled'}` : 'TikTok not sent'} ·{' '}
+            {post.buffer_yt_post_id ? `YouTube ${post.yt_status ?? 'scheduled'}` : 'YouTube not sent'}
           </p>
         )}
         {(post.ig_error || post.tiktok_error || post.buffer_error) && (
@@ -175,6 +187,7 @@ function PostRow({ post, today }: { post: SocialPost; today: string }) {
             </button>
           )}
           {post.tiktok_caption && <CopyButton text={post.tiktok_caption} label="Copy TikTok caption" />}
+          {post.youtube_title && <CopyButton text={post.youtube_title} label="Copy YouTube title" />}
           {post.media_url && (
             <a href={post.media_url} download className={ACTION_CLASS}>
               Download MP4
@@ -192,15 +205,15 @@ function PostRow({ post, today }: { post: SocialPost; today: string }) {
   );
 }
 
-/** The daily puzzle video (scripts/social/): what's queued for the week, veto / restore, how posts did. Admin-only. */
+/** The social videos (scripts/social/): two slots a day, what's queued for the week, veto / restore, how posts did. Admin-only. */
 export function SocialQueueCard() {
   const { data } = useSocialQueue();
   if (!data || !Array.isArray(data.upcoming) || !Array.isArray(data.recent)) return null;
   return (
     <section className="card flex flex-col gap-3" data-testid="social-queue-card">
       <header className="flex items-baseline justify-between gap-3">
-        <span className="label">Daily puzzle video</span>
-        <span className="text-text-secondary text-xs">Instagram Reel + TikTok via Buffer · posts daily ~17:10 UTC unless vetoed</span>
+        <span className="label">Social videos</span>
+        <span className="text-xs">Instagram, TikTok and YouTube Shorts via Buffer · 17:10 and 23:30 UTC unless vetoed</span>
       </header>
       {data.upcoming.length === 0 ? (
         <p className="text-sm">Nothing queued. The next run of the social workflow fills the coming week.</p>

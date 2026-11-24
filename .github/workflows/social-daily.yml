@@ -1,6 +1,7 @@
-# Daily puzzle video: tops up the review queue (Claude script + Kokoro voice +
-# render + R2) and hands today's video to Buffer, which posts it to Instagram
-# (Reel) and TikTok. See scripts/social/README.md.
+# Social videos, two a day: tops up the review queue (Claude script + Kokoro
+# voice + render + R2) for both slots (the puzzle; "Blunders decide games") and
+# hands today's videos to Buffer, which posts them to Instagram (Reel), TikTok
+# and YouTube Shorts at each slot's time. See scripts/social/README.md.
 #
 # Nothing posts until the repository variable SOCIAL_MODE is "live" ("draft"
 # makes Buffer drafts; anything else only logs). Review / veto the queue on
@@ -35,7 +36,7 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    timeout-minutes: 120
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -50,6 +51,7 @@ jobs:
       BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
       BUFFER_INSTAGRAM_CHANNEL_ID: ${{ vars.BUFFER_INSTAGRAM_CHANNEL_ID }}
       BUFFER_TIKTOK_CHANNEL_ID: ${{ vars.BUFFER_TIKTOK_CHANNEL_ID }}
+      BUFFER_YOUTUBE_CHANNEL_ID: ${{ vars.BUFFER_YOUTUBE_CHANNEL_ID }}
       SOCIAL_TTS_CACHE: ${{ github.workspace }}/.cache/tts
       STOCKFISH_PATH: /usr/games/stockfish
     steps:

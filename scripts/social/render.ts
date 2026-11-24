@@ -17,6 +17,10 @@
 //   430–548   captions (the narrator's words, current word highlighted)
 //   568–626   status pill + countdown ring
 //   642–1426  board (784px) with its ink frame and shadow
+//
+// pro ("Blunders decide games"): a 672px board between two broadcast-style
+// player bars (title, name, rating; the event on the bottom bar):
+//   640–684 top bar · 694–1366 board · 1392–1436 bottom bar
 import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -31,9 +35,14 @@ import type { VideoScript } from './script.ts';
 import { COLORS, FPS, HEIGHT, WIDTH, frameAt, frameCount, schedule, type Frame, type Tone } from './timeline.ts';
 import type { VoiceTrack } from './voice.ts';
 
-const BOARD = 784;
+const BOARD_STD = 784;
+const BY_STD = 642;
+const BOARD_PRO = 672;
+const BY_PRO = 694;
 const BX = 60;
-const BY = 642;
+const BAR_H = 44;
+const TOP_BAR_Y = 640;
+const BOTTOM_BAR_Y = 1392;
 const FRAME = 6;
 const SHADOW = 14;
 const TEXT_X = 60;
@@ -153,10 +162,46 @@ function drawCaption(ctx: SKRSContext2D, caption: NonNullable<Frame['caption']>)
   });
 }
 
+/** A broadcast-style name bar: [GM] Hikaru Nakamura 3250 ··· event. */
+function playerBar(ctx: SKRSContext2D, x: number, y: number, w: number, pl: { name: string; title: string | null; rating: number | null }, right: string | null): void {
+  card(ctx, x, y, w, BAR_H, COLORS.surface, 3, 4);
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  const cy = y + BAR_H / 2 + 1;
+  let cx = x + 14;
+  if (pl.title) {
+    ctx.font = `700 22px ${MONO}`;
+    const tw = ctx.measureText(pl.title).width + 14;
+    ctx.fillStyle = COLORS.goldDark;
+    ctx.fillRect(cx, y + 9, tw, BAR_H - 18);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(pl.title, cx + 7, cy);
+    cx += tw + 12;
+  }
+  ctx.font = `700 26px ${SANS}`;
+  ctx.fillStyle = COLORS.ink;
+  ctx.fillText(pl.name, cx, cy);
+  cx += ctx.measureText(pl.name).width + 12;
+  if (pl.rating) {
+    ctx.font = `700 24px ${MONO}`;
+    ctx.fillStyle = COLORS.muted;
+    ctx.fillText(String(pl.rating), cx, cy);
+  }
+  if (right) {
+    ctx.font = `700 20px ${MONO}`;
+    ctx.fillStyle = COLORS.goldDark;
+    ctx.textAlign = 'right';
+    ctx.fillText(right, x + w - 14, cy);
+    ctx.textAlign = 'left';
+  }
+}
+
 /** Paints one frame onto `canvas` (1080×1920). */
 export function paintFrame(canvas: Canvas, board: Canvas, f: Frame, p: Puzzle, text: OnScreenText, rc: RenderContext): void {
   const ctx = canvas.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const BOARD = p.pro ? BOARD_PRO : BOARD_STD;
+  const BY = p.pro ? BY_PRO : BY_STD;
   ctx.fillStyle = COLORS.paper;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
@@ -255,6 +300,14 @@ export function paintFrame(canvas: Canvas, board: Canvas, f: Frame, p: Puzzle, t
     }
   }
 
+  if (p.pro) {
+    const top = white ? p.pro.black : p.pro.white;
+    const bottom = white ? p.pro.white : p.pro.black;
+    const barW = BOARD + FRAME * 2;
+    playerBar(ctx, BX - FRAME, TOP_BAR_Y, barW, top, null);
+    playerBar(ctx, BX - FRAME, BOTTOM_BAR_Y, barW, bottom, `${p.pro.event} ${p.pro.year}`);
+  }
+
   if (f.badge) {
     const [x, y] = squareXY(f.badge.square, white, unit);
     const r = unit * 0.3;
@@ -320,7 +373,8 @@ export async function renderPuzzle(
   const text = { headline: script.headline, subline: script.subline };
 
   const canvas = new Canvas(WIDTH, HEIGHT);
-  const board = new Canvas(BOARD, BOARD + Math.round((BOARD / 8) * 0.85));
+  const size = p.pro ? BOARD_PRO : BOARD_STD;
+  const board = new Canvas(size, size + Math.round((size / 8) * 0.85));
 
   const ff = spawn(
     'ffmpeg',
@@ -382,8 +436,22 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const res = await prepareFall({ fen, played_move: uci, players: Number(args.players ?? 3) });
     if (!res.ok) throw new Error(res.reason);
     puzzle = res.puzzle;
+  } else if (args.pro) {
+    // The best decisive roster game this and last month whose deciding blunder makes a clean puzzle.
+    const { fetchProGames } = await import('./pros.ts');
+    const { scanProGame } = await import('./proScan.ts');
+    const skip = Number(typeof args.pro === 'string' ? args.pro : 0) || 0;
+    let found = 0;
+    for (const g of await fetchProGames(new Set())) {
+      const res = await scanProGame(g);
+      console.log(`${g.url}: ${res.ok ? 'ok' : res.reason}`);
+      if (res.ok && found++ >= skip) {
+        puzzle = res.puzzle;
+        break;
+      }
+    }
   } else {
-    console.error('usage: node scripts/social/render.ts (--blunder <id> | --trap "<fen>|<uci>" --players <n>) [--remote] [--out <dir>] [--template] [--no-voice]');
+    console.error('usage: node scripts/social/render.ts (--blunder <id> | --trap "<fen>|<uci>" --players <n> | --pro [skip]) [--remote] [--out <dir>] [--template] [--no-voice]');
     process.exit(1);
   }
   if (!puzzle) throw new Error('this position cannot make a clean puzzle');

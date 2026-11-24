@@ -142,3 +142,56 @@ export async function verifyTrap(fen: string, tempting: string): Promise<TrapVer
   const [refutation] = await analyse(chess.fen(), 1);
   return judgeTrap(tempting, best, refutation);
 }
+
+/**
+ * One long-lived Stockfish for many quick searches (the pro scanner screens
+ * every position of a game; a fresh process per position costs more than the
+ * search itself). Calls run one at a time; close() when done.
+ */
+export class EngineSession {
+  private sf = spawn(process.env.STOCKFISH_PATH ?? 'stockfish', [], { stdio: ['pipe', 'pipe', 'inherit'] });
+  private buf = '';
+  private waiting: ((line: string) => void) | null = null;
+  private chain: Promise<unknown> = Promise.resolve();
+
+  constructor() {
+    this.sf.stdout.on('data', (chunk: Buffer) => {
+      this.buf += chunk.toString();
+      let nl: number;
+      while ((nl = this.buf.indexOf('\n')) >= 0) {
+        const l = this.buf.slice(0, nl).trim();
+        this.buf = this.buf.slice(nl + 1);
+        this.waiting?.(l);
+      }
+    });
+    this.sf.stdin.write(['uci', 'setoption name Threads value 2', 'setoption name Hash value 128', 'isready'].map((c) => `${c}\n`).join(''));
+  }
+
+  analyse(fen: string, multipv = 1, movetimeMs = 150): Promise<Line[]> {
+    const run = () =>
+      new Promise<Line[]>((resolve, reject) => {
+        const best: Record<number, Line> = {};
+        const timer = setTimeout(() => {
+          this.waiting = null;
+          reject(new Error('stockfish timed out'));
+        }, movetimeMs + 15_000);
+        this.waiting = (l) => {
+          const info = parseInfo(l);
+          if (info) best[info.multipv] = info.line;
+          if (l.startsWith('bestmove')) {
+            clearTimeout(timer);
+            this.waiting = null;
+            resolve(Array.from({ length: multipv }, (_, i) => best[i + 1]).filter(Boolean));
+          }
+        };
+        this.sf.stdin.write(`setoption name MultiPV value ${multipv}\nposition fen ${fen}\ngo movetime ${movetimeMs}\n`);
+      });
+    const p = this.chain.then(run, run);
+    this.chain = p.catch(() => undefined);
+    return p;
+  }
+
+  close(): void {
+    this.sf.stdin.end('quit\n');
+  }
+}

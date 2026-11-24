@@ -9,8 +9,39 @@ export type Side = 'white' | 'black';
  * blunder: one of the owner's own blunders ("A 2056 player missed this").
  * fall: a move many PatternChess players got wrong in the same position
  * ("11 of our players fell for this. Would you?").
+ * pro: "Blunders decide games": a famous player's deciding blunder, rebuilt
+ * from the public game record. The viewer plays the winner and finds the
+ * punishment.
  */
-export type Format = 'blunder' | 'fall';
+export type Format = 'blunder' | 'fall' | 'pro';
+
+export interface ProPlayer {
+  /** Full name ("Hikaru Nakamura"), from the roster (pros.ts), never a bare handle. */
+  name: string;
+  /** What the narrator calls them ("Hikaru", "Carlsen"). */
+  short: string;
+  title: string | null;
+  rating: number | null;
+}
+
+/** pro only: who played, where, and the position before the blunder. */
+export interface ProInfo {
+  white: ProPlayer;
+  black: ProPlayer;
+  /** "Titled Tuesday", "Online blitz". */
+  event: string;
+  year: number;
+  /** "blitz" / "bullet" / "rapid". */
+  timeControl: string;
+  /** The side that blundered (and lost). */
+  blunderer: Side;
+  /** The position before the blunder (the hook shows it). */
+  fenBefore: string;
+  /** The public game page. */
+  url: string;
+  /** True when the winner played the engine's punishment in the game. */
+  foundInGame: boolean;
+}
 
 /** The blunders + games columns plan.ts selects (decoded: JSON parsed). */
 export interface BlunderRow {
@@ -65,6 +96,8 @@ export interface Puzzle {
   motif: string | null;
   motifLabel: string | null;
   mate: boolean;
+  /** pro only. For pro, `fen`/`side` are the position after the blunder (the winner to move), `played` is the blunder (from pro.fenBefore) and `solution` the punishment. */
+  pro?: ProInfo;
 }
 
 /** Mate scores are stored as ±(10000 − n). */
@@ -250,5 +283,42 @@ export function buildFallPuzzle(f: FallInput): Puzzle | null {
     motif: null,
     motifLabel: null,
     mate: last.isCheckmate(),
+  };
+}
+
+export interface ProInput {
+  blunderId: string;
+  /** Before the blunder (the blunderer to move). */
+  fenBefore: string;
+  blunder: string;
+  /** Engine PV after the blunder (the winner's move first). */
+  punishmentPv: readonly string[];
+  info: Omit<ProInfo, 'fenBefore' | 'blunderer'>;
+}
+
+/** A "Blunders decide games" puzzle; null when the moves don't replay. */
+export function buildProPuzzle(f: ProInput): Puzzle | null {
+  const played = toPly(new Chess(f.fenBefore), f.blunder);
+  if (!played || !f.punishmentPv.length) return null;
+  const solution = trimSolution(played.fen, f.punishmentPv);
+  if (solution.length === 0 || solution[0].uci !== f.punishmentPv[0]) return null;
+  const blunderer: Side = f.fenBefore.split(' ')[1] === 'w' ? 'white' : 'black';
+  const last = new Chess(solution[solution.length - 1].fen);
+  return {
+    format: 'pro',
+    blunderId: f.blunderId,
+    fen: played.fen,
+    side: blunderer === 'white' ? 'black' : 'white',
+    rating: null,
+    timeControl: f.info.timeControl,
+    played,
+    refutation: [],
+    fellCount: null,
+    trapKey: null,
+    solution,
+    motif: last.isCheckmate() ? 'missedMate' : null,
+    motifLabel: null,
+    mate: last.isCheckmate(),
+    pro: { ...f.info, fenBefore: f.fenBefore, blunderer },
   };
 }

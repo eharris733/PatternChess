@@ -10,6 +10,10 @@
 //   reveal      back to the start, green arrow, the right line
 //   end         start position + the PatternChess line (loops cleanly into frame 0)
 //
+// pro ("Blunders decide games") runs hook → played → countdown → reveal: the
+// hook shows the position before the famous player's blunder, the blunder
+// plays, then the viewer (the winner) finds the punishment.
+//
 // Each scene lasts as long as its animation or its narration, whichever is longer.
 import { Chess } from 'chess.js';
 import { sideLabel, type Ply, type Puzzle } from './puzzle.ts';
@@ -141,42 +145,65 @@ export function schedule(p: Puzzle, voice: VoiceTiming = {}): Schedule {
       frame: { fen: p.fen, lastMove: null, arrow: null, countdown: null, badge: null, endCard: false, ...f },
     });
 
+  // pro: the blunder happens on screen first, from the position before it.
+  const playedFrom = p.pro?.fenBefore ?? p.fen;
+
   // Hook.
   const hookEnd = Math.max(HOOK_MIN, speak('hook', 0));
-  still(0, hookEnd, { stage: 'hook', status: { text: toMove, tone: 'neutral' } });
+  const hookStatus = p.pro ? `${p.pro[p.pro.blunderer].short} to move` : toMove;
+  still(0, hookEnd, { stage: 'hook', status: { text: hookStatus, tone: 'neutral' }, fen: playedFrom });
+  let t = hookEnd;
 
   // Countdown (the challenge line plays over its first seconds).
-  let t = hookEnd;
-  const challengeEnd = speak('challenge', t);
-  for (let i = 0; i < COUNTDOWN_SECONDS; i++) {
-    const s = t + i;
-    const last = i === COUNTDOWN_SECONDS - 1;
-    still(s, last ? Math.max(s + 1, challengeEnd) : s + 1, {
-      stage: 'countdown',
-      status: { text: toMove, tone: 'neutral' },
-      countdown: { left: COUNTDOWN_SECONDS - i, fraction: 0 },
-    });
-    cues.push({ t: s, kind: last ? 'tickLast' : 'tick' });
-  }
-  t = Math.max(t + COUNTDOWN_SECONDS, challengeEnd);
+  const countdown = () => {
+    const challengeEnd = speak('challenge', t);
+    for (let i = 0; i < COUNTDOWN_SECONDS; i++) {
+      const s = t + i;
+      const last = i === COUNTDOWN_SECONDS - 1;
+      still(s, last ? Math.max(s + 1, challengeEnd) : s + 1, {
+        stage: 'countdown',
+        status: { text: toMove, tone: 'neutral' },
+        countdown: { left: COUNTDOWN_SECONDS - i, fraction: 0 },
+        ...(p.pro ? { lastMove: [p.played.from, p.played.to] as [string, string] } : {}),
+      });
+      cues.push({ t: s, kind: last ? 'tickLast' : 'tick' });
+    }
+    t = Math.max(t + COUNTDOWN_SECONDS, challengeEnd);
+  };
 
   // The played move.
-  const playedStatus = { text: p.format === 'fall' ? `Most people play ${p.played.san}` : `${sideLabel(p.side)} played ${p.played.san}`, tone: 'bad' as Tone };
-  const playedEnd = speak('played', t);
-  still(t, t + PLAYED_ARROW, { stage: 'played', status: playedStatus, arrow: { from: p.played.from, to: p.played.to, color: COLORS.bad } });
-  t += PLAYED_ARROW;
-  const playedBase: Base = {
-    stage: 'played',
-    status: playedStatus,
-    arrow: null,
-    countdown: null,
-    badge: { square: p.played.to, text: '??', tone: 'bad' },
-    endCard: false,
+  const playedScene = () => {
+    const text =
+      p.format === 'fall'
+        ? `Most people play ${p.played.san}`
+        : p.pro
+          ? `${p.pro[p.pro.blunderer].short} played ${p.played.san}`
+          : `${sideLabel(p.side)} played ${p.played.san}`;
+    const playedStatus = { text, tone: 'bad' as Tone };
+    const playedEnd = speak('played', t);
+    still(t, t + PLAYED_ARROW, { stage: 'played', status: playedStatus, fen: playedFrom, arrow: { from: p.played.from, to: p.played.to, color: COLORS.bad } });
+    t += PLAYED_ARROW;
+    const playedBase: Base = {
+      stage: 'played',
+      status: playedStatus,
+      arrow: null,
+      countdown: null,
+      badge: { square: p.played.to, text: '??', tone: 'bad' },
+      endCard: false,
+    };
+    const playedHold = Math.max(PLAYED_HOLD, playedEnd - t - SLIDE);
+    segs.push(...plySegments(t, p.played, playedFrom, playedBase, playedHold));
+    cues.push({ t, kind: p.played.capture ? 'capture' : 'move' }, { t: t + SLIDE, kind: 'buzz' });
+    t += SLIDE + playedHold;
   };
-  const playedHold = Math.max(PLAYED_HOLD, playedEnd - t - SLIDE);
-  segs.push(...plySegments(t, p.played, p.fen, playedBase, playedHold));
-  cues.push({ t, kind: p.played.capture ? 'capture' : 'move' }, { t: t + SLIDE, kind: 'buzz' });
-  t += SLIDE + playedHold;
+
+  if (p.format === 'pro') {
+    playedScene();
+    countdown();
+  } else {
+    countdown();
+    playedScene();
+  }
 
   // The punishment (fall).
   if (p.format === 'fall' && p.refutation.length) {
@@ -204,7 +231,15 @@ export function schedule(p: Puzzle, voice: VoiceTiming = {}): Schedule {
 
   // The right line.
   const revealLabel =
-    p.format === 'fall' ? 'The right move' : p.motifLabel ? `The winning move · ${p.motifLabel}` : 'The winning move';
+    p.format === 'fall'
+      ? 'The right move'
+      : p.format === 'pro'
+        ? p.pro?.foundInGame
+          ? `${p.pro[p.pro.blunderer === 'white' ? 'black' : 'white'].short} found it`
+          : 'The punishment'
+        : p.motifLabel
+          ? `The winning move · ${p.motifLabel}`
+          : 'The winning move';
   const good = { text: revealLabel, tone: 'good' as Tone };
   const first = p.solution[0];
   if (p.format === 'fall') {

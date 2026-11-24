@@ -14,6 +14,8 @@ export interface AngleFacts {
   endsInMate: boolean;
   solutionWins: string | null;
   fellCount: number | null;
+  /** pro only. */
+  pro?: { blundererTitle: string | null; event: string } | null;
 }
 
 export interface HookAngle {
@@ -32,7 +34,7 @@ const BIG_PIECES = new Set(['the queen', 'the rook', 'the knight', 'the bishop']
 export const HOOK_ANGLES: readonly HookAngle[] = [
   {
     id: 'pause-now',
-    formats: ['blunder', 'fall'],
+    formats: ['blunder', 'fall', 'pro'],
     brief: 'Tell the viewer to pause right now, because most people get this wrong.',
     example: 'Pause now. Most people miss this.',
   },
@@ -44,7 +46,7 @@ export const HOOK_ANGLES: readonly HookAngle[] = [
   },
   {
     id: 'engine-laughed',
-    formats: ['blunder', 'fall'],
+    formats: ['blunder', 'fall', 'pro'],
     brief: 'The engine found the move that was played here laughable. Playful, aimed at the move, never at a person.',
     example: 'The engine laughed at this move.',
   },
@@ -62,7 +64,7 @@ export const HOOK_ANGLES: readonly HookAngle[] = [
   },
   {
     id: 'comment-first',
-    formats: ['blunder', 'fall'],
+    formats: ['blunder', 'fall', 'pro'],
     brief: 'Ask for the viewer’s move in the comments before the reveal.',
     example: 'Comment your move before the reveal.',
   },
@@ -75,14 +77,14 @@ export const HOOK_ANGLES: readonly HookAngle[] = [
   },
   {
     id: 'hidden-mate',
-    formats: ['blunder'],
+    formats: ['blunder', 'pro'],
     needs: (f) => f.endsInMate,
     brief: 'There is a forced checkmate hiding in the position.',
     example: "There's a forced mate here. Find it.",
   },
   {
     id: 'wins-material',
-    formats: ['blunder'],
+    formats: ['blunder', 'pro'],
     needs: (f) => !f.endsInMate && f.solutionWins != null && BIG_PIECES.has(f.solutionWins),
     brief: 'One move wins a big piece (say which piece, never which move).',
     example: 'One move wins the queen.',
@@ -99,6 +101,32 @@ export const HOOK_ANGLES: readonly HookAngle[] = [
     needs: (f) => f.fellCount != null,
     brief: 'Several PatternChess players fell for this exact trap. Would the viewer?',
     example: '11 PatternChess players fell for this. Would you?',
+  },
+  {
+    id: 'decided-the-game',
+    formats: ['pro'],
+    brief: 'Name both players: one move decided this game between them.',
+    example: 'Hikaru versus Magnus. One move decided it.',
+  },
+  {
+    id: 'find-the-punishment',
+    formats: ['pro'],
+    brief: 'The named player just blundered. Dare the viewer to find the punishment the winner found.',
+    example: 'Hikaru just blundered. Find the punishment.',
+  },
+  {
+    id: 'even-grandmasters',
+    formats: ['pro'],
+    needs: (f) => f.pro?.blundererTitle === 'GM',
+    brief: 'Even a world-class grandmaster blunders. Respectful, never mocking; the point is that blunders decide games at every level.',
+    example: 'Even grandmasters blunder. Spot the punishment.',
+  },
+  {
+    id: 'event-stakes',
+    formats: ['pro'],
+    needs: (f) => !!f.pro && !/^Online /.test(f.pro.event),
+    brief: 'The event and its stakes (name the event from the facts), then the one move that ended the game.',
+    example: 'Titled Tuesday. One move, game over.',
   },
 ];
 

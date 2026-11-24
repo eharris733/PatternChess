@@ -1,11 +1,13 @@
-// Tops up the review queue: every day from tomorrow to today+N without a live
-// (queued / posted) row gets the next verified puzzle, scripted (Claude, with
-// the template as fallback), narrated (Kokoro), rendered and uploaded. Today's
-// slot is never filled here — a day you vetoed stays empty instead of getting
-// a puzzle nobody reviewed.
+// Tops up the review queue: every (day, slot) from tomorrow to today+N without
+// a live (queued / posted) row gets the next verified puzzle for its series
+// (series.ts: slot 0 = the puzzle, slot 1 = "Blunders decide games"), scripted
+// (Claude, with the template as fallback), narrated (Kokoro), rendered and
+// uploaded. Today is never filled here — a slot you vetoed stays empty instead
+// of getting a video nobody reviewed.
 //
-// Formats alternate by day ("blunder" on even day numbers, "fall" on odd ones);
-// when one format has nothing that passes the engine, the day gets the other.
+// Puzzle formats alternate by day ("blunder" on even day numbers, "fall" on
+// odd ones); when one format has nothing that passes the engine, the day gets
+// the other. Pro games come from chess.com archives (pros.ts, proScan.ts).
 //
 //   node scripts/social/plan.ts [--remote] [--days 7] [--local-media <dir>] [--refresh-queued]
 //
@@ -17,12 +19,15 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { d1, r2Put, sql, type Target } from './cloudflare.ts';
-import { instagramCaption, tiktokCaption } from './copy.ts';
+import { instagramCaption, tiktokCaption, youtubeDescription, youtubeTitle } from './copy.ts';
 import { verifyPuzzle } from './engine.ts';
 import { parseArgs } from './env.ts';
 import { prepareFall } from './fall.ts';
 import type { RecentHook } from './hooks.ts';
 import { buildPuzzle, type Format, type Puzzle } from './puzzle.ts';
+import { scanProGame } from './proScan.ts';
+import { fetchProGames, proBlunderId, type ProGame } from './pros.ts';
+import { SLOTS, type Series } from './series.ts';
 import { makeRenderContext, renderPuzzle, type RenderContext } from './render.ts';
 import { writeScript, type ScriptSource, type VideoScript } from './script.ts';
 import { fetchBlunder, fetchCandidates, fetchFallCandidates, nextCandidate, ownerId, trapBlunderId } from './select.ts';
@@ -32,6 +37,8 @@ import { voiceName, voiceScript } from './voice.ts';
 const DAY_MS = 86400_000;
 /** Engine checks per run (each ~4–8s); rejects are remembered, so later runs dig deeper. */
 const MAX_CHECKS = 60;
+/** Pro games scanned per run (each ~10–20s of engine time). */
+const MAX_PRO_SCANS = 40;
 
 export function utcToday(now = new Date()): string {
   return now.toISOString().slice(0, 10);
@@ -41,12 +48,20 @@ export function addDays(day: string, n: number): string {
   return new Date(Date.parse(`${day}T00:00:00Z`) + n * DAY_MS).toISOString().slice(0, 10);
 }
 
-/** Days tomorrow…today+days that have no live row, in order. */
-export function emptySlots(today: string, days: number, taken: ReadonlySet<string>): string[] {
-  const out: string[] = [];
+export const slotKey = (day: string, slot: number) => `${day}#${slot}`;
+
+export interface EmptySlot {
+  day: string;
+  slot: number;
+  series: Series;
+}
+
+/** (day, slot) pairs tomorrow…today+days with no live row (keys from slotKey), in order. */
+export function emptySlots(today: string, days: number, taken: ReadonlySet<string>): EmptySlot[] {
+  const out: EmptySlot[] = [];
   for (let i = 1; i <= days; i++) {
-    const d = addDays(today, i);
-    if (!taken.has(d)) out.push(d);
+    const day = addDays(today, i);
+    for (const s of SLOTS) if (!taken.has(slotKey(day, s.slot))) out.push({ day, slot: s.slot, series: s.series });
   }
   return out;
 }
@@ -73,6 +88,8 @@ export function puzzleSummary(p: Puzzle, s: VideoScript) {
     headline: s.headline,
     subline: s.subline,
     hook: s.hookStyle,
+    // pro: the whole puzzle, so a refresh can re-render it without rescanning the game.
+    ...(p.pro ? { pro: p.pro, proPuzzle: p } : {}),
   };
 }
 
@@ -145,6 +162,8 @@ function producedColumns(p: Puzzle, out: Produced): Record<string, string | numb
     motif: p.motif,
     caption: instagramCaption(p, out.script),
     tiktok_caption: tiktokCaption(p, out.script),
+    youtube_title: youtubeTitle(p, out.script),
+    youtube_caption: youtubeDescription(p, out.script),
     puzzle: JSON.stringify(puzzleSummary(p, out.script)),
     script: JSON.stringify(out.script),
     script_source: out.source,
@@ -164,26 +183,33 @@ function reject(blunderId: string, fen: string, format: Format, reason: string, 
 
 async function fill(target: Target, days: number, localMedia: string | null): Promise<void> {
   const today = utcToday();
-  const live = d1<{ scheduled_for: string; motif: string | null }>(
-    `SELECT scheduled_for, motif FROM social_posts WHERE status IN ('queued', 'posted') AND scheduled_for >= ${sql(addDays(today, -1))}`,
+  const live = d1<{ scheduled_for: string; slot: number; motif: string | null }>(
+    `SELECT scheduled_for, slot, motif FROM social_posts WHERE status IN ('queued', 'posted') AND scheduled_for >= ${sql(addDays(today, -1))}`,
     target,
   );
-  const taken = new Set(live.map((r) => r.scheduled_for));
-  const motifByDay = new Map(live.map((r) => [r.scheduled_for, r.motif]));
+  const taken = new Set(live.map((r) => slotKey(r.scheduled_for, r.slot)));
+  const motifByDay = new Map(live.filter((r) => r.slot === 0).map((r) => [r.scheduled_for, r.motif]));
   const slots = emptySlots(today, days, taken);
   if (slots.length === 0) {
     console.log(`queue full through ${addDays(today, days)}`);
     return;
   }
 
-  const owner = ownerId(target);
-  const blunderPool = fetchCandidates(owner, target);
-  const fallPool = fetchFallCandidates(target);
-  console.log(`${slots.length} empty day(s); ${blunderPool.length} blunder and ${fallPool.length} fall candidate(s)`);
+  const wantsPuzzle = slots.some((s) => s.series === 'puzzle');
+  const wantsPro = slots.some((s) => s.series === 'pro');
+  const blunderPool = wantsPuzzle ? fetchCandidates(ownerId(target), target) : [];
+  const fallPool = wantsPuzzle ? fetchFallCandidates(target) : [];
+  let proPool: ProGame[] = [];
+  if (wantsPro) {
+    const seen = new Set(d1<{ blunder_id: string }>(`SELECT blunder_id FROM social_posts WHERE blunder_id LIKE 'pro:%'`, target).map((r) => r.blunder_id));
+    proPool = await fetchProGames(seen);
+  }
+  console.log(`${slots.length} empty slot(s); ${blunderPool.length} blunder, ${fallPool.length} fall and ${proPool.length} pro candidate(s)`);
   const recent = loadRecentHooks(target, today, null);
   const rc = await makeRenderContext();
   const work = localMedia ?? mkdtempSync(join(tmpdir(), 'pc-social-'));
   let checks = 0;
+  let proScans = 0;
 
   const nextBlunder = async (day: string): Promise<Puzzle | null> => {
     while (checks < MAX_CHECKS) {
@@ -211,32 +237,52 @@ async function fill(target: Target, days: number, localMedia: string | null): Pr
     }
     return null;
   };
+  const nextPro = async (): Promise<Puzzle | null> => {
+    while (proScans < MAX_PRO_SCANS) {
+      const g = proPool.shift();
+      if (!g) return null;
+      proScans++;
+      const res = await scanProGame(g);
+      if (res.ok) return res.puzzle;
+      console.log(`  reject pro ${g.url}: ${res.reason}`);
+      reject(proBlunderId(g.id), res.fen, 'pro', res.reason, target);
+    }
+    return null;
+  };
 
+  const exhausted = new Set<Series>();
   try {
-    for (const day of slots) {
-      const order: Format[] = formatForDay(day) === 'fall' ? ['fall', 'blunder'] : ['blunder', 'fall'];
+    for (const { day, slot, series } of slots) {
+      if (exhausted.has(series)) continue;
       let puzzle: Puzzle | null = null;
-      for (const f of order) {
-        puzzle = f === 'fall' ? await nextFall() : await nextBlunder(day);
-        if (puzzle) break;
+      if (series === 'pro') {
+        puzzle = await nextPro();
+      } else {
+        const order: Format[] = formatForDay(day) === 'fall' ? ['fall', 'blunder'] : ['blunder', 'fall'];
+        for (const f of order) {
+          puzzle = f === 'fall' ? await nextFall() : await nextBlunder(day);
+          if (puzzle) break;
+        }
       }
       if (!puzzle) {
-        console.warn(`  ${day}: no verified puzzle (checked ${checks}) — next run tries again`);
-        break;
+        console.warn(`  ${day} slot ${slot}: no verified ${series} video (checked ${checks} puzzles, ${proScans} pro games) — next run tries again`);
+        exhausted.add(series);
+        continue;
       }
-      const out = await produce(puzzle, day, work, localMedia, rc, recent);
+      const out = await produce(puzzle, `${day}-s${slot}`, work, localMedia, rc, recent);
       const cols = {
         id: crypto.randomUUID(),
         blunder_id: puzzle.blunderId,
         fen: puzzle.fen,
         scheduled_for: day,
+        slot,
         status: 'queued',
         ...producedColumns(puzzle, out),
         created_at: new Date().toISOString(),
       };
       d1(`INSERT INTO social_posts (${Object.keys(cols).join(', ')}) VALUES (${Object.values(cols).map(sql).join(', ')})`, target);
-      motifByDay.set(day, puzzle.motif);
-      console.log(`  ${day}: ${puzzle.format} ${puzzle.blunderId.slice(0, 60)} (${out.script.hookStyle}, ${out.source}, ${out.duration.toFixed(1)}s) → ${out.mediaUrl}`);
+      if (slot === 0) motifByDay.set(day, puzzle.motif);
+      console.log(`  ${day} slot ${slot}: ${puzzle.format} ${puzzle.blunderId.slice(0, 60)} (${out.script.hookStyle}, ${out.source}, ${out.duration.toFixed(1)}s) → ${out.mediaUrl}`);
     }
   } finally {
     if (!localMedia) rmSync(work, { recursive: true, force: true });
@@ -245,9 +291,9 @@ async function fill(target: Target, days: number, localMedia: string | null): Pr
 
 /** Re-scripts, re-voices and re-renders queued rows from tomorrow on. */
 async function refreshQueued(target: Target, localMedia: string | null): Promise<void> {
-  const rows = d1<{ id: string; blunder_id: string; fen: string; scheduled_for: string; format: Format | null; fell_count: number | null }>(
-    `SELECT id, blunder_id, fen, scheduled_for, format, fell_count FROM social_posts
-     WHERE status = 'queued' AND scheduled_for > ${sql(utcToday())} ORDER BY scheduled_for`,
+  const rows = d1<{ id: string; blunder_id: string; fen: string; scheduled_for: string; slot: number; format: Format | null; fell_count: number | null; puzzle: string | null }>(
+    `SELECT id, blunder_id, fen, scheduled_for, slot, format, fell_count, puzzle FROM social_posts
+     WHERE status = 'queued' AND scheduled_for > ${sql(utcToday())} ORDER BY scheduled_for, slot`,
     target,
   );
   // Rows from tomorrow on are about to be rewritten: rotate against what's already out.
@@ -257,7 +303,13 @@ async function refreshQueued(target: Target, localMedia: string | null): Promise
   try {
     for (const r of rows) {
       let puzzle: Puzzle | null = null;
-      if (r.format === 'fall' || r.blunder_id.startsWith('trap:')) {
+      if (r.format === 'pro') {
+        try {
+          puzzle = (JSON.parse(r.puzzle ?? '{}') as { proPuzzle?: Puzzle }).proPuzzle ?? null;
+        } catch {
+          puzzle = null;
+        }
+      } else if (r.format === 'fall' || r.blunder_id.startsWith('trap:')) {
         const uci = r.blunder_id.split('|').pop()!;
         const res = await prepareFall({ fen: r.fen, played_move: uci, players: r.fell_count ?? 3 });
         puzzle = res.ok ? res.puzzle : null;
@@ -269,7 +321,7 @@ async function refreshQueued(target: Target, localMedia: string | null): Promise
         console.warn(`  ${r.scheduled_for}: cannot rebuild ${r.blunder_id}; left as is`);
         continue;
       }
-      const out = await produce(puzzle, r.scheduled_for, work, localMedia, rc, recent);
+      const out = await produce(puzzle, `${r.scheduled_for}-s${r.slot}`, work, localMedia, rc, recent);
       const set = Object.entries(producedColumns(puzzle, out))
         .map(([k, v]) => `${k} = ${sql(v)}`)
         .join(', ');
