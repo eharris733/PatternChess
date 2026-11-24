@@ -56,13 +56,19 @@ INSERT INTO social_posts_v3 (
   id, blunder_id, fen, scheduled_for, status, reject_reason, hook_template, motif, caption, tiktok_caption,
   puzzle, media_url, poster_url, ig_media_id, permalink, ig_error, tiktok_publish_id, tiktok_status, tiktok_error,
   plays, reach, likes, comments, saves, shares, insights_at, posted_at, created_at,
-  format, fell_count, script, script_source, voice, buffer_ig_post_id, buffer_tiktok_post_id, buffer_error
+  format, fell_count, script, script_source, voice, buffer_ig_post_id, buffer_tiktok_post_id, buffer_error,
+  youtube_title, youtube_caption
 )
 SELECT
   id, blunder_id, fen, scheduled_for, status, reject_reason, hook_template, motif, caption, tiktok_caption,
   puzzle, media_url, poster_url, ig_media_id, permalink, ig_error, tiktok_publish_id, tiktok_status, tiktok_error,
   plays, reach, likes, comments, saves, shares, insights_at, posted_at, created_at,
-  format, fell_count, script, script_source, voice, buffer_ig_post_id, buffer_tiktok_post_id, buffer_error
+  format, fell_count, script, script_source, voice, buffer_ig_post_id, buffer_tiktok_post_id, buffer_error,
+  -- Rows queued before v3 go to YouTube too: their headline makes the title, the TikTok caption the description.
+  CASE WHEN json_extract(script, '$.headline') IS NOT NULL
+    THEN substr(COALESCE(json_extract(script, '$.youtubeTitle'), json_extract(script, '$.headline') || ' | Chess puzzle'), 1, 100)
+  END,
+  tiktok_caption
 FROM social_posts;
 
 DROP TABLE social_posts;
