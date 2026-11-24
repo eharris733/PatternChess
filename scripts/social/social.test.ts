@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DUCK_GAIN, renderWav, SAMPLE_RATE } from './audio.ts';
 import { createPostInput, createVideoPost, YOUTUBE_CATEGORY_ID } from './buffer.ts';
+import { isTransientCloudflareError } from './cloudflare.ts';
 import { endCardLines, instagramCaption, proCredit, ratingLabel, TEMPLATE_HOOKS, templateScript, tiktokCaption, youtubeDescription, youtubeTitle } from './copy.ts';
 import { judge, judgeTrap, parseInfo } from './engine.ts';
 import { shortcodeOf } from './instagram.ts';
@@ -690,5 +691,12 @@ describe('Blunders decide games (pro)', () => {
     expect(eventLabel({ time_class: 'bullet' })).toBe('Online bullet');
     expect(proGameScore(pg, pg.endTime)).toBeGreaterThan(proGameScore({ ...pg, endTime: pg.endTime - 30 * 86400 }, pg.endTime));
     expect(replayPgn(g.pgn!)).toMatchObject({ moves: ['e2e4', 'e7e5', 'd1h5', 'g7g6', 'h5e5'] });
+  });
+});
+
+describe('cloudflare', () => {
+  it('retries only transient Cloudflare errors', () => {
+    expect(isTransientCloudflareError('D1 DB is overloaded. Too many resources consumed within a 10 second window. [code: 7429]')).toBe(true);
+    expect(isTransientCloudflareError('SQLITE_CONSTRAINT: UNIQUE constraint failed: social_posts.blunder_id')).toBe(false);
   });
 });

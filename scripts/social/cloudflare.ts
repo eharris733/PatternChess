@@ -15,15 +15,32 @@ export interface Target {
   remote: boolean;
 }
 
+/** D1's "overloaded" (7429) and other short rate limits: worth a retry after a pause. */
+export function isTransientCloudflareError(output: string): boolean {
+  return /\b7429\b|overloaded|Too many requests|\b429\b/i.test(output);
+}
+
+const RETRY_WAIT_MS = [5_000, 15_000, 30_000];
+
 function wrangler(args: string[], input?: string): string {
-  return execFileSync('npx', ['wrangler', ...args], {
-    cwd: REPO_ROOT,
-    env: wranglerEnv(),
-    encoding: 'utf8',
-    input,
-    maxBuffer: 512 * 1024 * 1024,
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return execFileSync('npx', ['wrangler', ...args], {
+        cwd: REPO_ROOT,
+        env: wranglerEnv(),
+        encoding: 'utf8',
+        input,
+        maxBuffer: 512 * 1024 * 1024,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (e) {
+      const err = e as { stdout?: string; stderr?: string };
+      const output = `${err.stdout ?? ''}${err.stderr ?? ''}`;
+      if (attempt >= RETRY_WAIT_MS.length || !isTransientCloudflareError(output)) throw e;
+      console.warn(`wrangler ${args.slice(0, 2).join(' ')}: transient Cloudflare error, retrying in ${RETRY_WAIT_MS[attempt] / 1000}s`);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, RETRY_WAIT_MS[attempt]);
+    }
+  }
 }
 
 /** SQL literal (wrangler can't bind parameters). */
