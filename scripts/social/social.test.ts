@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DUCK_GAIN, renderWav, SAMPLE_RATE } from './audio.ts';
 import { createPostInput, createVideoPost } from './buffer.ts';
+import { isTransientCloudflareError } from './cloudflare.ts';
 import { endCardLines, instagramCaption, ratingLabel, TEMPLATE_HOOKS, templateScript, tiktokCaption } from './copy.ts';
 import { judge, judgeTrap, parseInfo } from './engine.ts';
 import { shortcodeOf } from './instagram.ts';
@@ -543,5 +544,12 @@ describe('plan', () => {
   it('fills tomorrow onward, skipping taken days and never today', () => {
     expect(emptySlots('2026-11-22', 3, new Set(['2026-11-24']))).toEqual(['2026-11-23', '2026-11-25']);
     expect(emptySlots('2026-11-22', 3, new Set())).not.toContain('2026-11-22');
+  });
+});
+
+describe('cloudflare', () => {
+  it('retries only transient Cloudflare errors', () => {
+    expect(isTransientCloudflareError('D1 DB is overloaded. Too many resources consumed within a 10 second window. [code: 7429]')).toBe(true);
+    expect(isTransientCloudflareError('SQLITE_CONSTRAINT: UNIQUE constraint failed: social_posts.blunder_id')).toBe(false);
   });
 });
