@@ -17,7 +17,10 @@ interface TemplateHook {
 }
 
 /** What the templates need beyond the puzzle (from script.ts buildFacts). */
-export type TemplateFacts = Pick<Facts, 'angle' | 'solutionWins'>;
+export type TemplateFacts = Pick<Facts, 'angle' | 'solutionWins' | 'pro'>;
+
+const blunderer = (f: TemplateFacts) => f.pro?.blunderer ?? 'The player';
+const winner = (f: TemplateFacts) => f.pro?.winner ?? 'The opponent';
 
 /** One fallback hook per angle in hooks.ts (a test checks every angle has one and passes the checks). */
 export const TEMPLATE_HOOKS: Record<string, TemplateHook> = {
@@ -65,7 +68,30 @@ export const TEMPLATE_HOOKS: Record<string, TemplateHook> = {
     headline: () => 'Would you fall for this?',
     hook: (p) => `${p.fellCount} PatternChess players fell for this. Would you?`,
   },
+  'decided-the-game': {
+    headline: () => 'One move decided this game',
+    hook: (_p, f) => `${blunderer(f)} versus ${winner(f)}. One move decided it.`,
+  },
+  'find-the-punishment': {
+    headline: () => 'Find the punishment',
+    hook: (_p, f) => `${blunderer(f)} just blundered. Find the punishment.`,
+  },
+  'even-grandmasters': {
+    headline: () => 'Even grandmasters blunder',
+    hook: (_p, f) => `Even ${blunderer(f)} blunders. Can you spot the punishment?`,
+  },
+  'event-stakes': {
+    headline: () => 'One move. Game over.',
+    hook: (_p, f) => `${f.pro?.event ?? 'A real game'}. One move, and the game was over.`,
+  },
 };
+
+/** "GM Hikaru Nakamura (3250) vs GM Magnus Carlsen (3301), Titled Tuesday 2026." */
+export function proCredit(p: Puzzle): string {
+  if (!p.pro) return '';
+  const who = (x: NonNullable<Puzzle['pro']>['white']) => `${x.title ? `${x.title} ` : ''}${x.name}${x.rating ? ` (${x.rating})` : ''}`;
+  return `${who(p.pro.white)} vs ${who(p.pro.black)}, ${p.pro.event} ${p.pro.year}.`;
+}
 
 /** The deterministic fallback script for the assigned angle: always passes validateScript. */
 export function templateScript(p: Puzzle, countdownSeconds: number, f: TemplateFacts): VideoScript {
@@ -81,6 +107,24 @@ export function templateScript(p: Puzzle, countdownSeconds: number, f: TemplateF
       ? `The answer: ${spokenSan(first.san)}. ${motif.charAt(0).toUpperCase()}${motif.slice(1)}.`
       : `The answer: ${spokenSan(first.san)}.`;
   const hook = h.hook(p, f);
+  if (p.format === 'pro') {
+    const solved = p.mate ? ' It ends in checkmate.' : '';
+    const found = f.pro?.foundInGame ? ` ${winner(f)} found it.` : '';
+    return {
+      hookStyle: f.angle.id,
+      headline: h.headline(p, f),
+      subline: `${side} to move and win.`,
+      beats: {
+        hook,
+        challenge,
+        played: `${blunderer(f)} played ${spokenSan(p.played.san)}. It loses on the spot.`,
+        reveal: `The punishment: ${spokenSan(first.san)}.${solved}${found}`,
+        cta: 'Blunders decide games. PatternChess finds yours. Fix yours now.',
+      },
+      captionLead: `${hook} Comment the winning move.`,
+      youtubeTitle: `${f.pro ? `${f.pro.blunderer} vs ${f.pro.winner}: ` : ''}find the punishment | ${p.pro?.event ?? 'Chess'}`,
+    };
+  }
   if (p.format === 'fall') {
     const punisher = p.refutation[0];
     return {
@@ -96,6 +140,7 @@ export function templateScript(p: Puzzle, countdownSeconds: number, f: TemplateF
         cta: 'PatternChess finds the traps you keep falling for.',
       },
       captionLead: `${hook} Comment your move.`,
+      youtubeTitle: `${h.headline(p, f)} | Chess trap`,
     };
   }
   return {
@@ -110,11 +155,13 @@ export function templateScript(p: Puzzle, countdownSeconds: number, f: TemplateF
       cta: 'PatternChess turns your own blunders into puzzles like this.',
     },
     captionLead: `${hook} Comment your move before the reveal.`,
+    youtubeTitle: `${h.headline(p, f)} | Chess puzzle`,
   };
 }
 
 /** The end card's two lines (fixed, so the brand line never depends on Claude). */
 export function endCardLines(p: Puzzle): [string, string] {
+  if (p.format === 'pro') return ['Blunders decide games', 'Fix yours: patternchess.com'];
   return p.format === 'fall' ? ['Find the traps you fall for', 'patternchess.com'] : ['Train your own blunders', 'patternchess.com'];
 }
 
@@ -132,7 +179,7 @@ const MOTIF_TAG: Record<string, string> = {
 };
 
 function tags(p: Puzzle, extra: string[]): string {
-  const formatTags = p.format === 'fall' ? ['#chesstrap', '#chessopening'] : [];
+  const formatTags = p.format === 'fall' ? ['#chesstrap', '#chessopening'] : p.format === 'pro' ? ['#chessblunder', '#grandmaster'] : [];
   const all = [...BASE_TAGS, ...formatTags, ...(p.motif && MOTIF_TAG[p.motif] ? [MOTIF_TAG[p.motif]] : []), ...extra];
   return [...new Set(all)].join(' ');
 }
@@ -144,9 +191,17 @@ function gameLine(p: Puzzle): string {
 }
 
 function pitch(p: Puzzle): string {
+  if (p.format === 'pro') return 'Blunders decide games. PatternChess finds the ones in your own games and drills them until they stick. Fix yours.';
   return p.format === 'fall'
     ? 'PatternChess finds the traps you fall for in your own games and drills them until they stick.'
     : 'PatternChess turns your own blunders into puzzles like this one.';
+}
+
+/** Where the position came from (pro: the game credit; blunder: "From a real 2056 blitz game."). */
+function sourceLine(p: Puzzle, s: VideoScript): string[] {
+  if (p.format === 'pro') return [proCredit(p)];
+  if (p.format === 'blunder' && !(p.rating && s.captionLead.includes(String(p.rating)))) return [gameLine(p)];
+  return [];
 }
 
 /** Instagram caption (link in bio). */
@@ -155,7 +210,7 @@ export function instagramCaption(p: Puzzle, s: VideoScript): string {
     s.captionLead,
     '',
     `${sideLabel(p.side)} to move. Comment your move before the reveal.`,
-    ...(p.format === 'blunder' && !(p.rating && s.captionLead.includes(String(p.rating))) ? [gameLine(p)] : []),
+    ...sourceLine(p, s),
     '',
     `${pitch(p)} Link in bio.`,
     '',
@@ -167,7 +222,28 @@ export function instagramCaption(p: Puzzle, s: VideoScript): string {
 export function tiktokCaption(p: Puzzle, s: VideoScript): string {
   return [
     `${s.captionLead} ${sideLabel(p.side)} to move.`,
+    ...(p.format === 'pro' ? [proCredit(p)] : []),
     `${pitch(p)} patternchess.com`,
     tags(p, ['#chesstok']),
+  ].join('\n');
+}
+
+/** The YouTube Short's title (the script's, else the headline). */
+export function youtubeTitle(p: Puzzle, s: VideoScript): string {
+  const t = s.youtubeTitle?.trim() || `${s.headline} | ${p.format === 'pro' ? 'Blunders decide games' : 'Chess puzzle'}`;
+  return t.slice(0, 100);
+}
+
+/** The YouTube Short's description. */
+export function youtubeDescription(p: Puzzle, s: VideoScript): string {
+  return [
+    s.captionLead,
+    '',
+    `${sideLabel(p.side)} to move. Comment your move before the reveal.`,
+    ...sourceLine(p, s),
+    '',
+    `${pitch(p)} patternchess.com`,
+    '',
+    tags(p, ['#shorts']),
   ].join('\n');
 }

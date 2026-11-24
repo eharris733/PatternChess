@@ -29,6 +29,8 @@ export interface VideoScript {
   beats: Partial<Record<BeatId, string>>;
   /** First lines of the Instagram / TikTok captions (the fixed CTA and tags are appended). */
   captionLead: string;
+  /** The YouTube Short's title (no spoiler). Older stored scripts lack it; copy.ts falls back to the headline. */
+  youtubeTitle?: string;
 }
 
 export type ScriptSource = 'claude' | 'template';
@@ -70,6 +72,19 @@ export interface Facts {
   angle: { id: string; brief: string; example: string };
   /** The hooks already in the queue, newest first: open differently from all of them. */
   recentHooks: { headline: string; hook: string }[];
+  /** pro only: the two players (the only real people the script may name), the event, who blundered. */
+  pro: {
+    white: { name: string; short: string; title: string | null; rating: number | null };
+    black: { name: string; short: string; title: string | null; rating: number | null };
+    event: string;
+    year: number;
+    blunderer: string;
+    /** The blunderer's title ("GM"), for the even-grandmasters angle. */
+    blundererTitle: string | null;
+    winner: string;
+    /** The winner found the punishment in the game. */
+    foundInGame: boolean;
+  } | null;
 }
 
 const VALUE: Record<string, number> = { pawn: 1, knight: 3, bishop: 3, rook: 5, queen: 9, king: 100 };
@@ -92,7 +107,8 @@ function biggestCapture(moves: readonly MoveFact[], by: MoveFact['by']): string 
 }
 
 export function buildFacts(p: Puzzle, countdownSeconds: number, recent: readonly RecentHook[] = []): Facts {
-  const played: MoveFact = { ...moveFacts([p.played], 'viewer')[0] };
+  // pro: the viewer plays the winner, so the blunder is the opponent's move.
+  const played: MoveFact = { ...moveFacts([p.played], p.format === 'pro' ? 'opponent' : 'viewer')[0] };
   const refutation = moveFacts(p.refutation, 'opponent');
   const solution = moveFacts(p.solution, 'viewer');
   const squares = new Set<string>();
@@ -101,11 +117,33 @@ export function buildFacts(p: Puzzle, countdownSeconds: number, recent: readonly
   const numbers = new Set<number>([1, countdownSeconds, viewerMoves]);
   if (p.rating) numbers.add(p.rating);
   if (p.fellCount) numbers.add(p.fellCount);
+  if (p.pro) {
+    for (const r of [p.pro.white.rating, p.pro.black.rating, p.pro.year]) if (r) numbers.add(r);
+  }
+  const pro = p.pro
+    ? {
+        white: p.pro.white,
+        black: p.pro.black,
+        event: p.pro.event,
+        year: p.pro.year,
+        blunderer: p.pro[p.pro.blunderer].short,
+        blundererTitle: p.pro[p.pro.blunderer].title,
+        winner: p.pro[p.pro.blunderer === 'white' ? 'black' : 'white'].short,
+        foundInGame: p.pro.foundInGame,
+      }
+    : null;
   const rating = p.format === 'blunder' ? p.rating : null;
   const endsInMate = p.mate || (p.refutation.length > 0 && p.refutation[p.refutation.length - 1].san.endsWith('#'));
   const solutionWins = biggestCapture(solution, 'viewer');
   const angle = pickAngle(
-    { format: p.format, rating, endsInMate, solutionWins, fellCount: p.fellCount },
+    {
+      format: p.format,
+      rating,
+      endsInMate,
+      solutionWins,
+      fellCount: p.fellCount,
+      pro,
+    },
     recent.map((r) => r.hookStyle),
     p.blunderId,
   );
@@ -127,7 +165,18 @@ export function buildFacts(p: Puzzle, countdownSeconds: number, recent: readonly
     allowedNumbers: [...numbers].sort((a, b) => a - b),
     angle: { id: angle.id, brief: angle.brief, example: angle.example },
     recentHooks: recent.slice(0, 14).map((r) => ({ headline: r.headline, hook: r.hook })),
+    pro,
   };
+}
+
+/** pro: the players' names may be said; every other real name stays banned. */
+function withoutPlayerNames(text: string, facts: Facts): string {
+  if (!facts.pro) return text;
+  const words = new Set<string>();
+  for (const pl of [facts.pro.white, facts.pro.black]) {
+    for (const w of `${pl.name} ${pl.short}`.split(/[\s-]+/)) if (w.length >= 3) words.add(w.toLowerCase());
+  }
+  return text.replace(/[\p{L}]+/gu, (w) => (words.has(w.toLowerCase()) ? ' ' : w));
 }
 
 // --- guardrails -----------------------------------------------------------------
@@ -150,7 +199,7 @@ function checkText(label: string, text: string, facts: Facts, errors: string[]):
   if (/\bELO\b|\belo\b/.test(text)) errors.push(`${label}: write "Elo", never "ELO"/"elo"`);
   if (/[%#@]/.test(text)) errors.push(`${label}: no %, # or @ (no percentages, hashtags or handles)`);
   if (/https?:|www\./i.test(text)) errors.push(`${label}: no links`);
-  const banned = BANNED.exec(text);
+  const banned = BANNED.exec(withoutPlayerNames(text, facts));
   if (banned) errors.push(`${label}: "${banned[0]}" is not allowed (no insults, swearing, real people or other sites)`);
   const squares = [...text.matchAll(/\b[a-h][1-8]\b/g)].map((m) => m[0]);
   for (const s of squares) if (!facts.allowedSquares.includes(s)) errors.push(`${label}: square ${s} is not in the facts`);
@@ -175,7 +224,7 @@ export function validateScript(raw: unknown, facts: Facts): Checked {
   const errors: string[] = [];
   const s = raw as Partial<VideoScript> | null;
   if (!s || typeof s !== 'object') return { ok: false, errors: ['not an object'] };
-  for (const k of ['hookStyle', 'headline', 'subline', 'captionLead'] as const) {
+  for (const k of ['hookStyle', 'headline', 'subline', 'captionLead', 'youtubeTitle'] as const) {
     if (typeof s[k] !== 'string' || !s[k]!.trim()) errors.push(`${k}: missing`);
   }
   if (!s.beats || typeof s.beats !== 'object') return { ok: false, errors: [...errors, 'beats: missing'] };
@@ -190,8 +239,10 @@ export function validateScript(raw: unknown, facts: Facts): Checked {
     checkText(`beats.${b}`, t, facts, errors);
   }
   if (errors.length) return { ok: false, errors };
-  if (facts.format === 'blunder' && s.beats.refutation) errors.push('beats.refutation: only for the fall format');
+  if (facts.format !== 'fall' && s.beats.refutation) errors.push('beats.refutation: only for the fall format');
   if (!/PatternChess/.test(s.beats.cta!)) errors.push('beats.cta: must name PatternChess');
+  if (facts.format === 'pro' && !/\bfix yours\b/i.test(s.beats.cta!)) errors.push('beats.cta: pro videos end on "Fix yours" (blunders decide games)');
+  if (s.youtubeTitle!.length > 90) errors.push('youtubeTitle: at most 90 characters');
   if (s.hookStyle !== facts.angle.id) errors.push(`hookStyle: must be "${facts.angle.id}" (the assigned angle)`);
   const opening = openingWords(s.headline!);
   const clash = facts.recentHooks.find((r) => openingWords(r.headline) === opening || openingWords(r.hook) === openingWords(s.beats!.hook!));
@@ -200,7 +251,7 @@ export function validateScript(raw: unknown, facts: Facts): Checked {
   if (/\b[a-h][1-8]\b/.test(s.headline!)) errors.push('headline: no squares or moves (it is shown in capitals)');
   if (words(s.subline!) > 8 || s.subline!.length > 40) errors.push('subline: at most 8 words / 40 characters');
   if (s.captionLead!.length > 220) errors.push('captionLead: at most 220 characters');
-  for (const k of ['headline', 'subline', 'captionLead'] as const) checkText(k, s[k]!, facts, errors);
+  for (const k of ['headline', 'subline', 'captionLead', 'youtubeTitle'] as const) checkText(k, s[k]!, facts, errors);
   // Nothing before the reveal may give the answer away (the caption is read before the video ends).
   const answer = facts.solution[0];
   const spoilers = [...answer.san.matchAll(/[a-h][1-8]/g)].map((m) => m[0]).filter((sq) => !facts.played.san.includes(sq));
@@ -208,6 +259,7 @@ export function validateScript(raw: unknown, facts: Facts): Checked {
     ['headline', s.headline!],
     ['subline', s.subline!],
     ['captionLead', s.captionLead!],
+    ['youtubeTitle', s.youtubeTitle!],
     ['beats.hook', s.beats.hook!],
     ['beats.challenge', s.beats.challenge!],
   ];
@@ -221,7 +273,14 @@ export function validateScript(raw: unknown, facts: Facts): Checked {
   for (const b of needed) beats[b] = s.beats[b]!.trim();
   return {
     ok: true,
-    script: { hookStyle: s.hookStyle!, headline: s.headline!.trim(), subline: s.subline!.trim(), beats, captionLead: s.captionLead!.trim() },
+    script: {
+      hookStyle: s.hookStyle!,
+      headline: s.headline!.trim(),
+      subline: s.subline!.trim(),
+      beats,
+      captionLead: s.captionLead!.trim(),
+      youtubeTitle: s.youtubeTitle!.trim(),
+    },
   };
 }
 
@@ -230,9 +289,10 @@ export function validateScript(raw: unknown, facts: Facts): Checked {
 export const SCRIPT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['hookStyle', 'headline', 'subline', 'beats', 'captionLead'],
+  required: ['hookStyle', 'headline', 'subline', 'beats', 'captionLead', 'youtubeTitle'],
   properties: {
     hookStyle: { type: 'string' },
+    youtubeTitle: { type: 'string' },
     headline: { type: 'string' },
     subline: { type: 'string' },
     captionLead: { type: 'string' },
@@ -262,11 +322,13 @@ Rules:
 - Voice: direct, warm, chess-literate. Playful provocation aimed at the viewer is good ("you'd fall for this too"); insults, swearing and mocking real people are not. Never mention other chess sites, streamers or players.
 - Write "Elo" (never "ELO"). No emoji, no hashtags, no links.
 - The fall format talks about PatternChess players as a group ("11 PatternChess players played this").
+- The pro format ("Blunders decide games") is a real game between two famous players (facts.pro). The viewer plays the winner: the opponent just blundered (played), and the viewer must find the punishment (solution). Name the two players only as given (facts.pro short names or full names, titles); no other real people. Respectful: even the best blunder, that is the point; never mock them. Scenes in this format: hook, played (narrate the blunder: "Hikaru played ..."), challenge (find the punishment), reveal (the punishment and why it wins; say the winner found it in the game only when facts.pro.foundInGame is true). The cta must contain "Fix yours" and PatternChess (e.g. "Blunders decide games. PatternChess finds yours. Fix yours now.").
 - Hook angle: use facts.angle (its brief and example; adapt the example, don't copy it word for word). hookStyle must be exactly facts.angle.id.
 - Variety: facts.recentHooks are the videos already in the feed. Your headline and hook must not start with the same three words as any of them, and should not reuse their phrasing.
 - headline: at most 7 words AND at most 34 characters, the hook line shown big on screen the whole video, in the same angle (normal case, no moves or squares). subline: at most 8 words and 40 characters, the challenge (e.g. "White to move. Find it.").
 - captionLead: one or two sentences for the post caption that invite a comment.
-- Never give the answer away before the reveal: the right move must not appear in headline, subline, hook, challenge or captionLead (people read the caption before the video ends).`;
+- youtubeTitle: the YouTube Shorts title, at most 90 characters, searchable and specific (pro: include both players' names), no spoiler.
+- Never give the answer away before the reveal: the right move must not appear in headline, subline, hook, challenge, captionLead or youtubeTitle (people read the caption before the video ends).`;
 
 function runClaude(prompt: string, timeoutMs = 180_000): Promise<unknown> {
   // An empty working directory, so no project CLAUDE.md or settings ride along.
@@ -314,7 +376,7 @@ function runClaude(prompt: string, timeoutMs = 180_000): Promise<unknown> {
 
 export function scriptPrompt(facts: Facts, previousErrors?: string[]): string {
   const lines = [
-    `Write the script for this ${facts.format === 'fall' ? '"would you fall for this?"' : '"blunder of the day"'} video.`,
+    `Write the script for this ${facts.format === 'fall' ? '"would you fall for this?"' : facts.format === 'pro' ? '"Blunders decide games"' : '"blunder of the day"'} video.`,
     '',
     'Facts (JSON):',
     JSON.stringify(facts, null, 2),

@@ -1,7 +1,7 @@
-// Hands today's queued video to Buffer, which publishes it a few minutes later
-// as an Instagram Reel and a public TikTok post. The channels are independent —
-// one failing never blocks the other — and a rerun retries only the channel
-// that has no Buffer post yet. Each run also reads back the last 14 days of
+// Hands today's queued videos (one per slot, series.ts) to Buffer, which
+// publishes each at its slot time as an Instagram Reel, a public TikTok post
+// and a YouTube Short. The channels are independent — one failing never blocks
+// the others — and a rerun retries only the channels with no Buffer post yet. Each run also reads back the last 14 days of
 // Buffer posts (sent / error, the Instagram link) and pulls Reel insights when
 // an Instagram token is in KV.
 //
@@ -11,26 +11,30 @@
 //
 // SOCIAL_MODE: live = schedule in Buffer; draft = Buffer drafts (nothing
 // publishes, nothing is recorded, reruns make new drafts); anything else logs.
-// Channels: BUFFER_INSTAGRAM_CHANNEL_ID / BUFFER_TIKTOK_CHANNEL_ID (unset = skip
-// that channel); BUFFER_API_KEY.
+// Channels: BUFFER_INSTAGRAM_CHANNEL_ID / BUFFER_TIKTOK_CHANNEL_ID /
+// BUFFER_YOUTUBE_CHANNEL_ID (unset = skip that channel); BUFFER_API_KEY.
 import { createVideoPost, postState, type BufferChannel } from './buffer.ts';
 import { d1, sql, type Target } from './cloudflare.ts';
 import { env, parseArgs, socialMode } from './env.ts';
 import { mediaIdForPermalink, reelInsights, refreshIgTokenIfStale } from './instagram.ts';
 import { addDays, utcToday } from './plan.ts';
-
-/** Buffer publishes this long after the run (time to fetch the video). */
-const POST_DELAY_MIN = 10;
+import { dueAtFor } from './series.ts';
 
 interface PostRow {
   id: string;
+  slot: number;
   status: string;
   caption: string;
   tiktok_caption: string | null;
+  youtube_title: string | null;
+  youtube_caption: string | null;
   media_url: string;
   buffer_ig_post_id: string | null;
   buffer_tiktok_post_id: string | null;
+  buffer_yt_post_id: string | null;
 }
+
+type PostColumn = 'buffer_ig_post_id' | 'buffer_tiktok_post_id' | 'buffer_yt_post_id';
 
 function update(id: string, fields: Record<string, string | number | null>, target: Target): void {
   const set = Object.entries(fields)
@@ -41,10 +45,21 @@ function update(id: string, fields: Record<string, string | number | null>, targ
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 500);
 
-const CHANNELS: { channel: BufferChannel; idVar: string; column: 'buffer_ig_post_id' | 'buffer_tiktok_post_id' }[] = [
+const CHANNELS: { channel: BufferChannel; idVar: string; column: PostColumn }[] = [
   { channel: 'instagram', idVar: 'BUFFER_INSTAGRAM_CHANNEL_ID', column: 'buffer_ig_post_id' },
   { channel: 'tiktok', idVar: 'BUFFER_TIKTOK_CHANNEL_ID', column: 'buffer_tiktok_post_id' },
+  { channel: 'youtube', idVar: 'BUFFER_YOUTUBE_CHANNEL_ID', column: 'buffer_yt_post_id' },
 ];
+
+/** The post text and title per channel (pure). */
+export function channelPost(row: Pick<PostRow, 'caption' | 'tiktok_caption' | 'youtube_title' | 'youtube_caption'>, channel: BufferChannel): { text: string; title?: string } {
+  if (channel === 'tiktok') return { text: row.tiktok_caption ?? row.caption };
+  if (channel === 'youtube') return { text: row.youtube_caption ?? row.tiktok_caption ?? row.caption, title: row.youtube_title ?? undefined };
+  return { text: row.caption };
+}
+
+/** The status column Buffer's state is mirrored into, per channel. */
+const STATUS_COLUMN: Partial<Record<BufferChannel, string>> = { tiktok: 'tiktok_status', youtube: 'yt_status' };
 
 /**
  * Which day to hand to Buffer: today, or (draft / dry only) the day given with
@@ -61,27 +76,33 @@ export function publishDay(mode: 'live' | 'draft' | 'dry', requested: string | n
 async function publishToday(target: Target, mode: 'live' | 'draft' | 'dry', requestedDay: string | null): Promise<void> {
   const today = publishDay(mode, requestedDay);
   const rows = d1<PostRow>(
-    `SELECT id, status, caption, tiktok_caption, media_url, buffer_ig_post_id, buffer_tiktok_post_id FROM social_posts
-     WHERE scheduled_for = ${sql(today)} AND status IN ('queued', 'posted', 'failed')`,
+    `SELECT id, slot, status, caption, tiktok_caption, youtube_title, youtube_caption, media_url,
+            buffer_ig_post_id, buffer_tiktok_post_id, buffer_yt_post_id FROM social_posts
+     WHERE scheduled_for = ${sql(today)} AND status IN ('queued', 'posted', 'failed') ORDER BY slot`,
     target,
   );
-  const row = rows[0];
-  if (!row) {
+  if (!rows.length) {
     console.log(`${today}: nothing queued (vetoed or the queue ran dry)`);
     return;
   }
-  const todo = CHANNELS.filter((c) => env(c.idVar) && !row[c.column]);
+  for (const row of rows) await publishRow(row, today, target, mode);
+}
+
+async function publishRow(row: PostRow, day: string, target: Target, mode: 'live' | 'draft' | 'dry'): Promise<void> {
+  const label = `${day} slot ${row.slot}`;
+  const todo = CHANNELS.filter((c) => env(c.idVar) && !row[c.column] && (c.channel !== 'youtube' || row.youtube_title));
   if (todo.length === 0) {
-    console.log(`${today}: already handed to Buffer (or no channel configured)`);
+    console.log(`${label}: already handed to Buffer (or no channel configured)`);
     return;
   }
+  // A draft / preview of another day publishes nowhere: due soon is fine.
+  const dueAt = mode === 'live' ? dueAtFor(day, row.slot) : dueAtFor(utcToday(), row.slot);
   if (mode === 'dry') {
-    console.log(`[dry] ${today}: would schedule ${row.media_url} on ${todo.map((c) => c.channel).join(' + ')}`);
+    console.log(`[dry] ${label}: would schedule ${row.media_url} on ${todo.map((c) => c.channel).join(' + ')} at ${dueAt}`);
     console.log(`[dry]   Instagram caption:\n${row.caption}`);
     return;
   }
 
-  const dueAt = new Date(Date.now() + POST_DELAY_MIN * 60_000).toISOString();
   const errors: string[] = [];
   let scheduled = 0;
   for (const c of todo) {
@@ -89,19 +110,20 @@ async function publishToday(target: Target, mode: 'live' | 'draft' | 'dry', requ
       const post = await createVideoPost({
         channel: c.channel,
         channelId: env(c.idVar)!,
-        text: c.channel === 'tiktok' ? (row.tiktok_caption ?? row.caption) : row.caption,
+        ...channelPost(row, c.channel),
         videoUrl: row.media_url,
         dueAt,
         draft: mode === 'draft',
       });
-      console.log(`${c.channel}: Buffer ${mode === 'draft' ? 'draft' : 'post'} ${post.id} (${post.status}, due ${dueAt})`);
+      console.log(`${label} ${c.channel}: Buffer ${mode === 'draft' ? 'draft' : 'post'} ${post.id} (${post.status}, due ${dueAt})`);
       if (mode === 'live') {
-        update(row.id, { [c.column]: post.id, ...(c.channel === 'tiktok' ? { tiktok_status: post.status } : {}) }, target);
+        const statusCol = STATUS_COLUMN[c.channel];
+        update(row.id, { [c.column]: post.id, ...(statusCol ? { [statusCol]: post.status } : {}) }, target);
         scheduled++;
       }
     } catch (e) {
       errors.push(`${c.channel}: ${errText(e)}`);
-      console.error(`${c.channel} failed: ${errText(e)}`);
+      console.error(`${label} ${c.channel} failed: ${errText(e)}`);
     }
   }
   if (mode === 'live') {
@@ -113,9 +135,9 @@ async function publishToday(target: Target, mode: 'live' | 'draft' | 'dry', requ
 
 /** Reads back what Buffer did with the last 14 days of posts. */
 async function syncBuffer(target: Target): Promise<void> {
-  const rows = d1<{ id: string; buffer_ig_post_id: string | null; buffer_tiktok_post_id: string | null; permalink: string | null }>(
-    `SELECT id, buffer_ig_post_id, buffer_tiktok_post_id, permalink FROM social_posts
-     WHERE (buffer_ig_post_id IS NOT NULL OR buffer_tiktok_post_id IS NOT NULL)
+  const rows = d1<{ id: string; buffer_ig_post_id: string | null; buffer_tiktok_post_id: string | null; buffer_yt_post_id: string | null; permalink: string | null }>(
+    `SELECT id, buffer_ig_post_id, buffer_tiktok_post_id, buffer_yt_post_id, permalink FROM social_posts
+     WHERE (buffer_ig_post_id IS NOT NULL OR buffer_tiktok_post_id IS NOT NULL OR buffer_yt_post_id IS NOT NULL)
        AND scheduled_for >= ${sql(addDays(utcToday(), -14))}`,
     target,
   );
@@ -124,14 +146,15 @@ async function syncBuffer(target: Target): Promise<void> {
     const fields: Record<string, string | number | null> = {};
     let anySent = false;
     let allFailed = true;
-    for (const [channel, id] of [['instagram', r.buffer_ig_post_id], ['tiktok', r.buffer_tiktok_post_id]] as const) {
+    for (const [channel, id] of [['instagram', r.buffer_ig_post_id], ['tiktok', r.buffer_tiktok_post_id], ['youtube', r.buffer_yt_post_id]] as const) {
       if (!id) continue;
       try {
         const s = await postState(id);
         if (s.status !== 'error') allFailed = false;
         if (s.status === 'sent') anySent = true;
         if (s.error) errors.push(`${channel}: ${s.error}`);
-        if (channel === 'tiktok') fields.tiktok_status = s.status;
+        const statusCol = STATUS_COLUMN[channel];
+        if (statusCol) fields[statusCol] = s.status;
         if (channel === 'instagram' && s.externalLink && s.externalLink !== r.permalink) fields.permalink = s.externalLink;
         if (s.sentAt && channel === 'instagram') fields.posted_at = s.sentAt;
       } catch (e) {

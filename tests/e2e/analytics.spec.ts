@@ -215,12 +215,47 @@ const FALL_POST = {
   voice: 'am_michael',
 };
 
+const PRO_POST = {
+  ...SOCIAL_POST,
+  blunder_id: 'pro:chesscom:123456',
+  slot: 1,
+  format: 'pro',
+  youtube_title: 'Magnus vs Hikaru: find the punishment | Titled Tuesday',
+  buffer_yt_post_id: 'buf-yt-1',
+  yt_status: 'scheduled',
+  buffer_ig_post_id: 'buf-ig-2',
+  buffer_tiktok_post_id: 'buf-tt-2',
+  tiktok_status: 'scheduled',
+  puzzle: {
+    format: 'pro',
+    fen: 'rnbqkbnr/pppp1p1p/6p1/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR w KQkq - 0 3',
+    side: 'white',
+    rating: null,
+    timeControl: 'blitz',
+    played: 'g6',
+    refutation: [],
+    solution: ['Qxe5+', 'Qe7', 'Qxh8'],
+    motifLabel: null,
+    hook: 'find-the-punishment',
+    pro: {
+      white: { name: 'Hikaru Nakamura', title: 'GM', rating: 3250 },
+      black: { name: 'Magnus Carlsen', title: 'GM', rating: 3301 },
+      event: 'Titled Tuesday',
+      year: 2026,
+      blunderer: 'black',
+      url: 'https://www.chess.com/game/live/123456',
+      foundInGame: true,
+    },
+  },
+};
+
 const SOCIAL_QUEUE = {
   today: '2026-11-22',
   upcoming: [
     { ...SOCIAL_POST, id: 'q1', scheduled_for: '2026-11-23', status: 'queued' },
     { ...SOCIAL_POST, id: 'v1', scheduled_for: '2026-11-24', status: 'vetoed' },
     { ...FALL_POST, id: 'f1', scheduled_for: '2026-11-25', status: 'queued' },
+    { ...PRO_POST, id: 'pro1', scheduled_for: '2026-11-25', status: 'queued' },
   ],
   recent: [
     {
@@ -433,8 +468,9 @@ test('admin reviews the daily puzzle-video queue: veto and restore', async ({ pa
   const card = page.getByTestId('social-queue-card');
   await expect(card).toBeVisible({ timeout: 20_000 });
   const posts = card.getByTestId('social-post');
-  await expect(posts).toHaveCount(5);
+  await expect(posts).toHaveCount(6);
   await expect(posts.nth(0)).toContainText('Queued');
+  await expect(posts.nth(0)).toContainText('Puzzle · ~12:10 ET');
   await expect(posts.nth(0)).toContainText('answer Qxh7+ Kxh7 Rh3#');
   await expect(posts.nth(1)).toContainText('Vetoed: will not post');
   // The fall format: counts, the punishment and the folded voiceover script.
@@ -444,10 +480,16 @@ test('admin reviews the daily puzzle-video queue: veto and restore', async ({ pa
   await expect(script).toContainText('written by Claude, voice am_michael');
   await script.locator('summary').click();
   await expect(script).toContainText('Queen takes e5, check.');
-  await expect(posts.nth(3)).toContainText('1,234 views');
-  await expect(posts.nth(3)).toContainText('TikTok draft is in your inbox');
-  await expect(posts.nth(3).getByRole('link', { name: 'Instagram' })).toHaveAttribute('href', 'https://www.instagram.com/reel/abc/');
-  await expect(posts.nth(4).getByTestId('social-post-buffer')).toContainText('Instagram scheduled · TikTok sent');
+  // The evening slot: "Blunders decide games", with the game credited and YouTube in Buffer.
+  await expect(posts.nth(3)).toContainText('Blunders decide games · ~18:30 ET');
+  await expect(posts.nth(3).getByTestId('social-post-puzzle')).toContainText('GM Hikaru Nakamura vs GM Magnus Carlsen, Titled Tuesday 2026');
+  await expect(posts.nth(3).getByRole('link', { name: 'game' })).toHaveAttribute('href', 'https://www.chess.com/game/live/123456');
+  await expect(posts.nth(3).getByTestId('social-post-buffer')).toContainText('YouTube scheduled');
+  await expect(posts.nth(3).getByRole('button', { name: 'Copy YouTube title' })).toBeVisible();
+  await expect(posts.nth(4)).toContainText('1,234 views');
+  await expect(posts.nth(4)).toContainText('TikTok draft is in your inbox');
+  await expect(posts.nth(4).getByRole('link', { name: 'Instagram' })).toHaveAttribute('href', 'https://www.instagram.com/reel/abc/');
+  await expect(posts.nth(5).getByTestId('social-post-buffer')).toContainText('Instagram scheduled · TikTok sent · YouTube not sent');
   await posts.nth(0).getByRole('button', { name: 'Veto' }).click();
   await rpc.waitFor('admin.socialSetStatus', (a) => a.id === 'q1' && a.status === 'vetoed');
   await posts.nth(1).getByRole('button', { name: 'Restore' }).click();

@@ -1,13 +1,17 @@
 // Buffer's GraphQL API (https://developers.buffer.com): one endpoint, a
 // personal API key from https://publish.buffer.com/settings/api in
 // BUFFER_API_KEY. Buffer fetches the video from its public URL (our R2 domain)
-// and publishes it to Instagram (a Reel) and TikTok (a public post — Buffer is
-// an audited TikTok partner, which our own app can't be).
+// and publishes it to Instagram (a Reel), TikTok (a public post — Buffer is an
+// audited TikTok partner, which our own app can't be) and YouTube (a Short:
+// vertical and under 3 minutes, so YouTube files it as one).
 import { requireEnv } from './env.ts';
 
 export const BUFFER_ENDPOINT = 'https://api.buffer.com';
 
-export type BufferChannel = 'instagram' | 'tiktok';
+export type BufferChannel = 'instagram' | 'tiktok' | 'youtube';
+
+/** YouTube category "Gaming" (chess channels file there). */
+export const YOUTUBE_CATEGORY_ID = '20';
 
 export interface GraphqlError {
   message: string;
@@ -51,7 +55,7 @@ export interface VideoPostInput {
   draft: boolean;
   /** Instagram only: posted as the first comment. */
   firstComment?: string;
-  /** TikTok only. */
+  /** TikTok (optional) and YouTube (required). */
   title?: string;
   /** The poster frame, in ms into the video. */
   thumbnailOffsetMs?: number;
@@ -59,12 +63,27 @@ export interface VideoPostInput {
 
 /** The createPost input for one channel (pure; unit-tested). */
 export function createPostInput(p: VideoPostInput): Record<string, unknown> {
+  if (p.channel === 'youtube' && !p.title?.trim()) throw new BufferError('YouTube posts need a title');
   const metadata =
     p.channel === 'instagram'
       ? { instagram: { type: 'reel', shouldShareToFeed: true, ...(p.firstComment ? { firstComment: p.firstComment } : {}) } }
-      : p.title
-        ? { tiktok: { title: p.title } }
-        : undefined;
+      : p.channel === 'youtube'
+        ? {
+            youtube: {
+              title: p.title!.slice(0, 100),
+              categoryId: YOUTUBE_CATEGORY_ID,
+              privacy: 'public',
+              madeForKids: false,
+              notifySubscribers: true,
+              // The narrator is a synthetic voice: disclose it.
+              isAiGenerated: true,
+            },
+          }
+        : p.title
+          ? { tiktok: { title: p.title } }
+          : undefined;
+  // Buffer applies thumbnailOffset only to Instagram / TikTok (/ Pinterest).
+  const videoMeta = p.channel === 'youtube' ? undefined : { thumbnailOffset: p.thumbnailOffsetMs ?? 500 };
   return {
     channelId: p.channelId,
     text: p.text,
@@ -72,7 +91,7 @@ export function createPostInput(p: VideoPostInput): Record<string, unknown> {
     mode: 'customScheduled',
     dueAt: p.dueAt,
     ...(p.draft ? { saveToDraft: true } : {}),
-    assets: [{ video: { url: p.videoUrl, metadata: { thumbnailOffset: p.thumbnailOffsetMs ?? 500 } } }],
+    assets: [{ video: { url: p.videoUrl, ...(videoMeta ? { metadata: videoMeta } : {}) } }],
     ...(metadata ? { metadata } : {}),
   };
 }

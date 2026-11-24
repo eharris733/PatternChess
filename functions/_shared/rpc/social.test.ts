@@ -59,13 +59,27 @@ describe('social queue', () => {
     addPost('o1', '2026-11-24', 'queued');
     expect((await socialQueue(db, '2026-11-22')).upcoming[1].format).toBe('blunder');
     expect(() => addPost('x1', '2026-11-25', 'queued', { format: 'meme' })).toThrow();
+    addPost('pro1', '2026-11-25', 'queued', { format: 'pro', slot: 1, youtube_title: 'One move decided it', buffer_yt_post_id: 'y1' });
     expect(() => addPost('x2', '2026-11-26', 'queued', { script_source: 'gpt' })).toThrow();
   });
 
-  it('one live row per day', () => {
+  it('one live row per day and slot (0009)', async () => {
     addPost('a', '2026-11-23', 'queued');
     expect(() => addPost('b', '2026-11-23', 'queued')).toThrow();
     addPost('c', '2026-11-23', 'vetoed');
+    addPost('evening', '2026-11-23', 'queued', { slot: 1, format: 'pro' });
+    expect(() => addPost('d', '2026-11-23', 'queued', { slot: 1 })).toThrow();
+    expect(() => addPost('e', '2026-11-24', 'queued', { slot: 2 })).toThrow();
+    const q = await socialQueue(db, '2026-11-22');
+    expect(q.upcoming.map((r) => [r.id, r.slot])).toEqual([['c', 0], ['a', 0], ['evening', 1]]);
+    expect(q.upcoming[2]).toMatchObject({ format: 'pro', youtube_title: null, buffer_yt_post_id: null, yt_status: null });
+  });
+
+  it('restores a vetoed slot only when that slot is free', async () => {
+    addPost('v', '2026-11-23', 'vetoed', { slot: 1 });
+    addPost('morning', '2026-11-23', 'queued'); // the other slot is taken: fine
+    await socialSetStatus(db, 'v', 'queued', '2026-11-22');
+    expect(status('v')).toBe('queued');
   });
 
   it('vetoes and restores upcoming rows only', async () => {
