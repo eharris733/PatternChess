@@ -229,6 +229,34 @@ test('the invite card states the referral reward, and a grant shows as Supporter
   await expect(page.getByTestId('theme-option-midnight')).toBeEnabled();
 });
 
+test('a comp grant reads as on the house, and the invite card drops the reward pitch', async ({ page }) => {
+  const forever = '2099-12-31T00:00:00.000Z';
+  await stub(page, {
+    rpc: {
+      'referral.summary': () => ({ rewardsEarned: 0, perksUntil: null, positionsNeeded: 20 }),
+      'supporters.mine': () => ({
+        status: 'none',
+        current_period_end: null,
+        cancel_at_period_end: false,
+        first_supported_at: null,
+        grant_ends_at: forever,
+        comp_ends_at: forever,
+      }),
+    },
+  });
+  await page.goto('/leaderboards');
+  await expect(page.getByTestId('invite-reward')).toHaveText('Send your link and see how your friends stack up against you.');
+  await expect(page.getByTestId('invite-earned')).toHaveCount(0);
+
+  await page.goto('/profile#supporter');
+  const card = page.getByTestId('supporter-setting');
+  await expect(card.getByTestId('supporter-comp')).toHaveText(
+    'Your Supporter perks are on the house. Thank you for being part of PatternChess.',
+  );
+  await expect(card).not.toContainText('friends you invited');
+  await expect(card).not.toContainText('2099');
+});
+
 test('signed-in pages use the chosen piece set; public pages keep the classic pieces', async ({ page }) => {
   await stub(page, { solved: 30, profile: { piece_set: 'chessnut', theme: 'walnut' } });
   await page.goto('/dashboard');

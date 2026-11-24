@@ -165,6 +165,8 @@
   "supporter.thanksNext": "Obrigado por apoiar o PatternChess. Próximo pagamento em {date}.",
   "supporter.thanks": "Obrigado por apoiar o PatternChess.",
   "supporter.grantUntil": "Você tem os benefícios de Apoiador até {date}, graças aos amigos que convidou.",
+  "supporter.comp": "Seus benefícios de Apoiador são por conta da casa. Obrigado por fazer parte do PatternChess.",
+  "supporter.compUntil": "Seus benefícios de Apoiador são por conta da casa até {date}. Obrigado por fazer parte do PatternChess.",
   "supporter.earlyThanks": "Obrigado por apoiar o PatternChess. Sua insígnia Early Supporter continua sua.",
   "supporter.pitch": "O PatternChess é gratuito. Se ele ajuda seu xadrez, apoiar a partir de US$ 5 por mês o mantém funcionando.",
   "supporter.supportAgain": "Apoiar de novo",

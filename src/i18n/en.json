@@ -165,6 +165,8 @@
   "supporter.thanksNext": "Thank you for supporting PatternChess. Next payment {date}.",
   "supporter.thanks": "Thank you for supporting PatternChess.",
   "supporter.grantUntil": "You have Supporter perks until {date}, thanks to the friends you invited.",
+  "supporter.comp": "Your Supporter perks are on the house. Thank you for being part of PatternChess.",
+  "supporter.compUntil": "Your Supporter perks are on the house until {date}. Thank you for being part of PatternChess.",
   "supporter.earlyThanks": "Thank you for supporting PatternChess. Your Early Supporter flair stays yours.",
   "supporter.pitch": "PatternChess is free. If it helps your chess, supporting it from $5 a month keeps it running.",
   "supporter.supportAgain": "Support again",

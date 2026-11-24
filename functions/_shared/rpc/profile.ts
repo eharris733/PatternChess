@@ -708,11 +708,12 @@ export const handlers: RpcRegistry = {
 
   /**
    * The caller's own supporters row (the Stripe mirror) plus `grant_ends_at`
-   * (the end of their running supporter_grants, e.g. the referral reward), or
-   * null when they have neither. Perks = a PERK_STATUSES status OR a grant.
+   * (the end of their running supporter_grants, any source) and
+   * `comp_ends_at` (the same for hand-given `comp` grants only), or null when
+   * they have none of them. Perks = a PERK_STATUSES status OR a grant.
    */
   'supporters.mine': userRpc(async (ctx) => {
-    const [row, grantEndsAt] = await Promise.all([
+    const [row, grantEndsAt, compEndsAt] = await Promise.all([
       first<Record<string, unknown>>(
         ctx.db,
         'SELECT status, current_period_end, cancel_at_period_end, first_supported_at FROM supporters WHERE user_id = ?',
@@ -720,6 +721,7 @@ export const handlers: RpcRegistry = {
         'supporters',
       ),
       grantPerksUntil(ctx.db, ctx.user.id),
+      grantPerksUntil(ctx.db, ctx.user.id, undefined, 'comp'),
     ]);
     if (!row && !grantEndsAt) return null;
     return {
@@ -729,6 +731,7 @@ export const handlers: RpcRegistry = {
       first_supported_at: null,
       ...(row ?? {}),
       grant_ends_at: grantEndsAt,
+      comp_ends_at: compEndsAt,
     };
   }),
 
