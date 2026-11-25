@@ -27,7 +27,8 @@
           "youtubeId": "Jiz7KLKjLas",
           "start": 0,
           "end": 811,
-          "takeaway": "1...c6 prepares ...d5, so Black challenges e4 with a pawn behind it. The Classical ...Bf5, the Karpov ...Nd7 and the ...Nf6 lines all grow from the same 3.Nc3 dxe4 4.Nxe4 position."
+          "takeaway": "1...c6 prepares ...d5, so Black challenges e4 with a pawn behind it. The Classical ...Bf5, the Karpov ...Nd7 and the ...Nf6 lines all grow from the same 3.Nc3 dxe4 4.Nxe4 position.",
+          "lesson": "caro-kann-foundations-d1"
         },
         {
           "day": 2,
@@ -35,7 +36,8 @@
           "youtubeId": "Jiz7KLKjLas",
           "start": 811,
           "end": 1564,
-          "takeaway": "White's main ways to sidestep the Classical lines are 3.e5, 3.f3 and the exchange on d5, often followed by c4 in the Panov. Each one hands you a different pawn structure, and the structure tells you the plan."
+          "takeaway": "White's main ways to sidestep the Classical lines are 3.e5, 3.f3 and the exchange on d5, often followed by c4 in the Panov. Each one hands you a different pawn structure, and the structure tells you the plan.",
+          "lesson": "caro-kann-foundations-d2"
         },
         {
           "day": 3,
@@ -328,7 +330,8 @@
           "youtubeId": "UhKxU9dM72s",
           "start": 0,
           "end": 460,
-          "takeaway": "Dr. Can sorts hung pieces into three common kinds of blunder. Pause on each position and find the loose piece before he does."
+          "takeaway": "Dr. Can sorts hung pieces into three common kinds of blunder. Pause on each position and find the loose piece before he does.",
+          "lesson": "stop-hanging-pieces-d1"
         },
         {
           "day": 2,
@@ -336,7 +339,8 @@
           "youtubeId": "UhKxU9dM72s",
           "start": 460,
           "end": 958,
-          "takeaway": "Two more positions. As you watch, name which of the three blunder types each one shows; naming the pattern is how you start catching it at the board."
+          "takeaway": "Two more positions. As you watch, name which of the three blunder types each one shows; naming the pattern is how you start catching it at the board.",
+          "lesson": "stop-hanging-pieces-d2"
         },
         {
           "day": 3,
@@ -656,7 +660,8 @@
           "youtubeId": "aLyRWZPXUzI",
           "start": 0,
           "end": 581,
-          "takeaway": "Common errors, then the basic evaluation. Opposition: the kings face each other on the same file with an odd number of squares between them, and it's the other side to move."
+          "takeaway": "Common errors, then the basic evaluation. Opposition: the kings face each other on the same file with an odd number of squares between them, and it's the other side to move.",
+          "lesson": "king-and-pawn-endgames-d1"
         },
         {
           "day": 2,
@@ -664,7 +669,8 @@
           "youtubeId": "aLyRWZPXUzI",
           "start": 581,
           "end": 1220,
-          "takeaway": "Correcting the winning path, taking the opposition from a distance, and the exceptions to the rule."
+          "takeaway": "Correcting the winning path, taking the opposition from a distance, and the exceptions to the rule.",
+          "lesson": "king-and-pawn-endgames-d2"
         },
         {
           "day": 3,

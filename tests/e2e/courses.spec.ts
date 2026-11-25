@@ -1,16 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
-import { DEFAULT_PROFILE_ROW, rpcError, stubApp, type RpcRecorder, type StubUser } from './helpers/api';
+import { DEFAULT_PROFILE_ROW, rpcError, stubApp, stubRpc, stubSession, type RpcRecorder, type StubUser } from './helpers/api';
 
 // /courses on the Cloudflare backend: the session (better-auth) and every
 // RPC are stubbed by tests/e2e/helpers/api.ts, so no local D1 or Functions
 // are needed. The dev server shows pending courses (import.meta.env.DEV),
 // which is all of the catalog until creators agree.
 //
-// No catalog day has an interactive lesson yet (the PGNs are still to be
-// written from the videos), so the lesson-drill test serves Vite's module
-// for the catalog with one day pointing at a tiny fixture lesson, and serves
-// that lesson's module too.
+// The lesson-drill tests don't depend on the real lessons: the free-day test
+// serves Vite's module for the catalog with one day pointing at a tiny fixture
+// lesson (and serves that lesson's module too); the supporter-day test returns
+// a fixture lesson from courses.dayContent, the way KV serves it.
 
 const USER: StubUser = {
   id: 'e2e-courses',
@@ -104,7 +104,14 @@ const GAMES = [
 
 async function stub(
   page: Page,
-  opts: { supporter?: boolean; progress?: ProgressRow[]; focus?: string | null; games?: boolean } = {},
+  opts: {
+    supporter?: boolean;
+    progress?: ProgressRow[];
+    focus?: string | null;
+    games?: boolean;
+    /** A built lesson served with the supporter day (KV `lessonStudy`). */
+    dayLesson?: object;
+  } = {},
 ) {
   const state = { progress: opts.progress ?? [], focus: opts.focus ?? null } as CourseState;
   const profile = () => ({ ...DEFAULT_PROFILE_ROW, ...PROFILE });
@@ -142,7 +149,14 @@ async function stub(
       },
       'courses.dayContent': () =>
         opts.supporter
-          ? { youtubeId: 'FGx28GrVrY8', start: 659, end: 1128, takeaway: 'Supporter takeaway.', lesson: null }
+          ? {
+              youtubeId: 'FGx28GrVrY8',
+              start: 659,
+              end: 1128,
+              takeaway: 'Supporter takeaway.',
+              lesson: opts.dayLesson ? 'avoid-knight-forks-d3' : null,
+              lessonStudy: opts.dayLesson ?? null,
+            }
           : rpcError(403, 'This lesson is for supporters', 'supporters_only'),
       // The server's aggregate, not the seeded rows' (those carry no solution line).
       'stats.motifCounts': () => ({ counts: { allowedFork: 12, missedFork: 2, defensiveMistake: 6 }, tagged: 20, untagged: 0, total: 20 }),
@@ -151,7 +165,9 @@ async function stub(
   return state;
 }
 
-const LESSON_SLUG = 'hp-sicilian-pin-dzp2it';
+// A built course-day lesson (its file must exist for the lazy loader); the
+// test serves TINY_LESSON in its place.
+const LESSON_SLUG = 'king-and-pawn-endgames-d1';
 
 /** A one-move lesson: an intro beat, 1.e4 for the learner, then ...e5 ends it. */
 const TINY_LESSON = {
@@ -208,6 +224,57 @@ const TINY_LESSON = {
   ],
 };
 
+/**
+ * A supporter-day lesson with an opponent sideline: main line 1.e4 e5; the
+ * sideline 1...c5 is its own line, answered by 2.Nf3.
+ */
+const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+const SUPPORTER_LESSON = {
+  ...TINY_LESSON,
+  slug: 'avoid-knight-forks-d3',
+  source: { ...TINY_LESSON.source, url: 'https://www.youtube.com/watch?v=FGx28GrVrY8' },
+  chapters: [{ id: 'c1', name: 'Meet the Sicilian' }],
+  chapterData: [
+    {
+      id: 'c1',
+      name: 'Meet the Sicilian',
+      url: '',
+      annotator: null,
+      orientation: 'white',
+      startFen: START,
+      gamebook: false,
+      moves: [
+        {
+          id: 'n0',
+          san: 'e4',
+          uci: 'e2e4',
+          fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+          children: [
+            { id: 'n1', san: 'e5', uci: 'e7e5', fen: 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2', children: [] },
+            {
+              id: 'n2',
+              san: 'c5',
+              uci: 'c7c5',
+              fen: 'rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2',
+              comment: 'If Black plays the Sicilian instead, develop.',
+              ts: 700,
+              children: [
+                {
+                  id: 'n3',
+                  san: 'Nf3',
+                  uci: 'g1f3',
+                  fen: 'rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2',
+                  children: [],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
 /** Serve the catalog with `slug` day 1 pointing at the fixture lesson, and the lesson itself. */
 async function withLessonDay(page: Page, slug: string) {
   const catalog = JSON.parse(readFileSync('src/generated/courses-catalog.json', 'utf8'));
@@ -216,7 +283,7 @@ async function withLessonDay(page: Page, slug: string) {
   await page.route(/\/src\/generated\/courses-catalog\.json/, (route) =>
     route.fulfill({ contentType: 'text/javascript', body: `export default ${JSON.stringify(catalog)};` }),
   );
-  await page.route(new RegExp(`/src/generated/courses/${LESSON_SLUG}\\.json`), (route) =>
+  await page.route(new RegExp(`/src/generated/course-lessons/${LESSON_SLUG}\\.json`), (route) =>
     route.fulfill({ contentType: 'text/javascript', body: `export default ${JSON.stringify(TINY_LESSON)};` }),
   );
 }
@@ -376,4 +443,44 @@ test.describe('courses', () => {
     await expect(page.getByTestId('course-takeaway')).toContainText('Supporter takeaway.');
     expect(state.rec.callsTo('courses.dayContent')[0]?.args).toEqual({ slug: 'avoid-knight-forks', day: 3 });
   });
+
+  test("a supporter day's lesson comes with the day, and its opponent sidelines are lines to train", async ({ page }) => {
+    const state = await stub(page, {
+      supporter: true,
+      dayLesson: SUPPORTER_LESSON,
+      progress: [
+        { course_slug: 'avoid-knight-forks', day: 1, local_date: daysAgo(3), completed_at: new Date().toISOString() },
+        { course_slug: 'avoid-knight-forks', day: 2, local_date: daysAgo(1), completed_at: new Date().toISOString() },
+      ],
+    });
+    await page.goto('/courses/avoid-knight-forks/3');
+    await expect(page.getByTestId('course-lesson-drill')).toBeVisible();
+    await expect(page.getByTestId('course-chapter-label')).toContainText('Line 1 of 2');
+    await expect(page.getByTestId('course-status')).toHaveText('Your move as White.');
+    await dragMove(page, { file: 4, rank: 2 }, { file: 4, rank: 4 });
+    // Main line done: the sideline is next, not the finish.
+    await expect(page.getByTestId('course-next')).toContainText('Next line');
+    await page.getByTestId('course-next').click();
+    await expect(page.getByTestId('course-chapter-label')).toContainText('Line 2 of 2');
+    await expect(page.getByTestId('course-branch')).toHaveText('Instead: 1...c5');
+    await expect(page.getByTestId('course-message')).toContainText('If Black plays the Sicilian instead, develop.');
+    await expect(page.getByTestId('course-watch')).toContainText('11:40');
+    await page.getByTestId('course-continue').click();
+    await dragMove(page, { file: 6, rank: 1 }, { file: 5, rank: 3 });
+    await expect(page.getByTestId('course-next')).toContainText('Finish the lesson');
+    await page.getByTestId('course-next').click();
+    await expect.poll(() => state.rec.callsTo('courses.completeDay')[0]?.args.day).toBe(3);
+  });
+});
+
+test('/c/:slug opens creator demos only, never a course-day lesson', async ({ page }) => {
+  await stubSession(page, null);
+  await stubRpc(page);
+  // A course lesson's slug is guessable and its course may not be granted yet.
+  await page.goto(`/c/${LESSON_SLUG}`);
+  await expect(page.getByTestId('course-not-found')).toBeVisible();
+  // An outreach demo still plays.
+  await page.goto('/c/hp-sicilian-pin-dzp2it');
+  await expect(page.getByText('Punishing the Sicilian Pin Variation').first()).toBeVisible();
+  await expect(page.getByTestId('course-not-found')).toHaveCount(0);
 });

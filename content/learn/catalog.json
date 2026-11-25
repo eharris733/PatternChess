@@ -90,6 +90,336 @@
         "title": "Sicilian Pin Variation (and why it's bad for black)"
       },
       "enabled": true
+    },
+    {
+      "slug": "king-and-pawn-endgames-d1",
+      "studyId": "yt-aLyRWZPXUzI-king-and-pawn-endgames-d1",
+      "title": "King and pawn vs king: the rules",
+      "category": "endgames",
+      "level": "beginner",
+      "author": "John Bartholomew",
+      "description": "Why the slow pawn march only draws, and how taking the opposition with Kd3 wins king and pawn against king.",
+      "pgnFile": "content/courses/king-and-pawn-endgames-d1.pgn",
+      "permission": {
+        "kind": "course",
+        "note": "Lesson for a day of the King and Pawn Endgames course; the course permission (pending) governs it.",
+        "grantedAt": "2026-11-24"
+      },
+      "unlisted": true,
+      "source": {
+        "kind": "youtube",
+        "url": "https://www.youtube.com/watch?v=aLyRWZPXUzI",
+        "channel": "John Bartholomew",
+        "channelUrl": "https://www.youtube.com/@JohnBartholomewChess",
+        "title": "Chess Endgame Fundamentals: King + Pawn vs. King"
+      },
+      "enabled": true
+    },
+    {
+      "slug": "king-and-pawn-endgames-d2",
+      "studyId": "yt-aLyRWZPXUzI-king-and-pawn-endgames-d2",
+      "title": "Winning paths and distant opposition",
+      "category": "endgames",
+      "level": "beginner",
+      "author": "John Bartholomew",
+      "description": "Finish the win from the opposition, defend by keeping the kings on the same file, find Black's only drawing move, and use a reserve tempo.",
+      "pgnFile": "content/courses/king-and-pawn-endgames-d2.pgn",
+      "permission": {
+        "kind": "course",
+        "note": "Lesson for a day of the King and Pawn Endgames course; the course permission (pending) governs it.",
+        "grantedAt": "2026-11-24"
+      },
+      "unlisted": true,
+      "source": {
+        "kind": "youtube",
+        "url": "https://www.youtube.com/watch?v=aLyRWZPXUzI",
+        "channel": "John Bartholomew",
+        "channelUrl": "https://www.youtube.com/@JohnBartholomewChess",
+        "title": "Chess Endgame Fundamentals: King + Pawn vs. King"
+      },
+      "enabled": true
+    },
+    {
+      "slug": "king-and-pawn-endgames-d3",
+      "studyId": "yt-aaOFu52Asq0-king-and-pawn-endgames-d3",
+      "title": "Opposition, shouldering and reserve tempi",
+      "category": "endgames",
+      "color": "white",
+      "level": "intermediate",
+      "author": "John Bartholomew",
+      "description": "A study where only the counterintuitive Kd4 wins, using the opposition, shouldering and the f-pawn's spare two-square move.",
+      "pgnFile": "content/supporter/courses/lessons/king-and-pawn-endgames-d3.pgn",
+      "permission": {
+        "kind": "course",
+        "note": "Lesson for a day of the King and Pawn Endgames course; the course permission (pending) governs it.",
+        "grantedAt": "2026-11-24"
+      },
+      "unlisted": true,
+      "supporterOnly": true,
+      "source": {
+        "kind": "youtube",
+        "url": "https://www.youtube.com/watch?v=aaOFu52Asq0",
+        "channel": "John Bartholomew",
+        "channelUrl": "https://www.youtube.com/@JohnBartholomewChess",
+        "title": "Opposition, Shouldering, & Reserve Tempi, Oh My!"
+      },
+      "enabled": true
+    },
+    {
+      "slug": "king-and-pawn-endgames-d4",
+      "studyId": "yt-OEj16fPGhes-king-and-pawn-endgames-d4",
+      "title": "Think before you trade into a pawn ending",
+      "category": "endgames",
+      "level": "advanced",
+      "author": "John Bartholomew",
+      "description": "John's Minnesota Open game: the queen trade was fine for Black, but only ...f4 held, and ...Kc6 lost to zugzwang and outflanking.",
+      "pgnFile": "content/supporter/courses/lessons/king-and-pawn-endgames-d4.pgn",
+      "permission": {
+        "kind": "course",
+        "note": "Lesson for a day of the King and Pawn Endgames course; the course permission (pending) governs it.",
+        "grantedAt": "2026-11-24"
+      },
+      "unlisted": true,
+      "supporterOnly": true,
+      "source": {
+        "kind": "youtube",
+        "url": "https://www.youtube.com/watch?v=OEj16fPGhes",
+        "channel": "John Bartholomew",
+        "channelUrl": "https://www.youtube.com/@JohnBartholomewChess",
+        "title": "Why You Should Know the Ramifications of King & Pawn Endings"
+      },
+      "enabled": true
+    },
+    {
+      "slug": "caro-kann-foundations-d1",
+      "studyId": "yt-Jiz7KLKjLas-caro-kann-foundations-d1",
+      "title": "The main lines at a glance",
+      "category": "openings",
+      "openingFamilies": ["Caro-Kann Defense"],
+      "color": "black",
+      "level": "beginner",
+      "author": "Hanging Pawns",
+      "description": "Play Black through the Classical ...Bf5 main line, the Karpov ...Nd7, the Korchnoi ...Nf6 and the Bronstein-Larsen, the way Stjepan lays them out.",
+      "pgnFile": "content/courses/caro-kann-foundations-d1.pgn",
+      "permission": {
+        "kind": "course",
+        "note": "Lesson for a day of the Caro-Kann Foundations course; the course permission (pending) governs it.",
+        "grantedAt": "2026-11-24"
+      },
+      "unlisted": true,
+      "source": {
+        "kind": "youtube",
+        "url": "https://www.youtube.com/watch?v=Jiz7KLKjLas",
+        "channel": "Hanging Pawns",
+        "channelUrl": "https://www.youtube.com/@HangingPawns",
+        "title": "Caro-Kann Defense (introduction, main variations & ideas) ⎸Chess Openings"
+      },
+      "enabled": true
+    },
+    {
+      "slug": "caro-kann-foundations-d2",
+      "studyId": "yt-Jiz7KLKjLas-caro-kann-foundations-d2",
+      "title": "Advance, Fantasy, Exchange and Panov",
+      "category": "openings",
+      "openingFamilies": ["Caro-Kann Defense"],
+      "color": "black",
+      "level": "beginner",
+      "author": "Hanging Pawns",
+      "description": "Black's answers to the Advance (Short Variation and 4.Nc3), the Fantasy 3.f3, the Exchange and the Panov Attack, plus a 3...g6 surprise.",
+      "pgnFile": "content/courses/caro-kann-foundations-d2.pgn",
+      "permission": {
+        "kind": "course",
+        "note": "Lesson for a day of the Caro-Kann Foundations course; the course permission (pending) governs it.",
+        "grantedAt": "2026-11-24"
+      },
+      "unlisted": true,
+      "source": {
+        "kind": "youtube",
+        "url": "https://www.youtube.com/watch?v=Jiz7KLKjLas",
+        "channel": "Hanging Pawns",
+        "channelUrl": "https://www.youtube.com/@HangingPawns",
+        "title": "Caro-Kann Defense (introduction, main variations & ideas) ⎸Chess Openings"
+      },
+      "enabled": true
+    },
+    {
+      "slug": "caro-kann-foundations-d3",
+      "studyId": "yt-67gr8tQwGrI-caro-kann-foundations-d3",
+      "title": "What the Caro-Kann is really about",
+      "category": "openings",
+      "openingFamilies": ["Caro-Kann Defense"],
+      "color": "black",
+      "level": "intermediate",
+      "author": "Hanging Pawns",
+      "description": "The structures behind the moves: the Carlsbad, the isolated queen's pawn, the ...c5 break in the Advance and freeing the c8-bishop.",
+      "pgnFile": "content/supporter/courses/lessons/caro-kann-foundations-d3.pgn",
+      "permission": {
+        "kind": "course",
+        "note": "Lesson for a day of the Caro-Kann Foundations course; the course permission (pending) governs it.",
+        "grantedAt": "2026-11-24"
+      },
+      "unlisted": true,
+      "supporterOnly": true,
+      "source": {
+        "kind": "youtube",
+        "url": "https://www.youtube.com/watch?v=67gr8tQwGrI",
+        "channel": "Hanging Pawns",
+        "channelUrl": "https://www.youtube.com/@HangingPawns",
+        "title": "Introduction to the Caro-Kann Defense · Complete Chess Openings"
+      },
+      "enabled": true
+    },
+    {
+      "slug": "caro-kann-foundations-d4",
+      "studyId": "yt-rdw_TpfN7bc-caro-kann-foundations-d4",
+      "title": "The scariest attacks, part 1",
+      "category": "openings",
+      "openingFamilies": ["Caro-Kann Defense"],
+      "color": "black",
+      "level": "advanced",
+      "author": "Hanging Pawns",
+      "description": "Survive Grischuk's piece sacrifice in the Panov and meet the Bayonet Attack with 4.g4 in the Advance.",
+      "pgnFile": "content/supporter/courses/lessons/caro-kann-foundations-d4.pgn",
+      "permission": {
+        "kind": "course",
+        "note": "Lesson for a day of the Caro-Kann Foundations course; the course permission (pending) governs it.",
+        "grantedAt": "2026-11-24"
+      },
+      "unlisted": true,
+      "supporterOnly": true,
+      "source": {
+        "kind": "youtube",
+        "url": "https://www.youtube.com/watch?v=rdw_TpfN7bc",
+        "channel": "Hanging Pawns",
+        "channelUrl": "https://www.youtube.com/@HangingPawns",
+        "title": "4 Ways to Attack the Caro-Kann"
+      },
+      "enabled": true
+    },
+    {
+      "slug": "caro-kann-foundations-d5",
+      "studyId": "yt-rdw_TpfN7bc-caro-kann-foundations-d5",
+      "title": "The scariest attacks, part 2",
+      "category": "openings",
+      "openingFamilies": ["Caro-Kann Defense"],
+      "color": "black",
+      "level": "advanced",
+      "author": "Hanging Pawns",
+      "description": "White's pawn sacrifices in the Fantasy and Tal's Advance gambit, and how Black keeps the extra material.",
+      "pgnFile": "content/supporter/courses/lessons/caro-kann-foundations-d5.pgn",
+      "permission": {
+        "kind": "course",
+        "note": "Lesson for a day of the Caro-Kann Foundations course; the course permission (pending) governs it.",
+        "grantedAt": "2026-11-24"
+      },
+      "unlisted": true,
+      "supporterOnly": true,
+      "source": {
+        "kind": "youtube",
+        "url": "https://www.youtube.com/watch?v=rdw_TpfN7bc",
+        "channel": "Hanging Pawns",
+        "channelUrl": "https://www.youtube.com/@HangingPawns",
+        "title": "4 Ways to Attack the Caro-Kann"
+      },
+      "enabled": true
+    },
+    {
+      "slug": "stop-hanging-pieces-d1",
+      "studyId": "yt-UhKxU9dM72s-stop-hanging-pieces-d1",
+      "title": "Positions 1 to 3",
+      "category": "strategy",
+      "level": "beginner",
+      "author": "Dr. Can's Chess Clinic (Can Kabadayi)",
+      "description": "Dr. Can's first three positions: spot the piece left hanging, avoid it, and punish it when your opponent does.",
+      "pgnFile": "content/courses/stop-hanging-pieces-d1.pgn",
+      "permission": {
+        "kind": "course",
+        "note": "Lesson for a day of the Stop Hanging Pieces course; the course permission (pending) governs it.",
+        "grantedAt": "2026-11-24"
+      },
+      "unlisted": true,
+      "source": {
+        "kind": "youtube",
+        "url": "https://www.youtube.com/watch?v=UhKxU9dM72s",
+        "channel": "Dr. Can's Chess Clinic (Can Kabadayi)",
+        "channelUrl": "https://www.youtube.com/@Dr.CansClinic",
+        "title": "How to Stop Hanging Your Pieces: 3 Common Blunders Explained"
+      },
+      "enabled": true
+    },
+    {
+      "slug": "stop-hanging-pieces-d2",
+      "studyId": "yt-UhKxU9dM72s-stop-hanging-pieces-d2",
+      "title": "Positions 4 and 5",
+      "category": "strategy",
+      "level": "beginner",
+      "author": "Dr. Can's Chess Clinic (Can Kabadayi)",
+      "description": "Two more positions: choose the right recapture on d4, then punish the opponent who chose wrong.",
+      "pgnFile": "content/courses/stop-hanging-pieces-d2.pgn",
+      "permission": {
+        "kind": "course",
+        "note": "Lesson for a day of the Stop Hanging Pieces course; the course permission (pending) governs it.",
+        "grantedAt": "2026-11-24"
+      },
+      "unlisted": true,
+      "source": {
+        "kind": "youtube",
+        "url": "https://www.youtube.com/watch?v=UhKxU9dM72s",
+        "channel": "Dr. Can's Chess Clinic (Can Kabadayi)",
+        "channelUrl": "https://www.youtube.com/@Dr.CansClinic",
+        "title": "How to Stop Hanging Your Pieces: 3 Common Blunders Explained"
+      },
+      "enabled": true
+    },
+    {
+      "slug": "stop-hanging-pieces-d3",
+      "studyId": "yt-UhKxU9dM72s-stop-hanging-pieces-d3",
+      "title": "Positions 6, 7 and homework",
+      "category": "strategy",
+      "level": "intermediate",
+      "author": "Dr. Can's Chess Clinic (Can Kabadayi)",
+      "description": "The last two positions, the pawn fork as an awl, and Dr. Can's homework position.",
+      "pgnFile": "content/supporter/courses/lessons/stop-hanging-pieces-d3.pgn",
+      "permission": {
+        "kind": "course",
+        "note": "Lesson for a day of the Stop Hanging Pieces course; the course permission (pending) governs it.",
+        "grantedAt": "2026-11-24"
+      },
+      "unlisted": true,
+      "supporterOnly": true,
+      "source": {
+        "kind": "youtube",
+        "url": "https://www.youtube.com/watch?v=UhKxU9dM72s",
+        "channel": "Dr. Can's Chess Clinic (Can Kabadayi)",
+        "channelUrl": "https://www.youtube.com/@Dr.CansClinic",
+        "title": "How to Stop Hanging Your Pieces: 3 Common Blunders Explained"
+      },
+      "enabled": true
+    },
+    {
+      "slug": "stop-hanging-pieces-d4",
+      "studyId": "yt-L8vOzBbP7_E-stop-hanging-pieces-d4",
+      "title": "A simple mental checklist",
+      "category": "strategy",
+      "level": "intermediate",
+      "author": "Dr. Can's Chess Clinic (Can Kabadayi)",
+      "description": "Run the checklist before you move: which pieces are loose, and what does your move leave undefended, including Carlsen vs Anand.",
+      "pgnFile": "content/supporter/courses/lessons/stop-hanging-pieces-d4.pgn",
+      "permission": {
+        "kind": "course",
+        "note": "Lesson for a day of the Stop Hanging Pieces course; the course permission (pending) governs it.",
+        "grantedAt": "2026-11-24"
+      },
+      "unlisted": true,
+      "supporterOnly": true,
+      "source": {
+        "kind": "youtube",
+        "url": "https://www.youtube.com/watch?v=L8vOzBbP7_E",
+        "channel": "Dr. Can's Chess Clinic (Can Kabadayi)",
+        "channelUrl": "https://www.youtube.com/@Dr.CansClinic",
+        "title": "The Simple Mental Checklist That Stops Chess Blunders"
+      },
+      "enabled": true
     }
   ]
 }

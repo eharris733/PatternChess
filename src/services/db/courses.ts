@@ -51,6 +51,7 @@ export async function getCourseDayContent(slug: string, day: number): Promise<Co
     end: number | null;
     takeaway: string;
     lesson?: string | null;
+    lessonStudy?: unknown;
   }>('courses.dayContent', { slug, day });
   return {
     youtubeId: d.youtubeId,
@@ -58,5 +59,6 @@ export async function getCourseDayContent(slug: string, day: number): Promise<Co
     ...(d.end != null ? { end: d.end } : {}),
     takeaway: d.takeaway,
     ...(d.lesson ? { lesson: d.lesson } : {}),
+    ...(d.lessonStudy ? { lessonStudy: d.lessonStudy } : {}),
   };
 }

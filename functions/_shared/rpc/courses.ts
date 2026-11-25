@@ -1,6 +1,7 @@
 import { ALL_COURSES, courseBySlug, isSupporterDay, type Course, type CourseSegment } from '../../../src/lib/courseCatalog';
 import { dayOpen, isLocalDate, type DayDone } from '../../../src/lib/coursePacing';
 import { all, first, run, nowIso, type AppEnv } from '../db';
+import { hasSupporterPerks } from '../supporterGrants';
 import { argNumber, argString, badRequest, forbidden, notFound, userRpc, type RpcRegistry, type UserRpcContext } from './core';
 
 /**
@@ -22,9 +23,6 @@ type CoursesEnv = AppEnv & {
   /** '1' on the Pages preview environment: courses still waiting on creator permission are live there. */
   VITE_SHOW_PENDING_COURSES?: string;
 };
-
-/** Statuses that carry supporter perks (same rule as supporters.mine / is_supporter). */
-const PERK_STATUSES = ['active', 'trialing', 'past_due'];
 
 interface ProgressRow {
   course_slug: string;
@@ -57,9 +55,9 @@ function argLocalDate(args: Record<string, unknown>): string {
   return d;
 }
 
+/** The app-wide perk rule: a perk-status subscription or an active grant (referral reward). */
 async function isActiveSupporter(ctx: UserRpcContext): Promise<boolean> {
-  const row = await first<{ status: string }>(ctx.db, 'SELECT status FROM supporters WHERE user_id = ?', [ctx.user.id]);
-  return !!row && PERK_STATUSES.includes(row.status);
+  return hasSupporterPerks(ctx.db, ctx.user.id);
 }
 
 async function courseDone(ctx: UserRpcContext, slug: string): Promise<DayDone[]> {
@@ -153,6 +151,7 @@ export const handlers: RpcRegistry = {
       end: seg.end ?? null,
       takeaway: seg.takeaway,
       lesson: seg.lesson ?? null,
+      lessonStudy: seg.lessonStudy ?? null,
     };
   }),
 };
