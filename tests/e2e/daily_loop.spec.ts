@@ -14,7 +14,7 @@ const BASE_PROFILE = {
   display_name: 'E2E User',
   avatar_url: null,
   lichess_username: 'tester',
-  chesscom_username: null,
+  chesscom_username: null as string | null,
   preferred_rated_only: false,
   preferred_time_controls: [],
   last_synced_lichess_at: null,
@@ -113,6 +113,22 @@ test('Play unlocks once the rest of the plan is done', async ({ page }) => {
   await expect(playStep.getByTestId('logo-lichess')).toBeVisible();
   await expect(page.getByTestId('check-new-games')).toBeVisible();
   await expect(page.getByTestId('plan-done')).toHaveCount(0);
+});
+
+test('with Lichess and Chess.com both linked, Play offers both sites', async ({ page }) => {
+  await stub(page, { drillsToday: 10, profile: { chesscom_username: 'tester_cc' } });
+  await page.addInitScript(() => {
+    sessionStorage.setItem('pc:last-auto-sync', JSON.stringify({ fp: 'e2e-user|tester|tester_cc|0|', at: Date.now() }));
+  });
+  await page.goto('/dashboard');
+  const playStep = page.getByTestId('plan-step-play');
+  await expect(playStep).toHaveAttribute('data-state', 'open');
+  await expect(playStep.getByRole('link', { name: 'Play on Lichess' })).toHaveAttribute('href', 'https://lichess.org/');
+  await expect(playStep.getByRole('link', { name: 'Play on Chess.com' })).toHaveAttribute(
+    'href',
+    'https://www.chess.com/play/online',
+  );
+  await expect(playStep.getByRole('link', { name: 'Play', exact: true })).toHaveCount(0);
 });
 
 test('a finished plan invites you to keep going instead of saying see you tomorrow', async ({ page }) => {

@@ -11,6 +11,9 @@
 
 export type PlatformId = 'lichess' | 'chesscom';
 
+/** The platforms' own names (brand names, never translated). */
+export const PLATFORM_NAME: Record<PlatformId, string> = { lichess: 'Lichess', chesscom: 'Chess.com' };
+
 interface LogoProps {
   className?: string;
   /** Accessible name; omit when a visible label sits beside the logo. */

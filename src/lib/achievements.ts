@@ -225,6 +225,39 @@ export function achievementSummary(metrics: AchievementMetrics): { earned: numbe
 }
 
 /**
+ * The slice of the app's translator the time units need. Declared here, not
+ * imported from i18n, because the server (functions/) imports this module and
+ * the i18n store touches `window`. The app's `useT()` result fits it.
+ */
+type UnitTranslator = (key: 'duration.hours' | 'duration.minutes' | 'duration.hoursMinutes', vars: Record<string, string>) => string;
+
+function formatMinutes(minutes: number, t?: UnitTranslator): string {
+  const total = Math.max(0, Math.floor(minutes));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (t) {
+    if (h === 0) return t('duration.minutes', { m: String(m) });
+    return m === 0 ? t('duration.hours', { h: String(h) }) : t('duration.hoursMinutes', { h: String(h), m: String(m) });
+  }
+  if (h === 0) return `${m}m`;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
+/**
+ * "581/600" reads as a count of positions next to the plan's position
+ * numbers, so time metrics carry their unit ("9h 41m/10h"). Every progress
+ * readout of an achievement goes through here.
+ */
+export function achievementProgressLabel(
+  a: Pick<EvaluatedAchievement, 'metric' | 'value' | 'threshold'>,
+  t?: UnitTranslator,
+): string {
+  const value = Math.min(a.value, a.threshold);
+  if (a.metric === 'minutesTrained') return `${formatMinutes(value, t)}/${formatMinutes(a.threshold, t)}`;
+  return `${value.toLocaleString()}/${a.threshold.toLocaleString()}`;
+}
+
+/**
  * The unearned achievement closest to completion — highest progress fraction,
  * breaking ties toward the fewest remaining. Powers the dashboard "next
  * achievement" nudge. Returns null once everything is earned.

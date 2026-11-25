@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/useAuth';
 import { useDailyPlan, type DailyPlan, type PlanStepId } from '../../hooks/useDailyPlan';
 import type { TrainingFocus } from '../../routes/training/trainingFocus';
 import { TrophyIcon } from '../icons/TrophyIcon';
+import { PlayLinks } from '../PlayLinks';
 import { useT, type Translator } from '../../i18n/useT';
 import { openDailyLimit } from '../../state/supporterUnlockStore';
 import { FIXED_DAILY_LIMIT } from '../../lib/dailyLimit';
@@ -174,15 +175,17 @@ export function TrainingCompleteScreen({
             <span className="label">{t('train.complete.next')}</span>
             <span className="text-sm text-text-primary">{nudgeCopy.title}</span>
           </span>
-          {nudge === 'play' && plan.playHref ? (
+          {nudge === 'play' && plan.play.length === 1 ? (
             <a
-              href={plan.playHref}
+              href={plan.play[0].href}
               target="_blank"
               rel="noopener noreferrer"
               className="btn-outline h-9 px-4 text-xs shrink-0 whitespace-nowrap"
             >
               {nudgeCopy.action}
             </a>
+          ) : nudge === 'play' && plan.play.length > 1 ? (
+            <PlayLinks targets={plan.play} />
           ) : (
             <button type="button" className="btn-outline h-9 px-4 text-xs shrink-0 whitespace-nowrap" onClick={goNext}>
               {nudgeCopy.action}
