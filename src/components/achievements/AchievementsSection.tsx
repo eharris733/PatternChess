@@ -8,6 +8,7 @@ import { authService } from '../../services/authService';
 import {
   ACHIEVEMENT_CATEGORY_LABEL,
   ACHIEVEMENT_CATEGORY_ORDER,
+  achievementProgressLabel,
   type AchievementIcon,
   type EvaluatedAchievement,
 } from '../../lib/achievements';
@@ -71,7 +72,7 @@ function AchievementTile({
           </span>
         ) : (
           <span className="text-text-primary text-xs tabular-nums">
-            {Math.min(a.value, a.threshold).toLocaleString()}/{a.threshold.toLocaleString()}
+            {achievementProgressLabel(a)}
           </span>
         )}
       </div>

@@ -4,6 +4,7 @@ import { useAuth } from '../auth/useAuth';
 import { useAchievements } from '../hooks/useAchievements';
 import { useSupporter } from '../hooks/useSupporter';
 import { evaluateFlairs, FLAIR_TRACK_LABEL, FLAIR_TRACK_ORDER } from '../lib/flair';
+import { achievementProgressLabel } from '../lib/achievements';
 import { authService } from '../services/authService';
 import { FlairBadge } from './FlairBadge';
 import { Skeleton } from './Skeleton';
@@ -138,7 +139,7 @@ function FlairPickerGrid() {
                                 ? 'Showing'
                                 : 'Unlocked'
                               : req
-                                ? `${req.description} (${Math.min(req.value, req.threshold).toLocaleString()}/${req.threshold.toLocaleString()})`
+                                ? `${req.description} (${achievementProgressLabel(req)})`
                                 : f.track === 'supporter'
                                   ? t('supporterUnlock.forSupporters')
                                   : 'Locked'}
