@@ -129,7 +129,7 @@ export function useCourseRecommendations(courses: readonly Course[] = AVAILABLE_
   return { recommendations, isPending };
 }
 
-/** A day's interactive lesson (src/generated/courses/<slug>.json), or null for a watch-only day. */
+/** A day's interactive lesson (src/generated/course-lessons/<slug>.json), or null for a watch-only day. */
 export function useCourseLesson(slug: string | null | undefined) {
   return useQuery({
     queryKey: ['courses', 'lesson', slug],

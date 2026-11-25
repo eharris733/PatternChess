@@ -69,6 +69,8 @@
   "plan.play.checking": "Checking for new games…",
   "plan.play.check": "Check for new games",
   "plan.allDone": "Plan done. Keep going?",
+  "planRun.startingIn": "Starting in {seconds}s.",
+  "planRun.stay": "Stay here",
   "plan.keepGoing": "Keep going",
   "plan.nextUnlock_one": "Next unlock in {count} position",
   "plan.nextUnlock_other": "Next unlock in {count} positions",

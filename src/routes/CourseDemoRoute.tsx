@@ -5,15 +5,15 @@ import { BrandLockup } from '../components/BrandLogo';
 import { Skeleton } from '../components/Skeleton';
 import { LessonPlayer } from '../components/courses/LessonPlayer';
 import type { LearnStudy } from '../models/learn';
-import { loadLesson } from '../lib/courseLessons';
+import { loadDemo } from '../lib/courseLessons';
 import { useForceDefaultTheme } from '../state/themeStore';
 import { useHead } from '../seo/useHead';
 
 /**
  * Unlisted interactive course built from a creator's video (/c/<slug>). Public
  * and logged-out: it's the link in a creator pitch, so nothing here may need an
- * account. Courses live in src/generated/courses/ (never the /learn index) and
- * the page is noindex — the slug carries a random suffix so it isn't guessable.
+ * account. Demos live in src/generated/courses/ (never the /learn index, and
+ * never a course-day lesson, which has its own folder) and the page is noindex — the slug carries a random suffix so it isn't guessable.
  */
 
 const CONTACT_EMAIL = 'elliot@patternchess.com';
@@ -29,7 +29,7 @@ export function CourseDemoRoute() {
   const { slug = '' } = useParams();
   const query = useQuery({
     queryKey: ['course', slug],
-    queryFn: () => loadLesson(slug),
+    queryFn: () => loadDemo(slug),
     staleTime: Infinity,
   });
 

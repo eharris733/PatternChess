@@ -497,3 +497,72 @@ test('a focus with no positions at all says "None yet" and leads to its page', a
   await page.getByTestId('focus-openings').click();
   await expect(page).toHaveURL(/\/openings$/);
 });
+
+/** Solve the Wayward Queen opening drill (Nf3) and move on. */
+async function solveOpening(page: Page) {
+  // The intro replay finishes by itself; skipping it is optional.
+  await expect(page.getByTestId('drill-prompt')).toHaveText('Play the move for White', { timeout: 10_000 });
+  await dragMove(page, { file: 6, rank: 1 }, { file: 5, rank: 3 }); // Nf3
+  await expect(page.getByTestId('opening-verdict')).toContainText('Great!');
+  await page.keyboard.press('Space');
+}
+
+test('Keep training after an openings session never hands out a fresh 3 reviews', async ({ page }) => {
+  const upcoming = (id: string) => opening({ id, next_drill_at: SOON });
+  await stub(page, [opening(), opening({ id: 'o3' }), upcoming('u1'), upcoming('u2'), upcoming('u3')]);
+  // Today's opening count refetches slower than the next queue, as on a slow
+  // network: the next session must wait for it instead of using the cached one.
+  let countLoads = 0;
+  await page.route('**/api/rpc/blunders.drillsOfKind', async (route) => {
+    if (++countLoads > 1) await new Promise((r) => setTimeout(r, 1_500));
+    await route.fallback();
+  });
+  await page.goto('/openings');
+  await page.getByTestId('review-due').click();
+  await expect(page.getByTestId('training-focus-banner')).toContainText('Opening reviews · 2 positions');
+  await solveOpening(page);
+  await solveOpening(page);
+
+  const done = page.getByTestId('training-complete');
+  await expect(done.getByRole('heading', { name: 'Session done' })).toBeVisible();
+  await done.getByRole('button', { name: 'Keep training' }).click();
+  await page.getByTestId('training-empty').getByTestId('practice-ahead').click();
+
+  // Two of today's three are used: practice ahead gets exactly one more.
+  await expect(page.getByTestId('training-focus-banner')).toContainText('practice ahead');
+  await solveOpening(page);
+  await expect(page.getByTestId('training-complete').getByRole('heading', { name: "Today's opening reviews: done" })).toBeVisible();
+  await expect(page.getByTestId('training-capped')).toContainText('You reviewed your 3 openings for today.');
+});
+
+test('a plan run finishes the Openings step, then moves on to the next step by itself', async ({ page }) => {
+  await stub(page, [reviewedToday('od1'), reviewedToday('od2'), opening(), opening({ id: 'o3' }), tactic()]);
+  await page.goto('/dashboard');
+  const step = page.getByTestId('plan-step-openings');
+  await expect(step).toContainText('2/3');
+  await step.getByRole('button', { name: 'Review' }).click();
+
+  // Only the one review the step still needs, then the step is done.
+  await solveOpening(page);
+  const done = page.getByTestId('training-complete');
+  await expect(done.getByRole('heading', { name: "Today's opening reviews: done" })).toBeVisible();
+  const next = done.getByTestId('complete-next');
+  await expect(next).toContainText('Train 10 positions');
+  await expect(next.getByTestId('plan-run-countdown')).toContainText('Starting in');
+
+  // The Train step starts without a click, and leaves the opening drill out.
+  await expect(page.getByText('White to play')).toBeVisible({ timeout: 8_000 });
+  await expect(page.locator('cg-board')).toBeVisible();
+});
+
+test('Stay here cancels the plan run hand-off', async ({ page }) => {
+  await stub(page, [reviewedToday('od1'), reviewedToday('od2'), opening(), tactic()]);
+  await page.goto('/dashboard');
+  await page.getByTestId('plan-step-openings').getByRole('button', { name: 'Review' }).click();
+  await solveOpening(page);
+  const next = page.getByTestId('training-complete').getByTestId('complete-next');
+  await next.getByTestId('plan-run-stay').click();
+  await page.waitForTimeout(4_000);
+  await expect(page.getByTestId('training-complete')).toBeVisible();
+  await expect(next.getByTestId('plan-run-countdown')).toHaveCount(0);
+});

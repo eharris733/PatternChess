@@ -15,6 +15,8 @@ export interface QuotaState {
   pending: boolean;
   /** What's left today for a free player; null = unlimited (supporters). */
   remaining: number | null;
+  /** Today's count really loaded (a failed fetch reads as 0 used, so don't trust `used` without it). */
+  known: boolean;
 }
 
 /**
@@ -48,21 +50,22 @@ export function useDailyQuota() {
 
   const unlimited = supporter.isSupporter;
   const ready = !supporter.isPending;
-  const state = (used: number, limit: number, countPending: boolean): QuotaState => ({
+  const state = (used: number, limit: number, countPending: boolean, known: boolean): QuotaState => ({
     used,
     limit,
     locked: ready && !unlimited && !countPending && used >= limit,
     pending: !ready || (!unlimited && countPending),
     remaining: unlimited ? null : Math.max(0, limit - used),
+    known,
   });
 
   return {
     unlimited,
     ready,
     resetsAt,
-    positions: state(plan.drillsToday, plan.goals.positionsPerDay, plan.drillsPending),
-    openings: state(plan.openingsToday, FIXED_DAILY_LIMIT.openings, plan.openingsPending),
-    endgames: state(plan.playoutsToday, FIXED_DAILY_LIMIT.endgames, plan.scenariosPending),
+    positions: state(plan.drillsToday, plan.goals.positionsPerDay, plan.drillsPending, plan.drillsLoaded),
+    openings: state(plan.openingsToday, FIXED_DAILY_LIMIT.openings, plan.openingsPending, plan.openingsLoaded),
+    endgames: state(plan.playoutsToday, FIXED_DAILY_LIMIT.endgames, plan.scenariosPending, !plan.scenariosPending),
   };
 }
 

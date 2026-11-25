@@ -69,6 +69,8 @@
   "plan.play.checking": "Buscando partidas nuevas…",
   "plan.play.check": "Buscar partidas nuevas",
   "plan.allDone": "Plan completado. ¿Sigues?",
+  "planRun.startingIn": "Empieza en {seconds} s.",
+  "planRun.stay": "Quedarme aquí",
   "plan.keepGoing": "Seguir",
   "plan.nextUnlock_one": "Siguiente desbloqueo en {count} posición",
   "plan.nextUnlock_other": "Siguiente desbloqueo en {count} posiciones",

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { DrawShape } from 'chessground/draw';
 import { parseUciMove, toKey } from '../chess/moveUtils';
 import { BAD_MOVE_NAGS, type LearnChapter, type LearnNode } from '../models/learn';
+import { chapterRuns, runStart, type LessonRun } from '../learn/lessonRuns';
 
 /**
  * "Drill the line" for a /learn chapter: the user plays the chapter's
@@ -16,18 +17,26 @@ import { BAD_MOVE_NAGS, type LearnChapter, type LearnNode } from '../models/lear
  * or a comment on the learner's correct move pause in phase `explain` until
  * `next()` (the Continue button), so the text is read before play goes on.
  * No SR — progress is a localStorage "completed" flag per chapter.
+ *
+ * With `{ runs: true }` (course lessons) a chapter is drilled as runs
+ * (src/learn/lessonRuns.ts): the main line, then every opponent sideline the
+ * author wrote — the board replays up to that sideline move (phase `replay`),
+ * shows its note, and the learner trains the answer. `nextRun()` moves on.
  */
 
-export type LearnDrillPhase = 'idle' | 'explain' | 'yourMove' | 'opponent' | 'done';
+export type LearnDrillPhase = 'idle' | 'replay' | 'explain' | 'yourMove' | 'opponent' | 'done';
 
 /**
  * Interactive moments along a chapter's main line: the intro, every learner
  * move, and every commented opponent move. `momentsDone` counts the same way.
  */
 export function countMoments(chapter: LearnChapter): number {
-  let n = chapter.intro ? 1 : 0;
-  let nodes = chapter.moves;
-  let fen = chapter.startFen;
+  return (chapter.intro ? 1 : 0) + momentsFrom(chapter, chapter.startFen, chapter.moves);
+}
+
+/** Moments left along the main line from a position (its moves `nodes`). */
+function momentsFrom(chapter: LearnChapter, fen: string, nodes: LearnNode[]): number {
+  let n = 0;
   while (nodes.length > 0) {
     const main = nodes[0];
     if (sideToMove(fen) === chapter.orientation || main.comment) n++;
@@ -37,7 +46,22 @@ export function countMoments(chapter: LearnChapter): number {
   return n;
 }
 
+/** Moments in one run: the main line counts like `countMoments`; a sideline run adds its note. */
+export function countRunMoments(chapter: LearnChapter, run: LessonRun): number {
+  if (run.path.length === 0) return countMoments(chapter);
+  const branch = run.path.at(-1)!;
+  const { fen, nodes } = runStart(chapter, run);
+  return (branch.comment ? 1 : 0) + momentsFrom(chapter, fen, nodes);
+}
+
+/** Moments in a chapter: every run when drilled with runs, else the main line. */
+export function countChapterMoments(chapter: LearnChapter, withRuns = false): number {
+  if (!withRuns) return countMoments(chapter);
+  return chapterRuns(chapter).reduce((n, r) => n + countRunMoments(chapter, r), 0);
+}
+
 const OPPONENT_DELAY_MS = 450;
+const REPLAY_STEP_MS = 380;
 
 function arrow(uci: string, brush: string): DrawShape {
   const m = parseUciMove(uci);
@@ -61,9 +85,16 @@ interface LearnDrillState {
   messageTs: number | null;
   /** Position `message` is about (after the commented move), for move lines quoted in it. */
   messageFen: string | null;
-  /** Moments completed so far (see countMoments). */
+  /** Moments completed so far in this chapter (see countChapterMoments). */
   momentsDone: number;
-  start: (chapter: LearnChapter) => void;
+  /** Moments in this chapter, adjusted when the learner takes an accepted alternative. */
+  momentsTotal: number;
+  /** The chapter's runs (just the main line unless started with `runs`). */
+  runs: LessonRun[];
+  runIndex: number;
+  start: (chapter: LearnChapter, opts?: { runs?: boolean }) => void;
+  /** Start the next run of this chapter; false when there is none. */
+  nextRun: () => boolean;
   reset: () => void;
   play: (uci: string) => void;
   /** Leave an `explain` beat. */
@@ -71,6 +102,7 @@ interface LearnDrillState {
 }
 
 let opponentTimer: ReturnType<typeof setTimeout> | null = null;
+const MAIN_RUN: LessonRun = { path: [] };
 
 function clearTimer() {
   if (opponentTimer) clearTimeout(opponentTimer);
@@ -134,9 +166,13 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
     messageTs: null,
     messageFen: null,
     momentsDone: 0,
+    momentsTotal: 0,
+    runs: [MAIN_RUN],
+    runIndex: 0,
 
-    start: (chapter) => {
+    start: (chapter, opts) => {
       clearTimer();
+      const withRuns = opts?.runs ?? false;
       set({
         chapter,
         path: [],
@@ -148,6 +184,9 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
         messageTs: null,
         messageFen: null,
         momentsDone: 0,
+        momentsTotal: countChapterMoments(chapter, withRuns),
+        runs: withRuns ? chapterRuns(chapter) : [MAIN_RUN],
+        runIndex: 0,
       });
       if (chapter.intro) {
         set({
@@ -162,9 +201,69 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
       advance();
     },
 
+    nextRun: () => {
+      const s = get();
+      const run = s.runs[s.runIndex + 1];
+      if (!s.chapter || !run) return false;
+      clearTimer();
+      // Replay up to the move before the sideline, then step in the rest.
+      set({
+        runIndex: s.runIndex + 1,
+        path: [],
+        phase: 'replay',
+        missesHere: 0,
+        shapes: [],
+        message: null,
+        messageTs: null,
+        messageFen: null,
+      });
+      const step = () => {
+        opponentTimer = setTimeout(() => {
+          opponentTimer = null;
+          const cur = get();
+          if (cur.phase !== 'replay' || cur.runs[cur.runIndex] !== run) return;
+          const node = run.path[cur.path.length];
+          const path = [...cur.path, node];
+          if (path.length < run.path.length) {
+            set({ path });
+            step();
+            return;
+          }
+          // The sideline itself: read its note, then drill the answer.
+          if (node.comment) {
+            set({
+              path,
+              shapes: node.shapes ?? [],
+              message: node.comment,
+              messageTs: node.ts ?? null,
+              messageFen: node.fen,
+              phase: 'explain',
+            });
+            return;
+          }
+          set({ path });
+          advance();
+        }, REPLAY_STEP_MS);
+      };
+      step();
+      return true;
+    },
+
     reset: () => {
       clearTimer();
-      set({ chapter: null, path: [], phase: 'idle', shapes: [], message: null, messageTs: null, messageFen: null, momentsDone: 0 });
+      set({
+        chapter: null,
+        path: [],
+        phase: 'idle',
+        shapes: [],
+        message: null,
+        messageTs: null,
+        messageFen: null,
+        momentsDone: 0,
+        momentsTotal: 0,
+        runs: [MAIN_RUN],
+        runIndex: 0,
+      });
     },
 
     next: () => {
@@ -220,6 +319,11 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
         hit === main
           ? (hit.comment ?? null)
           : `Also good. The study's main move is ${main.san}.${hit.comment ? ` ${hit.comment}` : ''}`;
+      // An accepted alternative has its own continuation: the moments left change.
+      const adjust =
+        hit === main || !s.chapter
+          ? 0
+          : momentsFrom(s.chapter, hit.fen, hit.children) - momentsFrom(s.chapter, main.fen, main.children);
       set({
         path: [...s.path, hit],
         shapes: hit.shapes ?? [],
@@ -227,9 +331,11 @@ export const useLearnDrillStore = create<LearnDrillState>((set, get) => {
         messageTs: hit.ts ?? null,
         messageFen: hit.fen,
         momentsDone: s.momentsDone + 1,
+        momentsTotal: s.momentsTotal + adjust,
       });
-      // A note on the learner's move is read before the reply comes in.
-      if (hit.comment && hit.children.length > 0) {
+      // A note on the learner's move is read before the reply comes in (or
+      // before the chapter's done screen, on the last move).
+      if (hit.comment) {
         set({ phase: 'explain' });
         return;
       }

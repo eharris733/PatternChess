@@ -1,0 +1,39 @@
+[Event "Stop Hanging Pieces: Positions 4 and 5"]
+[ChapterName "Rook or queen takes d4?"]
+[Orientation "black"]
+[SetUp "1"]
+[FEN "1k1r3r/ppp1npp1/5q2/7p/2Pp3N/PP2P1P1/4QPBP/1R4K1 w - - 0 1"]
+
+{ [%ts 7:45] The third way to hang a piece. White is about to take on d4 with the pawn, and then you have to recapture: with the rook or with the queen? Avoid the blunder. }
+1. exd4 { [%ts 8:13] [%csl Ye7] Look at the knight on e7. It's attacked once, by the queen on e2, and guarded once, by your queen on f6. Equal attackers and defenders is what Can calls a loose piece. A move ago it was protected, because the e3 pawn blocked the file; exd4 made it loose. }
+1... Rxd4 $1 { [%ts 9:27] Take back with the rook. The knight on e7 is still a loose piece, but it isn't hanging, so you don't lose anything. Stay careful: with a loose piece, watch for double attacks and remove-the-defender tricks. }
+( 1... g5 { Also good by the engine: it hits the knight on h4 first. Can takes back with the rook. } )
+( 1... Qxd4 $4 { [%ts 9:11] Your queen was the main guard of the loose knight on e7. Move her away and you turn a loose piece into a hanging one: Qxe7. } )
+*
+
+[Event "Stop Hanging Pieces: Positions 4 and 5"]
+[ChapterName "Punishing ...Qxd4"]
+[Orientation "white"]
+[SetUp "1"]
+[FEN "1k1r3r/ppp1npp1/5q2/7p/2PP3N/PP4P1/4QPBP/1R4K1 b - - 0 1"]
+
+{ [%ts 8:54] Now play White. Black has to recapture on d4. Can says moves like the next one are the norm in beginner games, because people don't track which pieces are loose. }
+1... Qxd4 $4 { [%ts 9:11] Black's queen was the main guard of the knight on e7, and it just walked away. The loose piece is now hanging. }
+2. Qxe7 $1 { [%ts 9:19] [%cal Ge2e7] Take it. Black turned a loose knight into a hanging one by moving its defender. }
+*
+
+[Event "Stop Hanging Pieces: Positions 4 and 5"]
+[ChapterName "Punishing Nxe5"]
+[Orientation "black"]
+[SetUp "1"]
+[FEN "rnbqkbnr/pp1p1ppp/8/4p3/2BpP3/5N2/PPP2PPP/RNBQK2R w KQkq - 0 5"]
+
+{ [%ts 11:05] Should White grab the pawn on e5? Blunder-check Nxe5 with Can's terms. Right now the knight on f3 is very protected: attacked zero times and guarded twice. You have Black. }
+5. Nxe5 $2 { [%ts 11:46] On e5 the knight becomes loose, with zero attackers and zero defenders. It can't be captured directly, but care is required. Find the double attack. }
+5... Qa5+ $1 { [%ts 13:00] [%cal Ga5e1,Ga5e5] Qa5+ hits the king on e1 and the loose knight on e5 at once. White must answer the check, so there's no time to save the knight. }
+6. c3
+( 6. Bd2 { [%ts 13:41] Any answer to the check is the same story: the knight is now hanging and White has no time to rescue it. } Qxe5 )
+( 6. Nc3 { [%ts 13:41] Blocking with the knight changes nothing: the knight on e5 is still hanging. } Qxe5 )
+( 6. Nd2 { [%ts 13:41] The same here: White deals with the check, and the knight on e5 falls. } Qxe5 )
+6... Qxe5 { [%ts 14:06] The hanging knight on e5 is captured. A loose piece plus a king in the center gave Black the double attack. }
+*

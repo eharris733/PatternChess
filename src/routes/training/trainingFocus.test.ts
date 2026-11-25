@@ -42,6 +42,14 @@ describe('course days', () => {
 });
 
 describe('continueFocus', () => {
+  it('drops a plan run: Keep training afterwards is uncapped practice', () => {
+    expect(continueFocus({ kindFilter: 'opening', returnTo: '/openings', planRun: true })).toEqual({
+      kindFilter: 'opening',
+      returnTo: '/openings',
+    });
+    expect(continueFocus({ planRun: true, practiceAhead: true })).toEqual({ practiceAhead: true });
+    expect(continueFocus({ planRun: true })).toBeNull();
+  });
   it('keeps an openings session in openings (never the main queue)', () => {
     expect(continueFocus({ kindFilter: 'opening' })).toEqual({ kindFilter: 'opening' });
     expect(continueFocus({ blunderIds: ['a'], focusLabel: 'Sicilian' }, [b('opening')])).toEqual({

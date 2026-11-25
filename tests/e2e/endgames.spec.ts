@@ -370,3 +370,25 @@ test('show the answer: a slip opens on the move that holds', async ({ page }) =>
   await expect(page.getByText('What holds')).toBeVisible();
   await expect(page.getByText('Holds the draw', { exact: true })).toBeVisible();
 });
+
+test("the plan's Endgames step starts its play-out and hands off to the next step", async ({ page }) => {
+  await stubEndgameAuth(page, { blunders: [], scenarios: [SCENARIO], profile: { daily_games_goal: 1 } });
+  await page.addInitScript(() => {
+    sessionStorage.setItem('pc:last-auto-sync', JSON.stringify({ fp: 'e2e-user|tester||0|', at: Date.now() }));
+  });
+  await page.goto('/dashboard');
+  await page.getByTestId('plan-step-endgames').getByRole('button', { name: 'Play' }).click();
+
+  // No list in between: the step's play-out is already on the board.
+  await expect(page).toHaveURL(/\/endgames$/);
+  await expect(page.getByText('Convert this win.')).toBeVisible({ timeout: 30_000 });
+  await waitForSolving(page);
+  await dragMove(page, { file: 6, rank: 5 }, { file: 6, rank: 7 });
+  await expect(page.getByText(/point rescued/)).toBeVisible({ timeout: 60_000 });
+
+  // Play is the last step: a link to the chess site, never an automatic jump.
+  const next = page.getByTestId('complete-next');
+  await expect(next).toContainText('Play 1 game');
+  await expect(next.getByRole('link', { name: 'Play' })).toHaveAttribute('href', 'https://lichess.org/');
+  await expect(next.getByTestId('plan-run-countdown')).toHaveCount(0);
+});

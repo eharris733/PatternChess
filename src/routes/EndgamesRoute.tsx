@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useGames } from '../hooks/useGames';
@@ -52,6 +52,9 @@ import {
 import { Skeleton } from '../components/Skeleton';
 import { GameRecord } from '../models/gameRecord';
 import { useT, type Translator } from '../i18n/useT';
+import { useDailyPlan } from '../hooks/useDailyPlan';
+import { isEndgamesPlanRunState, stepAfter, usePlanStepStart } from '../hooks/usePlanStepStart';
+import { nextStepCopy, PlanRunNext } from '../components/insights/PlanRunNext';
 
 type ListFilter = 'all' | 'due' | SrBucket;
 
@@ -172,6 +175,19 @@ export function EndgamesRoute() {
   // retries from the slip (or a restart) are practice.
   const playedThisVisit = useRef(new Set<string>());
 
+  // A plan run (the plan card's Endgames step): play what today's step still
+  // needs, then move on to the next unfinished step. `target` play-outs,
+  // `finished` counts first finishes during the run.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const plan = useDailyPlan();
+  const startStep = usePlanStepStart(plan);
+  const [planRun, setPlanRun] = useState<{ target: number; finished: number } | null>(null);
+  const planRunActive = useRef(false);
+  planRunActive.current = planRun != null;
+  const runDone = planRun != null && planRun.finished >= planRun.target;
+  const runNext = runDone ? stepAfter(plan, 'endgames', true) : null;
+
   // Free players finish PLAYOUTS_PER_DAY play-outs a day (dailyLimit.ts).
   // Counted from the scenarios played today plus this visit's, so the limit
   // holds before the list refetches. Retrying the current play-out is free.
@@ -241,6 +257,9 @@ export function EndgamesRoute() {
       onFinish: (r) => {
         const isFirstAttempt = !playedThisVisit.current.has(scenario.id);
         playedThisVisit.current.add(scenario.id);
+        if (isFirstAttempt && planRunActive.current) {
+          setPlanRun((run) => (run ? { ...run, finished: run.finished + 1 } : run));
+        }
         // A finished play-out is training: it keeps the daily streak alive.
         if (profile) {
           void recordStreakActivity({
@@ -273,7 +292,29 @@ export function EndgamesRoute() {
     setSelected(null);
     setPreview(null);
     setReviewQueue(null);
+    setPlanRun(null);
   };
+
+  // Start the plan run once the scenarios and today's count are in: due
+  // play-outs first, then the ones due soonest, as many as the step needs.
+  const planRunRequested = isEndgamesPlanRunState(location.state);
+  useEffect(() => {
+    if (!planRunRequested || !scenarios || plan.scenariosPending) return;
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+    const need = Math.max(0, plan.endgamesGoal - plan.playoutsToday);
+    // Replaying one already played today wouldn't move today's count.
+    const today = localDate(tz);
+    const ordered = scenarios.filter((sc) => !(sc.lastPlayedAt && localDate(tz, sc.lastPlayedAt) === today)).sort(
+      (a, z) => Number(isScenarioDue(z)) - Number(isScenarioDue(a)) || byReviewPriority(a, z),
+    );
+    const [first, ...rest] = ordered.slice(0, need);
+    if (!first) return;
+    setPlanRun({ target: need, finished: 0 });
+    planRunActive.current = true;
+    setReviewQueue(rest.map((sc) => sc.id));
+    begin(first);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planRunRequested, scenarios, plan.scenariosPending]);
 
   const startReview = () => {
     const [first, ...rest] = dueScenarios;
@@ -325,13 +366,14 @@ export function EndgamesRoute() {
       } else if (phase === 'passed') {
         e.preventDefault();
         if (hasNextDue) nextDue();
+        else if (runNext && runNext !== 'play') startStep(runNext);
         else backToList();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, hasNextDue]);
+  }, [selected, hasNextDue, runNext]);
 
   // ---- Play-out view ----
   if (selected) {
@@ -389,7 +431,9 @@ export function EndgamesRoute() {
                   message={playout.phase === 'passed' ? passedMessage : failedMessage}
                   actionLabel={
                     playout.phase === 'passed'
-                      ? hasNextDue
+                      ? runNext && runNext !== 'play'
+                        ? nextStepCopy(runNext, plan, t).action
+                        : hasNextDue
                         ? t('eg.nextDue')
                         : t('eg.returnToList')
                       : playout.slip
@@ -398,7 +442,8 @@ export function EndgamesRoute() {
                   }
                   onAction={() => {
                     if (playout.phase === 'passed') {
-                      if (hasNextDue) nextDue();
+                      if (runNext && runNext !== 'play') startStep(runNext);
+                      else if (hasNextDue) nextDue();
                       else backToList();
                     } else retry(playout.slip ? 'slip' : 'start');
                   }}
@@ -527,7 +572,14 @@ export function EndgamesRoute() {
           {playout.phase === 'passed' && (
             <>
               <FeedbackBadge tone="success">{passedMessage}</FeedbackBadge>
-              {hasNextDue ? (
+              {runDone && !runNext && plan.allDone && (
+                <p className="text-sm font-semibold text-text-primary" data-testid="plan-run-done">
+                  {t('train.complete.planDone')}
+                </p>
+              )}
+              {runNext ? (
+                <PlanRunNext plan={plan} step={runNext} onGo={startStep} auto />
+              ) : hasNextDue ? (
                 <button className="btn-primary" onClick={nextDue} data-testid="next-due">
                   {t('eg.nextDueLeft', { count: reviewQueue?.length ?? 0 })}
                   <span className="hidden lg:inline ml-1.5"> {t('train.panel.space')}</span>
@@ -566,6 +618,7 @@ export function EndgamesRoute() {
                   {t('eg.skipNext', { count: reviewQueue?.length ?? 0 })}
                 </button>
               )}
+              {runNext && <PlanRunNext plan={plan} step={runNext} onGo={startStep} />}
             </>
           )}
         </aside>

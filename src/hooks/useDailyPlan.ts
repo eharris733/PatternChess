@@ -68,6 +68,8 @@ export function useDailyPlan() {
 
   // --- Train ---------------------------------------------------------------
   const drillsPending = drillsQuery.isPending;
+  /** Today's count actually loaded (not pending, not failed). */
+  const drillsLoaded = drillsQuery.isSuccess;
   const drillsToday = drillsQuery.data ?? 0;
   const upcomingCount = upcomingQuery.data?.length ?? 0;
   const trainPending = dueQuery.isPending || (dueCount === 0 && upcomingQuery.isPending);
@@ -82,6 +84,7 @@ export function useDailyPlan() {
   // Opening drills done today vs the daily ask (capped by the drills you
   // have). Practice ahead keeps the step doable when nothing is due.
   const openingsPending = openingDrillsQuery.isPending;
+  const openingsLoaded = openingDrillsQuery.isSuccess;
   const openingDrills = [...(openingDrillsQuery.data?.values() ?? [])].filter((b) => b.kind === 'opening');
   const openingsToday = openingDrills.filter(
     (b) => b.lastDrilledAt && localDate(tz, b.lastDrilledAt) === today,
@@ -146,6 +149,8 @@ export function useDailyPlan() {
   const allDone = !pending && stepsDone === stepsTotal;
   /** The first unfinished step in plan order (null while loading or when all are done). */
   const nextStep: PlanStepId | null = pending ? null : (counted.find((s) => !s.done)?.id ?? null);
+  /** Every unfinished counted step, in plan order (a plan run skips one it just finished). */
+  const unfinished: PlanStepId[] = counted.filter((s) => !s.done).map((s) => s.id);
 
   return {
     goals,
@@ -156,6 +161,7 @@ export function useDailyPlan() {
     showPlay,
     // Train
     drillsPending,
+    drillsLoaded,
     drillsToday,
     dueCount,
     upcomingCount,
@@ -165,6 +171,7 @@ export function useDailyPlan() {
     practiceNext,
     // Openings
     openingsPending,
+    openingsLoaded,
     openingsToday,
     openingsDue,
     openingsGoal,
@@ -196,6 +203,7 @@ export function useDailyPlan() {
     pending,
     allDone,
     nextStep,
+    unfinished,
   };
 }
 
