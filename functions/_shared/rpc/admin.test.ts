@@ -5,6 +5,7 @@ import {
   computeOutreach,
   computeRetention,
   filterUserList,
+  localDay,
   handlers,
   mondayOf,
   percentileCont,
@@ -27,36 +28,63 @@ describe('pure helpers', () => {
 });
 
 describe('computeRetention', () => {
-  it('builds cohort curves and weekly actives', () => {
+  it('counts activity on the exact day (or inside the window), only once the window has passed', () => {
+    const today = '2026-11-22';
     const r = computeRetention({
-      today: '2026-11-22',
+      today,
       users: [
-        { id: 'a', signup: '2026-10-01' },
-        { id: 'b', signup: '2026-10-20' },
-        { id: 'c', signup: '2026-11-21' },
+        { id: 'a', signup: '2026-10-01', today },
+        { id: 'b', signup: '2026-10-20', today },
+        { id: 'c', signup: '2026-11-21', today },
       ],
       active: [
         { user_id: 'a', d: '2026-10-01' },
-        { user_id: 'a', d: '2026-10-09' },
+        { user_id: 'a', d: '2026-10-02' }, // a: day 1
+        { user_id: 'a', d: '2026-10-09' }, // a: day 8
         { user_id: 'b', d: '2026-10-20' },
-        { user_id: 'b', d: '2026-11-17' },
+        { user_id: 'b', d: '2026-11-17' }, // b: day 28
         { user_id: 'zz', d: '2026-11-17' }, // no profile: ignored in weeks
       ],
     });
-    expect(r.cohorts.map((c) => c.cohort)).toEqual(['all', '2026-11', '2026-10']);
-    const all = r.cohorts[0];
-    expect(all).toMatchObject({ signups: 3, trained: 2, trained2Days: 2, trained5Days: 0 });
-    // day 7: eligible a, b (c signed up yesterday); a last active day 8, b day 28 → both retained.
-    expect(all.curve.find((p) => p.day === 7)).toEqual({ day: 7, eligible: 2, retained: 2 });
-    // day 30: eligible a and b (b signed up 33 days ago); last active on day 8 and day 28, so neither is retained.
-    expect(all.curve.find((p) => p.day === 30)).toEqual({ day: 30, eligible: 2, retained: 0 });
-    expect(all.curve.find((p) => p.day === 60)).toEqual({ day: 60, eligible: 0, retained: 0 });
+    expect(r.byMonth.map((c) => c.cohort)).toEqual(['2026-11', '2026-10']);
+    expect(r.byWeek.map((c) => c.cohort)).toEqual(['2026-11-16', '2026-10-19', '2026-09-28']);
+    const all = r.all;
+    expect(all).toMatchObject({ cohort: 'all', signups: 3, trained: 2, trained2Days: 2, trained5Days: 0 });
+    // D1: a and b have finished day 1; c signed up yesterday, so today is still day 1 → not eligible.
+    expect(all.windows.d1).toEqual({ eligible: 2, retained: 1 });
+    // D7 is the exact day: a came back on day 8, b on day 28 → neither.
+    expect(all.windows.d7).toEqual({ eligible: 2, retained: 0 });
+    // Week 2 (days 8–14): a (day 8).
+    expect(all.windows.w2).toEqual({ eligible: 2, retained: 1 });
+    // Week 4 (days 22–28): b (day 28); b signed up 33 days ago so the window is over.
+    expect(all.windows.w4).toEqual({ eligible: 2, retained: 1 });
+    // D30: b is on day 33, so eligible, but a later return doesn't count for D30.
+    expect(all.windows.d30).toEqual({ eligible: 2, retained: 0 });
+    expect(all.windows.w8).toEqual({ eligible: 0, retained: 0 });
     expect(r.weeks).toEqual([
       { week: '2026-09-28', active: 1, returning: 0 },
       { week: '2026-10-05', active: 1, returning: 1 },
       { week: '2026-10-19', active: 1, returning: 0 },
       { week: '2026-11-16', active: 1, returning: 1 },
     ]);
+  });
+
+  it("uses each user's own today for eligibility", () => {
+    // Still Nov 21 in the user's zone: day 1 (Nov 21) hasn't ended yet.
+    const r = computeRetention({
+      today: '2026-11-22',
+      users: [{ id: 'a', signup: '2026-11-20', today: '2026-11-21' }],
+      active: [{ user_id: 'a', d: '2026-11-21' }],
+    });
+    expect(r.all.windows.d1).toEqual({ eligible: 0, retained: 0 });
+  });
+});
+
+describe('localDay', () => {
+  it('converts to the zone, falling back to UTC', () => {
+    expect(localDay('2026-11-22T03:00:00.000Z', 'America/New_York')).toBe('2026-11-21');
+    expect(localDay('2026-11-22T03:00:00.000Z', null)).toBe('2026-11-22');
+    expect(localDay('2026-11-22T03:00:00.000Z', 'Not/AZone')).toBe('2026-11-22');
   });
 });
 

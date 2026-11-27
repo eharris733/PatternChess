@@ -345,16 +345,54 @@ export function filterUserList(users: readonly FunnelUser[], category: UserListC
 }
 
 // --- admin.retention -----------------------------------------------------------------
+//
+// Industry-standard retention (the definition AppsFlyer / Adjust / Amplitude
+// benchmarks use): a user is retained on day N when they were active ON day N
+// after signup (signup day = day 0), in their own timezone. Bracket windows
+// (Week 4 = days 22–28) count activity on any day inside the window. A user
+// counts toward a window only once it has fully passed for them, so a young
+// cohort shows no number instead of a falsely low one.
 
-const RETENTION_MARKS = [1, 7, 14, 30, 60];
+export interface RetentionWindow {
+  key: string;
+  label: string;
+  /** First and last day after signup (inclusive). */
+  start: number;
+  end: number;
+}
+
+export const RETENTION_WINDOWS: readonly RetentionWindow[] = [
+  { key: 'd1', label: 'D1', start: 1, end: 1 },
+  { key: 'd7', label: 'D7', start: 7, end: 7 },
+  { key: 'd30', label: 'D30', start: 30, end: 30 },
+  { key: 'w1', label: 'Week 1', start: 1, end: 7 },
+  { key: 'w2', label: 'Week 2', start: 8, end: 14 },
+  { key: 'w4', label: 'Week 4', start: 22, end: 28 },
+  { key: 'w8', label: 'Week 8', start: 50, end: 56 },
+];
 
 export interface RetentionInput {
-  /** user id → signup day (YYYY-MM-DD), owner excluded. */
-  users: readonly { id: string; signup: string }[];
-  /** distinct (user, UTC day) pairs with an attempted training session. */
+  /** Owner excluded. `signup` and `today` are calendar days in the user's timezone. */
+  users: readonly { id: string; signup: string; today: string }[];
+  /** Distinct (user, local day) pairs with training activity. */
   active: readonly { user_id: string; d: string }[];
-  /** today (UTC, YYYY-MM-DD) */
+  /** today (UTC, YYYY-MM-DD), for the weekly actives. */
   today: string;
+}
+
+export interface RetentionCount {
+  eligible: number;
+  retained: number;
+}
+
+export interface RetentionCohortRow {
+  /** `YYYY-MM` signup month, `YYYY-MM-DD` signup week (its Monday), or `all`. */
+  cohort: string;
+  signups: number;
+  trained: number;
+  trained2Days: number;
+  trained5Days: number;
+  windows: Record<string, RetentionCount>;
 }
 
 export function computeRetention({ users, active, today }: RetentionInput) {
@@ -364,39 +402,45 @@ export function computeRetention({ users, active, today }: RetentionInput) {
     daysByUser.get(a.user_id)!.add(a.d);
   }
   const perUser = users.map((u) => {
-    const days = [...(daysByUser.get(u.id) ?? [])].sort();
+    const days = daysByUser.get(u.id) ?? new Set<string>();
     return {
       ...u,
-      cohort: u.signup.slice(0, 7),
-      activeDays: days.length,
-      lastOffset: days.length ? daysBetween(u.signup, days[days.length - 1]) : null,
+      activeDays: days.size,
+      offsets: new Set([...days].map((d) => daysBetween(u.signup, d))),
+      // The last day after signup that has fully ended for this user.
+      elapsed: daysBetween(u.signup, u.today) - 1,
     };
   });
   type PU = (typeof perUser)[number];
-  const cohortOf = (members: PU[], cohort: string) => ({
-    cohort,
-    signups: members.length,
-    trained: members.filter((m) => m.activeDays > 0).length,
-    trained2Days: members.filter((m) => m.activeDays >= 2).length,
-    trained5Days: members.filter((m) => m.activeDays >= 5).length,
-    curve: RETENTION_MARKS.map((n) => {
-      const eligible = members.filter((m) => m.signup <= addDays(today, -n));
-      return {
-        day: n,
-        eligible: eligible.length,
-        retained: eligible.filter((m) => m.lastOffset !== null && m.lastOffset >= n).length,
-      };
-    }),
-  });
-  const byCohort = new Map<string, PU[]>();
-  for (const u of perUser) {
-    if (!byCohort.has(u.cohort)) byCohort.set(u.cohort, []);
-    byCohort.get(u.cohort)!.push(u);
-  }
-  const cohorts = [
-    cohortOf(perUser, 'all'),
-    ...[...byCohort.entries()].sort(([a], [b]) => (a < b ? 1 : -1)).map(([c, m]) => cohortOf(m, c)),
-  ];
+
+  const cohortOf = (members: PU[], cohort: string): RetentionCohortRow => {
+    const windows: Record<string, RetentionCount> = {};
+    for (const w of RETENTION_WINDOWS) {
+      const eligible = members.filter((m) => m.elapsed >= w.end);
+      const retained = eligible.filter((m) => {
+        for (let d = w.start; d <= w.end; d++) if (m.offsets.has(d)) return true;
+        return false;
+      }).length;
+      windows[w.key] = { eligible: eligible.length, retained };
+    }
+    return {
+      cohort,
+      signups: members.length,
+      trained: members.filter((m) => m.activeDays > 0).length,
+      trained2Days: members.filter((m) => m.activeDays >= 2).length,
+      trained5Days: members.filter((m) => m.activeDays >= 5).length,
+      windows,
+    };
+  };
+  const groupBy = (key: (u: PU) => string) => {
+    const m = new Map<string, PU[]>();
+    for (const u of perUser) {
+      const k = key(u);
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(u);
+    }
+    return [...m.entries()].sort(([a], [b]) => (a < b ? 1 : -1)).map(([c, us]) => cohortOf(us, c));
+  };
 
   // Weekly actives over the last 12 ISO weeks; "returning" = signed up before that week.
   const signupOf = new Map(users.map((u) => [u.id, u.signup]));
@@ -414,24 +458,71 @@ export function computeRetention({ users, active, today }: RetentionInput) {
   const weeks = [...weekMap.entries()]
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .map(([week, w]) => ({ week, active: w.active.size, returning: w.returning.size }));
-  return { cohorts, weeks };
+  return {
+    windows: RETENTION_WINDOWS,
+    all: cohortOf(perUser, 'all'),
+    byWeek: groupBy((u) => mondayOf(u.signup)),
+    byMonth: groupBy((u) => u.signup.slice(0, 7)),
+    weeks,
+  };
+}
+
+const dayFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/** Calendar day (YYYY-MM-DD) of an instant in `tz`; UTC when the zone is missing or unknown. */
+export function localDay(ts: string | Date, tz: string | null | undefined): string {
+  const date = typeof ts === 'string' ? new Date(ts) : ts;
+  if (!tz) return date.toISOString().slice(0, 10);
+  let f = dayFormatters.get(tz);
+  if (!f) {
+    try {
+      f = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+    } catch {
+      return date.toISOString().slice(0, 10);
+    }
+    dayFormatters.set(tz, f);
+  }
+  return f.format(date);
 }
 
 async function adminRetention(db: D1Database, now = new Date()) {
-  const [users, active] = await Promise.all([
-    all<{ id: string; created_at: string }>(
+  const [users, storedDays, drillHours] = await Promise.all([
+    all<{ id: string; created_at: string; timezone: string | null }>(
       db,
-      `SELECT p.id, p.created_at FROM profiles p LEFT JOIN "user" u ON u.id = p.id
+      `SELECT p.id, p.created_at, p.timezone FROM profiles p LEFT JOIN "user" u ON u.id = p.id
        WHERE lower(coalesce(u.email, '')) <> ?`,
       [KPI_EXCLUDED_EMAIL],
     ),
-    all<{ user_id: string; d: string }>(
+    // Drill sessions with a first-attempt position, and finished course lessons.
+    all<{ user_id: string; d: string; utc_d: string }>(
       db,
-      `SELECT DISTINCT user_id, substr(started_at, 1, 10) AS d FROM training_sessions WHERE blunders_attempted > 0`,
+      `SELECT user_id, local_date AS d, substr(started_at, 1, 10) AS utc_d FROM training_sessions
+         WHERE blunders_attempted > 0
+       UNION SELECT user_id, local_date AS d, substr(completed_at, 1, 10) AS utc_d FROM course_progress`,
+    ),
+    // Opening reviews and endgame play-outs keep only their latest drill time,
+    // so they add at most one day per item (a lower bound on that activity).
+    all<{ user_id: string; h: string }>(
+      db,
+      `SELECT user_id, substr(last_drilled_at, 1, 13) AS h FROM blunders
+         WHERE last_drilled_at IS NOT NULL AND kind = 'opening'
+       UNION SELECT user_id, substr(last_drilled_at, 1, 13) AS h FROM endgame_scenarios
+         WHERE last_drilled_at IS NOT NULL`,
     ),
   ]);
+  const tzOf = new Map(users.map((u) => [u.id, u.timezone]));
+  // A player with no saved timezone is measured in UTC throughout (signup too),
+  // so their stored local dates would be off by a day against it.
+  const active = [
+    ...storedDays.map((r) => ({ user_id: r.user_id, d: tzOf.get(r.user_id) ? r.d : r.utc_d })),
+    ...drillHours.map((r) => ({ user_id: r.user_id, d: localDay(`${r.h}:30:00Z`, tzOf.get(r.user_id)) })),
+  ];
   return computeRetention({
-    users: users.map((u) => ({ id: u.id, signup: utcDay(u.created_at) })),
+    users: users.map((u) => ({
+      id: u.id,
+      signup: localDay(u.created_at, u.timezone),
+      today: localDay(now, u.timezone),
+    })),
     active,
     today: now.toISOString().slice(0, 10),
   });

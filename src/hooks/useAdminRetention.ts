@@ -3,21 +3,28 @@ import { useAuth } from '../auth/useAuth';
 import { isAdminEmail } from '../auth/admin';
 import { rpc } from '../lib/api';
 
-/** Of `eligible` users (signed up ≥ `day` days ago), `retained` trained on day `day` or later. */
-export interface RetentionPoint {
-  day: number;
+/** A retention window: active on any day `start`..`end` after signup (signup day = day 0). */
+export interface RetentionWindow {
+  key: 'd1' | 'd7' | 'd30' | 'w1' | 'w2' | 'w4' | 'w8';
+  label: string;
+  start: number;
+  end: number;
+}
+
+/** Of `eligible` users (whose window has fully passed), `retained` were active inside it. */
+export interface RetentionCount {
   eligible: number;
   retained: number;
 }
 
 export interface RetentionCohort {
-  /** `YYYY-MM` signup month, or `all`. */
+  /** `YYYY-MM-DD` signup week (Monday), `YYYY-MM` signup month, or `all`. */
   cohort: string;
   signups: number;
   trained: number;
   trained2Days: number;
   trained5Days: number;
-  curve: RetentionPoint[];
+  windows: Record<RetentionWindow['key'], RetentionCount>;
 }
 
 export interface RetentionWeek {
@@ -29,7 +36,10 @@ export interface RetentionWeek {
 }
 
 export interface AdminRetention {
-  cohorts: RetentionCohort[];
+  windows: RetentionWindow[];
+  all: RetentionCohort;
+  byWeek: RetentionCohort[];
+  byMonth: RetentionCohort[];
   weeks: RetentionWeek[];
 }
 
@@ -38,7 +48,7 @@ export function useAdminRetention() {
   const { user } = useAuth();
   const admin = !!user && isAdminEmail(user.email);
   return useQuery({
-    queryKey: ['admin', 'retention', user?.id],
+    queryKey: ['admin', 'retention', 'v2', user?.id],
     enabled: admin,
     staleTime: 60_000,
     queryFn: async (): Promise<AdminRetention> => {
