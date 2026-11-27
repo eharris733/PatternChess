@@ -70,6 +70,24 @@ async function flushDrillWritesAndRefreshDue(): Promise<void> {
  */
 export const flushTrainingWrites = flushDrillWritesAndRefreshDue;
 
+/**
+ * Wait for every in-flight drill/session write, then refetch what the daily
+ * plan and the free limits count (opening drills' `last_drilled_at`, today's
+ * session rows), so a finished session's summary — and the next session's
+ * caps — see the drills just played. Keeps the queues (unlike the flush above).
+ */
+export async function refreshPlanCounts(): Promise<void> {
+  if (pendingDrillWrites.size > 0) {
+    await Promise.allSettled([...pendingDrillWrites]);
+  }
+  await Promise.allSettled([
+    queryClient.invalidateQueries({ queryKey: ['blunders', 'kind'] }),
+    queryClient.invalidateQueries({ queryKey: ['blunders', 'dueCount'] }),
+    queryClient.invalidateQueries({ queryKey: ['blunders', 'upcoming'] }),
+    queryClient.invalidateQueries({ queryKey: ['training'] }),
+  ]);
+}
+
 export type TrainingPhase =
   | 'loading'
   /** Opening drills: the game's opening plays out on the board before the prompt. */

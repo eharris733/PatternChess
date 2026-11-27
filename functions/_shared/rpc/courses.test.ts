@@ -151,6 +151,7 @@ describe('courses.dayContent', () => {
       end: 99,
       takeaway: 'Locked lesson.',
       lesson: null,
+      lessonStudy: null,
     });
   });
 
@@ -159,9 +160,26 @@ describe('courses.dayContent', () => {
     for (let d = 1; d < locked; d++) seedDone(alice.id, d, today);
     kv.set(
       `course-day:${slug}:${locked}`,
-      JSON.stringify({ youtubeId: 'abcdefghijk', takeaway: 'Locked lesson.', lesson: 'some-lesson-abc123' }),
+      JSON.stringify({
+        youtubeId: 'abcdefghijk',
+        takeaway: 'Locked lesson.',
+        lesson: 'some-lesson-abc123',
+        lessonStudy: { slug: 'some-lesson-abc123', chapterData: [] },
+      }),
     );
-    expect(await call('courses.dayContent', alice, { slug, day: locked })).toMatchObject({ lesson: 'some-lesson-abc123' });
+    // The built lesson travels with the day (KV), never in the public bundle.
+    expect(await call('courses.dayContent', alice, { slug, day: locked })).toMatchObject({
+      lesson: 'some-lesson-abc123',
+      lessonStudy: { slug: 'some-lesson-abc123', chapterData: [] },
+    });
+  });
+
+  it('serves referral-grant holders like subscribers', async () => {
+    for (let d = 1; d < locked; d++) seedDone(bob.id, d, today);
+    db.sqlite
+      .prepare('INSERT INTO supporter_grants (id, user_id, source, starts_at, ends_at) VALUES (?, ?, ?, ?, ?)')
+      .run('g1', bob.id, 'referral', '2020-01-01T00:00:00.000Z', '2999-01-01T00:00:00.000Z');
+    expect(await call('courses.dayContent', bob, { slug, day: locked })).toMatchObject({ takeaway: 'Locked lesson.' });
   });
 
   it('refuses non-supporters and lapsed supporters', async () => {

@@ -1,0 +1,132 @@
+[Event "The main lines at a glance"]
+[ChapterName "1...c6 and the Classical 4...Bf5"]
+[Orientation "black"]
+
+{ [%ts 0:36] Stjepan starts with the basics: the opening principles and the main line, played move by move. You have Black. }
+1. e4 c6 { [%ts 0:44] This is the Caro-Kann. Whatever happens next, c6 is there to support a later d5. }
+( 1... e5 ) ( 1... c5 ) ( 1... e6 ) ( 1... Nc6 )
+2. d4 { [%ts 0:52] White has three moves here, and d4 is by far the most common. }
+2... d5 { [%ts 1:09] In every line Black meets d4 with d5, challenging the center. That's the point of c6: instead of e5 or c5, Black prepares d5 and fights for the center one move later. }
+( 2... g6 ) ( 2... d6 ) ( 2... a6 ) ( 2... e6 )
+3. Nc3
+( 3. e5 { [%ts 1:42] White has a couple of other replies after d5, and this is where the lines branch out. The Advance, e5, gets its own day. } )
+3... dxe4 { [%ts 1:58] From here Black really has only one move: take on e4. }
+( 3... e6 ) ( 3... h6 ) ( 3... a6 )
+4. Nxe4
+4... Bf5 { [%ts 2:06] The main move, challenging the knight on e4. }
+( 4... Nd7 { [%ts 7:51] The Karpov Variation, a very good option: it has its own chapter. Here, find the main move. } )
+( 4... Nf6 { [%ts 11:18] The second most popular move, with its own chapters. Here, find the main move. } )
+( 4... g6 ) ( 4... h6 ) ( 4... a5 )
+5. Ng3
+5... Bg6 { [%ts 2:15] Saving the bishop. This is the starting position of the Caro-Kann main line. }
+6. h4 { [%ts 2:23] White's idea is to exploit the bishop on g6, which is slightly misplaced and has already used a couple of tempi. h4 threatens h5, trapping it. }
+( 6. Bd3 { [%ts 6:37] White doesn't have to start with h4. Nf3, Be3 or Bd3, which challenges the bishop at once, all avoid weakening the kingside and might surprise your opponent. } )
+6... h6 { [%ts 2:39] Making room for the bishop. h5 would be inferior: it weakens too many squares and gives the knight on g3 and the queen a clear target on the h-file. }
+7. Nf3
+7... Nd7 { [%ts 6:54] The most principled continuation. Black develops the knight to d7 first. }
+( 7... Nf6 { [%ts 6:54] Stjepan calls ...Nf6 a mistake here because Ne5 gives White a lot of activity, though the engine rates it close to ...Nd7. Play his move: develop the knight to d7 first. } )
+( 7... e6 ) ( 7... Bh7 )
+8. h5 { [%ts 2:53] h5 again threatens nothing less than the bishop. }
+8... Bh7
+9. Bd3 { [%ts 3:04] By far White's most common move here, with over 20,000 games: trade off Black's light-squared bishop, which has moved several times, for one that moved once. }
+9... Bxd3 { [%ts 3:12] Black doesn't really have an alternative to the trade. }
+( 9... Ngf6 ) ( 9... Ndf6 )
+10. Qxd3 { [%ts 3:20] White argues he has better development and more control of the center. In exchange, h4 and h5 weakened his kingside, so White can never really castle there. }
+*
+
+[Event "The main lines at a glance"]
+[ChapterName "The main line: provoking c3 and c4"]
+[Orientation "black"]
+[LeadIn "1.e4 c6 2.d4 d5 3.Nc3 dxe4 4.Nxe4 Bf5 5.Ng3 Bg6 6.h4 h6 7.Nf3 Nd7 8.h5 Bh7 9.Bd3 Bxd3 10.Qxd3"]
+[SetUp "1"]
+[FEN "r2qkbnr/pp1nppp1/2p4p/7P/3P4/3Q1NN1/PPP2PP1/R1B1K2R b KQkq - 0 10"]
+
+{ [%ts 3:37] The main line after Bxd3 Qxd3. Black now has to develop, and the main idea is ...e6, opening up the dark-squared bishop. }
+10... e6
+( 10... Ngf6 ) ( 10... Qc7 ) ( 10... a5 ) ( 10... Rc8 ) ( 10... Qb8 )
+11. Bf4
+11... Qa5+ { [%ts 4:01] Here's one of Black's ideas in the main line: force White to weaken the queenside as well. The check makes White retreat the bishop to d2 or play c3. }
+( 11... Ngf6 ) ( 11... Bb4+ ) ( 11... Be7 )
+12. Bd2
+12... Bb4 { [%ts 4:10] Challenging the bishop once again. }
+( 12... Qc7 ) ( 12... Qb6 )
+13. c3 { [%ts 4:14] White answers with c3, another queenside weakening. }
+13... Be7 { [%ts 4:18] The bishop simply retreats. It could have gone straight from f8 to e7, so Black lost no time, and this way it provoked c3. }
+( 13... Bd6 ) ( 13... Bf8 )
+14. c4 { [%ts 4:26] Now c4 attacks the queen: the bishop on d2 sees a5 again. }
+14... Qc7 { [%ts 4:30] Black spent only a couple of moves and provoked c3, c4 and the bishop's retreat from f4 to d2. A favorable version for Black, even if White keeps a slight opening edge. }
+( 14... Qb6 ) ( 14... Qa6 ) ( 14... Qd8 )
+15. O-O-O { [%ts 4:51] White most commonly castles queenside, and the king will step to b1. Kingside castling is too risky after the h-pawn's advance. }
+15... Ngf6
+( 15... Rd8 ) ( 15... b5 ) ( 15... a6 ) ( 15... Rc8 )
+16. Kb1
+16... O-O { [%ts 5:05] Black castles: the starting position of the main line. Engines give Black about half a pawn, partly because the h5 pawn is overextended and the knight on g3 is fairly useless. Practically it's roughly level, but Black's king is safer and his queenside attack is ready-made. }
+( 16... Rd8 ) ( 16... a5 ) ( 16... b5 ) ( 16... a6 ) ( 16... Ng4 ) ( 16... Rb8 )
+*
+
+[Event "The main lines at a glance"]
+[ChapterName "The Karpov Variation: 4...Nd7"]
+[Orientation "black"]
+[LeadIn "1.e4 c6 2.d4 d5 3.Nc3 dxe4 4.Nxe4"]
+[SetUp "1"]
+[FEN "rnbqkbnr/pp2pppp/2p5/8/3PN3/8/PPP2PPP/R1BQKBNR b KQkq - 0 4"]
+
+{ [%ts 7:27] Back to move four, after Nxe4. Bf5 was the main move, but Black has two more very good options that give even more activity. }
+4... Nd7 { [%ts 7:51] The Karpov Variation. Black doesn't challenge the e4 knight yet: he prepares Ngf6 so he can recapture with the other knight, and the bishop stays on c8, where h4 and h5 can't chase it. }
+( 4... Bf5 { [%ts 7:43] The main line, also good. This chapter is about the Karpov: find the knight move. } )
+( 4... Nf6 ) ( 4... g6 ) ( 4... h6 ) ( 4... a5 )
+5. Nf3
+( 5. Ng5 { [%ts 9:47] Ng5 strikes at f7 immediately, so Black has to be a little careful. } 5... Ngf6 { [%ts 10:04] The best move, and the most commonly played. } ( 5... h6 ) ( 5... e6 ) ( 5... Qc7 ) ( 5... Ndf6 ) 6. Bd3 6... e6 { [%ts 10:12] White stands a bit better, but Black has compensation for White's lost tempi. Chasing the knight with h6 is okay, but it doesn't have to be played yet: White doesn't have many threats. } ( 6... g6 ) ( 6... Qc7 ) ( 6... e5 ) ( 6... Nb6 ) )
+( 5. Qe2 { [%ts 10:28] A scary idea you have to remember: Qe2 sets up a mate. } 5... Ndf6 { [%ts 10:45] Bring the d7 knight to f6, so that if White takes, you recapture and the d-file opens for your queen. Playing e6 to give the king a square, so the bishop covers d6, also works. } ( 5... e6 { [%ts 10:53] The other safe option: the king gets a square and the bishop can capture on d6. Both work; here, play the knight move. } ) ( 5... Qc7 ) ( 5... Nb6 ) ( 5... Ngf6 $4 { [%ts 10:37] Developing normally loses at once: Nd6 is checkmate. The knight can't be taken and the king has no moves. } ) 6. Nxf6+ 6... Nxf6 { [%ts 10:45] Black recaptures on f6 and is safe. } ( 6... gxf6 ) )
+5... Ngf6 { [%ts 8:25] Black continues with Ngf6, and now White is forced to capture. }
+( 5... Ndf6 ) ( 5... g6 )
+6. Nxf6+ { [%ts 8:25] Forced: if White doesn't take on f6, Black takes on e4. }
+( 6. Bd3 { [%ts 8:41] Say White defends with Bd3 instead of taking. Black takes on e4, and after Bxe4 the d7 knight comes to f6 with tempo on the bishop. } 6... Nxe4 ( 6... Qc7 ) ( 6... g6 ) 7. Bxe4 7... Ndf6 { [%ts 8:49] Ndf6 hits the bishop on e4, and Black gains a tempo. } ( 7... g6 ) ( 7... a6 ) ( 7... Qc7 ) ( 7... Qb6 ) ( 7... a5 ) )
+6... Nxf6 { [%ts 8:58] Development is equal: both sides have spent two moves and developed one piece and one pawn each. }
+( 6... exf6 )
+7. Bc4 { [%ts 9:06] The most active move for White. The bishop stares at f7, ready to double the attack with a knight on g5 or e5, and maybe Qe2 later. }
+7... Bf5 { [%ts 9:22] Black still has to develop the light-squared bishop before playing e6 and closing the diagonal to secure f7. }
+( 7... Qc7 ) ( 7... b5 ) ( 7... Nd5 ) ( 7... Qd6 ) ( 7... e6 { The engine is fine with it too, but Stjepan wants the bishop out before e6 closes its diagonal. } )
+8. O-O
+8... e6 { [%ts 9:30] Now e6, and this is the standard line in the Karpov Variation. }
+( 8... Qc7 ) ( 8... h6 ) ( 8... a5 ) ( 8... a6 )
+*
+
+[Event "The main lines at a glance"]
+[ChapterName "4...Nf6: the Korchnoi Variation"]
+[Orientation "black"]
+[LeadIn "1.e4 c6 2.d4 d5 3.Nc3 dxe4 4.Nxe4"]
+[SetUp "1"]
+[FEN "rnbqkbnr/pp2pppp/2p5/8/3PN3/8/PPP2PPP/R1BQKBNR b KQkq - 0 4"]
+
+{ [%ts 11:10] One more line after Nxe4 that isn't Bf5 or the Karpov: challenge the knight with your own. }
+4... Nf6 { [%ts 11:18] The second most popular continuation. It branches into two variations. }
+( 4... Nd7 { [%ts 11:18] 4...Nd7, the Karpov, is also good. This chapter is about ...Nf6. } )
+( 4... Bf5 { [%ts 11:18] The main line, also good. This chapter is about the knight move that challenges e4. } )
+( 4... g6 ) ( 4... h6 ) ( 4... a5 )
+5. Nxf6+ { [%ts 11:34] White has to capture: if he lets the knight be challenged, it just goes back with tempo. }
+5... exf6 { [%ts 11:50] Taking with the e-pawn is the Korchnoi Variation. It's a very drawish line that doesn't give much counterplay. }
+( 5... gxf6 $6 { [%ts 12:31] The Bronstein-Larsen. Stjepan says it gives Black a lot of initiative but White is supposed to be positionally better, and the engine rates it a clear step down from exf6. The last chapter shows how it goes. Here, take with the e-pawn. } )
+6. c3 { [%ts 11:58] White sets up with c3, Bd3, a knight to f3 and kingside castling. }
+6... Bd6 { [%ts 11:58] The most common plan: Black develops his bishops to d6 and e6. }
+( 6... Nd7 ) ( 6... a5 ) ( 6... Qc7 ) ( 6... g6 )
+7. Bd3
+7... O-O { [%ts 12:06] Both sides castle kingside and the middlegame is equal, if slightly boring. The catch: any endgame is unfavorable for Black because of the doubled f-pawns, a bit like the Berlin, where Black has no kingside pawn majority. }
+( 7... Nd7 ) ( 7... c5 ) ( 7... Qc7 ) ( 7... Na6 )
+*
+
+[Event "The main lines at a glance"]
+[ChapterName "If you choose the Bronstein-Larsen"]
+[Orientation "black"]
+[LeadIn "1.e4 c6 2.d4 d5 3.Nc3 dxe4 4.Nxe4 Nf6 5.Nxf6+ gxf6"]
+[SetUp "1"]
+[FEN "rnbqkb1r/pp2pp1p/2p2p2/8/3P4/8/PPP2PPP/R1BQKBNR w KQkq - 0 6"]
+
+{ [%ts 12:31] Recapturing with the g-pawn is the Bronstein-Larsen. Stjepan warns that White is supposed to be positionally and strategically better, and the engine agrees, but Black gets a lot of initiative for the doubled pawns and the broken kingside. }
+6. c3
+6... Bf5 { [%ts 12:48] Black develops the bishop to f5, and both sides keep developing. }
+( 6... Qd5 ) ( 6... h5 ) ( 6... e5 ) ( 6... Na6 ) ( 6... Qd6 )
+7. Nf3
+7... e6 { [%ts 12:56] Black has a lot of activity with the bishop pair. The plan is to castle queenside and put a rook on g8 to strike down the g-file, so White will have a hard time castling kingside. In any endgame, though, Black is slightly worse because of the ruined kingside structure. }
+( 7... Nd7 ) ( 7... Bg6 ) ( 7... h5 ) ( 7... a5 )
+*

@@ -73,6 +73,8 @@
   "duration.minutes": "{m}min",
   "duration.hoursMinutes": "{h}h{m}min",
   "plan.allDone": "Plano concluído. Quer continuar?",
+  "planRun.startingIn": "Começa em {seconds} s.",
+  "planRun.stay": "Ficar aqui",
   "plan.keepGoing": "Continuar",
   "plan.nextUnlock_one": "Próximo desbloqueio em {count} posição",
   "plan.nextUnlock_other": "Próximo desbloqueio em {count} posições",

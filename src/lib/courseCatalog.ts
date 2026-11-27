@@ -34,11 +34,17 @@ export interface CourseSegment {
   takeaway: string;
   /**
    * The lesson's interactive drill: the slug of an annotated PGN built by
-   * `npm run learn:sync` into src/generated/courses/<slug>.json (comments
+   * `npm run learn:sync` into src/generated/course-lessons/<slug>.json (comments
    * paraphrase the video, `[%ts m:ss]` links each moment back to it). Unset =
    * watch the clip and read the takeaway.
    */
   lesson?: string;
+  /**
+   * Supporter days only: the built lesson itself (a LearnStudy), stored with
+   * the day in KV and returned by `courses.dayContent`, so it never ships in
+   * the public bundle. Typed loosely here because the server shares this file.
+   */
+  lessonStudy?: unknown;
 }
 
 export interface CourseDay extends Partial<CourseSegment> {

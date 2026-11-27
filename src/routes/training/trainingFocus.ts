@@ -38,6 +38,12 @@ export interface TrainingFocus {
   focusLabel?: string;
   /** Drill what's due next instead of what's due now ("Practice ahead"). */
   practiceAhead?: boolean;
+  /**
+   * Started from today's plan: the session drills what the step still needs
+   * (for supporters too), then moves on to the next unfinished step by itself.
+   * The Train step leaves opening drills to the Openings step.
+   */
+  planRun?: boolean;
   /** Where "Back to …" goes when the focus runs out. */
   returnTo?: ReturnPath;
 }
@@ -84,6 +90,11 @@ export function returnPathFor(f: TrainingFocus, blunders: readonly Blunder[] | n
  */
 export function continueFocus(f: TrainingFocus, blunders: readonly Blunder[] = []): TrainingFocus | null {
   if (f.gameIds) return null;
+  // "Keep training" after a plan run is free training, not another capped step.
+  if (f.planRun) {
+    const { planRun: _run, ...rest } = f;
+    return continueFocus(rest, blunders);
+  }
   if (f.blunderIds) {
     const back = returnPathFor(f, blunders);
     if (back === '/openings') return { kindFilter: 'opening', returnTo: back };

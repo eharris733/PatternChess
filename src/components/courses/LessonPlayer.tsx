@@ -4,7 +4,7 @@ import { BoardPanel } from '../BoardPanel';
 import { parseUciMove } from '../../chess/moveUtils';
 import type { LearnNode, LearnStudy } from '../../models/learn';
 import { splitCommentLines, type CommentLine } from '../../learn/commentLines';
-import { countMoments, drillFen, useLearnDrillStore } from '../../state/learnDrillStore';
+import { countChapterMoments, drillFen, useLearnDrillStore } from '../../state/learnDrillStore';
 import { YouTubeEmbed, useYouTubePlayer, youtubeIdFromUrl, type YouTubePlayer } from '../youtube/YouTubeEmbed';
 
 function lastMoveOf(node: LearnNode | undefined): [string, string] | null {
@@ -49,7 +49,7 @@ interface LinePreview {
 }
 
 export interface LessonPlayerProps {
-  /** The lesson: an annotated PGN converted by `npm run learn:sync` (src/generated/courses/). */
+  /** The lesson: an annotated PGN converted by `npm run learn:sync` (src/generated/course-lessons/ or src/generated/courses/). */
   study: LearnStudy;
   /** Called by the last chapter's Finish button. */
   onFinish: () => void;
@@ -64,11 +64,6 @@ export interface LessonPlayerProps {
   video?: YouTubePlayer;
   /** Title for the embedded video frame. */
   videoTitle?: string;
-  /**
-   * The player sits in a narrow column (a course day, beside the lesson
-   * list): stack the board over the coach until the screen is very wide.
-   */
-  narrow?: boolean;
 }
 
 /**
@@ -84,7 +79,6 @@ export function LessonPlayer({
   header,
   video: videoProp,
   videoTitle,
-  narrow = false,
 }: LessonPlayerProps) {
   const chapters = course.chapterData;
   const [index, setIndex] = useState(0);
@@ -96,6 +90,19 @@ export function LessonPlayer({
   const drill = useLearnDrillStore();
   const rootRef = useRef<HTMLDivElement>(null);
 
+  // The board is sized to the viewport; when the page header pushes it below
+  // the fold, bring the player to the top once so board and coach both show.
+  // (After a beat: the board chunk loads lazily, so measure once it's laid out.)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const el = rootRef.current;
+      if (!el || window.scrollY > 0) return;
+      const board = el.querySelector('cg-board') ?? el;
+      if (board.getBoundingClientRect().bottom > window.innerHeight) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }, 400);
+    return () => clearTimeout(t);
+  }, []);
+
   useEffect(() => {
     setPreview(null);
     if (chapter.leadIn?.length) {
@@ -103,7 +110,7 @@ export function LessonPlayer({
       setLeadPly(0);
     } else {
       setLeadPly(null);
-      useLearnDrillStore.getState().start(chapter);
+      useLearnDrillStore.getState().start(chapter, { runs: true });
     }
     return () => useLearnDrillStore.getState().reset();
   }, [chapter]);
@@ -113,7 +120,7 @@ export function LessonPlayer({
     if (leadPly == null) return;
     if (leadPly >= leadIn.length) {
       setLeadPly(null);
-      useLearnDrillStore.getState().start(chapter);
+      useLearnDrillStore.getState().start(chapter, { runs: true });
       return;
     }
     const t = setTimeout(() => setLeadPly(leadPly + 1), leadPly === 0 ? 700 : LEAD_IN_MS);
@@ -136,6 +143,12 @@ export function LessonPlayer({
   const isLast = index + 1 >= chapters.length;
   const skipLeadIn = () => setLeadPly(leadIn.length);
   const nextChapter = () => (isLast ? onFinish() : setIndex(index + 1));
+  const hasNextRun = drill.chapter?.id === chapter.id && drill.runIndex + 1 < drill.runs.length;
+  // Done with a line: the chapter's next line (an opponent sideline), else the next chapter.
+  const afterDone = () => {
+    if (hasNextRun) drill.nextRun();
+    else nextChapter();
+  };
 
   // Space / Enter does whatever the main button would: skip the setup, close
   // a shown line, continue past a note, go to the next chapter.
@@ -144,7 +157,7 @@ export function LessonPlayer({
     if (leadPly != null) skipLeadIn();
     else if (preview) setPreview(null);
     else if (drill.phase === 'explain') drill.next();
-    else if (drill.phase === 'done') nextChapter();
+    else if (drill.phase === 'done') afterDone();
   };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -170,10 +183,17 @@ export function LessonPlayer({
     };
   }, []);
 
-  const perChapter = useMemo(() => chapters.map(countMoments), [chapters]);
-  const total = perChapter.reduce((a, b) => a + b, 0);
+  const perChapter = useMemo(() => chapters.map((c) => countChapterMoments(c, true)), [chapters]);
+  const onChapter = drill.chapter?.id === chapter.id;
+  const here = onChapter ? drill.momentsTotal : (perChapter[index] ?? 0);
+  const total = perChapter.reduce((a, b) => a + b, 0) - (perChapter[index] ?? 0) + here;
   const before = perChapter.slice(0, index).reduce((a, b) => a + b, 0);
-  const done = before + Math.min(perChapter[index] ?? 0, drill.chapter?.id === chapter.id ? drill.momentsDone : 0);
+  const done = before + Math.min(here, onChapter ? drill.momentsDone : 0);
+  const runCount = onChapter ? drill.runs.length : 1;
+  const branch = onChapter && drill.runIndex > 0 ? drill.runs[drill.runIndex].path : null;
+  const branchLabel = branch?.length
+    ? numbered(branch.at(-2)?.fen ?? chapter.startFen, [branch.at(-1)!.san])
+    : null;
   const source = course.source;
   const side = chapter.orientation === 'white' ? 'White' : 'Black';
   const ownVideo = useYouTubePlayer(!videoProp && source ? youtubeIdFromUrl(source.url) : null, {
@@ -215,8 +235,12 @@ export function LessonPlayer({
   const status =
     leadIn.length > 0 && leadPly != null
       ? 'Setting up the position'
-      : drill.phase === 'done'
-        ? 'Chapter complete.'
+      : drill.phase === 'replay'
+        ? 'Setting up the next line'
+        : drill.phase === 'done'
+          ? hasNextRun
+            ? 'Line complete.'
+            : 'Chapter complete.'
         : drill.phase === 'opponent'
           ? 'Opponent is replying…'
           : drill.phase === 'explain'
@@ -224,7 +248,7 @@ export function LessonPlayer({
             : `Your move as ${side}.`;
 
   return (
-    <div ref={rootRef} tabIndex={-1} className="flex flex-col gap-5 outline-none">
+    <div ref={rootRef} tabIndex={-1} className="flex flex-col gap-5 outline-none scroll-mt-20 lg:scroll-mt-4">
       <header className="flex flex-col gap-2">
         {header}
         <div className="flex items-center gap-3" data-testid="course-progress">
@@ -240,14 +264,7 @@ export function LessonPlayer({
         </div>
       </header>
 
-      <div
-        className={clsx(
-          'grid grid-cols-1 gap-4',
-          narrow
-            ? '2xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]'
-            : 'lg:grid-cols-[minmax(0,1fr)_minmax(360px,500px)]',
-        )}
-      >
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,500px)]">
           {/* Keep the whole board above the fold: header + progress take ~230px. */}
           <div className="w-full mx-auto" style={{ maxWidth: 'max(320px, calc(100vh - 240px))' }}>
             <BoardPanel
@@ -262,8 +279,9 @@ export function LessonPlayer({
           <div className="flex flex-col gap-3 min-w-0">
             <div className="card !p-4 flex items-start justify-between gap-3">
               <div className="flex flex-col gap-1 min-w-0">
-                <span className="label">
+                <span className="label" data-testid="course-chapter-label">
                   Chapter {index + 1} of {chapters.length}
+                  {runCount > 1 && ` · Line ${drill.runIndex + 1} of ${runCount}`}
                 </span>
                 <h2 className="text-base font-semibold text-text-primary">{chapter.name}</h2>
               </div>
@@ -273,7 +291,7 @@ export function LessonPlayer({
                 onClick={() => {
                   setPreview(null);
                   setLeadPly(leadIn.length > 0 ? 0 : null);
-                  if (leadIn.length === 0) drill.start(chapter);
+                  if (leadIn.length === 0) drill.start(chapter, { runs: true });
                 }}
               >
                 Restart
@@ -302,6 +320,11 @@ export function LessonPlayer({
                 </>
               ) : (
                 <>
+                  {branchLabel && (
+                    <p className="text-sm font-mono text-text-primary" data-testid="course-branch">
+                      Instead: {branchLabel}
+                    </p>
+                  )}
                   {drill.message && (
                     <p className="text-sm text-text-primary leading-relaxed" data-testid="course-message">
                       {segments.map((seg, i) =>
@@ -368,8 +391,8 @@ export function LessonPlayer({
                     </button>
                   )}
                   {!preview && drill.phase === 'done' && (
-                    <button type="button" className="btn-primary" onClick={nextChapter} data-testid="course-next">
-                      {isLast ? finishLabel : 'Next chapter'} <SpaceHint />
+                    <button type="button" className="btn-primary" onClick={afterDone} data-testid="course-next">
+                      {hasNextRun ? 'Next line' : isLast ? finishLabel : 'Next chapter'} <SpaceHint />
                     </button>
                   )}
                 </>

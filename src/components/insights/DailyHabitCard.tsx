@@ -26,6 +26,7 @@ import { CourseIcon } from '../icons/CourseIcon';
 import { useAuth } from '../../auth/useAuth';
 import { useLabel, useT } from '../../i18n/useT';
 import { useQuotaGuard } from '../../hooks/useDailyQuota';
+import { usePlanStepStart } from '../../hooks/usePlanStepStart';
 import { DailyLimitCountdown } from '../supporter/DailyLimitCountdown';
 
 function PlanStep({
@@ -222,6 +223,9 @@ export function DailyHabitCard() {
     trainPending,
     trainIdle,
     practiceNext,
+    trainDone,
+    openingsDone,
+    endgamesDone,
     openingsPending,
     openingsToday,
     openingsDue,
@@ -247,6 +251,9 @@ export function DailyHabitCard() {
     stepsTotal,
     allDone,
   } = plan;
+  // An unfinished step starts a plan run: it drills what the step needs, then
+  // moves on to the next unfinished step by itself. A finished one is extra practice.
+  const startStep = usePlanStepStart(plan);
 
   if (plan.drillsPending) {
     return (
@@ -352,7 +359,10 @@ export function DailyHabitCard() {
           limitResetsAt={lockedUntil('positions')}
           action={practiceNext ? t('plan.practiceAhead') : t('common.train')}
           actionShort={practiceNext ? t('plan.practice') : undefined}
-          onAction={() => guard('positions') && train(practiceNext ? { practiceAhead: true } : undefined)}
+          onAction={() =>
+            guard('positions') &&
+            (trainDone ? train(practiceNext ? { practiceAhead: true } : undefined) : startStep('train'))
+          }
         />
         {openingsPending ? (
           <PlanStepSkeleton />
@@ -380,11 +390,13 @@ export function DailyHabitCard() {
             action={openingsDue > 0 ? t('common.review') : t('plan.practice')}
             onAction={() =>
               guard('openings') &&
-              train({
-                kindFilter: 'opening',
-                returnTo: '/openings',
-                ...(openingsDue > 0 ? {} : { practiceAhead: true }),
-              })
+              (openingsDone
+                ? train({
+                    kindFilter: 'opening',
+                    returnTo: '/openings',
+                    ...(openingsDue > 0 ? {} : { practiceAhead: true }),
+                  })
+                : startStep('openings'))
             }
           />
         )}
@@ -412,7 +424,7 @@ export function DailyHabitCard() {
             goal={endgamesGoal}
             limitResetsAt={lockedUntil('endgames')}
             action={t('common.play')}
-            onAction={() => guard('endgames') && navigate('/endgames')}
+            onAction={() => guard('endgames') && (endgamesDone ? navigate('/endgames') : startStep('endgames'))}
           />
         )}
         {showPlay && profile && (

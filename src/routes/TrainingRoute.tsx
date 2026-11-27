@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useIsFetching, useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/useAuth';
 import { authService } from '../services/authService';
 import { recordShare } from '../share/recordShare';
@@ -47,6 +47,7 @@ import {
 import { playSound } from '../lib/sounds';
 import { useT } from '../i18n/useT';
 import { useQuotaGuard } from '../hooks/useDailyQuota';
+import { detectTimezone, localDate } from '../services/streakService';
 import type { QuotaKind } from '../lib/dailyLimit';
 
 /** Opening intro pace, and the pause on the final position before the prompt. */
@@ -116,6 +117,8 @@ function TrainingSession({
   const focusIds = effectiveState.blunderIds ?? null;
   const focusLabel = effectiveState.focusLabel ?? null;
   const practiceAhead = !!effectiveState.practiceAhead;
+  const planRun = !!effectiveState.planRun;
+  const planTz = profile?.timezone ?? detectTimezone();
   const dueBlunders = useDueBlunders(effectiveState.gameIds, focusIds ?? undefined);
   const dueData = dueBlunders.data;
   // Practice ahead: the drills due next. Also fetched (same key) for the empty
@@ -175,6 +178,14 @@ function TrainingSession({
     if (!sourceData) return null;
     let list = phaseFilter ? sourceData.filter((b) => b.phase === phaseFilter) : sourceData;
     if (kindFilter) list = list.filter((b) => b.kind === kindFilter);
+    // The plan's Train step leaves opening drills to the Openings step.
+    else if (planRun && !focusIds) list = list.filter((b) => b.kind !== 'opening');
+    // The Openings step counts distinct drills reviewed today, so a plan run
+    // never spends its review on one already reviewed today.
+    if (planRun && kindFilter === 'opening') {
+      const today = localDate(planTz);
+      list = list.filter((b) => !(b.lastDrilledAt && localDate(planTz, b.lastDrilledAt) === today));
+    }
     if (motifFilter) list = list.filter((b) => b.motifs.includes(motifFilter));
     if (needsGames) {
       if (!filterGamesQuery.data) return null; // wait for game data
@@ -193,6 +204,9 @@ function TrainingSession({
   }, [
     sourceData,
     practiceAhead,
+    planRun,
+    planTz,
+    focusIds,
     needsGames,
     contextFilter,
     openingFilter,
@@ -356,9 +370,23 @@ function TrainingSession({
   // Free players stop at their plan's limits for the day (dailyLimit.ts): the
   // store skips new goal positions past the Train goal and new opening drills
   // past the openings limit, and ends the session once only those are left.
-  const capReady = !!profile && !quota.positions.pending && !quota.openings.pending;
-  const dailyCap = quota.positions.remaining;
-  const openingsCap = quota.openings.remaining;
+  // A plan run drills what its step still needs, for supporters too.
+  // Wait for today's counts to settle: right after a session (Keep training,
+  // the next plan step) they are refetching, and the cached ones would hand
+  // out the same limit again.
+  const countsFetching =
+    useIsFetching({ queryKey: ['training', 'drillsToday'] }) + useIsFetching({ queryKey: ['blunders', 'kind', 'opening'] });
+  // A plan run sizes itself from today's counts, so it also needs them to have
+  // loaded: a failed fetch would read as nothing done and hand out the whole goal.
+  const capReady =
+    !!profile &&
+    !quota.positions.pending &&
+    !quota.openings.pending &&
+    countsFetching === 0 &&
+    (!planRun || (quota.positions.known && quota.openings.known));
+  const stepLeft = (q: { limit: number; used: number }) => Math.max(0, q.limit - q.used);
+  const dailyCap = planRun ? stepLeft(quota.positions) : quota.positions.remaining;
+  const openingsCap = planRun ? stepLeft(quota.openings) : quota.openings.remaining;
 
   useEffect(() => {
     if (restarting || !sessionReady || !filteredBlunders || !capReady) return;
@@ -613,6 +641,9 @@ function TrainingSession({
         cappedOut={state.cappedOut}
         cappedKind={state.cappedKind}
         limitResetsAt={quota.resetsAt}
+        planRun={planRun}
+        runStep={kindFilter === 'opening' ? 'openings' : planRun ? 'train' : null}
+        unlimited={quota.unlimited}
       />
     );
   }

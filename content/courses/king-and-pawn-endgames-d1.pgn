@@ -1,0 +1,61 @@
+[Event "King and pawn vs king: the rules"]
+[ChapterName "How the slow march draws"]
+[Orientation "black"]
+[SetUp "1"]
+[FEN "8/2k5/8/2KP4/8/8/8/8 w - - 0 1"]
+
+{ [%ts 1:09] This is the march John sees all the time: White pushes the pawn up to d5 with the king behind it, and Black keeps stepping back in front of it. You're Black. Show why it's only a draw. }
+1. d6+ { [%ts 1:21] The pawn inches up again, d6 with check. Where does the black king go? }
+1... Kd7 $1 { [%ts 1:25] Straight back in front of the pawn, to d7. }
+( 1... Kd8 { Also holds by the engine. John's Black stays right in front of the pawn with Kd7. } )
+2. Kd5
+2... Kd8 $1 { [%ts 1:25] Back to d8, still blocking the pawn. }
+3. Kc6
+3... Kc8 $1 { [%ts 1:34] King c8, facing the white king. This is where most players who don't know the ending stop and think. }
+4. d7+ { [%ts 1:42] White plays d7 check, as he's done the whole game. }
+4... Kd8 $1 { [%ts 1:50] [%cal Gc8d8] Kd8. White's choices are all bad now. }
+5. Kd6 { [%ts 1:58] The consistent Kd6 is stalemate: every square around the black king is covered by the white king and pawn. }
+( 5. Kb7 { [%ts 2:07] Or White moves the king away, say Kb7, and the pawn on d7 falls. } 5... Kxd7 )
+*
+
+[Event "King and pawn vs king: the rules"]
+[ChapterName "Take the opposition: Kd3"]
+[Orientation "white"]
+[SetUp "1"]
+[FEN "8/8/8/3k4/8/8/3PK3/8 w - - 0 1"]
+
+{ [%ts 0:35] You're White. The pawn queens on d8, a long way off. White to move: the march you just saw started with d3. What's the winning move? }
+1. Kd3 $1 { [%ts 4:52] [%cal Gd3d5] King d3. Kings on the same file, on the same colour squares, an odd number of squares between them (one), and Black to move: White has the opposition. }
+( 1. d3 $2 { [%ts 2:39] After d3 the position is already drawn. Black holds as long as he plays correctly. Clear the squares in front of the pawn with the king first, and push only when it's safe. } )
+1... Kc5 { [%ts 5:43] [%csl Gc4,Gd4,Ge4] White is fighting for c4, d4 and e4. Black has to move and must give up at least one. Say ...Kc5, a reasonable sidestep that gives up e4. }
+2. Ke4 $1 { [%ts 5:59] Outflanking: take e4, the square Black just gave up. }
+( 2. Ke3 { Also keeps the win by the engine, but it gives ground. John outflanks at once: take the square Black gave up. } )
+( 2. Kc3 { Also keeps the win by the engine, but it gives ground. John outflanks at once: take the square Black gave up. } )
+2... Kd6 { [%ts 6:33] Black naturally steps in front of the pawn with ...Kd6. }
+3. Kd4 $1 { [%ts 7:14] King d4. The opposition again, so Black has to give up space. }
+( 3. d4 $2 { [%ts 6:41] A massive mistake: Black plays ...Ke6 and takes the opposition himself. Keep the pawn back. } )
+3... Ke6 { [%ts 7:31] Now Black keeps e5 and d5. What should White do? }
+4. Kc5 $1 { [%ts 7:42] Black gave up c5, so the king takes it. }
+( 4. Ke4 { Also keeps the win by the engine, but it doesn't gain any ground. Which square did Black just give up? } )
+( 4. Kc4 { Also keeps the win by the engine, but it doesn't gain any ground. Which square did Black just give up? } )
+( 4. Kc3 { Also keeps the win by the engine, but it doesn't gain any ground. Which square did Black just give up? } )
+*
+
+[Event "King and pawn vs king: the rules"]
+[ChapterName "Clear the way, then push"]
+[Orientation "white"]
+[SetUp "1"]
+[FEN "8/8/2k1K3/8/8/8/3P4/8 w - - 0 1"]
+
+{ [%ts 8:24] White repeated the process, taking the opposition and outflanking, until the kings stood on opposite sides of the pawn: White on e6, Black on c6. White has cleared the space in front of the pawn. }
+1. d4 $1 { [%ts 8:40] Time to move the pawn. It hasn't left d2, so it can go two squares, and Black can't come to d5 or c5. }
+( 1. d3 { Also wins by the engine. John uses the two-square step now. } )
+( 1. Ke5 { Also wins by the engine, but the king's work is done. Time for the pawn. } )
+1... Kc7
+2. d5 $1
+( 2. Ke7 { Also wins by the engine. John keeps pushing: d5. } )
+( 2. Ke5 { Also wins by the engine. John keeps pushing: d5. } )
+2... Kd8 { [%ts 8:57] ...Kd8. What should White do? Pause and work it out. }
+3. Kd6 $1 { [%ts 9:41] The opposition move, Kd6. Black would love to pass, but he has to give way, and White's king goes to the other side. }
+( 3. d6 $2 { [%ts 9:15] It looks right, and John admits he played it before he knew the opposition. But ...Ke8 takes the opposition: d7+ Kd8, and White must stalemate with Kd6 or give up the pawn. } )
+*

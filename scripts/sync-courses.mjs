@@ -6,7 +6,8 @@
 //   content/supporter/courses/<slug>.json days 3+ (youtubeId/start/end/takeaway/lesson),
 //                                         gitignored: this repo is public
 //   src/generated/courses-catalog.json   what the app bundles (committed)
-//   KV patternchess-content              `course-day:<slug>:<n>` → JSON day content,
+//   KV patternchess-content              `course-day:<slug>:<n>` → JSON day content
+//                                         (with its built lesson as `lessonStudy`),
 //                                         served to supporters by the
 //                                         courses.dayContent RPC
 //
@@ -61,7 +62,13 @@ const fail = (slug, msg) => {
   throw new Error(`${slug}: ${msg}`);
 };
 
-function checkSegment(slug, n, d) {
+/** Built lesson JSON for a free day (bundled) or a supporter day (KV only, never in the repo). */
+const lessonFile = (lesson, supporter) =>
+  supporter
+    ? join(root, 'content', 'supporter', 'courses', 'built', `${lesson}.json`)
+    : join(root, 'src', 'generated', 'course-lessons', `${lesson}.json`);
+
+function checkSegment(slug, n, d, supporter = false) {
   if (!/^[A-Za-z0-9_-]{11}$/.test(String(d.youtubeId ?? ''))) fail(slug, `day ${n} needs an 11-character youtubeId`);
   for (const k of ['start', 'end']) {
     if (d[k] != null && !(Number.isInteger(d[k]) && d[k] >= 0)) fail(slug, `day ${n} ${k} must be whole seconds`);
@@ -70,10 +77,14 @@ function checkSegment(slug, n, d) {
   if (!String(d.takeaway ?? '').trim()) fail(slug, `day ${n} needs a takeaway`);
   if (d.lesson != null) {
     // The interactive lesson: an annotated PGN built by `npm run learn:sync`
-    // (an unlisted content/learn/catalog.json entry) into src/generated/courses/.
+    // (an unlisted content/learn/catalog.json entry, permission kind `course`)
+    // into src/generated/course-lessons/.
     if (!/^[a-z0-9-]{1,80}$/.test(String(d.lesson))) fail(slug, `day ${n} lesson must be a slug`);
-    if (!existsSync(join(root, 'src', 'generated', 'courses', `${d.lesson}.json`))) {
-      fail(slug, `day ${n} lesson "${d.lesson}" is not built: add it to content/learn/catalog.json (unlisted) and run npm run learn:sync`);
+    if (!existsSync(lessonFile(d.lesson, supporter))) {
+      fail(
+        slug,
+        `day ${n} lesson "${d.lesson}" is not built: add it to content/learn/catalog.json (unlisted${supporter ? ', supporterOnly' : ''}) and run npm run learn:sync`,
+      );
     }
   }
   return {
@@ -82,6 +93,8 @@ function checkSegment(slug, n, d) {
     ...(d.end != null ? { end: d.end } : {}),
     takeaway: String(d.takeaway).trim(),
     ...(d.lesson != null ? { lesson: String(d.lesson) } : {}),
+    // A supporter day carries its lesson in KV: the public bundle never has it.
+    ...(d.lesson != null && supporter ? { lessonStudy: JSON.parse(readFileSync(lessonFile(d.lesson, true), 'utf8')) } : {}),
   };
 }
 
@@ -117,7 +130,7 @@ const courses = catalog.courses.map((c) => {
     if (d.youtubeId || d.takeaway) fail(slug, `day ${n} is supporter-only: move its video and takeaway to content/supporter/courses/${slug}.json`);
     if (!locked) fail(slug, `content/supporter/courses/${slug}.json is missing (gitignored; restore it first)`);
     if (!locked[String(n)]) fail(slug, `content/supporter/courses/${slug}.json has no day ${n}`);
-    kvEntries.push({ key: `${KEY_PREFIX}${slug}:${n}`, value: JSON.stringify(checkSegment(slug, n, locked[String(n)])) });
+    kvEntries.push({ key: `${KEY_PREFIX}${slug}:${n}`, value: JSON.stringify(checkSegment(slug, n, locked[String(n)], true)) });
     return { day: n, title: d.title.trim(), locked: true };
   });
   if (locked) {

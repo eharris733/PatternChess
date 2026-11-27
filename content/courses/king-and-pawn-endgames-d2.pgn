@@ -1,0 +1,96 @@
+[Event "Winning paths and distant opposition"]
+[ChapterName "Finish from the opposition"]
+[Orientation "white"]
+[SetUp "1"]
+[FEN "3k4/8/3K4/3P4/8/8/8/8 b - - 0 1"]
+
+{ [%ts 9:49] White just played Kd6: kings on the same file, one square between them, Black to move. Black would love to pass, but he can't. Now finish the job. }
+1... Ke8 { [%ts 9:57] Black has to give way, to e8 or c8. Either way, White goes to the other side. }
+( 1... Kc8 { [%ts 10:05] If Black goes to c8 instead, the white king goes to the other side. } 2. Ke7 $1 { [%ts 10:05] Ke7, covering d7 and d8. } ( 2. Ke6 { Also wins by the engine, but it lets Black back in front of the pawn. Go to the other side. } ) ( 2. Kc6 { Also wins by the engine, but it lets Black back in front of the pawn. Go to the other side. } ) 2... Kc7 3. d6+ ( 3. Ke6 { Also wins by the engine, but it gives Black time. John finishes the job directly. } ) 3... Kc8 4. d7+ ( 4. Ke8 { Also wins by the engine, but it gives Black time. John finishes the job directly. } ) ( 4. Ke6 { Also wins by the engine, but it gives Black time. John finishes the job directly. } ) 4... Kc7 5. d8=Q+ ( 5. d8=R { Also wins, but take the queen. } ) ( 5. Ke8 { Also wins by the engine, but it gives Black time. John finishes the job directly. } ) )
+2. Kc7 $1 { [%ts 10:05] The king goes to the other side, c7, and covers d7 and d8. }
+( 2. Ke6 { Also wins by the engine, but it lets Black back in front of the pawn. Go to the other side. } ) ( 2. Kc6 { Also wins by the engine, but it lets Black back in front of the pawn. Go to the other side. } ) 
+2... Ke7
+3. d6+ $1 { [%ts 10:13] The pawn can march now: d6 check. }
+( 3. Kc6 { Also wins by the engine, but it gives Black time. John finishes the job directly. } ) 
+3... Ke8
+4. d7+ $1
+( 4. Kc8 { Also wins by the engine, but it gives Black time. John finishes the job directly. } ) ( 4. Kc6 { Also wins by the engine, but it gives Black time. John finishes the job directly. } ) 
+4... Ke7
+5. d8=Q+ $1 { [%ts 10:22] White promotes, gets a queen and wins. If White knows the opposition, nothing Black does from the start would have saved him once White played Kd3. }
+( 5. d8=R { Also wins, but take the queen. } ) ( 5. Kc8 { Also wins by the engine, but it gives Black time. John finishes the job directly. } ) 
+*
+
+[Event "Winning paths and distant opposition"]
+[ChapterName "Black to move: take the opposition"]
+[Orientation "black"]
+[SetUp "1"]
+[FEN "8/8/8/3k4/8/8/3PK3/8 b - - 0 1"]
+
+{ [%ts 10:55] The same starting position, king on d5 against king and pawn on d2, but Black to move this time. You're Black. What does the opposition tell you? }
+1... Ke4 $1 { [%ts 11:03] King e4. Now Black has the opposition and stops the white king from coming up. }
+( 1... Kd4 { Also holds by the engine. John takes the opposition with Ke4. } )
+( 1... Kd6 { Also holds by the engine. John takes the opposition with Ke4. } )
+( 1... Ke6 { Also holds by the engine. John takes the opposition with Ke4. } )
+2. d3+
+2... Kd4 $1
+( 2... Kd5 { Also holds by the engine. John steps to d4, in front of the pawn. } )
+( 2... Ke5 { Also holds by the engine. John steps to d4, in front of the pawn. } )
+( 2... Kf5 { Also holds by the engine. John steps to d4, in front of the pawn. } )
+( 2... Kf4 { Also holds by the engine. John steps to d4, in front of the pawn. } )
+3. Kd2 { [%ts 11:19] Kd2. Don't panic: having to retreat is no big deal, because the pawn coming forward doesn't mean White wins. }
+3... Kd5 $1 { [%ts 11:35] When you have to retreat, go directly backwards. It keeps both e5 and c5 ready, depending on which way the white king goes. }
+( 3... Ke5 { [%ts 11:35] King e5 doesn't spoil anything for now, but going straight back is the safest rule. } )
+( 3... Kc5 { [%ts 11:35] King c5 doesn't spoil anything for now, but going straight back is the safest rule. } )
+4. Ke3
+4... Ke5 $1 { [%ts 11:52] King e5: the opposition again. }
+5. d4+
+5... Kd5 $1 { [%ts 12:00] Right back in front of the pawn. }
+( 5... Kd6 { Also holds by the engine. John goes right back in front of the pawn, to d5. } )
+( 5... Ke6 { Also holds by the engine. John goes right back in front of the pawn, to d5. } )
+( 5... Kf5 { Also holds by the engine. John goes right back in front of the pawn, to d5. } )
+( 5... Kf6 { Also holds by the engine. John goes right back in front of the pawn, to d5. } )
+6. Kd3 { [%ts 12:00] White technically has the opposition, but there's a pawn in the way. }
+6... Kd6 $1 { [%ts 12:08] King d6. White can't keep the opposition: he goes to e4 or c4, and Black has a matching square. }
+( 6... Ke6 { Also holds by the engine. John steps straight back, to d6. } )
+( 6... Kc6 { Also holds by the engine. John steps straight back, to d6. } )
+7. Ke4 { [%ts 12:08] White goes to e4. Find the matching square. }
+7... Ke6 $1 { [%ts 12:16] [%cal Ge6e4] The defender likes symmetry: kings on the same file, so the white king can't come up. It's a dead draw. }
+*
+
+[Event "Winning paths and distant opposition"]
+[ChapterName "Black's only move"]
+[Orientation "black"]
+[SetUp "1"]
+[FEN "8/8/3k4/8/8/8/3PK3/8 b - - 0 1"]
+
+{ [%ts 13:08] Change one thing: the black king starts on d6. With White to move it's a draw, because Kd3 meets ...Kd5. With Black to move it's harder: Black has to find an only move. You're Black. }
+1... Ke6 $1 { [%ts 16:14] [%cal Ge6e2] King e6: the opposition. Same colour squares on the e-file, an odd number of squares between the kings (three this time, distant opposition), and White to move. Whoever breaks the standoff first loses it. }
+( 1... Kd5 $2 { [%ts 15:25] The natural move loses: Kd3 puts Black in zugzwang. Black has to give ground and Kc4 outflanks. } )
+( 1... Ke5 $2 { [%ts 15:57] White plays Ke3, and it's the same conclusion: Black has to give ground. } )
+( 1... Kc5 $2 { [%ts 17:03] Going to the c-file allows Ke3. The defender shouldn't get into an outflanking race: keep the kings lined up on the file. } )
+2. Kd3
+2... Kd5 $1 { [%ts 14:02] Kd5, and Black has taken the opposition. Wherever the white king goes, Black follows. }
+3. Ke3 { [%ts 14:10] Whichever way the white king goes, the defender follows along the file. }
+3... Ke5 $1 { [%ts 14:36] King e5, staying in front of the king along the file. }
+( 3... Kc4 $2 { [%ts 14:10] Don't outflank as the defender: White plays Ke4 and you're losing. } )
+4. Kf3 { [%ts 14:19] If White goes too far from the pawn, like Kf3... }
+4... Kd4 $1 { [%ts 14:19] ...cut back towards the pawn and stay right in front of it. }
+( 4... Kd5 { Also holds by the engine. John cuts back towards the pawn, in front of it. } )
+( 4... Kf5 { Also holds by the engine. John cuts back towards the pawn, in front of it. } )
+*
+
+[Event "Winning paths and distant opposition"]
+[ChapterName "The reserve tempo"]
+[Orientation "white"]
+[SetUp "1"]
+[FEN "8/8/3k4/8/3K4/8/3P4/8 w - - 0 1"]
+
+{ [%ts 18:17] An exception. The black king started way back on d8 and took the distant opposition with ...Ke8, five squares between the kings. Then both kings came up: White to d4, Black to d6. It looks like the standoff from the last chapter. What should White do? }
+1. d3 $1 { [%ts 18:46] [%cal Gd2d3] d3, a reserve tempo. White throws the move back to Black: the king stays on d4, and now Black has to move his. }
+( 1. Ke4 { Also wins by the engine, since the pawn keeps its spare move for later. John spends it now: find the pawn move. } )
+( 1. Kc4 { Also wins by the engine, since the pawn keeps its spare move for later. John spends it now: find the pawn move. } )
+1... Ke6 { [%ts 19:03] The opposition depends on whose move it is, so Black isn't happy. Say ...Ke6. }
+( 1... Kc6 { [%ts 19:11] If Black leaves d6 the other way, to c6, outflank on the other side. } 2. Ke5 $1 { [%ts 19:11] Ke5: the mirror image of Kc5 against ...Ke6. } ( 2. Ke4 { Also wins by the engine, but it gains no ground. Outflank. } ) ( 2. Kc4 { Also wins by the engine, but it gains no ground. Outflank. } ) )
+2. Kc5 $1 { [%ts 19:11] Kc5, outflanking, and White will win. }
+( 2. Ke4 { Also wins by the engine, but it gains no ground. Outflank. } ) ( 2. Kc4 { Also wins by the engine, but it gains no ground. Outflank. } ) 
+*

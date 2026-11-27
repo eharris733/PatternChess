@@ -12,9 +12,16 @@
 //   src/generated/learnCatalog.json   — small metadata index (bundled)
 //   content/learn/snapshots/<id>.pgn  — raw PGN, for reviewing diffs
 //   content/learn/catalog.lock.json   — Last-Modified per study
-//   src/generated/courses/<slug>.json — `unlisted` entries (creator demos):
-//                                       served only at /c/<slug>, never in the
-//                                       index or the /learn list
+//   src/generated/courses/<slug>.json — `outreach-demo` entries (creator
+//                                       demos), served only at /c/<slug>
+//   src/generated/course-lessons/<slug>.json — free course-day lessons
+//                                       (permission kind `course`), served only
+//                                       by a course day, so /c/<slug> can never
+//                                       open a course that isn't granted yet
+//   content/supporter/courses/built/<slug>.json — `supporterOnly` lessons
+//                                       (course days 3+; gitignored, this repo
+//                                       is public): `npm run courses:sync`
+//                                       uploads them to KV with their day
 //
 // Deliberately NOT part of `npm run build`: CI must never depend on Lichess.
 //
@@ -41,12 +48,15 @@ const lockPath = join(root, 'content/learn/catalog.lock.json');
 const snapshotDir = join(root, 'content/learn/snapshots');
 const outDir = join(root, 'src/generated/learn');
 const coursesDir = join(root, 'src/generated/courses');
+const courseLessonsDir = join(root, 'src/generated/course-lessons');
+const supporterBuiltDir = join(root, 'content/supporter/courses/built');
 const indexPath = join(root, 'src/generated/learnCatalog.json');
 const bookPath = join(root, 'src/generated/openingBook.json');
 
 const CATEGORIES = new Set(['openings', 'strategy', 'endgames']);
 const LEVELS = new Set(['beginner', 'intermediate', 'advanced']);
-const PERMISSION_KINDS = new Set(['author-granted', 'patternchess', 'cc-by', 'cc0', 'outreach-demo']);
+// `course`: a course-day lesson whose permission is the course's own (content/courses/catalog.json).
+const PERMISSION_KINDS = new Set(['author-granted', 'patternchess', 'cc-by', 'cc0', 'outreach-demo', 'course']);
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 interface Permission {
@@ -82,6 +92,8 @@ interface CatalogEntry {
   enabled: boolean;
   /** Reachable only by link at /c/<slug>; never listed or indexed. */
   unlisted?: boolean;
+  /** A lesson for a supporter course day: built outside the repo (see header). */
+  supporterOnly?: boolean;
   source?: VideoSource;
 }
 
@@ -113,8 +125,11 @@ function validate(e: CatalogEntry, families: Set<string>): string[] {
   }
   // A private pitch demo built from a creator's video must never be listed
   // until the creator agrees (then it gets a real permission kind).
-  if (e.permission?.kind === 'outreach-demo' && !e.unlisted) {
-    errs.push('outreach-demo courses must be unlisted');
+  if ((e.permission?.kind === 'outreach-demo' || e.permission?.kind === 'course') && !e.unlisted) {
+    errs.push(`${e.permission.kind} lessons must be unlisted`);
+  }
+  if (e.supporterOnly && (!e.unlisted || !e.pgnFile?.startsWith('content/supporter/'))) {
+    errs.push('supporterOnly lessons must be unlisted with a pgnFile under content/supporter/ (gitignored)');
   }
   if (e.source && (e.source.kind !== 'youtube' || !e.source.url || !e.source.channel || !e.source.title)) {
     errs.push('source needs kind "youtube", url, channel and title');
@@ -167,13 +182,34 @@ function keepChapter(e: CatalogEntry, id: string, name: string): boolean {
   return !e.chapterFilter || e.chapterFilter.includes(id) || e.chapterFilter.includes(name);
 }
 
+type BuildKind = 'listed' | 'unlisted' | 'course' | 'supporter';
+
+/** Where a study is built: supporter lessons, free course lessons, demos, or the /learn library. */
+function kindOf(e: CatalogEntry): BuildKind {
+  if (e.supporterOnly) return 'supporter';
+  if (e.permission?.kind === 'course') return 'course';
+  return e.unlisted ? 'unlisted' : 'listed';
+}
+
+function dirFor(kind: BuildKind): string {
+  return kind === 'supporter'
+    ? supporterBuiltDir
+    : kind === 'course'
+      ? courseLessonsDir
+      : kind === 'unlisted'
+        ? coursesDir
+        : outDir;
+}
+
 async function main() {
   const catalog = readJson<{ studies: CatalogEntry[] }>(catalogPath, { studies: [] });
   const lock = readJson<Record<string, { lastModified: string | null; builtAt: string }>>(lockPath, {});
   const families = openingFamilies();
   mkdirSync(outDir, { recursive: true });
   mkdirSync(coursesDir, { recursive: true });
+  mkdirSync(courseLessonsDir, { recursive: true });
   mkdirSync(snapshotDir, { recursive: true });
+  mkdirSync(supporterBuiltDir, { recursive: true });
 
   const index: unknown[] = [];
   let failed = 0;
@@ -188,7 +224,12 @@ async function main() {
       continue;
     }
     slugs.add(e.slug);
-    const dir = e.unlisted ? coursesDir : outDir;
+    const dir = dirFor(kindOf(e));
+    if (e.supporterOnly && e.pgnFile && !existsSync(join(root, e.pgnFile))) {
+      // Supporter sources aren't in this public repo; without them, keep whatever was built.
+      console.warn(`  ! ${e.pgnFile} not here (supporter content), skipped`);
+      continue;
+    }
     const errs = validate(e, families);
     if (errs.length > 0) {
       for (const err of errs) console.error(`  ✗ ${err}`);
@@ -259,9 +300,10 @@ async function main() {
   // Generated files are owned by this script: drop studies that were disabled
   // or removed from the catalog so they stop being bundled.
   // A failed fetch keeps its last good build (it just isn't in this index).
-  const unlisted = new Set(catalog.studies.filter((e) => e.unlisted).map((e) => e.slug));
-  for (const [d, wantUnlisted] of [[outDir, false], [coursesDir, true]] as const) {
-    const keep = new Set([...slugs].filter((s) => unlisted.has(s) === wantUnlisted).map((s) => `${s}.json`));
+  const kinds = new Map(catalog.studies.map((e) => [e.slug, kindOf(e)]));
+  for (const want of ['listed', 'unlisted', 'course', 'supporter'] as const) {
+    const d = dirFor(want);
+    const keep = new Set([...slugs].filter((s) => kinds.get(s) === want).map((s) => `${s}.json`));
     for (const f of readdirSync(d)) {
       if (f.endsWith('.json') && !keep.has(f)) {
         rmSync(join(d, f));

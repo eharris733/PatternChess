@@ -1,0 +1,34 @@
+[Event "Stop Hanging Pieces: Positions 1 to 3"]
+[ChapterName "The sniper on b1"]
+[Orientation "black"]
+[SetUp "1"]
+[FEN "5bR1/3n1Q2/p5pk/1pqPp2p/7P/5BK1/5P2/1b6 w - - 0 1"]
+
+{ [%ts 1:22] Can opens with a route puzzle: a bishop on e2 has to give a safe check in two moves, and only Bd1 then Bb3 works, because the knight catches it on every other route. That's the first way to hang a piece: put it on a square where the enemy can just take it. Now a game position. You have Black, so watch what White plays. }
+1. Qxg6+ $4 { [%ts 3:58] [%cal Rb1g6] White had a mate in one, and plenty of players look at Qxg6+ instead. It looks like mate too, until you see the sniper bishop on b1. Take the queen. }
+( 1. Rh8# { [%ts 3:47] The move White wanted: Rh8, a simple mate in one. } )
+1... Bxg6 { [%ts 4:39] Tunnel vision on the kingside. The little bishop on b1 was lurking on the other side of the board the whole time, so zoom out and look at every piece before you move. }
+*
+
+[Event "Stop Hanging Pieces: Positions 1 to 3"]
+[ChapterName "Rook d1 or f4?"]
+[Orientation "white"]
+[SetUp "1"]
+[FEN "4r1k1/pb3pp1/1p2p2p/2p3b1/8/5PP1/PPP3QP/2R4K w - - 0 1"]
+
+{ [%ts 4:52] The second way to hang a piece. Black just played Bg5, attacking your rook on c1. White has a queen for two bishops. Two choices: move the rook to d1, or hit the bishop with f4? }
+1. Rd1 $1 { [%ts 5:04] [%cal Gc1d1] Rd1 is the beautiful move: the rook is safe and takes the open file. White is winning. }
+( 1. f4 $4 { [%ts 5:21] [%cal Rb7g2] It looks multi-purpose: hit the bishop with tempo, then move the rook. What you're missing is the sniper bishop on b7, lined up with your queen on g2. The f-pawn was blocking it, and after f4 Black plays Bxg2+. } )
+*
+
+[Event "Stop Hanging Pieces: Positions 1 to 3"]
+[ChapterName "Punishing f4"]
+[Orientation "black"]
+[SetUp "1"]
+[FEN "4r1k1/pb3pp1/1p2p2p/2p3b1/8/5PP1/PPP3QP/2R4K w - - 0 1"]
+
+{ [%ts 5:37] Now sit on the other side. Can is sure many beginners would play f4 here, because the bishop on b7 just isn't in their vision. You have Black. }
+1. f4 $4 { [%ts 6:35] f4 isn't a queen moving to a square where she can be taken. A pawn moved and exposed the queen on g2 to your bishop. Punish it. }
+1... Bxg2+ $1 { [%ts 5:29] [%cal Gb7g2] Your bishop on b7 and the queen on g2 were aligned on the same diagonal, and f4 opened it. When important pieces line up like this, care is required. }
+( 1... Re7 { Also wins by the engine, but why wait? Take the queen now. } )
+*

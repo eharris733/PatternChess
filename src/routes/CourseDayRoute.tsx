@@ -1,3 +1,4 @@
+import type { LearnStudy } from '../models/learn';
 import { useState } from 'react';
 import { useQuotaGuard } from '../hooks/useDailyQuota';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
@@ -221,9 +222,13 @@ export function CourseDayRoute() {
       : meta?.youtubeId
         ? { youtubeId: meta.youtubeId, start: meta.start, end: meta.end, takeaway: meta.takeaway ?? '', lesson: meta.lesson }
         : null;
-  const lessonSlug = segment?.lesson && hasLesson(segment.lesson) ? segment.lesson : null;
-  const lesson = useCourseLesson(lessonSlug);
-  const lessonVideoId = lesson.data?.source ? youtubeIdFromUrl(lesson.data.source.url) : null;
+  // A supporter day brings its lesson with the day content (KV); a free day's
+  // lesson is a lazy chunk of the bundle.
+  const inlineLesson = (segment?.lessonStudy as LearnStudy | undefined) ?? null;
+  const lessonSlug = !inlineLesson && segment?.lesson && hasLesson(segment.lesson) ? segment.lesson : null;
+  const bundledLesson = useCourseLesson(lessonSlug);
+  const lessonData = inlineLesson ?? bundledLesson.data ?? null;
+  const lessonVideoId = lessonData?.source ? youtubeIdFromUrl(lessonData.source.url) : null;
   const player = useYouTubePlayer(segment?.youtubeId ?? null, { start: segment?.start, end: segment?.end });
 
   if (!course) {
@@ -290,6 +295,8 @@ export function CourseDayRoute() {
         : null;
 
   let lessonStep: React.ReactNode;
+  // The interactive lesson is on screen (laid out full width, below).
+  let drilling = false;
   if (status === 'locked') {
     lessonStep = (
       <section className="card text-text-primary" data-testid="course-day-locked">
@@ -314,23 +321,23 @@ export function CourseDayRoute() {
         </div>
       </section>
     );
-  } else if (!segment || (lessonSlug && lesson.isPending)) {
+  } else if (!segment || (lessonSlug && bundledLesson.isPending)) {
     lessonStep = contentError ? (
       <p className="card text-text-primary">{contentError}</p>
     ) : (
       <Skeleton className="aspect-video w-full" />
     );
-  } else if (lesson.data && (!lessonDone || replay)) {
+  } else if (lessonData && (!lessonDone || replay)) {
+    drilling = true;
     lessonStep = (
       <div className="flex flex-col gap-3" data-testid="course-lesson-drill">
         <LessonPlayer
           key={replay ? 'replay' : 'first'}
-          study={lesson.data}
+          study={lessonData}
           // The lesson's [%ts] moments point into its own source video: share
           // the day's clip only when it is that video.
           video={lessonVideoId === segment.youtubeId ? player : undefined}
           videoTitle={dayTitle}
-          narrow
           finishLabel={lessonDone ? 'Done' : 'Finish the lesson'}
           onFinish={markDone}
           header={
@@ -355,7 +362,7 @@ export function CourseDayRoute() {
                 <CheckIcon className="h-4 w-4 text-correct" />
                 {justFinished ? 'Lesson done. Now your games.' : 'Lesson done.'}
               </span>
-              {lesson.data && (
+              {lessonData && (
                 <button type="button" className="btn-outline" onClick={() => setReplay(true)} data-testid="course-replay">
                   Replay the lesson drill
                 </button>
@@ -378,6 +385,18 @@ export function CourseDayRoute() {
     );
   }
 
+  const dayHeading = (
+    <div className="flex flex-col gap-2">
+      <span className="text-xs font-semibold text-text-primary">
+        Day {day} of {total}
+      </span>
+      <h2 className="heading-md" data-testid="course-day-title">
+        {meta!.title}
+      </h2>
+      {status !== 'locked' && <DaySteps lessonDone={lessonDone} hasDrill={!!lessonData || !!lessonSlug} />}
+    </div>
+  );
+
   return (
     <div className="max-w-5xl mx-auto flex flex-col gap-6" data-testid="course-day">
       <BackLink to="/courses" label="Courses" />
@@ -394,19 +413,24 @@ export function CourseDayRoute() {
         </p>
       </header>
 
+      {/* While the lesson drill runs it takes the full width, board and coach
+          side by side, so the note and Continue sit beside the board instead
+          of below the fold; the lesson list moves under it. */}
+      {drilling && (
+        <div className="flex flex-col gap-4 min-w-0">
+          {dayHeading}
+          {lessonStep}
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="flex flex-col gap-4 min-w-0">
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold text-text-primary">
-              Day {day} of {total}
-            </span>
-            <h2 className="heading-md" data-testid="course-day-title">
-              {meta!.title}
-            </h2>
-            {status !== 'locked' && <DaySteps lessonDone={lessonDone} hasDrill={!!lessonSlug} />}
-          </div>
-
-          {lessonStep}
+          {!drilling && (
+            <>
+              {dayHeading}
+              {lessonStep}
+            </>
+          )}
 
           <section
             className={clsx('card flex flex-col gap-3', lessonDone && 'border-gold-dark')}
