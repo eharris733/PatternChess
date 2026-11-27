@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DailyPlan, PlanStepId } from '../../hooks/useDailyPlan';
 import { useT, type Translator } from '../../i18n/useT';
+import { PlayLinks } from '../PlayLinks';
 
 /** Seconds a plan run waits on the "Next in today's plan" card before moving on. */
 export const PLAN_RUN_AUTO_SECONDS = 3;
@@ -89,9 +90,11 @@ export function PlanRunNext({
           </span>
         )}
       </span>
-      {external && plan.playHref ? (
+      {external && plan.play.length > 1 ? (
+        <PlayLinks targets={plan.play} />
+      ) : external && plan.play.length === 1 ? (
         <a
-          href={plan.playHref}
+          href={plan.play[0].href}
           target="_blank"
           rel="noopener noreferrer"
           className="btn-outline h-9 px-4 text-xs shrink-0 whitespace-nowrap"

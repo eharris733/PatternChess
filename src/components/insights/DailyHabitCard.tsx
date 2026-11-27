@@ -5,7 +5,7 @@ import { useDailyPlan } from '../../hooks/useDailyPlan';
 import { COMMITMENT_LABEL } from '../../lib/dailyGoal';
 import { useSyncStore } from '../../state/syncStore';
 import { streakNoticeText, useStreakNoticeStore } from '../../state/streakNoticeStore';
-import { nearestAchievement } from '../../lib/achievements';
+import { achievementProgressLabel, nearestAchievement } from '../../lib/achievements';
 import { CheckIcon } from '../icons/CheckIcon';
 import { TrophyIcon } from '../icons/TrophyIcon';
 import { EndgameIcon } from '../icons/EndgameIcon';
@@ -13,6 +13,8 @@ import { TrainIcon } from '../icons/TrainIcon';
 import { OpeningIcon } from '../icons/OpeningIcon';
 import { KingIcon } from '../icons/KingIcon';
 import { PlatformLogo } from '../icons/PlatformLogos';
+import { PlayLinks } from '../PlayLinks';
+import type { PlayTarget } from '../../hooks/useDailyPlan';
 import { LockIcon } from '../icons/LockIcon';
 import { SnowflakeIcon } from '../icons/SnowflakeIcon';
 import { CloseIcon } from '../icons/CloseIcon';
@@ -37,6 +39,7 @@ function PlanStep({
   actionShort,
   onAction,
   href,
+  links,
   loading,
   idle,
   locked,
@@ -54,6 +57,8 @@ function PlanStep({
   onAction?: () => void;
   /** External link (opens a new tab) instead of `onAction`. */
   href?: string;
+  /** Several external links (Play on each linked site); takes over from `href`. */
+  links?: PlayTarget[];
   loading?: boolean;
   /** Nothing to do here yet (no material): no count, never blocks the plan. */
   idle?: boolean;
@@ -138,6 +143,8 @@ function PlanStep({
           <LockIcon className="h-3.5 w-3.5" />
           {label}
         </button>
+      ) : links && links.length > 1 ? (
+        <PlayLinks targets={links} primary={!complete && !idle} testId={testId ? `${testId}-links` : undefined} />
       ) : href ? (
         <a
           href={href}
@@ -209,7 +216,6 @@ export function DailyHabitCard() {
   const {
     goals,
     play,
-    playHref,
     showPlay,
     drillsToday,
     dueCount,
@@ -421,10 +427,16 @@ export function DailyHabitCard() {
             onAction={() => guard('endgames') && (endgamesDone ? navigate('/endgames') : startStep('endgames'))}
           />
         )}
-        {showPlay && playHref && profile && (
+        {showPlay && profile && (
           <PlanStep
             testId="plan-step-play"
-            icon={play ? <PlatformLogo platform={play.platform} className="h-5 w-5" /> : <KingIcon color="white" className="h-5 w-5" />}
+            icon={
+              play.length === 1 ? (
+                <PlatformLogo platform={play[0].platform} className="h-5 w-5" />
+              ) : (
+                <KingIcon color="white" className="h-5 w-5" />
+              )
+            }
             title={t('plan.play.title', { count: goals.gamesPerDay })}
             detail={
               playLocked ? (
@@ -450,7 +462,8 @@ export function DailyHabitCard() {
             loading={gamesTodayPending}
             locked={playLocked}
             action={t('common.play')}
-            href={playHref}
+            href={play[0].href}
+            links={play}
           />
         )}
       </ul>
@@ -494,7 +507,7 @@ export function DailyHabitCard() {
           <div className="flex items-baseline justify-between">
             <span className="label">{t('plan.nextAchievement')}</span>
             <span className="font-mono text-text-primary text-xs tabular-nums">
-              {Math.min(next.value, next.threshold).toLocaleString()}/{next.threshold.toLocaleString()}
+              {achievementProgressLabel(next, t)}
             </span>
           </div>
           <div className="flex items-center gap-2">

@@ -18,14 +18,20 @@ import type { PlatformId } from '../components/icons/PlatformLogos';
 /** The plan's steps, in the order they show (and the order "Next" walks). */
 export type PlanStepId = 'lesson' | 'train' | 'openings' | 'endgames' | 'play';
 
-/** Where the Play step sends you: the platform you sync from (Lichess first). */
-export function playTarget(
-  lichess: string | null,
-  chesscom: string | null,
-): { platform: PlatformId; href: string } | null {
-  if (lichess) return { platform: 'lichess', href: 'https://lichess.org/' };
-  if (chesscom) return { platform: 'chesscom', href: 'https://www.chess.com/play/online' };
-  return null;
+export interface PlayTarget {
+  platform: PlatformId;
+  href: string;
+}
+
+/**
+ * Where the Play step sends you: every platform you sync from (Lichess, then
+ * Chess.com). A player with both linked gets both, since either one counts.
+ */
+export function playTargets(lichess: string | null, chesscom: string | null): PlayTarget[] {
+  const targets: PlayTarget[] = [];
+  if (lichess) targets.push({ platform: 'lichess', href: 'https://lichess.org/' });
+  if (chesscom) targets.push({ platform: 'chesscom', href: 'https://www.chess.com/play/online' });
+  return targets;
 }
 
 /**
@@ -58,10 +64,9 @@ export function useDailyPlan() {
   // A lapsed supporter's Obsessed/custom plan reads as its free cap (dailyGoal.ts).
   const storedGoals = profile?.dailyGoals ?? DEFAULT_DAILY_GOALS;
   const goals = supporter.isPending ? storedGoals : effectiveGoals(storedGoals, supporter.isSupporter);
-  const play = playTarget(profile?.lichessUsername ?? null, profile?.chesscomUsername ?? null);
-  const playHref = play?.href ?? null;
+  const play = playTargets(profile?.lichessUsername ?? null, profile?.chesscomUsername ?? null);
   // PGN-only players have nothing to sync, so the Play step can't detect games.
-  const showPlay = goals.gamesPerDay > 0 && playHref != null;
+  const showPlay = goals.gamesPerDay > 0 && play.length > 0;
 
   const tz = profile?.timezone ?? detectTimezone();
   const today = localDate(tz);
@@ -157,7 +162,6 @@ export function useDailyPlan() {
     today,
     tz,
     play,
-    playHref,
     showPlay,
     // Train
     drillsPending,
