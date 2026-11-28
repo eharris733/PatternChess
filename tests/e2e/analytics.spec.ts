@@ -246,50 +246,47 @@ const SOCIAL_QUEUE = {
   ],
 };
 
+const rw = (counts: Record<string, [number, number]>) =>
+  Object.fromEntries(
+    ['d1', 'd7', 'd30', 'w1', 'w2', 'w4', 'w8'].map((k) => {
+      const [retained, eligible] = counts[k] ?? [0, 0];
+      return [k, { retained, eligible }];
+    }),
+  );
+const rc = (cohort: string, signups: number, trained: number, counts: Record<string, [number, number]>) => ({
+  cohort,
+  signups,
+  trained,
+  trained2Days: Math.round(trained / 2),
+  trained5Days: Math.round(trained / 5),
+  windows: rw(counts),
+});
 const RETENTION = {
-  cohorts: [
-    {
-      cohort: 'all',
-      signups: 92,
-      trained: 72,
-      trained2Days: 32,
-      trained5Days: 11,
-      curve: [
-        { day: 1, eligible: 89, retained: 35 },
-        { day: 7, eligible: 60, retained: 20 },
-        { day: 14, eligible: 45, retained: 12 },
-        { day: 30, eligible: 30, retained: 7 },
-        { day: 60, eligible: 23, retained: 4 },
-      ],
-    },
-    {
-      cohort: '2026-10',
-      signups: 45,
-      trained: 35,
-      trained2Days: 14,
-      trained5Days: 1,
-      curve: [
-        { day: 1, eligible: 42, retained: 16 },
-        { day: 7, eligible: 13, retained: 3 },
-        { day: 14, eligible: 0, retained: 0 },
-        { day: 30, eligible: 0, retained: 0 },
-        { day: 60, eligible: 0, retained: 0 },
-      ],
-    },
-    {
-      cohort: '2026-09',
-      signups: 22,
-      trained: 18,
-      trained2Days: 8,
-      trained5Days: 5,
-      curve: [
-        { day: 1, eligible: 22, retained: 8 },
-        { day: 7, eligible: 22, retained: 6 },
-        { day: 14, eligible: 20, retained: 4 },
-        { day: 30, eligible: 5, retained: 1 },
-        { day: 60, eligible: 0, retained: 0 },
-      ],
-    },
+  windows: [
+    { key: 'd1', label: 'D1', start: 1, end: 1 },
+    { key: 'd7', label: 'D7', start: 7, end: 7 },
+    { key: 'd30', label: 'D30', start: 30, end: 30 },
+    { key: 'w1', label: 'Week 1', start: 1, end: 7 },
+    { key: 'w2', label: 'Week 2', start: 8, end: 14 },
+    { key: 'w4', label: 'Week 4', start: 22, end: 28 },
+    { key: 'w8', label: 'Week 8', start: 50, end: 56 },
+  ],
+  all: rc('all', 120, 92, {
+    d1: [26, 110],
+    d7: [9, 100],
+    d30: [3, 75],
+    w1: [40, 100],
+    w2: [20, 95],
+    w4: [4, 80],
+    w8: [1, 20],
+  }),
+  byWeek: [
+    rc('2026-11-23', 12, 10, { d1: [3, 9] }),
+    rc('2026-11-16', 20, 16, { d1: [5, 20], d7: [1, 12], w1: [6, 12] }),
+  ],
+  byMonth: [
+    rc('2026-11', 40, 33, { d1: [9, 38], d7: [2, 28], w1: [10, 28] }),
+    rc('2026-10', 50, 39, { d1: [12, 50], d7: [5, 50], w1: [20, 50], w2: [10, 50], w4: [4, 45] }),
   ],
   weeks: [
     { week: '2026-09-28', active: 17, returning: 5 },
@@ -307,13 +304,16 @@ test('admin sees signup-cohort retention at /analytics', async ({ page }) => {
   await page.goto('/analytics');
   await expect(page.getByRole('heading', { name: 'Analytics' })).toBeVisible({ timeout: 20_000 });
 
-  const card = page.locator('section', { has: page.getByText('Retention', { exact: true }) });
+  const card = page.getByTestId('retention-card');
   await expect(card).toBeVisible();
-  await expect(card.getByText('D30 retention')).toBeVisible();
-  // 7 of 30 → 23%, over the 20% bar with n ≥ 20.
-  await expect(card.getByText('target ≥ 20% · n = 30')).toBeVisible();
-  await expect(card.getByRole('cell', { name: /^All users$/ })).toBeVisible();
-  await expect(card.getByTitle('7 of 30 users')).toContainText('23%');
+  // Week 4: 4 of 80 (5%), whole interval under the 15% target → fix first.
+  await expect(card.getByTestId('retention-verdict')).toContainText('Fix retention before scaling');
+  await expect(card.getByTestId('retention-verdict')).toContainText('4 of 80 users');
+  await expect(card.getByText('Duolingo (est.)')).toBeVisible();
+  await expect(card.getByRole('cell', { name: /^Nov 23/ })).toBeVisible();
+  await expect(card.getByText(/Shipped: Free daily limits/)).toBeVisible();
+  await card.getByRole('tab', { name: 'Monthly' }).click();
+  await expect(card.getByText('Oct 2026')).toBeVisible();
   await expect(card.getByText('7 + 24 new')).toBeVisible();
 
   expect(errors, errors.join('\n')).toHaveLength(0);
